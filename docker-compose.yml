@@ -1,0 +1,11 @@
+services:
+  open-spatial-lab:
+    build: .
+    ports:
+      - "${OSL_FRONTEND_PORT:-8143}:8143"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get({host:'127.0.0.1',port:process.env.OSL_FRONTEND_PORT,path:'/healthz',timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 5

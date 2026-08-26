@@ -1,0 +1,11 @@
+node_modules
+.runtime
+coverage
+.git
+.gitignore
+*.log
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
