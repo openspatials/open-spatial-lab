@@ -49,7 +49,7 @@ If Node.js 22.x and npm 10.x are not installed, select the 22.x release from the
 Use the following commands as the required first-run path; there is no separate build or preflight step.
 
 ```bash
-git clone https://github.com/grigb/open-spatial-lab.git
+git clone https://github.com/openspatials/open-spatial-lab.git
 cd open-spatial-lab
 npm ci
 npm start
