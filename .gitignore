@@ -7,3 +7,10 @@ coverage/
 *.log
 *.pem
 *.key
+
+# Proof and check output
+diagnostics/
+evidence/
+
+# Local tool state
+.dev/
