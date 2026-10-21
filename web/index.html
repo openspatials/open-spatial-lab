@@ -57,7 +57,7 @@
     #app.rail-collapsed { --osl-camera-control-right: 10px; }
     #app[hidden], #demo-launcher-mount[hidden] { display: none !important; }
 
-    /* runtime (#16): the header is a FIXED-height bar. Long labels
+    /* the header is a FIXED-height bar. Long labels
        must NOT grow it — every text child truncates with an ellipsis instead
        (see .loc-title / .loc-meta). height + overflow:hidden pin the height. */
     header.role-banner { position: absolute; z-index: 20; top: var(--osl-glass-edge);
@@ -75,11 +75,11 @@
       border: 1px solid var(--target); }
     .role-player .role-chip { background: rgba(70,209,138,.16); color: var(--ok);
       border: 1px solid var(--ok); }
-    /* runtime (#16): loc-title flexes and ellipsis-truncates so a long location
+    /* loc-title flexes and ellipsis-truncates so a long location
        name never grows or wraps the fixed-height header. */
     .loc-title { font-size: 14px; font-weight: 700; min-width: 0; flex: 1 1 auto;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* runtime (#17): the redundant location-meta line is hidden in the header
+    /* the redundant location-meta line is hidden in the header
        (location/world/session ids still live in the debug rail). Kept in the DOM
        for any downstream reader but removed from the header's visible chrome. */
     .loc-meta { display: none; }
@@ -89,7 +89,7 @@
     .live-tag.connection-live { background: rgba(70,209,138,.16); color: var(--ok); border-color: var(--ok); }
     .live-tag.connection-disconnected, .live-tag.connection-error {
       background: rgba(255,93,108,.12); color: var(--bad); border-color: var(--bad); }
-    /* runtime (#17): the idle/waiting/arrived state text no longer renders in the
+    /* the idle/waiting/arrived state text no longer renders in the
        header — the phase-pill is hidden (phase stays in the rail + toasts). */
     .phase-pill { display: none; }
     .header-actions { flex: 0 0 auto; min-width: max-content; margin-left: auto;
@@ -105,13 +105,13 @@
       pointer-events: none; }
     .lobby-return-label { display: block; flex: none; font: 800 15px/1 ui-monospace, Menlo, monospace;
       pointer-events: none; }
-    /* runtime: compact header avatar-switch glyph — same treatment as
+    /* compact header avatar-switch glyph — same treatment as
        .lobby-return-label ("L"), just a different letter. */
     .avatar-switch-label { display: block; flex: none; font: 800 15px/1 ui-monospace, Menlo, monospace;
       pointer-events: none; }
     /* .header-icon-button's explicit display overrides the UA [hidden] rule. Keep the
        role/location-controlled controls truly hidden when their controllers set hidden,
-       and keep the two owner-removed compatibility controls hidden even when Runtime
+       and keep the two removed compatibility controls hidden even when Runtime
        Tweaks clears its hidden property during mount. Their DOM/controller seams remain. */
     #btn-camera-toggle[hidden], #btn-switch-avatar[hidden], #btn-return-lobby[hidden] { display: none; }
     #btn-semantic-destinations, #btn-runtime-tweaks { display: none; }
@@ -133,7 +133,7 @@
       --notification-badge-display: none;
     }
     .notification-badge { display: var(--notification-badge-display, inline-flex); }
-    /* runtime (#6): collapse toggle for the whole right rail, docked in the header. */
+    /* collapse toggle for the whole right rail, docked in the header. */
     .rail-icon { position: relative; width: 18px; height: 14px; border: 1.5px solid currentColor;
       border-radius: 2px; display: inline-block; }
     .rail-icon::after { content: ""; position: absolute; top: 0; right: 0; width: 5px; height: 100%;
@@ -147,7 +147,7 @@
       --rail-h: min(640px, calc(var(--osl-viewport-height) - var(--osl-panel-top) - var(--osl-shell-footer-height) - var(--osl-glass-edge)));
     }
     main { position: absolute; inset: 0; min-height: 0; min-width: 0; overflow: hidden; }
-    /* runtime (#6): when collapsed the rail column goes to zero width and the
+    /* when collapsed the rail column goes to zero width and the
        scene takes the full row. The rail itself is display:none so it can't
        intercept scroll/pointer events while hidden. */
     #app.rail-collapsed aside.rail { display: none; }
@@ -189,7 +189,7 @@
       z-index: 2;
       pointer-events: none;
     }
-    /* runtime: CSS and the renderer's drawing buffer consume the same
+    /* CSS and the renderer's drawing buffer consume the same
        canonical live visual-viewport dimensions. The explicit renderer resize in
        app.js/scene-runtime-controller.mjs prevents this from becoming a stale
        CSS-only stretch. */
@@ -225,9 +225,9 @@
     .waiting .state-card { border-color: var(--target); }
     .arrived .state-card { border-color: var(--ok); }
     .departed .state-card { border-color: var(--source); }
-    /* runtime: transient auto-dismissing toasts for crossing/departed/
+    /* transient auto-dismissing toasts for crossing/departed/
        arrival EVENT notices (replaces the former persistent state-card use for
-       those phases). runtime (#15): the idle/waiting START-STATE
+       those phases). (#15): the idle/waiting START-STATE
        cards ("Location A", "Waiting for arrival at …") are removed entirely —
        only the transient portal-active card still uses .state-card above. */
     .toast-stack {
@@ -447,7 +447,7 @@
     .refresh-settings-modal .refresh-line { color: var(--ink-dim); font: 10.5px ui-monospace, Menlo, monospace;
       margin-top: 8px; overflow-wrap: anywhere; }
 
-    /* runtime: compact session-local tuning surface. It floats independently
+    /* compact session-local tuning surface. It floats independently
        of the rail so the player can tune while the inspector stays collapsed. */
     .runtime-tweak-palette { position: fixed; z-index: 42; top: 80px; right: 8px;
       width: 430px; height: 390px; min-width: min(360px, calc(100vw - 16px));
@@ -575,7 +575,7 @@
       .avatar-selector-footer .actions { margin-left: 0; justify-content: flex-end; }
     }
 
-    /* runtime (#8), refreshed by runtime: preserve the dense editor
+    /* (#8), refreshed: preserve the dense editor
        accordion content inside a rounded, frosted, right-docked floating panel. */
     aside.rail { position: absolute; z-index: 10; top: var(--rail-top, var(--osl-panel-top));
       right: var(--rail-right, var(--osl-glass-edge)); left: var(--rail-left, auto);
@@ -597,7 +597,7 @@
     .panel-control-strip .panel-close-button { min-width: 36px; min-height: 36px; padding: 0; cursor: pointer; }
     .panel-control-strip button[aria-pressed="true"] { color: var(--ok); border-color: var(--ok);
       background: rgba(70,209,138,.12); }
-    /* Each .card is now a docked accordion section. runtime (#7): the <h3> is the
+    /* Each.card is now a docked accordion section. (#7): the <h3> is the
        clickable header, and everything after it is the collapsible body. */
     .card { background: var(--panel); border: 0; border-bottom: 1px solid var(--line);
       border-radius: 0; padding: 0; }
@@ -667,7 +667,7 @@
     .movement-debug .v { font-variant-numeric: tabular-nums; }
     .movement-debug .v.debug-true { color: var(--ok); }
     .movement-debug .v.debug-false { color: var(--bad); }
-    /* runtime: colour the GeoPose Basic-SDU bools + scoped-true verdict.
+    /* colour the GeoPose Basic-SDU bools + scoped-true verdict.
        schema-valid:true is a REAL true (green); georeferenced:false is a real
        false (red) — the two are deliberately different properties. */
     #geopose-card .v.debug-true { color: var(--ok); }
@@ -691,11 +691,11 @@
     .footer-link:hover { color: #9fe8ff; }
     .footer-link:focus-visible { outline: 3px solid var(--launcher-focus, #fff);
       outline-offset: 3px; border-radius: 6px; }
-    /* runtime / runtime: the player compatibility branch
+    /* the player compatibility branch
        may still create the legacy in-canvas camera pill, while server views now
        reuse the header icon. Keep the legacy pill hidden in either case. */
     #btn-camera-mode { display: none; }
-    /* runtime: #avatar-runtime-status / #connection-footer-status carry the
+    /* #avatar-runtime-status / #connection-footer-status carry the
        "hidden" attribute (see footer markup) to keep them out of the visible bottom bar,
        but .legend / .legend.spacer below both set an explicit "display", which — same
        specificity, author origin — beats the UA [hidden] rule the moment either element
@@ -704,7 +704,7 @@
        avatar-selector-controller.mjs writes "selector canceled" etc. into it). ID selectors
        here outrank the .legend class, so this rule wins regardless of textContent. */
     #avatar-runtime-status, #connection-footer-status { display: none; }
-    /* runtime: #connection-status ("Live Backend" pill) — setConnectionPresentation()
+    /* #connection-status ("Live Backend" pill) — setConnectionPresentation
        in app.js reassigns this element's className wholesale on every state change
        (header.className = `live-tag connection-${state}`), which would wipe any sr-only
        CLASS added here (confirmed live). Keying the sr-only treatment to the ID instead
@@ -731,7 +731,7 @@
     .equipment-bad { color: var(--warn); }
     a { color: var(--source); }
 
-    /* runtime: Web of Worlds API activity panel. runtime (#8): keep the
+    /* Web of Worlds API activity panel. (#8): keep the
        green accent as a left rule on the docked section so the WoW panel still
        reads as special within the game-engine editor styling. */
     .card.wow-api { box-shadow: inset 3px 0 0 var(--ok); }
@@ -750,7 +750,7 @@
     .wow-chip:hover { border-color: var(--ok); color: var(--ok); }
     .wow-id-input { width: 52px; font: 11px ui-monospace, Menlo, monospace; padding: 3px 6px;
       border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
-    /* runtime: portal-view refresh-settings number inputs. */
+    /* portal-view refresh-settings number inputs. */
     .pv-num-input { width: 78px; font: 11px ui-monospace, Menlo, monospace; padding: 3px 6px;
       border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
       text-align: right; }
@@ -793,7 +793,7 @@
       .live-tag { max-width: 112px; overflow: hidden; text-overflow: ellipsis;
         width: 37px; flex-basis: 37px; padding: 2px 5px; font-size: 9px; }
       .header-actions { gap: 3px; }
-      /* runtime: shrunk 36px -> 30px. The header now carries 9 possible
+      /* shrunk 36px -> 30px. The header now carries 9 possible
          icon buttons (7 original + camera-toggle + avatar-switch) instead of 7; at
          36px+3px-gap none of the 9 fit this breakpoint's available width (verified:
          #btn-rail-toggle got clipped off past the header's right edge). 30px is the
@@ -811,8 +811,8 @@
       #connection-footer-status { margin-left: 0; }
     }
 
-    /* runtime (#12): inventory + avatar picker section (player view).
-       Chip rows per slot in the runtime docked-panel styling. */
+    /* inventory + avatar picker section (player view).
+       Chip rows per slot in the docked-panel styling. */
     .inv-note { font-size: 10px; color: var(--ink-dim); margin: 0 0 6px; }
     .inv-group-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
       color: var(--ink-dim); margin: 8px 0 4px; }
@@ -826,8 +826,8 @@
     .inv-status.inv-ok { color: var(--ok); }
     .inv-status.inv-bad { color: var(--bad); }
 
-    /* runtime: per-standard visibility views. Each standard in the
-       stack gets its own runtime accordion .card. The WoW card above is the
+    /* per-standard visibility views. Each standard in the
+       stack gets its own accordion.card. The WoW card above is the
        template; these share a compact "std-view" vocabulary so every view has
        an honest one-liner, an exposable stats grid, and an explicit
        non-conformance label. Read-only — no crossing/behaviour change. */
@@ -972,17 +972,34 @@
       .rail-resizer::after, .panel-height-resizer::after { background: Highlight; opacity: 1; }
     }
   </style>
-
+  <!-- the through-portal loading
+       card (styles + center-screen mount) is REMOVED per interface requirement: no
+       modal, no card, no mid-screen surface during portal traversal, ever.
+       The destination's metaverse.portal.* loading content now surfaces as a
+       small transient toast + a structured notification record (see
+       web/portal-loading.mjs; the notification center
+       consumes those records). -->
 
 </head>
 <body>
   <div id="app" class="role-source rail-collapsed">
-
+    <!-- fixed-height header. ONE clean location
+         label (role-chip + loc-title, ellipsis-truncated). The redundant
+         location-meta line and the idle/waiting/arrived phase text are hidden
+         via CSS (loc-meta / phase-pill kept in the DOM but display:none) so no
+         downstream reader or app.js render path breaks. The rail-toggle (#6)
+         collapses the whole right panel from the header. -->
     <header class="role-banner">
       <span class="role-chip" id="role-chip">SERVER A</span>
       <span class="loc-title" id="loc-title">Location A</span>
       <span class="loc-meta" id="loc-meta">location-a · demo-room-a · local-session-a</span>
-
+      <!-- the "Live Backend"/state pill is no longer shown in the
+           top bar in any view. The element (and its aria-live="polite" role="status"
+           announcement) stays REAL and updated by setConnectionPresentation() — only
+           visually sr-only'd (see the #connection-status rule below; ID-keyed, not
+           class-keyed, since that function reassigns this element's className wholesale
+           on every state change) so screen readers still hear connection-state changes;
+           sighted users see nothing here. -->
       <span class="live-tag connection-loading" id="connection-status" data-testid="connection-status"
             role="status" aria-live="polite">Loading</span>
       <span class="phase-pill" id="phase-pill">idle</span>
@@ -1008,7 +1025,11 @@
             <path d="M9 3.5v15M15 5.5v15"></path>
           </svg>
         </button>
-
+        <!-- Shared player/server camera-view toggle, relocated here from the
+             floating in-canvas "Camera: 1st/3rd person (C)" pill (web/movement-camera-controller.mjs,
+             #btn-camera-mode — left in place but hidden below). Icon-only, no text, ever.
+             app.js owns the unchanged player action; the camera controller reuses this exact
+             button for the existing server-camera state machine in non-player views. -->
         <button class="header-icon-button camera-toggle" id="btn-camera-toggle" type="button"
                 data-testid="header-camera-toggle" hidden
                 title="Toggle first/third-person camera (C)" aria-label="Toggle first/third-person camera">
@@ -1019,7 +1040,12 @@
             <circle cx="12" cy="13.5" r="3.4"></circle>
           </svg>
         </button>
-
+        <!-- "Switch Avatar" moved here from the bottom bar. This is the
+             SAME #btn-switch-avatar element avatar-selector-controller.mjs already wires
+             (lookup() is a plain document.getElementById, position-independent) — only the
+             visible label changes, from the text "Switch avatar" to a compact "A" glyph
+             (mirrors the .lobby-return-label "L" pattern below). Behavior, hidden-for-
+             non-player default, and data-testid are all unchanged. -->
         <button id="btn-switch-avatar" class="header-icon-button" type="button"
                 data-testid="btn-switch-avatar" title="Switch avatar" aria-label="Switch avatar" hidden>
           <span class="avatar-switch-label" aria-hidden="true">A</span>
@@ -1294,7 +1320,11 @@
             </div>
           </div>
         </section>
-
+        <!-- the #portal-loading
+             center-screen card mount is REMOVED (interface requirement: nothing
+             mid-screen during traversal). The through-portal loading content is
+             a toast + notification record now; the e2e driver FAILS if a
+             loading card or any large center-screen surface reappears here. -->
       </div>
 
       <aside class="rail" aria-label="Inspector" data-testid="floating-panel">
@@ -1635,7 +1665,10 @@
           </div>
         </section>
       </aside>
-
+      <!-- drag-resize handle for the right rail. Absolutely
+           positioned, so it adds no grid track; it lives in <main> (which does not
+           scroll) rather than inside the scrolling rail. Keyboard-accessible:
+           focus it and use the arrow keys; Home restores the default width. -->
       <div class="rail-resizer" id="rail-resizer" data-testid="rail-resizer" role="separator"
            aria-orientation="vertical" aria-label="Resize the right panel" tabindex="0"></div>
       <div class="panel-height-resizer" id="panel-height-resizer" data-testid="panel-height-resizer"
@@ -1644,7 +1677,11 @@
     </main>
 
     <footer class="controls">
-
+      <!-- The visible bottom bar now holds the hosted-experience link only. "Switch avatar" moved to the header (see
+           above) — it is no longer in this footer at all. The remaining legacy elements below
+           are NOT deleted (avatar-selector-controller.mjs and setConnectionPresentation() in
+           app.js still write to them, and #btn-equip-item's hidden-by-design compatibility
+           seam is unchanged) — they are just no longer part of the visible bottom bar. -->
       <button id="btn-equip-item" data-testid="btn-equip-item" hidden>Equip item</button>
       <span class="legend" id="avatar-runtime-status" data-testid="avatar-runtime-status" hidden></span>
       <span class="legend spacer" id="connection-footer-status" data-testid="connection-footer-status" hidden>

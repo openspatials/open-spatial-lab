@@ -1,16 +1,7 @@
 {
   "schema_version": 1,
-  "default_avatar": "dwarf",
+  "default_avatar": "parametric",
   "avatars": [
-    {
-      "key": "dwarf",
-      "label": "Dwarf stand-in",
-      "type": "vrm",
-      "url": "/assets/avatar-dwarf.vrm",
-      "scale": 0.95,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
     {
       "key": "parametric",
       "label": "Parametric H-Anim avatar",
@@ -19,105 +10,6 @@
       "scale": 1,
       "rotation_y": 0,
       "license": "generated-no-binary-asset"
-    },
-    {
-      "key": "cute-moth",
-      "label": "Cute Moth",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/CuteMoth_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "cool-waffle",
-      "label": "Cool Waffle",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/CoolWaffle_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "cool-banana",
-      "label": "Cool Banana",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/CoolBanana_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "mushy-voxel",
-      "label": "Mushy Voxel",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/Mushy_Voxel_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "cool-banana-voxel",
-      "label": "Cool Banana Voxel",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/CoolBanana_Voxel_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "froggy",
-      "label": "Froggy",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/Froggy_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "abissal-dude",
-      "label": "Abissal Dude",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/AbissalDude_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "froggy-voxel",
-      "label": "Froggy Voxel",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/Froggy_Voxel_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "mushy",
-      "label": "Mushy",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/Mushy_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "mr-bush",
-      "label": "Mr Bush",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/MrBush_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
-    },
-    {
-      "key": "bad-bot",
-      "label": "Bad Bot",
-      "type": "vrm",
-      "url": "/assets/avatars/vrm/BadBot_VRM.vrm",
-      "scale": 0.92,
-      "rotation_y": 3.141592653589793,
-      "license": "CC0-1.0"
     }
   ]
 }

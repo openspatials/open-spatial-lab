@@ -1,5 +1,31 @@
+// PINNED v0.4 context document (VENDORED, byte-exact).
+//
+// This module embeds the EXACT published byte sequence of the Universal Manifest v0.4
+// versioned-namespace context document (the term vocabulary / CBOR-LD compression-
+// dictionary source):
+//
+//   source (READ-ONLY, external):
+//   pinned multihash (O1.7):      zQmY71ixd6ez6UkXpzGJ7fiMpwL26jzQwWp9CV6kwX4Kb4f
+//                                 (multibase base58btc of sha2-256 multihash, fn code 0x12)
+//
+// WHY VENDORED: EXT-OPT O1.7 — "Evaluators SHOULD ship or pin the context for each
+// supported version rather than fetching it at evaluation time, and MUST NOT fetch
+// contexts from untrusted resolvers at verification time. CBOR-LD deployments MUST use
+// the pinned context, since tokenization correctness depends on byte-identical context
+// versions on both sides." Embedding as base64 preserves the bytes EXACTLY (UTF-8, LF
+// line endings, single trailing LF — the O1.7 hash-input discipline); cbor-ld.mjs
+// VERIFIES the multihash against the pin BEFORE deriving any term-token table (fail
+// closed), and verify.mjs additionally proves these vendored bytes are byte-
+// identical to the external spec file.
+//
+// GENERATED from the source file — do not hand-edit. If UM-v04-DEC-03 rolls the context
+// hash, regenerate this module from the new pinned bytes (the term dictionary MUST be
+// generated from the pinned context, never hardcoded — note).
+
 export const feature_PINNED_CONTEXT_MULTIHASH = "zQmY71ixd6ez6UkXpzGJ7fiMpwL26jzQwWp9CV6kwX4Kb4f";
-export const feature_PINNED_CONTEXT_B64 = "ewogICJAY29udGV4dCI6IHsKICAgICJAdmVyc2lvbiI6IDEuMSwKICAgICJ1bSI6ICJodHRwczovL3VuaXZlcnNhbG1hbmlm" +
+
+export const feature_PINNED_CONTEXT_B64 =
+    "ewogICJAY29udGV4dCI6IHsKICAgICJAdmVyc2lvbiI6IDEuMSwKICAgICJ1bSI6ICJodHRwczovL3VuaXZlcnNhbG1hbmlm" +
     "ZXN0Lm5ldC9ucy91bSMiLAogICAgInNjaGVtYSI6ICJodHRwczovL3NjaGVtYS5vcmcvIiwKICAgICJ4c2QiOiAiaHR0cDov" +
     "L3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEjIiwKICAgICJpZCI6ICJAaWQiLAogICAgInR5cGUiOiAiQHR5cGUiLAogICAg" +
     "Ik1hbmlmZXN0IjogInVtOk1hbmlmZXN0IiwKICAgICJGYWNldCI6ICJ1bTpGYWNldCIsCiAgICAiRW50aXR5IjogInVtOkVu" +

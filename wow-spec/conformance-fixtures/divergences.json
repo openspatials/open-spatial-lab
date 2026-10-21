@@ -1,0 +1,14 @@
+{
+  "license": "Apache-2.0",
+  "source": "OSL-WOW-CONTRACT.md section 9",
+  "divergences": {
+    "D1": "Node.children: embedded child objects upstream; integer id references in OSLFlatNode",
+    "D2": "Spatial descriptor schema exists but is not served by default",
+    "D3": "GET spatial returns the root node rather than a Spatial descriptor",
+    "D4": "spatialID is integer upstream and string in OSL",
+    "D5": "OSL repairs missing and misspelled upstream node-path parameters",
+    "D6": "Upstream GET / default app is omitted from the OSL contract",
+    "D7": "Canonical embedded-child writes require an explicit OSL opt-in",
+    "D8": "Signed executable spatial-fabric subtree semantics are a labeled OSL extension"
+  }
+}

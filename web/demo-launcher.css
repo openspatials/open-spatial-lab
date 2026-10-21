@@ -1,4 +1,5 @@
-
+/* Self-hosted fonts — the launcher must ship no remote style asset (offline-safe;
+   enforced by src). Space Grotesk is a variable font (one file, 400-700). */
 @font-face {
   font-family: "Space Grotesk";
   font-style: normal;

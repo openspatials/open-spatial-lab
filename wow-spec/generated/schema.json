@@ -7,7 +7,7 @@
     "x-osl-source-of-truth": true,
     "x-osl-canonical-basis": "Canonical schemas (World/User/View/Portal/Node/Spatial) and the /wow/world, /wow/user, /wow/view, /wow/portal and /wow/spatial paths are transcribed from the OPEN OpenSpatialWorld API (github.com/WebOfWorlds/WoWAPI, specification/OpenSpatialWorld/API.yaml, openapi 3.0.4, info.version 0.0.1), pinned to upstream commit d39a1a0 (\"fixed node children type\", 2026-05-21).",
     "x-osl-provenance-correction": "CORRECTION (2026-07-11, runtime; supersedes the previous claim here that this file was \"NOT copied from the UNLICENSED simpleWorlds reference implementation\"). That sentence was NOT supportable and is withdrawn. Two things in the first transcription match the STALE spec copy vendored in the simpleWorlds reference implementation rather than the open spec: (1) `Node.children` was typed `integer`, where the open spec says `$ref: Node` (simpleWorlds packages/wow-spec/src/schema.yaml:425-428 types it `integer`; upstream has ONE commit, so NO published upstream state has ever said `integer`); and (2) the dotted operationIds (world.getWorld, user.getUser, user.deleteUser, view.getView, portal.getPortal) match simpleWorlds 5-for-5, where upstream uses getWorldStatus / getUserById / deleteUserById / getViewById / getPortalById. Sourcing was MIXED, not wholesale: the /wow/spatial/{spatialID}/node/{nodeId} path is the OPEN SPEC's, and OSL deliberately REJECTED simpleWorlds' /wow/scene/node divergence (PROP §9). `Node` is now restored VERBATIM from the open spec. What OSL actually serves (id-ref children) is the LABELED, non-canonical `OSLFlatNode` divergence — declared, never presented as the standard. NO simpleWorlds SOURCE CODE is vendored in this repository; the schema typing and operationId NAMING above are the extent of the overlap, and the typing is corrected. LICENSING NOTE: simpleWorlds' license state is self-contradictory — the repo ships an Apache-2.0 LICENSE file while its package.json (root and packages/wow-spec) declares \"license\": \"UNLICENSED\". Because that is unresolved, OSL treats simpleWorlds as DO-NOT-COPY and single-sources the open spec.",
-    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the Phase-0 contract every WoW-primary OSL\nlane builds against (PROP-OSL-20260709-001, runtime).\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`) — see runtime.\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n"
+    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n"
   },
   "servers": [
     {
@@ -190,7 +190,7 @@
           "canonical"
         ],
         "summary": "Returns the root node of a spatial composition graph (OSL divergence).",
-        "x-osl-divergence": "returns the root node; the standard returns a Spatial descriptor",
+        "x-osl-divergence": "DEFAULT returns the root node; the standard returns a Spatial descriptor. The descriptor IS served on the versioned form=descriptor opt-in.",
         "parameters": [
           {
             "name": "spatialID",
@@ -201,11 +201,55 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "form",
+            "in": "query",
+            "required": false,
+            "x-osl-extension": true,
+            "description": "OSL EXTENSION / VERSIONED OPT-IN (runtime, declared here by runtime). Selects the served representation of the graph root. `descriptor` (alias `spatial`) returns the CANONICAL `Spatial` descriptor {id, rootNodeID, geoPose} — it POINTS AT the root node, it is NOT the root node. `node` (the DEFAULT assumed when `form` is omitted, and the effective result of any other value) returns the LABELED `OSLFlatNode` root itself, so existing clients are never broken. The served form is echoed in the `X-OSL-WoW-Spatial-Form` response header. Equivalent to the `X-OSL-WoW-Spatial-Form` request header, which takes precedence when both are sent.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "descriptor",
+                "spatial",
+                "node"
+              ],
+              "default": "node"
+            }
+          },
+          {
+            "name": "X-OSL-WoW-Spatial-Form",
+            "in": "header",
+            "required": false,
+            "x-osl-extension": true,
+            "description": "OSL EXTENSION / VERSIONED OPT-IN — the request-header form of the `form` query parameter. `descriptor` (alias `spatial`) returns the canonical `Spatial` descriptor; omitted or any other value returns the root `OSLFlatNode`. Takes precedence over `?form=` when both are supplied. The served form is echoed in the response header of the same name.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "descriptor",
+                "spatial",
+                "node"
+              ]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "the composition graph's root node (LABELED OSLFlatNode, non-canonical)",
+            "description": "The graph root. DEFAULT (form omitted / form=node): the root node as the LABELED `OSLFlatNode` (non-canonical), response header `X-OSL-WoW-Spatial-Form: node`. VERSIONED OPT-IN (form=descriptor|spatial, or request header `X-OSL-WoW-Spatial-Form: descriptor`): the canonical `Spatial` descriptor {id, rootNodeID, geoPose}, response header `X-OSL-WoW-Spatial-Form: descriptor` (runtime served; runtime declared).",
+            "headers": {
+              "X-OSL-WoW-Spatial-Form": {
+                "description": "Echoes the served representation. `node` = the default OSLFlatNode root; `descriptor` = the canonical Spatial descriptor returned on the versioned opt-in. Emitted on every 200 from this operation.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "node",
+                    "descriptor"
+                  ]
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {

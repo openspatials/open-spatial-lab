@@ -1,0 +1,28 @@
+{
+  "license": "Apache-2.0",
+  "fixtures": [
+    { "id": "endpoint-world-minimal-valid", "endpoint": "GET /wow/world", "schema": "World", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {} },
+    { "id": "endpoint-world-rich-valid", "endpoint": "GET /wow/world", "schema": "World", "expect": "accept", "classification": "CONFORMANT", "data": { "content": { "label": "Fixture World", "version": 1 }, "users": { "active_user_count": 1 } } },
+    { "id": "endpoint-world-invalid-response-rejected", "endpoint": "GET /wow/world", "schema": "World", "expect": "reject", "classification": "CONFORMANT", "data": { "users": { "active_user_count": "one" } } },
+
+    { "id": "endpoint-user-minimal-valid", "endpoint": "GET /wow/user/{userId}", "schema": "User", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {} },
+    { "id": "endpoint-user-rich-valid", "endpoint": "GET /wow/user/{userId}", "schema": "User", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 7, "name": "Avery", "AvatarURI": "https://example.test/avatar.glb" } },
+    { "id": "endpoint-user-invalid-response-rejected", "endpoint": "GET /wow/user/{userId}", "schema": "User", "expect": "reject", "classification": "CONFORMANT", "data": { "name": 7 } },
+
+    { "id": "endpoint-view-minimal-valid", "endpoint": "GET /wow/view/{viewId}", "schema": "View", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {} },
+    { "id": "endpoint-view-rich-valid", "endpoint": "GET /wow/view/{viewId}", "schema": "View", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 4, "geoPose": { "position": { "lat": 40, "lan": -105, "h": 1600 } } } },
+    { "id": "endpoint-view-invalid-response-rejected", "endpoint": "GET /wow/view/{viewId}", "schema": "View", "expect": "reject", "classification": "CONFORMANT", "data": { "geoPose": { "angles": { "yaw": "north" } } } },
+
+    { "id": "endpoint-portal-minimal-valid", "endpoint": "GET /wow/portal/{portalId}", "schema": "Portal", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {} },
+    { "id": "endpoint-portal-rich-valid", "endpoint": "GET /wow/portal/{portalId}", "schema": "Portal", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 3, "geoPose": { "angles": { "yaw": 180, "pitch": 0, "roll": 0 } } } },
+    { "id": "endpoint-portal-invalid-response-rejected", "endpoint": "GET /wow/portal/{portalId}", "schema": "Portal", "expect": "reject", "classification": "CONFORMANT", "data": { "geoPose": [] } },
+
+    { "id": "endpoint-spatial-minimal-valid", "endpoint": "GET /wow/spatial/{spatialID}", "schema": "Spatial", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {} },
+    { "id": "endpoint-spatial-rich-valid", "endpoint": "GET /wow/spatial/{spatialID}", "schema": "Spatial", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 5, "rootNodeID": 1 } },
+    { "id": "endpoint-spatial-invalid-response-rejected", "endpoint": "GET /wow/spatial/{spatialID}", "schema": "Spatial", "expect": "reject", "classification": "CONFORMANT", "data": { "rootNodeID": false } },
+
+    { "id": "endpoint-node-minimal-valid", "endpoint": "GET /wow/spatial/{spatialID}/node/{nodeId}", "schema": "Node", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {} },
+    { "id": "endpoint-node-rich-valid", "endpoint": "GET /wow/spatial/{spatialID}/node/{nodeId}", "schema": "Node", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 1, "label": "root", "children": [{ "id": 2, "children": [] }] } },
+    { "id": "endpoint-node-invalid-response-rejected", "endpoint": "GET /wow/spatial/{spatialID}/node/{nodeId}", "schema": "Node", "expect": "reject", "classification": "CONFORMANT", "data": { "localTransform": [1, "zero"] } }
+  ]
+}

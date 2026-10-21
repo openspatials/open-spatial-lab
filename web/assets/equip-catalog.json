@@ -1,14 +1,6 @@
 {
   "schema_version": 1,
-  "avatars": [
-    {
-      "key": "dwarf",
-      "label": "Dwarf stand-in",
-      "url": "/assets/avatar-dwarf.vrm",
-      "scale": 1.35,
-      "rotation_y": 3.141592653589793
-    }
-  ],
+  "avatars": [],
   "items": [
     {
       "itemId": "equip-hat",

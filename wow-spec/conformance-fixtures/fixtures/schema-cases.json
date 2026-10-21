@@ -1,0 +1,28 @@
+{
+  "license": "Apache-2.0",
+  "fixtures": [
+    { "id": "schema-world-minimal-valid", "schema": "World", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {}, "note": "The published schema has no required members, so the empty object is valid." },
+    { "id": "schema-world-rich-valid", "schema": "World", "expect": "accept", "classification": "CONFORMANT", "data": { "content": { "label": "Fixture World", "age_restriction": 0, "license": "Apache-2.0", "cost": "free", "version": 1, "duration": 60 }, "geoPose": { "position": { "lat": 40.0, "lan": -105.0, "h": 1600 }, "angles": { "yaw": 0, "pitch": 0, "roll": 0 } }, "presence": { "avatar": "supported", "navigation": "walk", "gravity": "earth" }, "technology": { "webXR-immersive": "optional", "runtime": "web" }, "users": { "active_user_count": 1, "total_user_count": 1 }, "views": { "view_count": 1 }, "portals": { "portal_count": 1 } } },
+    { "id": "schema-world-wrong-label-rejected", "schema": "World", "expect": "reject", "classification": "CONFORMANT", "data": { "content": { "label": false } } },
+
+    { "id": "schema-user-minimal-valid", "schema": "User", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {}, "note": "The published schema has no required members, so the empty object is valid." },
+    { "id": "schema-user-rich-valid", "schema": "User", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 7, "name": "Avery", "AvatarURI": "https://example.test/avatar.glb", "geoPose": { "position": { "lat": 40.0, "lan": -105.0, "h": 1600 }, "angles": { "yaw": 90, "pitch": 0, "roll": 0 } } } },
+    { "id": "schema-user-wrong-id-rejected", "schema": "User", "expect": "reject", "classification": "CONFORMANT", "data": { "id": "7" } },
+
+    { "id": "schema-node-minimal-valid", "schema": "Node", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {}, "note": "The published schema has no required members, so the empty object is valid." },
+    { "id": "schema-node-rich-valid", "schema": "Node", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 1, "label": "root", "names": ["root", "entry"], "parent": 0, "children": [{ "id": 2, "label": "embedded child", "children": [] }], "localTransform": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], "spatialAssetURI": "https://example.test/room.glb", "appearanceURI": "https://example.test/material.json" } },
+    { "id": "schema-node-id-ref-child-rejected", "schema": "Node", "expect": "reject", "classification": "CONFORMANT", "data": { "id": 1, "children": [2] } },
+
+    { "id": "schema-portal-minimal-valid", "schema": "Portal", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {}, "note": "The published schema has no required members, so the empty object is valid." },
+    { "id": "schema-portal-rich-valid", "schema": "Portal", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 3, "geoPose": { "position": { "lat": 40.0, "lan": -105.0, "h": 1600 }, "angles": { "yaw": 180, "pitch": 0, "roll": 0 } } } },
+    { "id": "schema-portal-wrong-id-rejected", "schema": "Portal", "expect": "reject", "classification": "CONFORMANT", "data": { "id": "3" } },
+
+    { "id": "schema-view-minimal-valid", "schema": "View", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {}, "note": "The published schema has no required members, so the empty object is valid." },
+    { "id": "schema-view-rich-valid", "schema": "View", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 4, "geoPose": { "position": { "lat": 40.0, "lan": -105.0, "h": 1600 }, "angles": { "yaw": 0, "pitch": -10, "roll": 0 } } } },
+    { "id": "schema-view-wrong-lat-rejected", "schema": "View", "expect": "reject", "classification": "CONFORMANT", "data": { "geoPose": { "position": { "lat": "40" } } } },
+
+    { "id": "schema-spatial-minimal-valid", "schema": "Spatial", "expect": "accept", "classification": "SPEC-UNDER-CONSTRAINED", "data": {}, "note": "This is the explicit {}-validates fixture for the under-constrained Spatial schema." },
+    { "id": "schema-spatial-rich-valid", "schema": "Spatial", "expect": "accept", "classification": "CONFORMANT", "data": { "id": 5, "rootNodeID": 1, "geoPose": { "position": { "lat": 40.0, "lan": -105.0, "h": 1600 }, "angles": { "yaw": 0, "pitch": 0, "roll": 0 } } } },
+    { "id": "schema-spatial-wrong-root-rejected", "schema": "Spatial", "expect": "reject", "classification": "CONFORMANT", "data": { "rootNodeID": "1" } }
+  ]
+}

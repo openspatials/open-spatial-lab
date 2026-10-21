@@ -1,6 +1,23 @@
+/* Glassline AR HUD — overlay stylesheet
+ *
+ * ADDITIVE OVERLAY. This file provides only: (1) the self-hosted Rajdhani
+ * @font-face declarations, (2) the verbatim Glassline @keyframes, (3) the CSS2D
+ * overlay-layer container + per-anchor wrapper positioning, and (4) the exact
+ * design tokens as CSS custom properties for reference.
+ *
+ * The pixel-exact component recipes (glass gradient, card gradient, selected
+ * fill, accent hexes, radii) are reproduced VERBATIM as inline styles inside
+ * the component factories (glassline-entity-tag.mjs / glassline-detail-card.mjs)
+ * so the design source's ".dc.html" pixel spec travels 1:1. Cites below.
+ *
+ * Sources (all under web/design/ar-interface-component-library/...):
+ *   - Glass pill recipe / accents / keyframes: CLAUDE.md, Entity Tag.dc.html:15-16,20,57-76
+ *   - Card recipe + hero scrim: Detail Card.dc.html:22,26
+ *   - Rajdhani weights 500/600/700, letter-spacing 0.08-0.28em: GLASSLINE-DOSSIER.md §3
+ */
 
-
-
+/* --- Self-hosted Rajdhani (SIL OFL). No Google Fonts CDN — the app self-hosts
+ *     fonts, matching demo-launcher.css. Latin subset (woff2). --- */
 @font-face {
   font-family: "Rajdhani";
   font-style: normal;
@@ -23,7 +40,7 @@
   src: url("../fonts/rajdhani-700-latin.woff2") format("woff2");
 }
 
-
+/* --- Verbatim Glassline animations (Entity Tag.dc.html:15-16, Detail Card.dc.html:14) --- */
 @keyframes glowPulse {
   0%, 100% { box-shadow: 0 0 18px rgba(120,200,255,0.35), inset 0 1px 0 rgba(255,255,255,0.4); }
   50%      { box-shadow: 0 0 36px rgba(140,215,255,0.75), inset 0 1px 0 rgba(255,255,255,0.5); }
@@ -33,7 +50,7 @@
   to   { width: 14%; }
 }
 
-
+/* --- Design tokens (verbatim, GLASSLINE-DOSSIER.md §3) — for reference/reuse --- */
 :root {
   --glassline-accent-cyan:   #7fd8ff;
   --glassline-accent-green:  #57e389;
@@ -44,18 +61,21 @@
   --glassline-glass-shadow:  0 6px 24px rgba(0,15,35,0.35),inset 0 1px 0 rgba(255,255,255,0.35);
 }
 
-
+/* --- CSS2D overlay layer: a transparent DOM plane over the WebGL canvas.
+ *     The compact Airport identity labels are passive, so all pointer input
+ *     continues through to the scene. --- */
 .glassline-hud-layer {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  z-index: 6;
+  z-index: 6; /* above the WebGL canvas + avatar-equipment-layer canvases */
   font-family: "Rajdhani", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-
+/* Per-anchor wrapper: positioned each frame at the projected screen point.
+ * translate(-50%,-50%) centres the billboarded component on the anchor. */
 .glassline-anchor {
   position: absolute;
   left: 0;
@@ -65,7 +85,7 @@
 }
 .glassline-anchor > * { pointer-events: none; }
 
-
+/* The compact Entity Tag is presentation-only and never captures scene input. */
 .glassline-tag {
   cursor: default;
   user-select: none;
@@ -75,7 +95,7 @@
   min-height: 40px;
 }
 
-
+/* The Detail Card floats just above its tag; keep it centred horizontally. */
 .glassline-card-anchor {
   position: absolute;
   left: 0;

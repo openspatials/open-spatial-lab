@@ -1,0 +1,1115 @@
+openapi: '3.0.4'
+info:
+  title: OpenSpatialWorld API — OSL contract surface
+  version: '0.0.1'
+  # x-osl-* keys are LABELED OSL metadata, never part of the canonical standard.
+  x-osl-overlay-version: '0.1.0'
+  x-osl-source-of-truth: true
+  x-osl-canonical-basis: >-
+    Canonical schemas (World/User/View/Portal/Node/Spatial) and the /wow/world,
+    /wow/user, /wow/view, /wow/portal and /wow/spatial paths are transcribed
+    from the OPEN OpenSpatialWorld API (github.com/WebOfWorlds/WoWAPI,
+    specification/OpenSpatialWorld/API.yaml, openapi 3.0.4, info.version 0.0.1),
+    pinned to upstream commit d39a1a0 ("fixed node children type", 2026-05-21).
+  x-osl-provenance-correction: >-
+    CORRECTION (2026-07-11, runtime; supersedes the previous claim
+    here that this file was "NOT copied from the UNLICENSED simpleWorlds
+    reference implementation"). That sentence was NOT supportable and is
+    withdrawn. Two things in the first transcription match the STALE spec copy
+    vendored in the simpleWorlds reference implementation rather than the open
+    spec: (1) `Node.children` was typed `integer`, where the open spec says
+    `$ref: Node` (simpleWorlds packages/wow-spec/src/schema.yaml:425-428 types it
+    `integer`; upstream has ONE commit, so NO published upstream state has ever
+    said `integer`); and (2) the dotted operationIds (world.getWorld,
+    user.getUser, user.deleteUser, view.getView, portal.getPortal) match
+    simpleWorlds 5-for-5, where upstream uses getWorldStatus / getUserById /
+    deleteUserById / getViewById / getPortalById. Sourcing was MIXED, not
+    wholesale: the /wow/spatial/{spatialID}/node/{nodeId} path is the OPEN
+    SPEC's, and OSL deliberately REJECTED simpleWorlds' /wow/scene/node
+    divergence (PROP §9). `Node` is now restored VERBATIM from the open spec.
+    What OSL actually serves (id-ref children) is the LABELED, non-canonical
+    `OSLFlatNode` divergence — declared, never presented as the standard.
+    NO simpleWorlds SOURCE CODE is vendored in this repository; the schema
+    typing and operationId NAMING above are the extent of the overlap, and the
+    typing is corrected. LICENSING NOTE: simpleWorlds' license state is
+    self-contradictory — the repo ships an Apache-2.0 LICENSE file while its
+    package.json (root and packages/wow-spec) declares "license": "UNLICENSED".
+    Because that is unresolved, OSL treats simpleWorlds as DO-NOT-COPY and
+    single-sources the open spec.
+  description: |
+    OSL's typed, validated source of truth for the OpenSpatialWorld
+    ("Web of Worlds") API. This is the contract every WoW-primary OSL
+    component builds against.
+
+    HONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):
+      * CANONICAL surfaces carry the tag `canonical` and are transcribed from
+        the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges
+        from the standard, the operation/schema carries `x-osl-divergence` and
+        the payload schema is a LABELED extension — NEVER a canonical one.
+        (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)
+      * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every
+        such schema/property is annotated `x-osl-extension: true`. They are
+        NEVER canonical and MUST be surfaced (never hidden) by the conformance
+        components.
+      * `standards_conformance` stays `false` on every `/wow` response
+        (validation-boundary honesty). No cosmetic conformance.
+      * The WoW `Portal` schema has NO destination field; OSL carries a portal
+        destination as a LABELED extension (`PortalDestination`).
+      * `WS /events` is a LABELED non-canonical realtime convention,
+        documented in the contract note, NOT in this HTTP contract.
+
+servers:
+  - url: http://127.0.0.1:18151
+    description: OSL local world-server node A (labeled local validation; not public)
+  - url: http://127.0.0.1:18152
+    description: OSL local world-server node B (labeled local validation; not public)
+
+tags:
+  - name: canonical
+    description: >-
+      Transcribed from the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where
+      OSL diverges, the operation/schema carries x-osl-divergence and the
+      response is a LABELED extension schema — never a canonical one.
+  - name: osl-extension
+    description: >-
+      LABELED OSL addition where the WoW standard is silent. Additive,
+      non-canonical, annotated x-osl-extension, surfaced by conformance.
+
+paths:
+  # --- World (canonical) ---
+  /wow/world:
+    get:
+      operationId: world.getWorld
+      tags: [canonical]
+      summary: Returns a World status as a single data state.
+      responses:
+        '200':
+          description: world summary (canonical World + labeled OSL extensions)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLWorldResponse'
+
+  # --- User (canonical) ---
+  /wow/user/{userId}:
+    get:
+      operationId: user.getUser
+      tags: [canonical]
+      summary: Returns a User status.
+      parameters:
+        - name: userId
+          in: path
+          description: ID of user to return (canonical domain is integer).
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: user (canonical User + labeled OSL extensions)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLUserResponse'
+        '404':
+          description: user not found
+    delete:
+      operationId: user.deleteUser
+      tags: [canonical]
+      summary: Deletes a user.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User deleted
+        '400':
+          description: Invalid user value
+        default:
+          description: Unexpected error
+
+  # --- View (canonical) ---
+  /wow/view/{viewId}:
+    get:
+      operationId: view.getView
+      tags: [canonical]
+      summary: Returns a Viewpoint status.
+      parameters:
+        - name: viewId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: view (canonical View + labeled OSL extensions)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLViewResponse'
+        '404':
+          description: view not found
+
+  # --- Portal (canonical schema; destination is a LABELED OSL extension) ---
+  /wow/portal/{portalId}:
+    get:
+      operationId: portal.getPortal
+      tags: [canonical]
+      summary: Returns a Portal status.
+      parameters:
+        - name: portalId
+          in: path
+          description: ID of portal to return (canonical domain is integer).
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: portal (canonical Portal + labeled OSL extensions)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLPortalResponse'
+        '404':
+          description: portal not found
+
+  # --- Spatial Composition Graph (canonical PATHS; OSL-DIVERGENT PAYLOADS) ---
+  # OSL adopts the spec's own canonical path
+  # `/wow/spatial/{spatialID}/node/{nodeId}` (the simpleWorlds reference impl
+  # diverges to `/wow/scene/node/{nodeId}` — we do NOT follow that divergence).
+  #
+  # ⚠ DECLARED DIVERGENCES on this whole path family.
+  # The PATHS are canonical; the PAYLOADS are NOT. Every node body/response
+  # below references the LABELED, non-canonical `OSLFlatNode` — NOT the
+  # canonical `Node` — because OSL serves a FLAT graph (children = integer id
+  # refs) where the standard embeds child Node objects. See OSL-WOW-CONTRACT §9.
+  #
+  # NOTE (D5): the open spec OMITS the `spatialID` path parameter on the four
+  # node operations and misspells DELETE's as `nodeid` (lowercase d), so its own
+  # template variables are undeclared/unmatched — defects in the upstream YAML
+  # (OpenAPI requires every template variable be declared). OSL declares
+  # `spatialID` on all four and spells `nodeId` correctly. This is a LABELED
+  # REPAIR of the standard, to be proposed upstream — not a silent "improvement".
+  /wow/spatial/{spatialID}:
+    get:
+      operationId: spatial.getGraphRoot
+      tags: [canonical]
+      summary: Returns the root node of a spatial composition graph (OSL divergence).
+      # DECLARED DIVERGENCE (D3): the canonical spec returns a `Spatial`
+      # descriptor {id, rootNodeID, geoPose} here (operationId getSpatialById) —
+      # it POINTS AT a root node, it is NOT the root node. OSL returns the root
+      # node itself BY DEFAULT. The canonical descriptor IS served on a VERSIONED
+      # OPT-IN — `?form=descriptor` (alias `?form=spatial`) or request header
+      # `X-OSL-WoW-Spatial-Form: descriptor` — declared on this operation below
+      # (runtime served it; runtime declares it here). The
+      # DEFAULT stays the root node so existing clients never break.
+      x-osl-divergence: 'DEFAULT returns the root node; the standard returns a Spatial descriptor. The descriptor IS served on the versioned form=descriptor opt-in.'
+      parameters:
+        - name: spatialID
+          in: path
+          description: >-
+            ID of the spatial composition graph. DECLARED DIVERGENCE (D4): the
+            standard types this `integer`; OSL addresses graphs by STRING id
+            (world_id, location_id, 'default', 'world' — see 041
+            runtime-state.js SPATIAL_ACCEPTED_IDS).
+          required: true
+          x-osl-divergence: 'string id; the standard types spatialID as integer'
+          schema:
+            type: string
+        # runtime — declare the VERSIONED OPT-IN that runtime serves.
+        - name: form
+          in: query
+          required: false
+          x-osl-extension: true
+          description: >-
+            OSL EXTENSION / VERSIONED OPT-IN (runtime, declared here by
+            runtime). Selects the served representation of the graph
+            root. `descriptor` (alias `spatial`) returns the CANONICAL `Spatial`
+            descriptor {id, rootNodeID, geoPose} — it POINTS AT the root node, it is
+            NOT the root node. `node` (the DEFAULT assumed when `form` is omitted, and
+            the effective result of any other value) returns the LABELED `OSLFlatNode`
+            root itself, so existing clients are never broken. The served form is
+            echoed in the `X-OSL-WoW-Spatial-Form` response header. Equivalent to the
+            `X-OSL-WoW-Spatial-Form` request header, which takes precedence when both
+            are sent.
+          schema:
+            type: string
+            enum: [descriptor, spatial, node]
+            default: node
+        - name: X-OSL-WoW-Spatial-Form
+          in: header
+          required: false
+          x-osl-extension: true
+          description: >-
+            OSL EXTENSION / VERSIONED OPT-IN — the request-header form of the `form`
+            query parameter. `descriptor` (alias `spatial`) returns the
+            canonical `Spatial` descriptor; omitted or any other value returns the
+            root `OSLFlatNode`. Takes precedence over `?form=` when both are supplied.
+            The served form is echoed in the response header of the same name.
+          schema:
+            type: string
+            enum: [descriptor, spatial, node]
+      responses:
+        '200':
+          description: >-
+            The graph root. DEFAULT (form omitted / form=node): the root node as the
+            LABELED `OSLFlatNode` (non-canonical), response header
+            `X-OSL-WoW-Spatial-Form: node`. VERSIONED OPT-IN (form=descriptor|spatial,
+            or request header `X-OSL-WoW-Spatial-Form: descriptor`): the canonical
+            `Spatial` descriptor {id, rootNodeID, geoPose}, response header
+            `X-OSL-WoW-Spatial-Form: descriptor` (runtime served; runtime declared).
+          headers:
+            X-OSL-WoW-Spatial-Form:
+              description: >-
+                Echoes the served representation. `node` = the default OSLFlatNode
+                root; `descriptor` = the canonical Spatial descriptor returned on the
+                versioned opt-in. Emitted on every 200 from this operation.
+              required: true
+              schema:
+                type: string
+                enum: [node, descriptor]
+          # The DEFAULT form (form omitted / form=node) is what the always-on
+          # contract enforcer measures a non-opt-in 200 against, so the 200 body
+          # schema stays the LABELED OSLFlatNode. The descriptor form
+          # (form=descriptor|spatial) is served on the opt-in and validated against
+          # the canonical `Spatial` component by the enforcer's declared
+          # `spatial-form-descriptor` response variant — it is NOT this default 200
+          # body. Modelling it here as a `oneOf` would break that enforcer: an
+          # OSLFlatNode root also satisfies the (open) `Spatial` schema, so "exactly
+          # one" could never hold for the default response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLFlatNode'
+        '404':
+          description: spatial graph not found
+
+  /wow/spatial/{spatialID}/node/{nodeId}:
+    get:
+      operationId: spatial.getNode
+      tags: [canonical]
+      summary: Returns a single node of the spatial composition graph (OSL divergence).
+      x-osl-divergence: 'payload is the LABELED OSLFlatNode (id-ref children), not the canonical Node'
+      parameters:
+        - name: spatialID
+          in: path
+          required: true
+          x-osl-divergence: 'string id; the standard types spatialID as integer'
+          schema:
+            type: string
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: a single composition-graph node (LABELED OSLFlatNode, non-canonical)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLFlatNode'
+        '404':
+          description: node not found
+    post:
+      operationId: spatial.createNodes
+      tags: [canonical]
+      summary: Create and add new child nodes under the given parent node (OSL divergence).
+      x-osl-divergence: 'payload is the LABELED OSLFlatNode (id-ref children), not the canonical Node'
+      # runtime — NO SILENT CHILD-NODE DATA LOSS.
+      #
+      # The default request body is `OSLFlatNode[]` (children = integer id refs).
+      # A SPEC-CONFORMANT body (canonical `Node`, children = EMBEDDED objects) used
+      # to be answered 200 OK with its whole subtree SILENTLY DELETED. It is now
+      # REFUSED with 422 `embedded_children_not_supported`, which names `OSLFlatNode`
+      # and carries the offending JSON paths + remedies.
+      #
+      # `X-OSL-WoW-Node-Form: canonical` is the EXPLICIT, LABELED opt-in that lets a
+      # conformant client have its embedded subtree FLATTENED into our graph: we
+      # assign the ids, store every node at every depth, and return ALL of them —
+      # with `X-OSL-WoW-Nodes-Stored` / `X-OSL-WoW-Children-Flattened` reporting
+      # exactly what we stored. The caller ASKS for the transform, so it is never a
+      # surprise; and no request path can end in a silent drop.
+      x-osl-extension: true
+      x-osl-divergence-note: 'the X-OSL-WoW-Node-Form opt-in + the 400/422 refusals are OSL EXTENSIONS; the standard specifies neither'
+      parameters:
+        - name: spatialID
+          in: path
+          required: true
+          x-osl-divergence: 'string id; the standard types spatialID as integer'
+          schema:
+            type: string
+        - name: nodeId
+          in: path
+          description: ID of the existing parent node.
+          required: true
+          schema:
+            type: integer
+        - name: X-OSL-WoW-Node-Form
+          in: header
+          required: false
+          x-osl-extension: true
+          description: >-
+            OSL EXTENSION. `canonical` = the body is the CANONICAL `Node[]`
+            (children EMBEDDED); flatten it into the OSL graph and return every node
+            stored. Omitted (default) = the body must be `OSLFlatNode[]`; an embedded
+            body is 422'd, never silently truncated. `?nodeForm=canonical` is equivalent.
+          schema:
+            type: string
+            enum: [canonical]
+      requestBody:
+        description: >-
+          array of new nodes to add as children. LABELED OSLFlatNode[] by default;
+          canonical Node[] when X-OSL-WoW-Node-Form: canonical is sent.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OSLFlatNode'
+      responses:
+        '200':
+          description: >-
+            successful operation. Always OSLFlatNode[] — EVERY node actually stored,
+            parents before children (so a flattened canonical subtree returns more
+            nodes than were sent; see X-OSL-WoW-Nodes-Stored).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OSLFlatNode'
+        '400':
+          description: >-
+            OSL EXTENSION. `child_id_refs_not_supported_on_create` — integer
+            child id-refs on a create body (a new node starts as a leaf), or
+            `invalid_child_entry`. Previously these were SILENTLY DROPPED.
+        '422':
+          description: >-
+            OSL EXTENSION. `embedded_children_not_supported` — the body carries
+            the CANONICAL `Node` shape (embedded children) and no canonical opt-in was
+            sent. Nothing was stored. Previously the children were SILENTLY DELETED and
+            the caller got 200 OK.
+        default:
+          description: Unexpected error
+    put:
+      operationId: spatial.updateNode
+      tags: [canonical]
+      summary: Update an existing node (OSL divergence).
+      x-osl-divergence: 'payload is the LABELED OSLFlatNode (id-ref children), not the canonical Node'
+      parameters:
+        - name: spatialID
+          in: path
+          required: true
+          x-osl-divergence: 'string id; the standard types spatialID as integer'
+          schema:
+            type: string
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        description: >-
+          the updated node (LABELED OSLFlatNode). PUT updates CONTENT only — it never
+          restructures the graph. `children` may be OMITTED, or ECHOED back unchanged
+          (the read-modify-write pattern); anything else is refused. There is
+          NO canonical opt-in on PUT: flattening an embedded subtree into an update
+          would mean GUESSING "replace" vs "append" — use POST to create children.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OSLFlatNode'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLFlatNode'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: node not found
+        '422':
+          description: >-
+            Validation exception. OSL EXTENSION:
+            `embedded_children_not_supported` (the body carries the CANONICAL `Node`
+            shape) or `child_restructure_not_supported` (the `children` sent differ
+            from the ones stored). Both were previously IGNORED SILENTLY.
+        default:
+          description: Unexpected error
+    delete:
+      operationId: spatial.deleteNode
+      tags: [canonical]
+      summary: Deletes a node (and its subtree).
+      parameters:
+        - name: spatialID
+          in: path
+          required: true
+          x-osl-divergence: 'string id; the standard types spatialID as integer'
+          schema:
+            type: string
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: node deleted
+        '400':
+          description: Invalid node value
+        default:
+          description: Unexpected error
+
+# ------------------------------------------------------------------
+# Components
+# ------------------------------------------------------------------
+components:
+  schemas:
+
+    # ============================================================
+    # CANONICAL SCHEMAS — transcribed 1:1 (by shape) from the open
+    # OpenSpatialWorld API.yaml (components.schemas). No
+    # additionalProperties:false — the standard leaves schemas open,
+    # which is the seam OSL extends. The `lan` misspelling of
+    # longitude is carried verbatim from the standard.
+    # ============================================================
+
+    GeoPose:
+      # Factored out for DRY; shape is identical to the geoPose object the
+      # canonical World/User/View/Portal schemas each inline.
+      type: object
+      properties:
+        position:
+          type: object
+          properties:
+            lat:
+              type: number
+            lan:
+              type: number  # sic: the standard spells longitude 'lan'
+            h:
+              type: number
+        angles:
+          type: object
+          properties:
+            yaw:
+              type: number
+            pitch:
+              type: number
+            roll:
+              type: number
+
+    World:
+      type: object
+      properties:
+        content:
+          type: object
+          properties:
+            label:
+              type: string
+            age_restriction:
+              type: number
+            license:
+              type: string
+            cost:
+              type: string
+            version:
+              type: number
+            duration:
+              type: number
+        geoPose:
+          $ref: '#/components/schemas/GeoPose'
+        presence:
+          type: object
+          properties:
+            avatar:
+              type: string
+            navigation:
+              type: string
+            gravity:
+              type: string
+        technology:
+          type: object
+          properties:
+            webXR-immersive:
+              type: string
+            runtime:
+              type: string
+        users:
+          type: object
+          properties:
+            active_user_count:
+              type: integer
+              default: 1
+            total_user_count:
+              type: integer
+              default: 1
+        views:
+          type: object
+          properties:
+            view_count:
+              type: integer
+              default: 1
+        portals:
+          type: object
+          properties:
+            portal_count:
+              type: integer
+              default: 1
+
+    User:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        AvatarURI:
+          type: string
+        geoPose:
+          $ref: '#/components/schemas/GeoPose'
+
+    View:
+      type: object
+      properties:
+        id:
+          type: number
+        geoPose:
+          $ref: '#/components/schemas/GeoPose'
+
+    Portal:
+      # CANONICAL: a bare positioned anchor. NOTE: the standard's Portal has
+      # NO destination/target field — it cannot express "leads to world X".
+      # OSL supplies that as a LABELED extension (see PortalDestination).
+      type: object
+      properties:
+        id:
+          type: number
+        geoPose:
+          $ref: '#/components/schemas/GeoPose'
+
+    Node:
+      # CANONICAL scene-graph entity, transcribed VERBATIM from the open spec
+      # (WoWAPI@d39a1a0, specification/OpenSpatialWorld/API.yaml lines 471-495).
+      #
+      # `children` are EMBEDDED child Node objects (recursive $ref). The standard
+      # does NOT use id references. `localTransform` is an array of number — the
+      # standard constrains NEITHER its length NOR its major order (the 16-float
+      # column-major reading is an OSL CONVENTION, not the standard).
+      #
+      # ⚠ OSL DOES NOT SERVE THIS SHAPE. The /wow/spatial/* paths serve the
+      # LABELED, non-canonical `OSLFlatNode` (children = integer id refs). That
+      # is a DECLARED divergence, surfaced by the conformance components — never
+      # presented as the standard. This schema is kept PURE so the conformance
+      # components can diff canonical-vs-actual honestly.
+      #
+      # HISTORY: until 2026-07-11 this schema wrongly typed `children` as
+      # `integer`, matching simpleWorlds' stale copy rather than the open spec —
+      # and the conformance harness asserted that inversion as if it were the
+      # standard. Corrected by runtime.
+      type: object
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        names:
+          type: array
+          items:
+            type: string
+        parent:
+          type: integer
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+        localTransform:
+          type: array
+          items:
+            type: number
+        spatialAssetURI:
+          type: string
+        appearanceURI:
+          type: string
+
+    Spatial:
+      # CANONICAL. Transcribed VERBATIM from the open spec (API.yaml lines 438-468).
+      # A graph DESCRIPTOR: it POINTS AT a root node (`rootNodeID`) — it is NOT the
+      # root node itself. Previously OMITTED from this contract entirely.
+      #
+      # SERVED ON A VERSIONED OPT-IN (runtime served it; declared in
+      # this contract by runtime). `GET /wow/spatial/{spatialID}?form=descriptor`
+      # (alias `?form=spatial`, or request header `X-OSL-WoW-Spatial-Form: descriptor`)
+      # returns this descriptor with response header `X-OSL-WoW-Spatial-Form: descriptor`.
+      # The DEFAULT `GET /wow/spatial/{spatialID}` still returns the root node (LABELED
+      # OSLFlatNode) with header `X-OSL-WoW-Spatial-Form: node` — that default-shape
+      # difference is the whole of declared divergence D3, so existing clients never
+      # break. Wire-proven by `src/wow-gaps-validation.mjs`; drift-guarded (contract
+      # declaration vs served behavior) by `src/wow-claim-drift-validation.mjs`.
+      type: object
+      properties:
+        id:
+          type: number
+        rootNodeID:
+          type: number
+        geoPose:
+          $ref: '#/components/schemas/GeoPose'
+
+    # ============================================================
+    # LABELED OSL EXTENSIONS — additive, NON-CANONICAL. Every schema
+    # below is annotated x-osl-extension:true and MUST be surfaced by
+    # the conformance components. The WoW standard is silent on all of these.
+    # ============================================================
+
+    ProofBoundary:
+      # The four claim-boundary flags REQUIRED on every /wow response.
+      # OSL owns this schema fully, so it is strict (additionalProperties:false,
+      # all four required booleans). standards_conformance is honestly `false`
+      # in this version; the server enforces the truthful values, this contract
+      # enforces the flags' presence, and conformance surfaces them.
+      x-osl-extension: true
+      type: object
+      additionalProperties: false
+      required:
+        - application_level_handoff
+        - native_teleportxr_teleport
+        - first_party_teleportxr_browser_rendering
+        - standards_conformance
+      properties:
+        application_level_handoff:
+          type: boolean
+        native_teleportxr_teleport:
+          type: boolean
+          description: 'false in this version — no native TeleportXR session teleport.'
+        first_party_teleportxr_browser_rendering:
+          type: boolean
+          description: 'false in this version — not first-party TeleportXR rendering.'
+        standards_conformance:
+          type: boolean
+          description: 'false on every /wow response — no cosmetic conformance.'
+
+    PortalDestination:
+      # The destination the CANONICAL Portal cannot express. runtime migrates
+      # portal semantics onto this labeled extension and proposes it upstream.
+      # All fields optional (a portal may be under-specified) but the shape is
+      # documented so client + server single-source it.
+      x-osl-extension: true
+      type: object
+      properties:
+        target_world_id:
+          type: string
+        target_location_id:
+          type: string
+        target_base_url:
+          type: string
+          description: 'base URL of the destination world server.'
+        spatial_fabric_address:
+          type: string
+          description: 'loadable spatial fabric address of the destination.'
+
+    SpatialFabricSubtree:
+      # LABELED, NON-CANONICAL. A WoW composition-graph node
+      # that TRANSCLUDES a signed `.msf` spatial fabric as a verifiable, executable
+      # SUBTREE — the subtree analogue of the node's glTF LEAF.
+      #
+      # TRANSCLUSION, NOT TRAVERSAL. This is `<img src>`, not `<a href>`. The child
+      # fabric is DRAWN HERE, in this node's own accumulated frame (Sneeze's
+      # Compositor.cpp attachment hook: "traverse it in this node's own accumulated
+      # frame"). Artemis's Earth IS the child fabric — nobody travels to it. The
+      # TRAVERSAL relation is `PortalDestination` on a `Portal`, and the two are
+      # deliberately NOT merged.
+      #
+      # THE ADDRESS vs THE CONTRACT. `Node.spatialAssetURI` is the ADDRESS, and a
+      # `.msf` URL in it is SPEC-LEGAL today: the canonical `Node` types it as a
+      # bare `string` with no `format`, no `mediaType`, no enum and no prose (open
+      # spec, API.yaml). We ADOPT that. But "permitted" is not "specified" — the
+      # address cannot carry what a SUBTREE needs and a LEAF does not: the scale
+      # contract, the up-axis, the trust policy, the recursion cap, the epoch. THIS
+      # schema is that contract, and it is LABELED as ours. No parallel address
+      # field is invented.
+      x-osl-extension: true
+      x-osl-extends: Node
+      x-osl-divergence: 'D8 — the WoW standard has no concept of a node that transcludes a SIGNED, EXECUTABLE spatial document. OpenSpatialAsset is media-type-plural (model/gltf-binary, model/vnd.usdz+zip, ...) but has NO signed-document type. This capability is OURS, labeled, and proposed upstream — it is not granted by the spec.'
+      type: object
+      # STRICT (like ProofBoundary): OSL owns this schema outright. An unknown
+      # member here would be a DIAL THE ENGINE SILENTLY IGNORES — precisely the
+      # failure mode this schema exists to kill. A new dial is added HERE first.
+      additionalProperties: false
+      required:
+        - fabricURI
+        - unitsPerMeter
+        - upAxis
+        - placement
+      description: >-
+        LABELED OSL EXTENSION — carried at `node.webofworlds_extension.spatial_fabric_subtree`.
+        It is the CONTRACT behind the ADDRESS in `Node.spatialAssetURI`, and it is the DISCRIMINATOR:
+        a node is a fabric node iff this member is present. The `.msf` suffix is NEVER sniffed —
+        suffix-sniffing hides exactly the contract this object exists to state.
+        FOUR REQUIRED FIELDS, and every one of them is required for a reason that has already bitten:
+        (a) `unitsPerMeter` has NO DEFAULT. The fabric compositor's `auto` rule is "a fabric whose walk
+        contains celestial nodes composes in AU; any other composes in its native metres". Inherited into
+        a 1:1-metre WoW room, `auto` silently means 1 AU = 1 METRE. That is a defensible reading and a
+        catastrophic default, so it is REFUSED, not defaulted (OSL-FAB-XFORM-1 §3).
+        (b) `upAxis` has NO DEFAULT. The fabric corpus is Z-up; WoW/Three is Y-up. Guess wrong and the
+        solar system lies on its side, silently. An absent or unrecognized `upAxis` is a REFUSAL
+        (OSL-FAB-XFORM-1 §2 — the implementation refuses it, so this contract requires it; a contract
+        that disagreed with its implementation would be the very disease this components is treating).
+        (c) `placement` has NO DEFAULT. It SELECTS THE BACKEND, and the two backends make DIFFERENT
+        HONESTY CLAIMS (see the property description). Defaulting would pick a claim on the author's behalf.
+        (d) `fabricURI` is the signed document itself.
+        NOTHING HERE EARNS A CONFORMANCE FLIP: `standards_conformance` stays `false`. The capability is
+        labeled OSL, declared as divergence D8, surfaced by the conformance components — never disguised as canonical.
+      properties:
+        fabricURI:
+          type: string
+          description: >-
+            The signed `.msf` spatial fabric to transclude. NORMALLY IDENTICAL to the node's
+            `spatialAssetURI` (which stays the WoW-native address). Resolved and then VERIFIED
+            fail-closed by the existing `.msf` pipeline (`verifyMsfToken`) — an unverified,
+            unfetchable or tampered fabric is REFUSED with a visible error at EVERY nesting level:
+            never silently dropped, never drawn.
+        mediaType:
+          type: string
+          description: >-
+            PROVISIONAL, UNREGISTERED LABEL. `application/msf+jws` is the honest provisional name for a
+            signed, executable spatial document. NO SUCH MEDIA TYPE IS REGISTERED WITH IANA — do not
+            claim otherwise. Registering (or renaming) it is an upstream/MSF question, not ours to settle.
+            Advisory only: it is NOT the discriminator (the presence of this schema is).
+        unitsPerMeter:
+          type: number
+          exclusiveMinimum: 0
+          description: >-
+            REQUIRED. NO DEFAULT. EVER. World units per fabric metre (`k` in OSL-FAB-XFORM-1 §3).
+            It is FOLDED INTO THE COMPOSITOR (`composeScale = k * s`, where `s` is the node's decomposed
+            uniform scale) rather than post-multiplied — the engine's own (S·R)² light-intensity rule then
+            applies for free and correctly. Worked example (the demo case): a tabletop orrery with
+            1 AU = 0.5 m in a 1:1-metre room is `k = 0.5 / 149597870700 = 3.3423e-12`. Omitting this field
+            is a REFUSAL (`MISSING_UNITS_PER_METER`); a non-positive or non-finite value is
+            `BAD_UNITS_PER_METER`.
+        upAxis:
+          type: string
+          enum: [z, y]
+          description: >-
+            REQUIRED. DECLARED, NEVER SNIFFED, NEVER DEFAULTED. `z` = the fabric corpus default (the shared
+            Sneeze UV sphere is Z-up), and the host inserts the fixed basis change B = R_x(-90°) — a pure
+            isometry, determinant +1, so NO GEOMETRY IS RESHAPED. `y` = the fabric is authored Y-up and
+            B = I. An absent or unrecognized value is a REFUSAL (`UNKNOWN_UP_AXIS`), never a fallback to
+            `z` — a fallback would silently reintroduce the exact bug this field exists to kill
+            (OSL-FAB-XFORM-1 §2).
+        placement:
+          type: string
+          enum: [in-room, backdrop]
+          description: >-
+            REQUIRED. NO DEFAULT. It SELECTS THE BACKEND, and the two backends make DIFFERENT, INCOMPATIBLE
+            HONESTY CLAIMS — so an absent/unknown value is a REFUSAL (`UNKNOWN_PLACEMENT`), never a silent
+            fallback to the flattering backend.
+            `in-room` -> the THREE lowering: ONE scene graph, ONE depth buffer, so an avatar can walk in
+            front of / behind / around the fabric and the occlusion is CORRECT. Shading is APPROXIMATE and
+            it carries **NO PARITY CLAIM, EVER** (`render: "three-approx"`).
+            `backdrop` -> the FILAMENT stacked layer: the measured-parity path (masked SSIM 0.941 vs
+            Artemis's own capture), but it CANNOT DEPTH-COMPOSITE — two stacked WebGL canvases have no
+            shared depth buffer (that is physics, not preference), so NOTHING IN THE ROOM CAN EVER OCCLUDE
+            IT. `artemis.msf` is a backdrop and works perfectly as one; an in-room plinth-mounted fabric
+            would be painter-ordered and an avatar could not walk in front of it.
+        parallax:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0
+          description: >-
+            BACKDROP ONLY. A LABELED dial, 0..1. `0` (the honest default) = orientation-locked: the backdrop
+            follows the camera's rotation but not its translation, which is the truthful behaviour for a
+            layer that has no shared depth buffer. Meaningless for `in-room` (which is genuinely
+            depth-correct and needs no parallax fake).
+        requireVerified:
+          type: boolean
+          default: true
+          description: >-
+            FAIL-CLOSED BY DEFAULT. Absent or `true` => the fabric MUST verify (RS256 + x5c chain to a
+            SHIPPED test anchor) or it is REFUSED and NOT DRAWN, keeping a labeled placeholder and a visible
+            error. `false` is a LABELED local demo ESCAPE HATCH ONLY — it must never be set in a demo or a published
+            world, and a world that sets it cannot claim its subtree is verified. NOTE: "VERIFIED" means a
+            valid signature chaining to a shipped TEST anchor; it is NOT an OS-trust / public-PKI claim.
+        maxDepth:
+          type: integer
+          minimum: 0
+          description: >-
+            Per-subtree recursion cap for nested child fabrics (a fabric may transclude fabrics). ALWAYS
+            CLAMPED by the engine's absolute MAX_DEPTH — this dial can only ever LOWER the cap, never raise
+            it past the engine's own limit.
+        epochTicks:
+          type: number
+          description: >-
+            The epoch at which the fabric's `map.wasm` is run. Fabrics are TIME-DEPENDENT BY DESIGN (orbits
+            move), so the epoch must be STATED rather than implied by wall-clock. This is also why the
+            fabric's internal nodes are NOT projected back up into the WoW graph as addressable WoW nodes:
+            any such projection is a SNAPSHOT AT AN EPOCH, not a graph (deliberately deferred).
+
+    Zone:
+      # An OSL-native interaction volume around a portal (e.g. a larger prefetch
+      # zone vs a smaller traversal trigger).
+      x-osl-extension: true
+      type: object
+      properties:
+        kind:
+          type: string
+          description: 'e.g. prefetch | trigger'
+        position:
+          type: array
+          items:
+            type: number
+        radius_m:
+          type: number
+
+    PortalTraversal:
+      # OSL-native traversal-direction rule beside a portal.
+      x-osl-extension: true
+      type: object
+      properties:
+        mode:
+          type: string
+          description: 'bidirectional | one-way'
+        allowed_entry_side:
+          type: string
+          description: 'named against the portal frame forward axis.'
+
+    OSLFlatNode:
+      # LABELED, NON-CANONICAL — the node shape OSL ACTUALLY serves and renders
+      # on every /wow/spatial/* operation.
+      #
+      # DECLARED DIVERGENCE from the canonical `Node`:
+      #   canonical: children = array of EMBEDDED Node objects (items: $ref Node)
+      #   OSL:       children = array of INTEGER node-id references (flat graph)
+      #
+      # WHY: OSL stores a FLAT graph (id -> node map) so a node is addressable at
+      # /wow/spatial/{spatialID}/node/{nodeId} in O(1) and updatable without
+      # rewriting an enclosing subtree, with no cycle hazard on the wire. This is
+      # a deliberate ENGINEERING choice, NOT a reading of the standard. It is
+      # SURFACED (never hidden) by the conformance components and is proposed upstream
+      # alongside PortalDestination — "embed vs reference for Node.children" is a
+      # real design question, and this is our position on it, labeled as ours.
+      #
+      # Also OSL-specific: `localTransform` is CONVENTIONALLY a 16-float
+      # column-major 4x4 matrix. The standard constrains neither length nor major
+      # order, so this is an OSL convention too (the conformance components reports a
+      # non-16 length as a DIVERGENCE from our convention, not as spec drift).
+      x-osl-extension: true
+      x-osl-divergence: 'Node.children: integer id-refs (OSL) vs embedded Node objects (canonical)'
+      x-osl-canonical-counterpart: Node
+      type: object
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        names:
+          type: array
+          items:
+            type: string
+        parent:
+          type: integer
+        children:
+          type: array
+          items:
+            type: integer
+        localTransform:
+          type: array
+          items:
+            type: number
+        spatialAssetURI:
+          type: string
+        appearanceURI:
+          type: string
+        webofworlds_extension:
+          $ref: '#/components/schemas/WebOfWorldsExtension'
+
+    UMSignature:
+      # runtime — the UniversalManifest Signature Profile A block:
+      # Ed25519 over JCS-RFC8785 canonical bytes, bound to a did:key. This is the
+      # IDENTITY trust spine — SEPARATE from the .msf RS256/x5c engine spine. A REAL
+      # signature; standards_conformance stays false (labeled non-canonical).
+      x-osl-extension: true
+      type: object
+      properties:
+        algorithm:
+          type: string
+          description: 'MUST be "Ed25519" (the Profile A pair; never reinterpreted).'
+        canonicalization:
+          type: string
+          description: 'MUST be "JCS-RFC8785".'
+        keyRef:
+          type: string
+          description: 'did:key DID URL (offline-resolvable; consistency-checked vs the embedded key).'
+        publicKeySpkiB64:
+          type: string
+          description: 'base64 SPKI DER Ed25519 public key (the suite embedded-key escape hatch).'
+        created:
+          type: string
+          description: 'ISO 8601 (recommended). Lives inside the signature block; excluded from the signing input.'
+        value:
+          type: string
+          description: 'base64url (unpadded) Ed25519 signature over the JCS-RFC8785 signing input.'
+
+    OpenUserManifest:
+      # runtime — the retained UM identity fronted via /wow/user. The
+      # OpenUserManifest CONTENT shape {name, age, avatarAssetURI} is the payload UM
+      # Signature Profile A signs (signing input = this object MINUS `signature`),
+      # plus the attached signature block. WoW's canonical User is silent on `age`
+      # and carries no identity signature; this labeled non-canonical additive is
+      # OpenUserManifest ≡ UM (same identity spine, not a new standard). The
+      # signature is REAL; standards_conformance stays false.
+      x-osl-extension: true
+      type: object
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        age:
+          type: number
+        avatarAssetURI:
+          type: string
+        signature:
+          # When signed: a UMSignature block (see that schema). When the signer is
+          # unavailable: `null` (honest unsigned/unverified degradation). Left
+          # untyped so BOTH states validate under the additive ajv layer (ajv
+          # ignores OpenAPI `nullable`, so an untyped member accepts object-or-null).
+          description: 'UMSignature when signed; null on honest unsigned/unverified degradation.'
+
+    WebOfWorldsExtension:
+      # The LABELED open extension bag OSL rides on the WoW read surface. It is
+      # intentionally OPEN (additionalProperties:true) because it is the
+      # evolving, non-canonical seam. Named members below are documented so
+      # server + client single-source them; unknown members ride legally.
+      x-osl-extension: true
+      type: object
+      additionalProperties: true
+      properties:
+        schema:
+          type: string
+        geopose_mapping:
+          type: object
+          additionalProperties: true
+        target_world_id:
+          type: string
+        target_location_id:
+          type: string
+        target_base_url:
+          type: string
+        spatial_fabric_address:
+          # OSL-native loadable fabric address (the osl.spatial-fabric-address
+          # profile object the live 041 server emits). Non-canonical, OPEN
+          # shape — typed as an open object to mirror server reality, not a
+          # flat string. (The forward-looking flat address lives on the
+          # labeled PortalDestination extension; runtime.)
+          type: object
+          additionalProperties: true
+        spatial_fabric_subtree:
+          # runtime — the labeled TRANSCLUSION contract. Its presence
+          # is what makes a node a FABRIC node (the discriminator; the `.msf`
+          # suffix is never sniffed). Because this member is a $ref to a STRICT
+          # schema, a served node carrying a MALFORMED subtree contract now FAILS
+          # OSLFlatNode validation — the fail-closed rule reaches the wire, not
+          # just the client.
+          $ref: '#/components/schemas/SpatialFabricSubtree'
+        portal_id:
+          type: string
+        trigger:
+          $ref: '#/components/schemas/Zone'
+        zones:
+          # OSL-native portal interaction volumes, emitted as a KEYED object
+          # (e.g. { prefetch, traversal, invariant, ... }) by the live server —
+          # NOT an array. Non-canonical, OPEN shape.
+          type: object
+          additionalProperties: true
+        traversal:
+          $ref: '#/components/schemas/PortalTraversal'
+        traversal_mode:
+          type: string
+
+    # ============================================================
+    # OSL RESPONSE COMPOSITES — what the OSL 041 server ACTUALLY
+    # returns: the CANONICAL schema PLUS the LABELED OSL extensions.
+    # Response validation uses THESE; the canonical schemas above stay
+    # pure so the conformance components can diff canonical vs actual.
+    # ============================================================
+
+    OSLWorldResponse:
+      x-osl-extension: true
+      allOf:
+        - $ref: '#/components/schemas/World'
+        - type: object
+          required:
+            - proof_boundary
+          properties:
+            proof_boundary:
+              $ref: '#/components/schemas/ProofBoundary'
+            webofworlds_extension:
+              $ref: '#/components/schemas/WebOfWorldsExtension'
+            # legacy members the running 057 web client still reads (labeled)
+            id:
+              type: string
+            location:
+              type: object
+              additionalProperties: true
+            session:
+              type: object
+              additionalProperties: true
+
+    OSLUserResponse:
+      x-osl-extension: true
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          required:
+            - proof_boundary
+          properties:
+            proof_boundary:
+              $ref: '#/components/schemas/ProofBoundary'
+            webofworlds_extension:
+              $ref: '#/components/schemas/WebOfWorldsExtension'
+            # runtime — LABELED non-canonical additive UM identity: the
+            # signed OpenUserManifest {name, age, avatarAssetURI, signature}. The
+            # canonical User above stays pure for the runtime conformance diff; this
+            # is the surfaced extension point (never hidden).
+            open_user_manifest:
+              $ref: '#/components/schemas/OpenUserManifest'
+            open_user_manifest_label:
+              type: string
+              description: 'Honesty label for open_user_manifest (real signature, non-canonical, standards_conformance:false).'
+
+    OSLViewResponse:
+      x-osl-extension: true
+      allOf:
+        - $ref: '#/components/schemas/View'
+        - type: object
+          required:
+            - proof_boundary
+          properties:
+            proof_boundary:
+              $ref: '#/components/schemas/ProofBoundary'
+            webofworlds_extension:
+              $ref: '#/components/schemas/WebOfWorldsExtension'
+
+    OSLPortalResponse:
+      x-osl-extension: true
+      allOf:
+        - $ref: '#/components/schemas/Portal'
+        - type: object
+          required:
+            - proof_boundary
+          properties:
+            label:
+              type: string
+            proof_boundary:
+              $ref: '#/components/schemas/ProofBoundary'
+            webofworlds_extension:
+              $ref: '#/components/schemas/WebOfWorldsExtension'
+            # runtime lands portal destination on this labeled extension point:
+            destination:
+              $ref: '#/components/schemas/PortalDestination'
