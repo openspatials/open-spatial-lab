@@ -26,7 +26,6 @@ const STOREFRONT_MAP = {
 const TRAVELER_MAP = {
   Joe: "person-joe",
   Rose: "person-rose",
-  Helium: "person-helium",
   Nea: "person-nea",
   Jane: "person-jane",
 };
@@ -112,7 +111,7 @@ function buildEntities(stores, travelers) {
 
 /**
  * initAirportHudOverlay({ THREE, camera, scene, document, stores, travelers, host })
- * Mounts one passive compact identity tag above each of the 9 Airport entities.
+ * Mounts one passive compact identity tag above each of the 8 mapped Airport entities.
  * Returns a handle { dispose, entityCount, layer } or null.
  */
 export function initAirportHudOverlay(options = {}) {
