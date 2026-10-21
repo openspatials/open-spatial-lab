@@ -483,6 +483,7 @@ async function main()
     };
     const evidencePath = path.resolve(__dirname, '..', '..', '..',
         'diagnostics', 'runtime-p1-shared-edge-portal-identity.json');
+    fs.mkdirSync(path.dirname(evidencePath), { recursive: true });
     fs.writeFileSync(evidencePath, JSON.stringify(diagnostics, null, 2) + '\n');
     console.log('[runtime-p1] diagnostics -> ' + evidencePath);
 

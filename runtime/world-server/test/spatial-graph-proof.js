@@ -429,6 +429,7 @@ async function main()
             results,
         };
         const evPath = path.join(REPO_ROOT, 'diagnostics', 'runtime-spatial-graph.json');
+        fs.mkdirSync(path.dirname(evPath), { recursive: true });
         fs.writeFileSync(evPath, JSON.stringify(diagnostics, null, 2) + '\n', 'utf8');
         process.stdout.write('\n[runtime] diagnostics -> ' + evPath + '\n');
         process.stdout.write('[runtime] ' + (failures === 0 ? 'ALL ' + results.length + ' CHECKS PASS'

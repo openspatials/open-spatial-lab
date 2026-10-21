@@ -396,6 +396,7 @@ async function main()
             results,
         };
         const evPath = path.join(REPO_ROOT, 'diagnostics', 'runtime-wow-contract-foundation.json');
+        fs.mkdirSync(path.dirname(evPath), { recursive: true });
         fs.writeFileSync(evPath, JSON.stringify(diagnostics, null, 2) + '\n', 'utf8');
         process.stdout.write('\n[wow-013] diagnostics -> ' + evPath + '\n');
         process.stdout.write('[wow-013] ' + (failures === 0 ? 'ALL ' + results.length + ' CHECKS PASS'
