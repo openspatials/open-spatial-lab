@@ -666,8 +666,8 @@ export function imageLayerFlipForViewerSide(viewerSide) {
     legible_on_viewed_face: true,
     rule:
       "front viewer -> identity UV (u); back viewer -> horizontal flip (1 - u) " +
-      "so the DoubleSide back-face mirror cancels to legible text — runtime P5, " +
-      "owner issue #3 (far still-image legible on both sides)",
+      "so the DoubleSide back-face mirror cancels to legible text — P5 " +
+      "(far still-image legible on both sides)",
     validation: { image_legibility_standard_conformance: false, application_level: true },
   };
 }

@@ -528,7 +528,7 @@ async function main() {
             : iwpsMod.IWPS_CONFORMANCE;
 
         // --- E1. The claim itself. Read from the real module object, not its source text. ---
-        ok('IWPS claim is HONEST: iwps_conformance === false (the flag this WO refuses to flip)',
+        ok('IWPS claim is HONEST: iwps_conformance === false (the flag this proof refuses to flip)',
             IWPS.iwps_conformance === false, 'iwps_conformance=' + IWPS.iwps_conformance);
         ok('IWPS NOT INFLATED: base_query_teleport === false (we do NOT implement Query/Teleport)',
             IWPS.base_query_teleport === false, 'base_query_teleport=' + IWPS.base_query_teleport);

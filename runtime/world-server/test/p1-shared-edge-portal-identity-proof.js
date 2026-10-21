@@ -209,7 +209,7 @@ async function main()
         }
     });
 
-    await check('E3', 'owner #1 regression: A and B each host the A<->B edge AND their lobby edge; the lobby portal is never the A<->B portal', async () => {
+    await check('E3', 'regression: A and B each host the A<->B edge AND their lobby edge; the lobby portal is never the A<->B portal', async () => {
         for (const [ loc, ownEdge ] of [
             [ 'location-a', 'edge--location-a--location-lobby' ],
             [ 'location-b', 'edge--location-b--location-lobby' ] ])
