@@ -62,13 +62,12 @@ const MOCAP_URLS = {};
 // "OnlyAuthor" — only the author may use it, and it may not be redistributed at all. OSL was
 // serving it over HTTP as a selectable variant. That is not a money clause, so the project's
 // non-commercial posture did not rescue it: it was dropped, and the file was deleted.
-// Attribution for what remains: docs/CREDITS.md.
+// Attribution for what remains: THIRD_PARTY_NOTICES.md.
 export const AVATAR_VARIANTS = Object.freeze({
-  // every
-  // served VRM model file and every VRM catalog/variant entry has been deleted. The demo is
-  // GLB-only. The format-neutral runtime machinery below (three-vrm's VRMHumanoid facade,
-  // VRMLoaderPlugin, the MIXAMO_TO_VRM bone map, the `this.vrm` runtime handle) is NOT VRM
-  // model support — it is the shared humanoid rig every GLB avatar drives through, so it stays.
+  // No VRM model file ships. The format-neutral runtime machinery below (three-vrm's
+  // VRMHumanoid facade, VRMLoaderPlugin, the MIXAMO_TO_VRM bone map, the `this.vrm` runtime
+  // handle) is NOT VRM model support — it is the shared humanoid rig every avatar drives
+  // through, so it stays.
   // BEGIN (parametric avatar variant)
   // Generated locally from AvatarParams (H-Anim skeleton + parametric body);
   // NO asset is fetched — the url is an honest pseudo-URI naming the generator.
@@ -91,34 +90,15 @@ export const AVATAR_VARIANTS = Object.freeze({
     structured_unsupported: [],
   },
   // END
-  // both GLB avatars are Sketchfab exports of Mixamo-topology skeletons
-  // (66-68 skin joints: Hips/Spine/Spine1/Spine2/Neck/Head/{Left,Right}{Shoulder,Arm,
-  // ForeArm,Hand,UpLeg,Leg,Foot,ToeBase} + fingers). They were never "static" — they
-  // were rigged all along and nothing was driving the rig. The glb-humanoid facade
-  // now wraps that skeleton in a real three-vrm VRMHumanoid, so these two get the
-  // SAME locomotion retarget and the SAME normalized-bone equipment attachment as
-  // the VRM avatars. rotation_y stays 0: a Mixamo glTF rig already faces the mocap
-  // source's forward, unlike the VRM0 avatars which need the PI flip.
-  //
-  // LICENCE (both): CC-BY-NC-SA-4.0, author "Ready Player Me", via Sketchfab (read from
-  // each file's own asset.extras). NON-COMMERCIAL + ShareAlike + ATTRIBUTION REQUIRED.
-  // The attribution is shipped in docs/CREDITS.md; the first of these
-  // is the DEFAULT avatar, so that credit is owed on every default load, not just on a pick.
-  // the eligible imported GLB characters — originally five, now
-  // three: removed the two "VRChat/Game" rigs (rpm-female-vrchat,
-  // rpm-male-vrchat), which the user reported were not working (they mis-rendered —
-  // diagnosis). Each remaining one is a Ready Player Me / Mixamo-topology rig, driven through
-  // the SAME gltf-humanoid-facade as the two GLBs above, so it inherits the locomotion retarget
-  // and normalized-bone equipment attachment with no per-avatar code. rotation_y stays 0 (a
-  // Mixamo glTF rig already faces the mocap source's forward). These, plus the two GLBs above,
-  // are the selector's entire roster. ("remove ALL VRM; GLB only")
-  // deleted every VRM model and every VRM catalog/variant entry, so there are no hidden VRM
-  // variants left in this table — the demo is GLB-only (plus the engineering 'parametric' avatar).
+  // The Ready Player Me characters below are Mixamo-topology rigs driven through the
+  // gltf-humanoid-facade, so they share the locomotion retarget and the normalized-bone
+  // equipment attachment with no per-avatar code. rotation_y stays 0: a Mixamo glTF rig
+  // already faces the mocap source's forward. They dress the airport travelers; the player
+  // selector offers only the generated avatar above (web/avatar-selector-controller.mjs).
   //
   // LICENCE (all three): CC-BY-NC-SA-4.0, author "Ready Player Me", via Sketchfab (read from
-  // each file's own asset.extras). NON-COMMERCIAL + ShareAlike + ATTRIBUTION
-  // REQUIRED. Attribution ships in docs/CREDITS.md. A commercial release still needs a
-  // CC0/self-authored GLB swap (the CC0 VRM avatars that used to sit above were retired with VRM).
+  // each file's own asset.extras). NON-COMMERCIAL + ShareAlike + ATTRIBUTION REQUIRED.
+  // Attribution ships in THIRD_PARTY_NOTICES.md.
   "rpm-female-cyberpunk": {
     key: "rpm-female-cyberpunk",
     label: "Rose",
@@ -162,17 +142,9 @@ export const AVATAR_VARIANTS = Object.freeze({
     structured_unsupported: [],
   },
 });
-// the Ready Player Me GLB is THE avatar now.
-// It only became a legitimate default once the humanoid facade made it a rigged,
-// walking, bone-equipping avatar rather than a frozen statue.
-//
-// LICENCE OF THE DEFAULT — say it where the default is set.
-// This one is CC-BY-NC-SA-4.0 (Ready Player Me, via Sketchfab; asset.extras, from the bytes).
-// So the avatar that loads when nobody picks one is the NON-COMMERCIAL, ShareAlike,
-// ATTRIBUTION-REQUIRED one. Fine for this non-commercial demo *with the credit shipped*
-// (docs/CREDITS.md; surfaced). NOT fine for a commercial release —
-// and the swap is a URL, not a rewrite (the CC0 avatars that used to sit in this table were the
-// VRM ones, retired; a commercial build swaps in a CC0/self-authored GLB).
+// The default and only player avatar is the generated one. It is built in the browser from
+// AvatarParams, so it ships no model file and carries no third-party licence. The Ready Player
+// Me variants above (CC-BY-NC-SA-4.0) dress the airport travelers only.
 export const DEFAULT_AVATAR_VARIANT = "parametric";
 
 /**
