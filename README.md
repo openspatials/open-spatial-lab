@@ -2,16 +2,18 @@
 
 Open Spatial Lab is a local Web of Worlds and spatial-computing demo. From the player lobby and launcher, an avatar can move among three authored Three.js destinations—Location A, Location B, and Denver Skyport—while preserving supported identity, equipment, pose, and portal state.
 
+This repository is where Open Spatial Lab is developed. Issues and pull requests are welcome; see [Contributing](#contributing).
+
 ## Included
 
 - Player lobby and mission launcher
 - Three authored Three.js destinations: Location A, Location B, and Denver Skyport
 - Denver Skyport access through the lobby's Portal C path
 - Local world servers and a one-command launcher
-- Selectable avatars and equipment
+- A generated player avatar with selectable equipment
 - Included models, textures, procedural animation, and runtime assets
 - Portal navigation and player-state continuity
-- Automated integrity and browser verification commands
+- Web of Worlds protocol proofs, a conformance runner, and browser verification
 
 ## Requirements
 
@@ -38,10 +40,10 @@ If Node.js 22.x and npm 10.x are not installed, select the 22.x release from the
 ## Repository layout
 
 - `src/` — local frontend server and topology orchestration
-- `runtime/` — local world-server and Three.js scene runtime
+- `runtime/` — local world server with its proofs (`runtime/world-server/test/`), and the Three.js scene runtime
 - `web/` — browser demo, authored worlds, and included runtime assets
-- `wow-spec/` — Web of Worlds schema and validation code
-- `tools/` — launcher helpers and public verification scripts
+- `wow-spec/` — Web of Worlds schema, validation code, and conformance fixtures
+- `tools/` — launcher helpers, verification scripts, and the Web of Worlds conformance runner and proofs (`tools/wow-conformance/`)
 - `licenses/` — third-party asset and library license texts
 
 ## Quick start
@@ -71,7 +73,7 @@ Open the launcher URL in a supported browser.
 
 1. On the launcher, choose **Enter as Player** to enter the lobby. Select **Start exploring** if the orientation card appears.
 2. Move with `W`, `A`, `S`, and `D`. Hold `Shift` to run, press `Space` to jump, drag to look around, scroll to zoom, and press `C` to switch camera view.
-3. Choose **Switch avatar**, select an included avatar, one worn item, and one held item, then choose **Apply**. Continue moving to see the selection remain with the player.
+3. Choose **Switch avatar**, select one worn item and one held item, then choose **Apply**. Continue moving to see the selection remain with the player.
 4. Walk through a lit portal; crossing is automatic. Visit Location A and Location B and compare their scenes and local models.
 5. Return to the lobby and walk through Portal C to enter Denver Skyport. Use its return portal to continue the journey.
 6. Open **Views** to return to the launcher. Open the Location A and Location B observer views to show the two local world servers.
@@ -86,17 +88,37 @@ Open the launcher URL in a supported browser.
 - Camera: `C` or the camera button
 - Portal: walk through a lit portal; no extra command is needed
 - Launcher: arrow keys to move, `Home`/`End` for first/last, `Enter` or `Space` to open, and mouse selection
-- Avatar selector: **Switch avatar**, choose an avatar plus one worn and one held item, then **Apply**; `Escape` or **Cancel** discards pending changes
+- Avatar selector: **Switch avatar**, choose one worn and one held item, then **Apply**; `Escape` or **Cancel** discards pending changes
 
 ## Verification
 
-Optional but recommended: run the complete public check from the repository root:
+Run the complete check from the repository root:
 
 ```bash
 npm run verify
 ```
 
-It verifies the packaged tree, starts the local topology, opens the launcher and world scenes in a local browser, checks included assets, and shuts everything down. A successful run ends with `PASS: Open Spatial Lab verification complete`. Run `npm start` afterward to resume the demo.
+It checks the package and its local module closure, scans the tree for private project traces (`npm run trace-check`), starts the local topology, opens the launcher and world scenes in a local browser, checks included assets, and shuts everything down. A successful run ends with `PASS: Open Spatial Lab verification complete`. Run `npm start` afterward to resume the demo.
+
+### Proofs and conformance
+
+Each proof starts its own world servers on isolated ports, so it never disturbs a running demo. Proofs write a JSON report to `diagnostics/`.
+
+```bash
+npm run proof:crossing        # a world-to-world crossing over the Web of Worlds API
+npm run proof:portal          # portals as graph nodes with a resolvable destination
+npm run proof:spatial-graph   # the spatial composition graph, end to end
+npm run proof:contract        # contract-driven request and response validation
+npm run proof:presence        # WebSocket events and presence
+npm run proof:acceptance      # world-server exit and arrival acceptance tests
+npm run conformance           # Web of Worlds conformance runner
+npm run conformance:fixtures  # pinned OpenSpatialWorld schema and endpoint fixtures
+npm run wow-schema-json       # rebuild wow-spec/generated/schema.json from wow-spec/schema.yaml
+```
+
+The conformance runner exits with code 3 without running when the one-minute load average is 14 or higher. That is a deferral, not a failure.
+
+Known issues: `runtime/world-server/test/airport-backend-proof.js` and check E11 of `runtime/world-server/test/p1-shared-edge-portal-identity-proof.js` fail on the current code. The round-trip proof (`wow-spec/proof/roundtrip.js`) stops at its spatial-fabric section, because the fabric modules are not in this repository yet.
 
 ## Stop and clean up
 
@@ -133,6 +155,13 @@ These are future enhancements, not additional setup steps for the current demo, 
 - Richer airport experiences, including interactive storefronts, a Gate A12 journey, and moving travelers
 - Airport localization, spatial-content discovery, and augmented-reality overlays
 - Broader multi-machine, real-device, unhappy-path, and sample-world coverage
+
+## Contributing
+
+- Open an issue to report a bug or propose a change, or open a pull request against `main`.
+- Before you open a pull request, run `npm run verify` and the proofs that cover your change.
+- Keep code comments about the code. `npm run trace-check` fails on internal tracker ids, private paths and secret-shaped values.
+- Contributions are licensed under Apache-2.0, as section 5 of the license states.
 
 ## License and security
 
