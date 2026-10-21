@@ -52,6 +52,25 @@ async function openWorld(browser, route, expectedLocation, requestLog, errors) {
   return page;
 }
 
+// The generated avatar must idle with its arms down. Hands are measured against the hips in
+// the avatar's own frame: in a T-pose they sit about 0.68 m out and 0.38 m above the hips;
+// standing they sit about 0.24 m out and 0.13 m below.
+async function assertStandingPose(page) {
+  try {
+    await page.waitForFunction(() => {
+      const bones = window.__assembly.rigProbe?.()?.bones;
+      if (!bones?.hips || !bones.leftHand || !bones.rightHand) return false;
+      return ["leftHand", "rightHand"].every((name) => {
+        const hand = bones[name].local;
+        return Math.abs(hand[0] - bones.hips.local[0]) < 0.45 && hand[1] < bones.hips.local[1] + 0.1;
+      });
+    }, { timeout: 15000, polling: 100 });
+  } catch (error) {
+    const bones = await page.evaluate(() => window.__assembly.rigProbe?.()?.bones);
+    throw new Error(`the avatar does not idle with its arms down: ${JSON.stringify(bones && { hips: bones.hips?.local, leftHand: bones.leftHand?.local, rightHand: bones.rightHand?.local })}`);
+  }
+}
+
 async function moveDirectlyToward(page, x, z, maxSteps = 220) {
   for (let step = 0; step < maxSteps; step += 1) {
     const distance = await page.evaluate(({ targetX, targetZ }) => {
@@ -319,6 +338,7 @@ async function main() {
       () => window.__assembly.debugState().avatar?.avatar_variant === "parametric",
       { timeout: 30000 },
     );
+    await assertStandingPose(lobby);
     await lobby.evaluate(async () => {
       const selector = window.__assembly.avatarSelector;
       selector.open();
