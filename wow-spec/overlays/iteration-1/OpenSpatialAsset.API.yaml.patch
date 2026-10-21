@@ -1,0 +1,79 @@
+--- a/specification/OpenSpatialAsset/API.yaml
++++ b/specification/OpenSpatialAsset/API.yaml
+@@ -177,6 +177,44 @@
+           description: Not Found.
+ components:
+   schemas:
++    GeoPose:
++      description: >-
++        OGC GeoPose 1.0 Basic-YPR. `position` is latitude and longitude in degrees, and `h` in metres
++        above the WGS-84 ellipsoid. `angles` are `yaw`, `pitch` and `roll` in degrees, applied about the
++        local axes z, y and x in that order. `lan` is a deprecated spelling of `lon`: a reader accepts it
++        and a writer sends `lon`.
++      type: object
++      required: [position, angles]
++      properties:
++        position:
++          type: object
++          required: [lat, lon, h]
++          properties:
++            lat:
++              type: number
++              minimum: -90
++              maximum: 90
++            lon:
++              type: number
++              minimum: -180
++              maximum: 180
++            lan:
++              type: number
++              deprecated: true
++              description: Deprecated spelling of `lon` (the World API at d39a1a0).
++            h:
++              type: number
++        angles:
++          type: object
++          required: [yaw, pitch, roll]
++          properties:
++            yaw:
++              type: number
++            pitch:
++              type: number
++            roll:
++              type: number
++
+     Asset:
+       type: object
+       properties:
+@@ -194,26 +232,11 @@
+             version: 
+               type: number     
+         geoPose:
+-          type: object
+-          properties:
+-            position:
+-              type: object
+-              properties:
+-                lat: 
+-                  type: number
+-                lan:
+-                  type: number
+-                h:
+-                  type: number
+-            angles:
+-              type: object
+-              properties:
+-                yaw:
+-                  type: number
+-                pitch:
+-                  type: number
+-                roll:
+-                  type: number
++          description: >-
++            Metadata. A host may use it to choose a placement for the asset, and it never overrides
++            one.
++          allOf:
++            - $ref: '#/components/schemas/GeoPose'
+ 
+ 
+ 

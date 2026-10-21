@@ -39,6 +39,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { checkLocalTransform } = require('./node-transform');
 
 const ROOT_ID = 0;
 
@@ -49,41 +50,21 @@ const MAX_NODE_TREE_DEPTH = 64;
 /*
  * NO SILENT CHILD-NODE DATA LOSS.
  *
- * Before this change, three separate paths dropped a caller's `children` on the
- * floor and still answered 200 OK:
+ * A node is the canonical `Node` by default: its `children` are the child nodes themselves. The
+ * labeled `OSLFlatNode` (children are integer ids) is served only when a request asks for the node
+ * form `flat`. Whatever form a body is in, every child entry is CLASSIFIED, never filtered, so no
+ * path stores less than the caller sent and still answers 200 OK:
  *
- *   1. normalizeNode()  `children.filter(Number.isInteger)` — every non-integer
- *      child entry (a canonical EMBEDDED `Node` object, a stringified id, null)
- *      vanished with no error.
- *   2. createChildren() `node.children = []` — even INTEGER id-refs sent on a
- *      POST were discarded ("new nodes start as leaves"), silently.
- *   3. updateNode()     ignored `children` entirely — a PUT that restructured a
- *      node's children was a silent no-op.
- *
- * The canonical WoW `Node` (the STANDARD; wow-spec/schema.yaml `Node`, open-spec
- * API.yaml:484-487) types `children` as EMBEDDED `Node` objects. OSL serves the
- * DECLARED, LABELED divergence `OSLFlatNode` (children = integer id refs). So a
- * SPEC-CONFORMANT client POSTing a tree had its whole subtree deleted and was
- * told 200 OK — it believed we stored something we did not. That is the worst
- * failure mode in this project.
- *
- * The rule now: EVERY child entry is CLASSIFIED, never filtered. Nothing is
- * dropped without the caller being told, on EVERY path, regardless of whether
- * ajv request validation (`OSL_WOW_VALIDATE`, default OFF) is enabled — the
- * check is STRUCTURAL, in the store, not a validation-layer opt-in.
- *
- *   - integer id-ref child on CREATE  -> 400 child_id_refs_not_supported_on_create
- *   - embedded canonical Node child   -> 422 embedded_children_not_supported
- *                                        (unless the caller EXPLICITLY opts in to
- *                                         flattening: { flattenEmbedded: true })
- *   - anything else                   -> 400 invalid_child_entry
- *   - children restructured on PUT    -> 422 child_restructure_not_supported
- *
- * See the result artifact for why "reject by default + explicit opt-in" and not
- * "always reject" or "always flatten".
+ *   - canonical form: embedded children are stored as a subtree, and the response returns the nodes
+ *     the caller sent with every id assigned;
+ *   - flat form: integer id-ref child on CREATE -> 400 child_id_refs_not_supported_on_create;
+ *     embedded Node child -> 422 embedded_children_not_supported;
+ *   - anything else      -> 400 invalid_child_entry;
+ *   - children restructured on PUT -> 422 child_restructure_not_supported (children are derived
+ *     from the tree; a PUT may leave them out or repeat them unchanged).
  */
 
-/** The canonical child-form a caller can opt in to (POST only). */
+/** The default node form: the canonical Node, children embedded. */
 const CANONICAL_CHILD_FORM = 'canonical';
 
 /**
@@ -188,25 +169,68 @@ function inspectIncomingForest(forest, opts)
         return {
             ok : false, status : 422, error : 'embedded_children_not_supported',
             detail : {
-                message : 'This body carries the CANONICAL WoW `Node` shape (children = embedded Node '
-                    + 'objects). This server serves + accepts `OSLFlatNode` — a DECLARED, LABELED '
-                    + 'divergence in which children are INTEGER node-id references. Your embedded '
+                message : 'This body carries the canonical `Node` shape (children = embedded Node objects), but its node '
+                    + 'form is `flat`: the labeled `OSLFlatNode`, whose children are integer node ids. Your embedded '
                     + 'children were REFUSED, NOT stored, and NOT silently dropped.',
                 served_schema : 'OSLFlatNode',
                 canonical_schema : 'Node',
-                divergence : 'Node.children: integer id-refs (OSL) vs embedded Node objects (canonical)',
                 offending_paths : embeddedPaths,
                 remedies : [
-                    'Send OSLFlatNode: POST each node with children:[] (or omitted), then POST its '
+                    'Drop `X-OSL-WoW-Node-Form: flat` (and ?nodeForm=flat). The default form is the canonical Node, '
+                        + 'whose children are embedded and stored as sent.',
+                    'Or send OSLFlatNode: POST each node with children:[] (or omitted), then POST its '
                         + 'children under the id we return.',
-                    'Or opt in to server-side flattening: resend with header '
-                        + '`X-OSL-WoW-Node-Form: canonical` (or ?nodeForm=canonical). We will then assign '
-                        + 'ids to your embedded subtree, store it, and return EVERY node we stored.',
                 ],
             },
         };
 
     return null; // storable as sent
+}
+
+/**
+ * Check every `localTransform` in an incoming node forest, embedded children included. Returns null
+ * when every transform is valid, else the first refusal (422 invalid_local_transform) with the JSON
+ * path and the reason. See node-transform.js for what a valid transform is.
+ *
+ * With opts.arraysOnly a transform that is not an array is left alone, for the contract layer to
+ * refuse with its own type error.
+ */
+function inspectIncomingTransforms(forest, opts)
+{
+    opts = opts || {};
+    let refusal = null;
+    function visit(raw, at, depth)
+    {
+        if (refusal || depth > MAX_NODE_TREE_DEPTH) return;
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+        if ('localTransform' in raw && !(opts.arraysOnly && !Array.isArray(raw.localTransform)))
+        {
+            const bad = checkLocalTransform(raw.localTransform);
+            if (bad)
+            {
+                refusal = {
+                    ok : false, status : 422, error : 'invalid_local_transform',
+                    detail : { path : at + '.localTransform', reason : bad.reason, message : bad.message },
+                };
+                return;
+            }
+        }
+        if (Array.isArray(raw.children)) raw.children.forEach((child, i) => visit(child, at + '.children[' + i + ']', depth + 1));
+    }
+    if (opts.single) visit(forest, '$', 1);
+    else if (Array.isArray(forest)) forest.forEach((node, i) => visit(node, '$[' + i + ']', 1));
+    return refusal;
+}
+
+/** Deep equality of two JSON values; the order of an object's keys does not matter. */
+function sameJson(a, b)
+{
+    if (a === b) return true;
+    if (typeof a !== typeof b || a === null || b === null || typeof a !== 'object') return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a)) return a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every(k => Object.prototype.hasOwnProperty.call(b, k) && sameJson(a[k], b[k]));
 }
 
 function typeofLabel(v)
@@ -258,19 +282,61 @@ function createSpatialGraphStore(opts)
 {
     opts = opts || {};
     const spatialId = String(opts.spatialId || 'world');
-    const acceptedIds = (opts.acceptedIds || [ spatialId ])
+    // The graph's canonical address is an integer, as the API types it. The string `spatialId`
+    // (the world id) stays as a deprecated alias in `acceptedIds`.
+    const graphId = Number.isInteger(opts.graphId) ? opts.graphId : 1;
+    const acceptedIds = [ String(graphId) ].concat(opts.acceptedIds || [ spatialId ])
         .map(id => String(id))
         .filter((id, i, all) => id && all.indexOf(id) === i);
     const seedBuilder = typeof opts.seedBuilder === 'function' ? opts.seedBuilder : () => ({ root: rootNode(), nodes: [] });
     const persist = opts.persist != null ? !!opts.persist : isEnvOn('OSL_WOW_SPATIAL_PERSIST');
     const persistDir = String(opts.persistDir
         || process.env.OSL_WOW_SPATIAL_DIR
-        || path.join(__dirname, '..', 'spatial-store'));
-    const persistFile = path.join(persistDir, spatialId.replace(/[^A-Za-z0-9._-]/g, '_') + '.json');
+        || path.join(__dirname, '..', '..', '..', '.runtime', 'spatial-store'));
+    const fileStem = spatialId.replace(/[^A-Za-z0-9._-]/g, '_');
+    const persistFile = path.join(persistDir, fileStem + '.json');
+    // Node ids are unique within a world and never reused. The highest id ever issued is kept in
+    // its own small file, written whether or not the whole store is persisted, so a deleted id, a
+    // reset or a restart can never hand the same id to a different node.
+    const idFile = path.join(persistDir, fileStem + '.ids.json');
 
     // id -> Node (canonical shape). rootId is always ROOT_ID.
     let nodes = new Map();
     let nextId = ROOT_ID + 1;
+    let highWater = loadHighWater();
+
+    function loadHighWater()
+    {
+        try {
+            const doc = JSON.parse(fs.readFileSync(idFile, 'utf8'));
+            return doc && Number.isInteger(doc.high_water) && doc.high_water >= ROOT_ID ? doc.high_water : ROOT_ID;
+        } catch (e) {
+            return ROOT_ID;
+        }
+    }
+
+    function saveHighWater()
+    {
+        try {
+            if (!fs.existsSync(persistDir)) fs.mkdirSync(persistDir, { recursive: true });
+            const tmp = idFile + '.' + process.pid + '.tmp';
+            fs.writeFileSync(tmp, JSON.stringify({ osl_spatial_ids: true, spatial_id: spatialId, high_water: highWater }) + '\n', 'utf8');
+            fs.renameSync(tmp, idFile);
+        } catch (e) {
+            // Best effort: ids stay unique within this process even if the file cannot be written.
+            console.warn('[spatial-graph] id high-water save failed (' + spatialId + '): ' + e.message);
+        }
+    }
+
+    /** The next node id: above every id this world has ever issued. */
+    function issueId()
+    {
+        const id = Math.max(nextId, highWater + 1);
+        nextId = id + 1;
+        highWater = id;
+        saveHighWater();
+        return id;
+    }
 
     function rootNode()
     {
@@ -292,11 +358,11 @@ function createSpatialGraphStore(opts)
         root.id = ROOT_ID;
         root.children = [];
         nodes.set(ROOT_ID, root);
-        nextId = ROOT_ID + 1;
+        let seedId = ROOT_ID;
         const children = Array.isArray(seed.nodes) ? seed.nodes : [];
         for (const raw of children)
         {
-            const id = nextId++;
+            const id = ++seedId;
             const node = normalizeNode(raw, id);
             node.id = id;
             node.parent = ROOT_ID;
@@ -304,6 +370,10 @@ function createSpatialGraphStore(opts)
             nodes.set(id, node);
             root.children.push(id);
         }
+        // The authored seed owns ids 1..n whenever it is built, so a reset restores it under the same
+        // ids. Nodes that clients created are gone after a reset, and their ids are never issued again.
+        if (seedId > highWater) { highWater = seedId; saveHighWater(); }
+        nextId = highWater + 1;
     }
 
     /**
@@ -385,7 +455,7 @@ function createSpatialGraphStore(opts)
                 nodes.set(node.id, node);
             }
             if (!nodes.has(ROOT_ID)) { loadSeed(); return true; }
-            nextId = Number.isInteger(doc.next_id) ? doc.next_id : computeNextId();
+            nextId = Math.max(Number.isInteger(doc.next_id) ? doc.next_id : computeNextId(), highWater + 1);
             return true;
         } catch (e) {
             console.warn('[spatial-graph] persist load failed (' + spatialId + '): ' + e.message);
@@ -413,18 +483,55 @@ function createSpatialGraphStore(opts)
         return acceptedIds.indexOf(String(id == null ? '' : id)) !== -1;
     }
 
-    function getRoot()
+    /**
+     * A node as the canonical `Node`: its children are the child nodes themselves, to the leaves.
+     * The tree is bounded by MAX_NODE_TREE_DEPTH on every write, so this recursion is bounded too.
+     */
+    function canonicalOf(id, depth)
     {
-        const root = nodes.get(ROOT_ID);
-        return root ? clone(root) : null;
+        const node = nodes.get(id);
+        if (!node) return null;
+        const out = clone(node);
+        out.children = depth > MAX_NODE_TREE_DEPTH * 2 ? []
+            : (node.children || []).map(child => canonicalOf(child, depth + 1)).filter(Boolean);
+        return out;
     }
 
-    function getNode(nodeId)
+    /** opts.form is 'flat' for the OSLFlatNode (children are ids); anything else is the canonical Node. */
+    function getRoot(opts)
+    {
+        return getNode(ROOT_ID, opts);
+    }
+
+    function getNode(nodeId, opts)
     {
         const id = Number(nodeId);
         if (!Number.isInteger(id)) return null;
         const node = nodes.get(id);
-        return node ? clone(node) : null;
+        if (!node) return null;
+        return opts && opts.form === 'flat' ? clone(node) : canonicalOf(id, 0);
+    }
+
+    /** The number of nodes on the path from the root to `id`, counting both. */
+    function depthOf(id)
+    {
+        let depth = 0;
+        for (let cursor = id; cursor != null && depth <= nodes.size; depth += 1)
+        {
+            const node = nodes.get(cursor);
+            cursor = node ? node.parent : null;
+        }
+        return depth;
+    }
+
+    /** The height of the subtree at `id`: 1 for a leaf. */
+    function heightOf(id)
+    {
+        const node = nodes.get(id);
+        if (!node) return 0;
+        let tallest = 0;
+        for (const child of node.children || []) tallest = Math.max(tallest, heightOf(child));
+        return tallest + 1;
     }
 
     function listNodes()
@@ -464,8 +571,21 @@ function createSpatialGraphStore(opts)
             basePath : '$',
         });
         if (refusal) return refusal;
+        const badTransform = inspectIncomingTransforms(incoming);
+        if (badTransform) return badTransform;
+        // The graph must stay shallow enough to render and to return in full.
+        const addedHeight = (function height(nodesIn)
+        {
+            let tallest = 0;
+            for (const raw of nodesIn) tallest = Math.max(tallest, 1 + height(classifyChildren(raw && raw.children).embedded));
+            return tallest;
+        })(incoming);
+        if (depthOf(pid) + addedHeight > MAX_NODE_TREE_DEPTH)
+            return { ok : false, status : 422, error : 'node_tree_too_deep',
+                detail : { message : 'the graph would be deeper than ' + MAX_NODE_TREE_DEPTH + ' levels.' } };
 
         const created = [];
+        const topLevel = [];
         let flattened = 0;
         let maxDepth = 0;
 
@@ -476,7 +596,7 @@ function createSpatialGraphStore(opts)
             if (depth > maxDepth) maxDepth = depth;
             for (const raw of rawNodes)
             {
-                const id = nextId++;
+                const id = issueId();
                 const embedded = classifyChildren(raw && raw.children).embedded;
                 // `children` is OWNED by this loop (ids are assigned as we descend), so
                 // hand normalizeNode a childless view — otherwise its corrupt-store
@@ -495,6 +615,7 @@ function createSpatialGraphStore(opts)
                 // returned parents-first and a caller can replay it top-down (every
                 // node's `parent` is already present by the time it is read).
                 created.push(id);
+                if (attachTo === pid) topLevel.push(id);
 
                 if (embedded.length)
                 {
@@ -512,6 +633,7 @@ function createSpatialGraphStore(opts)
         const value = created.map(id => clone(nodes.get(id)));
         return {
             ok : true, status : 200, value : value,
+            top_level : topLevel,        // ids of the nodes the caller sent, in order
             flattened : flattened,       // embedded children we flattened (0 on the flat path)
             depth : maxDepth,
             requested : incoming.length, // top-level nodes the caller sent
@@ -519,78 +641,151 @@ function createSpatialGraphStore(opts)
         };
     }
 
-    /** PUT — update an existing node's CONTENT (structure preserved). */
-    function updateNode(nodeId, incoming)
+    /**
+     * Where a node would move on a PUT of `parent`. Nothing is changed here; the answer is either a
+     * refusal or the new parent (null when the parent is unchanged).
+     */
+    function planMove(id, node, requested)
     {
+        if (id === ROOT_ID && (requested === null || requested === undefined)) return { ok : true, to : null };
+        if (!Number.isInteger(requested))
+            return { ok : false, status : 422, error : 'invalid_parent',
+                detail : { message : 'parent must be the integer id of a node in this graph', requested_parent : requested } };
+        if (id === ROOT_ID)
+            return { ok : false, status : 422, error : 'cannot_move_root',
+                detail : { message : 'the root has no parent and cannot be moved' } };
+        if (requested === node.parent) return { ok : true, to : null };
+        if (!nodes.has(requested))
+            return { ok : false, status : 422, error : 'parent_not_found',
+                detail : { message : 'no node ' + requested + ' in this graph', requested_parent : requested } };
+        // The new parent must not be the node itself or anything below it.
+        let cursor = requested;
+        for (let steps = 0; cursor != null && steps <= nodes.size; steps += 1)
+        {
+            if (cursor === id)
+                return { ok : false, status : 422, error : 'parent_would_create_cycle',
+                    detail : { message : 'node ' + id + ' cannot move under itself or its own descendant', requested_parent : requested } };
+            const above = nodes.get(cursor);
+            cursor = above ? above.parent : null;
+        }
+        return { ok : true, to : requested };
+    }
+
+    /** PUT — update an existing node: its content, and its place in the tree by `parent`. opts.form: 'flat' or canonical. */
+    function updateNode(nodeId, incoming, opts)
+    {
+        const flat = !!(opts && opts.form === 'flat');
         const id = Number(nodeId);
         if (!Number.isInteger(id)) return { ok: false, status: 400, error: 'invalid_node_id' };
         const existing = nodes.get(id);
         if (!existing) return { ok: false, status: 404, error: 'node_not_found' };
         const r = incoming && typeof incoming === 'object' ? incoming : {};
 
-        // a PUT `children` used to be IGNORED — silently. It is now
-        // classified. The ONE structure-bearing body we accept is the harmless
-        // read-modify-write echo (children identical to what we already store):
-        // GET the node, change a label, PUT it back. Anything that would RESTRUCTURE
-        // the node is REFUSED with the route that does support it, and an embedded
-        // (canonical `Node`) children array is refused by name.
-        const c = classifyChildren(r.children);
-        if (c.present)
+        // `children` is derived from the tree. A PUT may repeat it, which is what a client that reads a
+        // node and writes it back does, and it may leave it out. A PUT whose children differ from the
+        // stored ones is refused, never ignored: a client that believes it restructured the tree must
+        // be told it did not.
+        if (!flat && Array.isArray(r.children))
         {
-            const current = Array.isArray(existing.children) ? existing.children : [];
-            const echo = c.embedded.length === 0 && c.invalid.length === 0
-                && c.refs.length === current.length
-                && c.refs.every((v, i) => v === current[i]);
-            if (!echo)
-            {
-                if (c.embedded.length)
-                    return {
-                        ok : false, status : 422, error : 'embedded_children_not_supported',
-                        detail : {
-                            message : 'This PUT body carries the CANONICAL WoW `Node` shape (children = '
-                                + 'embedded Node objects). This server serves + accepts `OSLFlatNode` '
-                                + '(children = integer node-id refs), and a PUT never restructures a node. '
-                                + 'Your embedded children were REFUSED, NOT stored, and NOT silently dropped.',
-                            served_schema : 'OSLFlatNode',
-                            canonical_schema : 'Node',
-                            divergence : 'Node.children: integer id-refs (OSL) vs embedded Node objects (canonical)',
-                            current_children : current.slice(),
-                            remedies : [
-                                'POST /wow/spatial/{spatialID}/node/' + id + ' to CREATE children under this node '
-                                    + '(add `X-OSL-WoW-Node-Form: canonical` there to have an embedded subtree '
-                                    + 'flattened and stored).',
-                                'DELETE /wow/spatial/{spatialID}/node/{childId} to remove one.',
-                                'Or PUT with `children` omitted (or echoed unchanged) to edit content only.',
-                            ],
-                        },
-                    };
+            const stored = canonicalOf(id, 0).children;
+            if (!sameJson(r.children, stored))
                 return {
                     ok : false, status : 422, error : 'child_restructure_not_supported',
                     detail : {
-                        message : 'PUT updates a node\'s CONTENT; it never restructures the graph. The '
-                            + '`children` you sent differ from the ones we store, so honouring this body '
-                            + 'would mean changing structure — it was REFUSED rather than (as before) '
-                            + 'SILENTLY IGNORED.',
-                        current_children : current.slice(),
-                        requested_children : Array.isArray(r.children) ? r.children.slice() : r.children,
+                        message : 'children are derived from the tree and a PUT never changes them. The `children` you sent '
+                            + 'differ from the ones stored, so they were REFUSED rather than ignored.',
+                        current_children : stored.map(child => child.id),
                         remedies : [
-                            'POST /wow/spatial/{spatialID}/node/' + id + ' to create children.',
+                            'POST /wow/spatial/{spatialID}/node/' + id + ' to add a child.',
                             'DELETE /wow/spatial/{spatialID}/node/{childId} to remove one.',
-                            'Omit `children` (or echo it unchanged) to edit content only.',
+                            'PUT the child with `parent` set to move it.',
+                            'Omit `children` (or repeat them unchanged) to edit content only.',
                         ],
                     },
                 };
+        }
+        else if (flat)
+        {
+            // a PUT `children` used to be IGNORED — silently. It is now
+            // classified. The ONE structure-bearing body we accept is the harmless
+            // read-modify-write echo (children identical to what we already store):
+            // GET the node, change a label, PUT it back. Anything that would RESTRUCTURE
+            // the node is REFUSED with the route that does support it, and an embedded
+            // (canonical `Node`) children array is refused by name.
+            const c = classifyChildren(r.children);
+            if (c.present)
+            {
+                const current = Array.isArray(existing.children) ? existing.children : [];
+                const echo = c.embedded.length === 0 && c.invalid.length === 0
+                    && c.refs.length === current.length
+                    && c.refs.every((v, i) => v === current[i]);
+                if (!echo)
+                {
+                    if (c.embedded.length)
+                        return {
+                            ok : false, status : 422, error : 'embedded_children_not_supported',
+                            detail : {
+                                message : 'This PUT body carries the canonical `Node` shape (children = embedded Node objects), '
+                                    + 'but its node form is `flat` (the labeled `OSLFlatNode`, children are ids), and a PUT never '
+                                    + 'restructures a node. Your embedded children were REFUSED, NOT stored, and NOT silently dropped.',
+                                served_schema : 'OSLFlatNode',
+                                canonical_schema : 'Node',
+                                current_children : current.slice(),
+                                remedies : [
+                                    'Drop `X-OSL-WoW-Node-Form: flat`: the default form is the canonical Node, and a PUT may repeat '
+                                        + 'its children unchanged.',
+                                    'POST /wow/spatial/{spatialID}/node/' + id + ' to CREATE children under this node.',
+                                    'DELETE /wow/spatial/{spatialID}/node/{childId} to remove one.',
+                                ],
+                            },
+                        };
+                    return {
+                        ok : false, status : 422, error : 'child_restructure_not_supported',
+                        detail : {
+                            message : 'PUT updates a node\'s CONTENT; it never restructures the graph. The '
+                                + '`children` you sent differ from the ones we store, so honouring this body '
+                                + 'would mean changing structure — it was REFUSED rather than (as before) '
+                                + 'SILENTLY IGNORED.',
+                            current_children : current.slice(),
+                            requested_children : Array.isArray(r.children) ? r.children.slice() : r.children,
+                            remedies : [
+                                'POST /wow/spatial/{spatialID}/node/' + id + ' to create children.',
+                                'DELETE /wow/spatial/{spatialID}/node/{childId} to remove one.',
+                                'Omit `children` (or echo it unchanged) to edit content only.',
+                            ],
+                        },
+                    };
+                }
             }
+
         }
 
-        // Content fields are updatable; id/parent/children (structure) are
-        // preserved — re-parenting/child edits go through POST/DELETE.
+        // Everything that can be refused is refused before anything changes.
+        const badTransform = inspectIncomingTransforms(r, { single : true });
+        if (badTransform) return badTransform;
+        const move = 'parent' in r ? planMove(id, existing, r.parent) : { ok : true, to : null };
+        if (!move.ok) return move;
+        if (move.to !== null && depthOf(move.to) + heightOf(id) > MAX_NODE_TREE_DEPTH)
+            return { ok : false, status : 422, error : 'node_tree_too_deep',
+                detail : { message : 'the graph would be deeper than ' + MAX_NODE_TREE_DEPTH + ' levels.' } };
+
+        // Content fields are updatable. `children` is derived from the tree and is never written by a
+        // PUT; a node changes place only through `parent`.
         if ('label' in r) existing.label = r.label == null ? undefined : String(r.label);
         if ('names' in r) existing.names = Array.isArray(r.names) ? r.names.map(n => String(n)) : existing.names;
         if ('localTransform' in r && Array.isArray(r.localTransform))
             existing.localTransform = r.localTransform.map(n => Number(n) || 0);
         if ('spatialAssetURI' in r) existing.spatialAssetURI = r.spatialAssetURI == null ? undefined : String(r.spatialAssetURI);
         if ('appearanceURI' in r) existing.appearanceURI = r.appearanceURI == null ? undefined : String(r.appearanceURI);
+        if (move.to !== null)
+        {
+            const oldParent = nodes.get(existing.parent);
+            if (oldParent && Array.isArray(oldParent.children))
+                oldParent.children = oldParent.children.filter(c => c !== id);
+            const newParent = nodes.get(move.to);
+            newParent.children = (newParent.children || []).concat(id);
+            existing.parent = move.to;
+        }
         // drop undefined keys so the emitted Node stays clean
         for (const k of Object.keys(existing)) if (existing[k] === undefined) delete existing[k];
         persistSave();
@@ -647,6 +842,7 @@ function createSpatialGraphStore(opts)
 
     return {
         spatialId,
+        graphId,
         acceptedIds: acceptedIds.slice(),
         persist,
         persistFile,
@@ -670,5 +866,6 @@ module.exports = {
     // classification directly, without an HTTP round-trip.
     classifyChildren,
     inspectIncomingForest,
+    inspectIncomingTransforms,
     CANONICAL_CHILD_FORM,
 };

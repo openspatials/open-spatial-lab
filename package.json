@@ -23,6 +23,7 @@
     "proof:contract": "node runtime/world-server/test/contract-enforcement-proof.js",
     "proof:presence": "node runtime/world-server/test/ws-events-presence-proof.js",
     "proof:acceptance": "node runtime/world-server/test/acceptance.test.js",
+    "arch-i1-proof": "node tools/arch-i1/proof.js",
     "conformance": "node tools/wow-conformance/run.js",
     "conformance:fixtures": "node wow-spec/conformance-fixtures/run.mjs",
     "wow-schema-json": "node wow-spec/build-schema-json.js",

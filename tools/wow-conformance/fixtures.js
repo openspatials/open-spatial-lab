@@ -12,9 +12,10 @@
  * These are NOT vendored from simpleWorlds (UNLICENSED) — they are minimal
  * shapes authored against the OSL wow-spec contract surface.
  *
- * geoPose fixtures use `lan` (NOT `lon`) deliberately: the open OpenSpatialWorld
- * standard misspells longitude `lan` and the OSL contract carries it verbatim.
- * The drift guard (conformance.js) flags a `lon`-instead-of-`lan` payload.
+ * geoPose fixtures spell longitude `lon`, as the OSL contract does (the iteration 1
+ * overlay, a proposed upstream edit; the World API at d39a1a0 spells it `lan`, declared
+ * as D9). The drift guard (conformance.js) flags a payload that carries the
+ * deprecated `lan` instead.
  */
 
 function identity16()
@@ -25,7 +26,7 @@ function identity16()
 function geoPose()
 {
     return {
-        position: { lat: 40.0, lan: -73.0, h: 1.6 }, // `lan` is the standard's (misspelled) longitude
+        position: { lat: 40.0, lon: -73.0, h: 1.6 },
         angles: { yaw: 0, pitch: 0, roll: 0 },
     };
 }
@@ -110,20 +111,33 @@ function portalResponse()
 
 // ---- Spatial composition graph ----
 //
-// ⚠ READ THIS BEFORE EDITING. Two DIFFERENT node shapes
-// live here, and conflating them is exactly the bug this file used to encode:
+// Two node shapes live here, and the difference between them is the point:
 //
 //   canonicalNode()  = the STANDARD (`Node`): children are EMBEDDED Node objects
-//                      (WoWAPI@d39a1a0, API.yaml:484-487). OSL does NOT serve it.
-//   graphRootNode()  = what OSL ACTUALLY serves (`OSLFlatNode`): children are
-//                      INTEGER id references. A DECLARED, LABELED divergence.
+//                      (WoWAPI@d39a1a0, API.yaml:484-487). Since iteration 1 this is what OSL
+//                      serves and accepts by default.
+//   graphRootNode()  = OSL's labeled flat form (`OSLFlatNode`): children are INTEGER id
+//                      references. OSL serves it only on explicit request (`?nodeForm=flat`).
 //
-// The canonical shape used to be filed under badNodes() as `childrenAsObjects`,
-// so the harness booked a green self-test for REJECTING THE STANDARD. It is now
-// a first-class fixture that the harness proves the canonical `Node` ACCEPTS.
+// The canonical shape used to be filed under badNodes() as `childrenAsObjects`, so the harness
+// booked a green self-test for REJECTING THE STANDARD. It is a first-class fixture that the
+// harness proves the canonical `Node` ACCEPTS. Do not put it back under badNodes().
+
+// The Spatial resource: a graph's integer id, its root node's id and its GeoPose anchor. It
+// carries the same labeled bag the other resources carry.
+function spatialDescriptor()
+{
+    return {
+        id: 1,
+        rootNodeID: 0,
+        geoPose: geoPose(),
+        webofworlds_extension: { x_osl_extension: true },
+        proof_boundary: proofBoundary(),
+    };
+}
 
 // OSL's FLAT node (schema: OSLFlatNode). `children` are INTEGER id references;
-// `localTransform` is a flat 16-float column-major 4x4 matrix (an OSL convention —
+// `localTransform` is a flat 16-float column-major 4x4 matrix (the iteration 1 overlay, D9 —
 // the standard constrains neither length nor major order).
 function graphRootNode()
 {
@@ -150,8 +164,8 @@ function childNode(id, parent)
     };
 }
 
-// A node-create request body (POST /wow/spatial/{id}/node/{nodeId}) is an
-// OSLFlatNode[] — the LABELED, non-canonical flat shape OSL serves and accepts.
+// A node-create request body (POST /wow/spatial/{id}/node/{nodeId}) is a Node[] in the
+// canonical form. These nodes have no children, so they are also valid flat nodes.
 function nodeCreateBody()
 {
     return [ childNode(4, 1), childNode(5, 1) ];
@@ -160,12 +174,11 @@ function nodeCreateBody()
 // The CANONICAL upstream Node shape: `children` are EMBEDDED Node objects, per
 // WoWAPI@d39a1a0 API.yaml:484-487. THIS IS WHAT THE STANDARD SAYS.
 //
-// OSL does not serve it — it is here so the harness can prove that a genuinely
-// spec-conformant node VALIDATES against our canonical `Node` schema (it used to
-// be REJECTED, and that rejection was booked as a passing conformance proof), and
-// that our own flat divergence is reported as a divergence rather than as the
-// standard. Recursion is exercised deliberately (a grandchild) since the canonical
-// `children` items are a self-$ref.
+// OSL serves this form by default since iteration 1. It is here so the harness can prove that
+// a genuinely spec-conformant node VALIDATES against the canonical `Node` schema (it used to
+// be REJECTED, and that rejection was booked as a passing conformance proof), and that the
+// flat form is reported as the labeled extension it is. Recursion is exercised deliberately
+// (a grandchild) since the canonical `children` items are a self-$ref.
 function canonicalNode()
 {
     return {
@@ -227,11 +240,11 @@ function badNodes()
     };
 }
 
-// world response using `lon` (drift) instead of the standard's `lan`
-function worldWithLonDrift()
+// world response using the deprecated `lan` (drift) instead of the contract's `lon`
+function worldWithLanDrift()
 {
     const w = worldResponse();
-    w.geoPose.position = { lat: 40.0, lon: -73.0, h: 1.6 }; // `lon` — drift from the standard's `lan`
+    w.geoPose.position = { lat: 40.0, lan: -73.0, h: 1.6 }; // `lan` — drift from the contract's `lon`
     return w;
 }
 
@@ -252,11 +265,12 @@ module.exports = {
     viewResponse,
     portalResponse,
     graphRootNode,
+    spatialDescriptor,
     childNode,
     nodeCreateBody,
     canonicalNode,
     eventsEnvelopes,
     badNodes,
-    worldWithLonDrift,
+    worldWithLanDrift,
     worldWithCosmeticGreen,
 };

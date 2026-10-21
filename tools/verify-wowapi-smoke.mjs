@@ -26,6 +26,8 @@ const BACKEND_PORTS = {
     airport: Number(process.env.OSL_BACKEND_AIRPORT_PORT) || 18154,
 };
 const BASE_A = `http://127.0.0.1:${BACKEND_PORTS.a}`;
+// The first graph of every world server. A graph id is an integer, as the API types it.
+const SPATIAL_GRAPH_ID = 1;
 
 function run(script, args = []) {
     const repoRoot = ROOT;
@@ -110,13 +112,21 @@ async function checkContractValidation() {
     const portalCount = Number(world?.portals?.portal_count) || 0;
     for (let id = 1; id <= portalCount; id += 1)
         await assertValidated(`${BASE_A}/wow/portal/${id}`);
-    const spatialId = world?.id || null;
-    let rootNodeId = null;
-    if (spatialId) {
-        const rootNode = await assertValidated(`${BASE_A}/wow/spatial/${encodeURIComponent(spatialId)}`);
-        rootNodeId = rootNode?.id ?? null;
-        for (const nodeId of [rootNode?.id, ...(rootNode?.children || [])].filter((value) => value != null))
-            await assertValidated(`${BASE_A}/wow/spatial/${encodeURIComponent(spatialId)}/node/${nodeId}`);
+    // The graph is addressed by its integer id. Its Spatial resource names the root node, and the root
+    // node embeds the tree: every node below it is also fetched by its own URL.
+    const spatialId = SPATIAL_GRAPH_ID;
+    const spatial = await assertValidated(`${BASE_A}/wow/spatial/${spatialId}`);
+    const rootNodeId = Number.isInteger(spatial?.rootNodeID) ? spatial.rootNodeID : null;
+    if (rootNodeId !== null) {
+        const root = await assertValidated(`${BASE_A}/wow/spatial/${spatialId}/node/${rootNodeId}`);
+        const below = [];
+        for (const stack = [...(root?.children || [])]; stack.length;) {
+            const node = stack.pop();
+            below.push(node.id);
+            stack.push(...(node.children || []));
+        }
+        for (const nodeId of below)
+            await assertValidated(`${BASE_A}/wow/spatial/${spatialId}/node/${nodeId}`);
     }
     return { world, spatialId, rootNodeId };
 }
@@ -323,9 +333,9 @@ async function checkGoldenPath() {
     const portalCount = Number(world.body?.portals?.portal_count) || 0;
     record("golden-path:2-enumerate-accessible-portals", world.status === 200 && portalCount > 0, { portalCount });
 
-    const spatialId = world.body?.id;
-    const graph = spatialId ? await probe(`${BASE_A}/wow/spatial/${encodeURIComponent(spatialId)}`) : { status: 0 };
-    record("golden-path:3-open-world-retrieve-graph", graph.status === 200, { status: graph.status });
+    const graph = await probe(`${BASE_A}/wow/spatial/${SPATIAL_GRAPH_ID}`);
+    const root = Number.isInteger(graph.body?.rootNodeID) ? await probe(`${BASE_A}/wow/spatial/${SPATIAL_GRAPH_ID}/node/${graph.body.rootNodeID}`) : { status: 0 };
+    record("golden-path:3-open-world-retrieve-graph", graph.status === 200 && root.status === 200, { status: graph.status, rootStatus: root.status });
 
     const { body: scene } = await probe(`${BASE_A}/demo/scene-objects`);
     const openObject = (scene?.objects || [])[2];

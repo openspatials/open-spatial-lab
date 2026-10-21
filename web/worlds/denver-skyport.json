@@ -15,7 +15,7 @@
       "duration": 0
     },
     "geoPose": {
-      "position": { "lat": 0, "lan": 0, "h": 0 },
+      "position": { "lat": 39.8561, "lon": -104.6737, "h": 1655 },
       "angles": { "yaw": 0, "pitch": 0, "roll": 0 }
     },
     "presence": {

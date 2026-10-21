@@ -1,0 +1,64 @@
+openapi: '3.0.3'
+info:
+  title: OpenUserManifest API
+  contact:
+    name: OpenUserManifest  
+    url: https://www.WebOfWorlds.org/
+  version: '0.0.1'
+
+servers:
+  - url: https://usermanifest.OpenSpatialWorld.io/v1
+    description: Test Server
+
+
+paths:
+  /:
+    head:
+      description: Used to authorize resources and simultaneously check whether ETag still matches cached ETag.
+      tags:
+        - Authorize and validate access 
+      responses:
+        '200':
+          description: User has access to this resource. Any other response is regarded as being unauthorized. Redirects are not followed.
+          headers:
+            ETag:
+              description: RFC2616 revision control. Used to determine if cached data is current.
+              schema:
+                type: string
+        '403':
+          description: Forbidden. User does not have authorization to view this resource.
+        '404':
+          description: Not Found. Element does not exist or user does not have authorization to know whether this resource exists or not.
+    get:
+      summary: Returns a user manifest as a single data state 
+      responses:
+        "200": # status code
+          description: "asset state and summary"
+          content:
+            application/json:             
+              schema:
+                $ref: "#/components/schemas/UserManifest"    
+        '302':
+          description: Resource is located elsewhere.
+        '403':
+          description: Forbidden.
+        '404':
+          description: Not Found.
+components:
+  schemas:
+    UserManifest:
+      type: object
+      properties:
+        content:
+          type: object
+          properties: 
+            name:
+              type: string
+            age:
+              type: number
+            avatarAssetURI:
+                type: string     
+
+tags:
+  - name: Authorize
+  - name: Load

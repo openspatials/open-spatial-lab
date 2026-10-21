@@ -6,8 +6,8 @@
     "x-osl-overlay-version": "0.1.0",
     "x-osl-source-of-truth": true,
     "x-osl-canonical-basis": "Canonical schemas (World/User/View/Portal/Node/Spatial) and the /wow/world, /wow/user, /wow/view, /wow/portal and /wow/spatial paths are transcribed from the OPEN OpenSpatialWorld API (github.com/WebOfWorlds/WoWAPI, specification/OpenSpatialWorld/API.yaml, openapi 3.0.4, info.version 0.0.1), pinned to upstream commit d39a1a0 (\"fixed node children type\", 2026-05-21).",
-    "x-osl-provenance-correction": "CORRECTION (2026-07-11, runtime; supersedes the previous claim here that this file was \"NOT copied from the UNLICENSED simpleWorlds reference implementation\"). That sentence was NOT supportable and is withdrawn. Two things in the first transcription match the STALE spec copy vendored in the simpleWorlds reference implementation rather than the open spec: (1) `Node.children` was typed `integer`, where the open spec says `$ref: Node` (simpleWorlds packages/wow-spec/src/schema.yaml:425-428 types it `integer`; upstream has ONE commit, so NO published upstream state has ever said `integer`); and (2) the dotted operationIds (world.getWorld, user.getUser, user.deleteUser, view.getView, portal.getPortal) match simpleWorlds 5-for-5, where upstream uses getWorldStatus / getUserById / deleteUserById / getViewById / getPortalById. Sourcing was MIXED, not wholesale: the /wow/spatial/{spatialID}/node/{nodeId} path is the OPEN SPEC's, and OSL deliberately REJECTED simpleWorlds' /wow/scene/node divergence (PROP §9). `Node` is now restored VERBATIM from the open spec. What OSL actually serves (id-ref children) is the LABELED, non-canonical `OSLFlatNode` divergence — declared, never presented as the standard. NO simpleWorlds SOURCE CODE is vendored in this repository; the schema typing and operationId NAMING above are the extent of the overlap, and the typing is corrected. LICENSING NOTE: simpleWorlds' license state is self-contradictory — the repo ships an Apache-2.0 LICENSE file while its package.json (root and packages/wow-spec) declares \"license\": \"UNLICENSED\". Because that is unresolved, OSL treats simpleWorlds as DO-NOT-COPY and single-sources the open spec.",
-    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n"
+    "x-osl-provenance-correction": "CORRECTION (2026-07-11, runtime; supersedes the previous claim here that this file was \"NOT copied from the UNLICENSED simpleWorlds reference implementation\"). That sentence was NOT supportable and is withdrawn. Two things in the first transcription match the STALE spec copy vendored in the simpleWorlds reference implementation rather than the open spec: (1) `Node.children` was typed `integer`, where the open spec says `$ref: Node` (simpleWorlds packages/wow-spec/src/schema.yaml:425-428 types it `integer`; upstream has ONE commit, so NO published upstream state has ever said `integer`); and (2) the dotted operationIds (world.getWorld, user.getUser, user.deleteUser, view.getView, portal.getPortal) match simpleWorlds 5-for-5, where upstream uses getWorldStatus / getUserById / deleteUserById / getViewById / getPortalById. Sourcing was MIXED, not wholesale: the /wow/spatial/{spatialID}/node/{nodeId} path is the OPEN SPEC's, and OSL deliberately REJECTED simpleWorlds' /wow/scene/node divergence (PROP §9). `Node` is now restored VERBATIM from the open spec. What OSL served then (id-ref children) was the LABELED, non-canonical `OSLFlatNode` divergence — declared, never presented as the standard. Since iteration 1 OSL serves the canonical `Node` by default and the flat form only on explicit request. NO simpleWorlds SOURCE CODE is vendored in this repository; the schema typing and operationId NAMING above are the extent of the overlap, and the typing is corrected. LICENSING NOTE: simpleWorlds' license state is self-contradictory — the repo ships an Apache-2.0 LICENSE file while its package.json (root and packages/wow-spec) declares \"license\": \"UNLICENSED\". Because that is unresolved, OSL treats simpleWorlds as DO-NOT-COPY and single-sources the open spec.",
+    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n\nFrames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n"
   },
   "servers": [
     {
@@ -185,21 +185,20 @@
     },
     "/wow/spatial/{spatialID}": {
       "get": {
-        "operationId": "spatial.getGraphRoot",
+        "operationId": "spatial.getSpatial",
         "tags": [
           "canonical"
         ],
-        "summary": "Returns the root node of a spatial composition graph (OSL divergence).",
-        "x-osl-divergence": "DEFAULT returns the root node; the standard returns a Spatial descriptor. The descriptor IS served on the versioned form=descriptor opt-in.",
+        "x-osl-overlay": "iteration-1",
+        "summary": "Returns a Spatial (the graph id, the root node id and the GeoPose anchor of the graph).",
         "parameters": [
           {
             "name": "spatialID",
             "in": "path",
-            "description": "ID of the spatial composition graph. DECLARED DIVERGENCE (D4): the standard types this `integer`; OSL addresses graphs by STRING id (world_id, location_id, 'default', 'world' — see 041 runtime-state.js SPATIAL_ACCEPTED_IDS).",
+            "description": "ID of the spatial composition graph. An integer. OSL also resolves the deprecated string aliases (world id, location id, 'default', 'world').",
             "required": true,
-            "x-osl-divergence": "string id; the standard types spatialID as integer",
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           },
           {
@@ -207,7 +206,7 @@
             "in": "query",
             "required": false,
             "x-osl-extension": true,
-            "description": "OSL EXTENSION / VERSIONED OPT-IN (runtime, declared here by runtime). Selects the served representation of the graph root. `descriptor` (alias `spatial`) returns the CANONICAL `Spatial` descriptor {id, rootNodeID, geoPose} — it POINTS AT the root node, it is NOT the root node. `node` (the DEFAULT assumed when `form` is omitted, and the effective result of any other value) returns the LABELED `OSLFlatNode` root itself, so existing clients are never broken. The served form is echoed in the `X-OSL-WoW-Spatial-Form` response header. Equivalent to the `X-OSL-WoW-Spatial-Form` request header, which takes precedence when both are sent.",
+            "description": "OSL EXTENSION. `descriptor` (default; alias `spatial`) returns the `Spatial`. `node` returns the graph's root node itself, as the canonical `Node` or, with the node form `flat`, as the `OSLFlatNode`. The served form is echoed in the `X-OSL-WoW-Spatial-Form` response header. Equivalent to the request header of the same name, which wins.",
             "schema": {
               "type": "string",
               "enum": [
@@ -215,7 +214,7 @@
                 "spatial",
                 "node"
               ],
-              "default": "node"
+              "default": "descriptor"
             }
           },
           {
@@ -223,7 +222,7 @@
             "in": "header",
             "required": false,
             "x-osl-extension": true,
-            "description": "OSL EXTENSION / VERSIONED OPT-IN — the request-header form of the `form` query parameter. `descriptor` (alias `spatial`) returns the canonical `Spatial` descriptor; omitted or any other value returns the root `OSLFlatNode`. Takes precedence over `?form=` when both are supplied. The served form is echoed in the response header of the same name.",
+            "description": "The request-header form of the `form` query parameter.",
             "schema": {
               "type": "string",
               "enum": [
@@ -232,14 +231,28 @@
                 "node"
               ]
             }
+          },
+          {
+            "name": "X-OSL-WoW-Node-Form",
+            "in": "header",
+            "required": false,
+            "x-osl-extension": true,
+            "description": "OSL EXTENSION. With `form=node`: `flat` returns the root as the `OSLFlatNode`; omitted or `canonical` returns the canonical `Node`.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "canonical",
+                "flat"
+              ]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "The graph root. DEFAULT (form omitted / form=node): the root node as the LABELED `OSLFlatNode` (non-canonical), response header `X-OSL-WoW-Spatial-Form: node`. VERSIONED OPT-IN (form=descriptor|spatial, or request header `X-OSL-WoW-Spatial-Form: descriptor`): the canonical `Spatial` descriptor {id, rootNodeID, geoPose}, response header `X-OSL-WoW-Spatial-Form: descriptor` (runtime served; runtime declared).",
+            "description": "The `Spatial` by default. With `form=node`, the root node, and the response header `X-OSL-WoW-Spatial-Form` says `node`.",
             "headers": {
               "X-OSL-WoW-Spatial-Form": {
-                "description": "Echoes the served representation. `node` = the default OSLFlatNode root; `descriptor` = the canonical Spatial descriptor returned on the versioned opt-in. Emitted on every 200 from this operation.",
+                "description": "Echoes the served representation: `descriptor` or `node`.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -253,7 +266,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OSLFlatNode"
+                  "$ref": "#/components/schemas/Spatial"
                 }
               }
             }
@@ -270,16 +283,16 @@
         "tags": [
           "canonical"
         ],
-        "summary": "Returns a single node of the spatial composition graph (OSL divergence).",
-        "x-osl-divergence": "payload is the LABELED OSLFlatNode (id-ref children), not the canonical Node",
+        "x-osl-overlay": "iteration-1",
+        "summary": "Returns a node of the spatial composition graph, with its whole subtree embedded.",
         "parameters": [
           {
             "name": "spatialID",
             "in": "path",
             "required": true,
-            "x-osl-divergence": "string id; the standard types spatialID as integer",
+            "description": "ID of the spatial composition graph (an integer; string aliases are deprecated).",
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           },
           {
@@ -289,15 +302,42 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "X-OSL-WoW-Node-Form",
+            "in": "header",
+            "required": false,
+            "x-osl-extension": true,
+            "description": "OSL EXTENSION. `flat` returns the node as the `OSLFlatNode` (children are integer ids). Omitted, or `canonical`, returns the canonical `Node`. `?nodeForm=flat` is equivalent.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "canonical",
+                "flat"
+              ]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "a single composition-graph node (LABELED OSLFlatNode, non-canonical)",
+            "description": "The node as the canonical `Node`; the `OSLFlatNode` when the node form is `flat`.",
+            "headers": {
+              "X-OSL-WoW-Node-Form": {
+                "description": "Echoes the served form: `canonical` or `flat`.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "canonical",
+                    "flat"
+                  ]
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OSLFlatNode"
+                  "$ref": "#/components/schemas/Node"
                 }
               }
             }
@@ -312,18 +352,16 @@
         "tags": [
           "canonical"
         ],
-        "summary": "Create and add new child nodes under the given parent node (OSL divergence).",
-        "x-osl-divergence": "payload is the LABELED OSLFlatNode (id-ref children), not the canonical Node",
-        "x-osl-extension": true,
-        "x-osl-divergence-note": "the X-OSL-WoW-Node-Form opt-in + the 400/422 refusals are OSL EXTENSIONS; the standard specifies neither",
+        "x-osl-overlay": "iteration-1",
+        "summary": "Create and add new child nodes under the given parent node.",
         "parameters": [
           {
             "name": "spatialID",
             "in": "path",
             "required": true,
-            "x-osl-divergence": "string id; the standard types spatialID as integer",
+            "description": "ID of the spatial composition graph (an integer; string aliases are deprecated).",
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           },
           {
@@ -340,24 +378,25 @@
             "in": "header",
             "required": false,
             "x-osl-extension": true,
-            "description": "OSL EXTENSION. `canonical` = the body is the CANONICAL `Node[]` (children EMBEDDED); flatten it into the OSL graph and return every node stored. Omitted (default) = the body must be `OSLFlatNode[]`; an embedded body is 422'd, never silently truncated. `?nodeForm=canonical` is equivalent.",
+            "description": "OSL EXTENSION. `flat` means the body is `OSLFlatNode[]` (leaf nodes only) and the response is every node stored, as `OSLFlatNode[]`. Omitted, or `canonical`, means the body is the canonical `Node[]`, whose children may be embedded to any depth; the server assigns every id and returns the nodes the caller sent, with their subtrees and the ids assigned.",
             "schema": {
               "type": "string",
               "enum": [
-                "canonical"
+                "canonical",
+                "flat"
               ]
             }
           }
         ],
         "requestBody": {
-          "description": "array of new nodes to add as children. LABELED OSLFlatNode[] by default; canonical Node[] when X-OSL-WoW-Node-Form: canonical is sent.",
+          "description": "Array of new nodes to add as children of the parent. Canonical `Node[]` by default.",
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/OSLFlatNode"
+                  "$ref": "#/components/schemas/Node"
                 }
               }
             }
@@ -365,23 +404,39 @@
         },
         "responses": {
           "200": {
-            "description": "successful operation. Always OSLFlatNode[] — EVERY node actually stored, parents before children (so a flattened canonical subtree returns more nodes than were sent; see X-OSL-WoW-Nodes-Stored).",
+            "description": "Successful operation: the created nodes as `Node[]`, ids assigned at every depth. The response header `X-OSL-WoW-Nodes-Stored` reports stored over sent.",
+            "headers": {
+              "X-OSL-WoW-Node-Form": {
+                "description": "Echoes the served form: `canonical` or `flat`.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "canonical",
+                    "flat"
+                  ]
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/OSLFlatNode"
+                    "$ref": "#/components/schemas/Node"
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "OSL EXTENSION. `child_id_refs_not_supported_on_create` — integer child id-refs on a create body (a new node starts as a leaf), or `invalid_child_entry`. Previously these were SILENTLY DROPPED."
+            "description": "OSL EXTENSION. `invalid_child_entry`, or, in the `flat` form, `child_id_refs_not_supported_on_create`."
+          },
+          "404": {
+            "description": "parent node not found"
           },
           "422": {
-            "description": "OSL EXTENSION. `embedded_children_not_supported` — the body carries the CANONICAL `Node` shape (embedded children) and no canonical opt-in was sent. Nothing was stored. Previously the children were SILENTLY DELETED and the caller got 200 OK."
+            "description": "Validation exception. A body that is not a valid `Node[]` (`node_validation_failed`), a `localTransform` that is not a placement (`invalid_local_transform`: wrong length, a last row other than 0,0,0,1, a number that overflows, shear or zero scale), or a graph that would be too deep (`node_tree_too_deep`). Nothing is stored."
           },
           "default": {
             "description": "Unexpected error"
@@ -393,16 +448,16 @@
         "tags": [
           "canonical"
         ],
-        "summary": "Update an existing node (OSL divergence).",
-        "x-osl-divergence": "payload is the LABELED OSLFlatNode (id-ref children), not the canonical Node",
+        "x-osl-overlay": "iteration-1",
+        "summary": "Update an existing node's content, or move it by setting `parent`.",
         "parameters": [
           {
             "name": "spatialID",
             "in": "path",
             "required": true,
-            "x-osl-divergence": "string id; the standard types spatialID as integer",
+            "description": "ID of the spatial composition graph (an integer; string aliases are deprecated).",
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           },
           {
@@ -412,26 +467,53 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "X-OSL-WoW-Node-Form",
+            "in": "header",
+            "required": false,
+            "x-osl-extension": true,
+            "description": "OSL EXTENSION. `flat` means the body is an `OSLFlatNode`. Omitted, or `canonical`, means a `Node`.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "canonical",
+                "flat"
+              ]
+            }
           }
         ],
         "requestBody": {
-          "description": "the updated node (LABELED OSLFlatNode). PUT updates CONTENT only — it never restructures the graph. `children` may be OMITTED, or ECHOED back unchanged (the read-modify-write pattern); anything else is refused. There is NO canonical opt-in on PUT: flattening an embedded subtree into an update would mean GUESSING \"replace\" vs \"append\" — use POST to create children.",
+          "description": "The updated node. `children` is derived from the tree: a PUT may leave it out or repeat it unchanged, and a PUT whose `children` differ from the stored ones is refused. A PUT of `parent` moves the node, with its subtree, under another node of the same graph.",
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OSLFlatNode"
+                "$ref": "#/components/schemas/Node"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Successful operation",
+            "description": "Successful operation: the node as the canonical `Node`.",
+            "headers": {
+              "X-OSL-WoW-Node-Form": {
+                "description": "Echoes the served form: `canonical` or `flat`.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "canonical",
+                    "flat"
+                  ]
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OSLFlatNode"
+                  "$ref": "#/components/schemas/Node"
                 }
               }
             }
@@ -443,7 +525,7 @@
             "description": "node not found"
           },
           "422": {
-            "description": "Validation exception. OSL EXTENSION: `embedded_children_not_supported` (the body carries the CANONICAL `Node` shape) or `child_restructure_not_supported` (the `children` sent differ from the ones stored). Both were previously IGNORED SILENTLY."
+            "description": "Validation exception. `child_restructure_not_supported` (the `children` sent differ from the stored ones), `invalid_local_transform`, or a refused move: `parent_not_found`, `parent_would_create_cycle`, `cannot_move_root`, `invalid_parent`, `node_tree_too_deep`."
           },
           "default": {
             "description": "Unexpected error"
@@ -455,15 +537,16 @@
         "tags": [
           "canonical"
         ],
-        "summary": "Deletes a node (and its subtree).",
+        "x-osl-overlay": "iteration-1",
+        "summary": "Deletes a node and its subtree. Its ids are never issued again within the world.",
         "parameters": [
           {
             "name": "spatialID",
             "in": "path",
             "required": true,
-            "x-osl-divergence": "string id; the standard types spatialID as integer",
+            "description": "ID of the spatial composition graph (an integer; string aliases are deprecated).",
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           },
           {
@@ -480,7 +563,10 @@
             "description": "node deleted"
           },
           "400": {
-            "description": "Invalid node value"
+            "description": "Invalid node value, or the root, which cannot be deleted."
+          },
+          "404": {
+            "description": "node not found"
           },
           "default": {
             "description": "Unexpected error"
@@ -492,16 +578,36 @@
   "components": {
     "schemas": {
       "GeoPose": {
+        "x-osl-overlay": "iteration-1",
+        "description": "OGC GeoPose 1.0 Basic-YPR. `position` is latitude and longitude in degrees, and `h` in metres above the WGS-84 ellipsoid. `angles` are `yaw`, `pitch` and `roll` in degrees, applied about the local axes z, y and x in that order. `lan` is a deprecated spelling of `lon`: a reader accepts it and a writer sends `lon`.",
         "type": "object",
+        "required": [
+          "position",
+          "angles"
+        ],
         "properties": {
           "position": {
             "type": "object",
+            "required": [
+              "lat",
+              "lon",
+              "h"
+            ],
             "properties": {
               "lat": {
-                "type": "number"
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              "lon": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
               },
               "lan": {
-                "type": "number"
+                "type": "number",
+                "deprecated": true,
+                "description": "Deprecated spelling of `lon` (the World API at d39a1a0)."
               },
               "h": {
                 "type": "number"
@@ -510,6 +616,11 @@
           },
           "angles": {
             "type": "object",
+            "required": [
+              "yaw",
+              "pitch",
+              "roll"
+            ],
             "properties": {
               "yaw": {
                 "type": "number"
@@ -551,7 +662,12 @@
             }
           },
           "geoPose": {
-            "$ref": "#/components/schemas/GeoPose"
+            "description": "The world's location, for discovery. It is not a placement: nothing inside the world is positioned by it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GeoPose"
+              }
+            ]
           },
           "presence": {
             "type": "object",
@@ -651,10 +767,12 @@
         }
       },
       "Node": {
+        "x-osl-overlay": "iteration-1",
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Unique within the world, and never reused."
           },
           "label": {
             "type": "string"
@@ -666,16 +784,21 @@
             }
           },
           "parent": {
-            "type": "integer"
+            "type": "integer",
+            "description": "The node this one is placed in. Every node has one parent, except the graph's root, which has none. A PUT of `parent` moves the node, with its subtree, under another node of the same graph; a move under the node itself or its own descendant is refused."
           },
           "children": {
             "type": "array",
+            "description": "The child nodes, embedded. Derived from the tree: a PUT leaves them out or repeats them unchanged, and a PUT whose children differ is refused.",
             "items": {
               "$ref": "#/components/schemas/Node"
             }
           },
           "localTransform": {
             "type": "array",
+            "minItems": 16,
+            "maxItems": 16,
+            "description": "Column-major 4×4 matrix mapping this node's frame into its parent's frame, in metres. It decomposes into translation, rotation and non-zero scale, with no shear, as glTF 2.0 §3.5.3 requires of `node.matrix`.",
             "items": {
               "type": "number"
             }
@@ -689,13 +812,15 @@
         }
       },
       "Spatial": {
+        "x-osl-overlay": "iteration-1",
         "type": "object",
         "properties": {
           "id": {
-            "type": "number"
+            "type": "integer",
+            "description": "The graph's id, an integer."
           },
           "rootNodeID": {
-            "type": "number"
+            "type": "integer"
           },
           "geoPose": {
             "$ref": "#/components/schemas/GeoPose"

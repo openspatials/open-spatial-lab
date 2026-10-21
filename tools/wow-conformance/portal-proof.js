@@ -16,8 +16,8 @@
  *   (b) The destination is RESOLVABLE — its composition-graph reference
  *       (/wow/spatial/{target_world_id}) resolves to a live root Node on the
  *       ISOLATED sibling instance (never the live 18152 authority).
- *   (c) The portal NODE in /wow/spatial/{id} validates against the canonical Node
- *       and carries the resolvable destination (labeled webofworlds_extension +
+ *   (c) The portal NODE in /wow/spatial/{id} validates against the canonical Node,
+ *       the default form, and carries the resolvable destination (labeled webofworlds_extension +
  *       the kept osl-portal: URI), surfaced never hidden.
  *   (d) The webofworlds_extension portal footprint is measurably SHRUNK — the
  *       navigation-bearing target fields moved to Portal.destination.
@@ -137,25 +137,30 @@ async function main() {
         const world = await getJson(baseA, '/wow/world');
         const spatialId = world.json && world.json.id; // world_id (demo-room-a)
         ok('world_id resolved for /wow/spatial', !!spatialId, spatialId);
-        const rootR = await getJson(baseA, '/wow/spatial/' + encodeURIComponent(spatialId));
-        ok('/wow/spatial/{id} root 200', rootR.status === 200, 'status=' + rootR.status);
+        const spatialR = await getJson(baseA, '/wow/spatial/1');
+        ok('/wow/spatial/1 is the Spatial: an integer id, the root node id, a GeoPose anchor',
+            spatialR.status === 200 && validator.validateResponse('spatial', spatialR.json || {}).valid
+            && spatialR.json.id === 1 && spatialR.json.rootNodeID === 0,
+            'status=' + spatialR.status);
+        const rootR = await getJson(baseA, '/wow/spatial/' + encodeURIComponent(spatialId) + '?form=node');
+        ok('/wow/spatial/{id}?form=node root 200', rootR.status === 200, 'status=' + rootR.status);
         const root = rootR.json || {};
-        // served nodes are the LABELED, NON-CANONICAL OSLFlatNode
-        // (integer id-ref children). The canonical `Node` embeds child objects, so our
-        // nodes are EXPECTED to fail it — that is the DECLARED divergence D1, asserted
-        // here explicitly rather than papered over.
+        // The served node is the canonical `Node`: its children are embedded objects. The labeled
+        // OSLFlatNode (integer id children) is served only when a request asks for the `flat` form.
         const rootNodeV = validator.validateResponse('node', root);
-        ok('graph root validates OSLFlatNode (LABELED, non-canonical served shape)',
-            rootNodeV.valid, rootNodeV.errorsText);
-        ok('graph root does NOT validate canonical Node (DECLARED divergence D1 — id refs vs embedded objects)',
-            validator.validateCanonical('node', root).valid === false);
+        ok('graph root validates the canonical Node (children embedded)',
+            rootNodeV.valid && validator.validateCanonical('node', root).valid, rootNodeV.errorsText);
+        const flatRootR = await getJson(baseA, '/wow/spatial/' + encodeURIComponent(spatialId) + '?form=node&nodeForm=flat');
+        ok('the explicit flat form validates OSLFlatNode and does NOT validate canonical Node (id refs, not embedded objects)',
+            validator.validateResponse('flatNode', flatRootR.json || {}).valid
+            && validator.validateCanonical('node', flatRootR.json || {}).valid === false);
         // the portal node id == ext.portal_node_id (deterministic seed order)
         const portalNodeR = await getJson(baseA, '/wow/spatial/' + encodeURIComponent(spatialId) + '/node/' + ext.portal_node_id);
         ok('portal node fetched by ext.portal_node_id (200)', portalNodeR.status === 200, 'status=' + portalNodeR.status);
         const pnode = portalNodeR.json || {};
         const pnodeV = validator.validateResponse('node', pnode);
-        ok('portal node validates OSLFlatNode (LABELED, non-canonical served shape)',
-            pnodeV.valid, pnodeV.errorsText);
+        ok('portal node validates the canonical Node',
+            pnodeV.valid && validator.validateCanonical('node', pnode).valid, pnodeV.errorsText);
         ok('portal node keeps labeled osl-portal: spatialAssetURI', /^osl-portal:/.test(pnode.spatialAssetURI || ''), pnode.spatialAssetURI);
         ok('portal node carries labeled webofworlds_extension role=portal',
             pnode.webofworlds_extension && pnode.webofworlds_extension.role === 'portal');
@@ -170,11 +175,15 @@ async function main() {
             ? '/wow/spatial/' + encodeURIComponent(portal.destination.target_world_id) : null;
         ok('destination graph path derivable', !!targetGraphPath, targetGraphPath);
         const targetResolve = await getJson(baseB, targetGraphPath); // isolated B, NOT the live 18152 authority
-        ok('destination RESOLVES to a live root Node on isolated sibling (B)',
-            targetResolve.status === 200 && targetResolve.json && Number.isInteger(targetResolve.json.id),
+        ok('destination RESOLVES to a live Spatial on isolated sibling (B), pointing at its root node',
+            targetResolve.status === 200 && targetResolve.json && Number.isInteger(targetResolve.json.id)
+            && Number.isInteger(targetResolve.json.rootNodeID),
             'status=' + targetResolve.status + ' (resolved ' + targetGraphPath + ' on isolated ' + baseB + ')');
-        ok('resolved target graph root validates OSLFlatNode (LABELED served shape)',
-            validator.validateResponse('node', targetResolve.json || {}).valid);
+        ok('resolved target graph validates the canonical Spatial',
+            validator.validateResponse('spatial', targetResolve.json || {}).valid);
+        const targetRoot = await getJson(baseB, targetGraphPath + '/node/' + targetResolve.json.rootNodeID);
+        ok('the target graph\'s root node, at its rootNodeID, validates the canonical Node',
+            targetRoot.status === 200 && validator.validateResponse('node', targetRoot.json || {}).valid);
 
         // (e) DERIVED SHAPE byte-stability ---------------------------------------
         const locId = world.json && world.json.location && world.json.location.id;

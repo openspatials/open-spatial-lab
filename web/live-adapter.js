@@ -59,6 +59,8 @@ import { withBase, BASE_PATH } from "./base-path.mjs";
 // child/portal fabric sReference resolution routed through
 // the public base path (pure + Node-testable; unit-proven by the check).
 import { resolveFabricReference as resolveFabricReferenceForBase } from "./live-adapter-fabric-reference.mjs";
+import { readGeoPose } from "./wow-geopose.mjs";
+import { flattenCanonicalNode } from "./wow-graph.mjs";
 // the OGC GeoPose 1.0 Basic-YPR/Quaternion SDU builder lives in a
 // SHARED leaf module so the exact object emitted here is the exact object the
 // network-free schema validator (web/geopose-schema-conformance-check.mjs)
@@ -3086,13 +3088,11 @@ export class LiveAdapter extends EventTarget {
       };
       source = hasExplicitRoot ? "bundled-world-graph" : "bundled-world-graph";
     } else if (doc && doc.id !== undefined) {
-      // CANONICAL shape: `doc` is the root Node; BFS-fetch children by id from
-      // the spec's canonical /wow/spatial/{id}/node/{nodeId}. (404 today: the
-      // 041 server marks these contract-only until serves them.)
-      const walked = await this._walkCanonicalGraph(graphUrl, doc);
-      graph = { spatialID: this.wowRef, root: Number(doc.id), nodes: walked.nodes };
+      // CANONICAL shape. `doc` is the graph's Spatial (id, rootNodeID, geoPose), or a root Node.
+      const read = await this._readGraphDocument(graphUrl, doc);
+      graph = { spatialID: this.wowRef, root: read.rootId, nodes: read.nodes, anchor: read.anchor };
       source = "canonical-walk";
-      canonicalWalk = walked.stats;
+      canonicalWalk = read.stats;
     } else {
       throw new Error(
         `wow graph at ${graphUrl} is neither a dev-bundle {root,nodes} nor a canonical root Node {id,children}`
@@ -3130,32 +3130,58 @@ export class LiveAdapter extends EventTarget {
   }
 
   /**
-   * BFS the canonical composition graph from a root Node: fetch each child by id
-   * from `${graphUrl}/node/{nodeId}` into a flat { [id]: Node } map. Cycle- and
-   * cap-guarded. Used only when the WoW ref resolves to a live canonical root
-   * (not the dev-bundle path).
+   * Read what a graph URL answered. It answers a Spatial by default: the graph's id, the id of its
+   * root node and its GeoPose anchor. The root node is then read at `${graphUrl}/node/{rootNodeID}`,
+   * a canonical Node whose children come embedded. A server that answers a root node instead is read
+   * the same way. The anchor goes through the one GeoPose reader (web/wow-geopose.js), so the browser
+   * refuses what the world server refuses. Returns `{ rootId, nodes, stats, anchor, anchorError }`,
+   * with `nodes` a flat `{ id: Node }` map whose children are ids.
+   */
+  async _readGraphDocument(graphUrl, doc) {
+    let rootNode = doc;
+    let anchor = null;
+    let anchorError = null;
+    if (doc && doc.rootNodeID !== undefined && doc.children === undefined) {
+      const read = readGeoPose(doc.geoPose);
+      if (read.ok) anchor = read.geoPose;
+      else anchorError = read.error;
+      const base = String(graphUrl).replace(/\/$/, "");
+      rootNode = await this._transport.getJson(`${base}/node/${encodeURIComponent(doc.rootNodeID)}`);
+    }
+    const walked = await this._walkCanonicalGraph(graphUrl, rootNode);
+    return { rootId: Number(rootNode.id), nodes: walked.nodes, stats: walked.stats, anchor, anchorError };
+  }
+
+  /**
+   * Collect the composition graph from a root Node into a flat { [id]: Node } map. Embedded children
+   * are flattened where they arrive; children that are ids (a flat server) are fetched from
+   * `${graphUrl}/node/{nodeId}`. Cycle- and cap-guarded.
    */
   async _walkCanonicalGraph(graphUrl, rootNode) {
     const CAP = 4096;
     const base = String(graphUrl).replace(/\/$/, "");
     const nodes = {};
     const stats = { fetched: 0, failed: 0, cap_hit: false };
-    nodes[Number(rootNode.id)] = rootNode;
+    const queue = [];
+    const take = (node) => {
+      const flat = flattenCanonicalNode(node);
+      Object.assign(nodes, flat.nodes);
+      for (const child of Array.isArray(node.children) ? node.children : []) {
+        if (typeof child === "number" || typeof child === "string") queue.push(Number(child));
+      }
+    };
+    take(rootNode);
     const seen = new Set([Number(rootNode.id)]);
-    const queue = (Array.isArray(rootNode.children) ? rootNode.children : []).map(Number);
     while (queue.length) {
       if (Object.keys(nodes).length >= CAP) { stats.cap_hit = true; break; }
       const id = Number(queue.shift());
-      if (seen.has(id)) continue;
+      if (seen.has(id) || nodes[id]) continue;
       seen.add(id);
       try {
         const n = await this._transport.getJson(`${base}/node/${encodeURIComponent(id)}`);
         if (n && n.id != null) {
-          nodes[Number(n.id)] = n;
+          take(n);
           stats.fetched += 1;
-          for (const c of Array.isArray(n.children) ? n.children : []) {
-            if (!seen.has(Number(c))) queue.push(Number(c));
-          }
         } else {
           stats.failed += 1;
         }
@@ -3204,6 +3230,10 @@ export class LiveAdapter extends EventTarget {
       root_id: null,
       node_count: 0,
       canonical_walk: null,
+      // The graph's GeoPose anchor, read through the shared GeoPose reader (null when the server
+      // answered no Spatial, or the reader refused what it sent: see anchor_error).
+      anchor: null,
+      anchor_error: null,
       // node positions are read VERBATIM from each node's column-major
       // localTransform by buildWowScene — not procedurally synthesized.
       node_positions_source: "node.localTransform (graph-sourced)",
@@ -3226,10 +3256,12 @@ export class LiveAdapter extends EventTarget {
           nodes: doc.nodes,
         };
       } else if (doc && doc.id !== undefined) {
-        // canonical live shape: `doc` is the root Node; BFS the /node/{id} walk.
-        const walked = await this._walkCanonicalGraph(url, doc);
-        graph = { spatialID: spatialId || String(doc.id), root: Number(doc.id), nodes: walked.nodes };
-        record.canonical_walk = walked.stats;
+        // canonical live shape: the Spatial (then its root node, children embedded), or a root Node.
+        const read = await this._readGraphDocument(url, doc);
+        graph = { spatialID: spatialId || String(doc.id), root: read.rootId, nodes: read.nodes, anchor: read.anchor };
+        record.canonical_walk = read.stats;
+        record.anchor = read.anchor;
+        record.anchor_error = read.anchorError;
       } else {
         throw new Error("neither a bundle {root,nodes} nor a canonical root Node {id,children}");
       }

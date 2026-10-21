@@ -2,13 +2,14 @@
   "license": "Apache-2.0",
   "source": "OSL-WOW-CONTRACT.md section 9",
   "divergences": {
-    "D1": "Node.children: embedded child objects upstream; integer id references in OSLFlatNode",
-    "D2": "Spatial descriptor schema exists but is not served by default",
-    "D3": "GET spatial returns the root node rather than a Spatial descriptor",
-    "D4": "spatialID is integer upstream and string in OSL",
+    "D1": "RETIRED in iteration 1. Node.children: embedded child objects upstream and, by default, in OSL; OSL's flat id-reference form (OSLFlatNode) remains as a labeled extension served only on explicit request",
+    "D2": "RETIRED in iteration 1. The Spatial descriptor is served by default",
+    "D3": "RETIRED in iteration 1. GET spatial returns the Spatial descriptor by default; the root node is at /node/{rootNodeID}",
+    "D4": "RETIRED in iteration 1. spatialID is an integer in OSL, as upstream; four legacy string aliases still resolve outside the contract",
     "D5": "OSL repairs missing and misspelled upstream node-path parameters",
     "D6": "Upstream GET / default app is omitted from the OSL contract",
-    "D7": "Canonical embedded-child writes require an explicit OSL opt-in",
-    "D8": "Signed executable spatial-fabric subtree semantics are a labeled OSL extension"
+    "D7": "RETIRED in iteration 1. A canonical Node body with embedded children is stored by default",
+    "D8": "Signed executable spatial-fabric subtree semantics are a labeled OSL extension",
+    "D9": "Iteration 1 overlay: longitude is spelled lon, localTransform is constrained, children are derived, nodes move by a PUT of parent, and node ids are never reused; the standard states none of these"
   }
 }

@@ -17,6 +17,11 @@ Open Spatial Lab source code is licensed under Apache-2.0. Media and dependency 
 
 The bundled WOFF2 files are local Latin web subsets. The font copyright notices and complete SIL Open Font License 1.1 text are included in `licenses/OFL-1.1.txt`.
 
+## API descriptions and schemas
+
+- The Web of Worlds API descriptions from [WebOfWorlds/WoWAPI](https://github.com/WebOfWorlds/WoWAPI), commit `d39a1a0`, Apache-2.0. Unmodified copies are in `wow-spec/upstream/wowapi-d39a1a0/`, with the upstream `LICENSE`. The Open Spatial Lab contract in `wow-spec/` is derived from them. The proposed edits are patches in `wow-spec/overlays/iteration-1/`.
+- The OGC GeoPose Basic-YPR schema from [opengeospatial/GeoPose](https://github.com/opengeospatial/GeoPose), Apache-2.0, in `wow-spec/upstream/geopose/`. One rename is recorded in its `README.md`. The Apache-2.0 text is in `LICENSE`.
+
 ## World models
 
 The following GLB files are redistributed from [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets):

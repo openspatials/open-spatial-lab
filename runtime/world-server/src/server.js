@@ -81,7 +81,7 @@ const { createContractEnforcer } = require('./wow-contract-enforcer');
 // It is what produces `embedded_children_not_supported` (+ machine-readable
 // remedies) instead of a bare schema error, and CONF-1 keeps that richer refusal
 // reachable now that ajv runs on every request.
-const { inspectIncomingForest } = require('./spatial-graph');
+const { inspectIncomingForest, inspectIncomingTransforms } = require('./spatial-graph');
 
 // the local fresh-slate operator refuses old or mixed
 // backend builds before its first mutation. Increment this only when the
@@ -155,13 +155,23 @@ function createServer(role, extraOpts)
         cfg.wow_contract_doc ? { doc : cfg.wow_contract_doc } : undefined);
 
     // The declared content variants are read back off headers the handler has
-    // ALREADY emitted (X-OSL-WoW-Spatial-Form), so there is no second place where
+    // ALREADY emitted (X-OSL-WoW-Spatial-Form, X-OSL-WoW-Node-Form), so there is no second place where
     // a variant has to be remembered.
     function wowResponseCtx(res)
     {
         let spatialForm = null;
+        let nodeForm = null;
         try { spatialForm = String(res.getHeader('X-OSL-WoW-Spatial-Form') || '') || null; } catch (e) {}
-        return { spatialForm };
+        try { nodeForm = String(res.getHeader('X-OSL-WoW-Node-Form') || '') || null; } catch (e) {}
+        return { spatialForm, nodeForm };
+    }
+
+    // The form a request wants a node in: the canonical Node (children embedded) by default, or the
+    // labeled OSLFlatNode (children are ids) when it says `flat`. `canonical` is accepted as the default.
+    function requestedNodeForm(req, url)
+    {
+        const raw = String(req.headers['x-osl-wow-node-form'] || url.searchParams.get('nodeForm') || '').toLowerCase();
+        return raw === 'flat' ? 'flat' : 'canonical';
     }
 
     // Called by sendJson for EVERY JSON response. Non-/wow paths are untouched.
@@ -494,14 +504,16 @@ function createServer(role, extraOpts)
         if (path.startsWith(wowAsset.ASSET_BASE_PREFIX))
             return serveAsset(req, res, url, path, method);
 
-        // the CANONICAL Spatial Composition Graph + node CRUD.
-        //   GET    /wow/spatial/{spatialID}                 -> root Node
-        //   GET    /wow/spatial/{spatialID}/node/{nodeId}   -> a single Node
+        // The Spatial Composition Graph and node CRUD:
+        //   GET    /wow/spatial/{spatialID}                 -> the Spatial: graph id, root node id, GeoPose anchor
+        //   GET    /wow/spatial/{spatialID}/node/{nodeId}   -> a Node, its subtree embedded
         //   POST   /wow/spatial/{spatialID}/node/{nodeId}   -> create child Nodes (body: Node[])
-        //   PUT    /wow/spatial/{spatialID}/node/{nodeId}   -> update a Node (body: Node)
-        //   DELETE /wow/spatial/{spatialID}/node/{nodeId}   -> delete a Node (+ subtree)
-        // Canonical path per PROP §9 (NOT the simpleWorlds `/wow/scene/node`
-        // divergence). This block fully owns the `/wow/spatial/` prefix.
+        //   PUT    /wow/spatial/{spatialID}/node/{nodeId}   -> update a Node, or move it by `parent`
+        //   DELETE /wow/spatial/{spatialID}/node/{nodeId}   -> delete a Node and its subtree
+        // A node is the canonical Node (children embedded) unless the request asks for the node form
+        // `flat` (header X-OSL-WoW-Node-Form or ?nodeForm=): then it is the labeled OSLFlatNode, whose
+        // children are integer ids. The graph's id is an integer; the string aliases it used to be
+        // addressed by still resolve. This block fully owns the `/wow/spatial/` prefix.
         if (path.startsWith('/wow/spatial/'))
         {
             let rest = path.slice('/wow/spatial/'.length);
@@ -514,55 +526,42 @@ function createServer(role, extraOpts)
             if (!spatialID)
                 return sendJson(res, 404, { ok : false, error : 'spatial_graph_not_found', path });
 
-            // ---- graph-root resource: /wow/spatial/{spatialID} ----
+            const nodeForm = requestedNodeForm(req, url);
+
+            // ---- the graph: /wow/spatial/{spatialID} ----
             if (nodeIdRaw === null)
             {
-                if (method === 'GET')
+                if (method !== 'GET')
+                    return sendJson(res, 405, { ok : false, error : 'method_not_allowed', method, path });
+                const spatialForm = String(req.headers['x-osl-wow-spatial-form']
+                    || url.searchParams.get('form') || '').toLowerCase();
+                if (spatialForm === 'node')
                 {
-                    // the canonical `Spatial` DESCRIPTOR
-                    // {id, rootNodeID, geoPose} on a VERSIONED OPT-IN. restored
-                    // the schema; serving it was deferred to here. The DEFAULT stays
-                    // the root Node so existing clients are
-                    // NOT broken — the change is declared + versioned, never silent.
-                    const spatialForm = String(req.headers['x-osl-wow-spatial-form']
-                        || url.searchParams.get('form') || '').toLowerCase();
-                    if (spatialForm === 'descriptor' || spatialForm === 'spatial')
-                    {
-                        const desc = runtime.getSpatialDescriptor(spatialID);
-                        if (!desc) return sendJson(res, 404, { ok : false, error : 'spatial_graph_not_found', spatialID });
-                        try { res.setHeader('X-OSL-WoW-Spatial-Form', 'descriptor'); } catch (e) {}
-                        return sendJson(res, 200, desc);
-                    }
-                    const root = runtime.getSpatialGraphRoot(spatialID);
+                    const root = runtime.getSpatialGraphRoot(spatialID, { form : nodeForm });
                     if (!root) return sendJson(res, 404, { ok : false, error : 'spatial_graph_not_found', spatialID });
-                    try { res.setHeader('X-OSL-WoW-Spatial-Form', 'node'); } catch (e) {}
+                    try { res.setHeader('X-OSL-WoW-Spatial-Form', 'node'); res.setHeader('X-OSL-WoW-Node-Form', nodeForm); } catch (e) {}
                     return sendJson(res, 200, root);
                 }
-                return sendJson(res, 405, { ok : false, error : 'method_not_allowed', method, path });
+                const spatial = runtime.getSpatialDescriptor(spatialID);
+                if (!spatial) return sendJson(res, 404, { ok : false, error : 'spatial_graph_not_found', spatialID });
+                try { res.setHeader('X-OSL-WoW-Spatial-Form', 'descriptor'); } catch (e) {}
+                return sendJson(res, 200, spatial);
             }
 
-            // ---- node resource: /wow/spatial/{spatialID}/node/{nodeId} ----
+            // ---- a node: /wow/spatial/{spatialID}/node/{nodeId} ----
             // The spec's nodeId path param is an integer; a non-integer is a 400.
             if (!/^-?\d+$/.test(nodeIdRaw))
                 return sendJson(res, 400, { ok : false, error : 'invalid_node_id', nodeId : nodeIdRaw });
             const nodeId = Number(nodeIdRaw);
+            const flat = nodeForm === 'flat';
 
             if (method === 'GET')
             {
-                const node = runtime.getSpatialNode(spatialID, nodeId);
+                const node = runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm });
                 if (!node) return sendJson(res, 404, { ok : false, error : 'node_not_found', spatialID, nodeId });
+                try { res.setHeader('X-OSL-WoW-Node-Form', nodeForm); } catch (e) {}
                 return sendJson(res, 200, node);
             }
-
-            // the EXPLICIT opt-in that lets a spec-conformant
-            // client have its CANONICAL (embedded-children) node body flattened into
-            // our OSLFlatNode graph. Header `X-OSL-WoW-Node-Form: canonical` (or
-            // `?nodeForm=canonical`). WITHOUT it, an embedded body is 422'd by the
-            // store — STRUCTURALLY, regardless of OSL_WOW_VALIDATE. Nothing is ever
-            // dropped silently on either branch.
-            const nodeFormRaw = String(
-                req.headers['x-osl-wow-node-form'] || url.searchParams.get('nodeForm') || '').toLowerCase();
-            const wantsCanonicalIn = nodeFormRaw === 'canonical';
 
             if (method === 'POST')
             {
@@ -571,41 +570,42 @@ function createServer(role, extraOpts)
                     try {
                         if (!Array.isArray(body))
                             return sendJson(res, 400, { ok : false, error : 'expected_node_array' });
-                        // which schema the BODY is measured against is the
-                        // CONTRACT's requestBody for this operation — or, on the opt-in
-                        // the contract itself declares as a header parameter, the
-                        // CANONICAL Node[]. Neither schema name is written here any more.
-                        const vr = wowRequestVerdict(res, method, path, body,
-                            { nodeForm : wantsCanonicalIn ? 'canonical' : null });
+                        // A transform that is an array but cannot be a node's placement (wrong length,
+                        // last row, overflow, zero scale, shear) is refused with a named reason before
+                        // the contract's own verdict. A transform that is not an array is the contract's.
+                        const badTransform = inspectIncomingTransforms(body, { arraysOnly : true });
+                        if (badTransform)
+                            return sendJson(res, badTransform.status, Object.assign(
+                                { ok : false, error : badTransform.error, spatialID, nodeId }, badTransform.detail));
+                        // Which schema the body is measured against is the contract's requestBody for
+                        // this operation: `Node[]`, or `OSLFlatNode[]` when the form is `flat`.
+                        const vr = wowRequestVerdict(res, method, path, body, { nodeForm : flat ? 'flat' : null });
                         if (vr && !vr.valid)
                         {
-                            // preserved under always-on validation: when the ajv
-                            // rejection is caused by the DECLARED embedded-children
-                            // divergence, answer with that named refusal + its
-                            // machine-readable remedies, not a bare schema error. The
-                            // classifier is pure and stores nothing.
-                            const structural = inspectIncomingForest(body,
-                                { flattenEmbedded : wantsCanonicalIn, basePath : '$' });
+                            // Name the refusal when it is one of the structural ones (a child that is
+                            // neither an id nor a node, ids on a create body, an embedded child in the
+                            // flat form). The classifier is pure and stores nothing.
+                            const structural = inspectIncomingForest(body, { flattenEmbedded : !flat, basePath : '$' });
                             if (structural)
                                 return sendJson(res, structural.status, Object.assign(
                                     { ok : false, error : structural.error, spatialID, nodeId },
                                     structural.detail || {}));
                             return sendJson(res, 422, { ok : false, error : 'node_validation_failed', details : vr.errorsText });
                         }
-                        const r = runtime.createSpatialNodes(spatialID, nodeId, body,
-                            { flattenEmbedded : wantsCanonicalIn });
+                        const r = runtime.createSpatialNodes(spatialID, nodeId, body, { flattenEmbedded : !flat });
                         if (!r.ok)
                             return sendJson(res, r.status, Object.assign(
                                 { ok : false, error : r.error, spatialID, nodeId }, r.detail || {}));
-                        // Tell the caller, on the wire, EXACTLY what happened to its body:
-                        // how many nodes we stored vs how many it sent, and whether we had
-                        // to flatten an embedded subtree to do it.
+                        // Say, on the wire, what was stored against what was sent.
                         try {
-                            res.setHeader('X-OSL-WoW-Node-Form', r.flattened ? 'flattened-from-canonical' : 'osl-flat');
+                            res.setHeader('X-OSL-WoW-Node-Form', nodeForm);
                             res.setHeader('X-OSL-WoW-Nodes-Stored', String(r.stored) + '/' + String(r.requested));
-                            if (r.flattened) res.setHeader('X-OSL-WoW-Children-Flattened', String(r.flattened));
                         } catch (e) {}
-                        return sendJson(res, 200, r.value);
+                        // Canonical: the nodes the caller sent, with their subtrees and every id assigned.
+                        // Flat: every node stored, parents first.
+                        const value = flat ? r.value
+                            : r.top_level.map(id => runtime.getSpatialNode(spatialID, id, { form : 'canonical' }));
+                        return sendJson(res, 200, value);
                     } catch (e) {
                         if (res.headersSent) return res.destroy();
                         return sendJson(res, 400, { ok : false, error : 'node_create_rejected', message : e.message });
@@ -620,30 +620,29 @@ function createServer(role, extraOpts)
                     try {
                         if (!body || typeof body !== 'object' || Array.isArray(body))
                             return sendJson(res, 400, { ok : false, error : 'expected_node_object' });
-                        // OSLFlatNode: the LABELED flat shape this server accepts.
-                        // NOTE: PUT has NO canonical opt-in — a PUT never restructures the
-                        // graph, so there is no honest way to flatten an embedded subtree
-                        // into it without guessing "replace" vs "append".
-                        const vr = wowRequestVerdict(res, method, path, body, null);
+                        const badTransform = inspectIncomingTransforms(body, { arraysOnly : true, single : true });
+                        if (badTransform)
+                            return sendJson(res, badTransform.status, Object.assign(
+                                { ok : false, error : badTransform.error, spatialID, nodeId }, badTransform.detail));
+                        const vr = wowRequestVerdict(res, method, path, body, { nodeForm : flat ? 'flat' : null });
                         if (vr && !vr.valid)
                         {
-                            // preserved (see POST above). `allowIdRefs` because a
-                            // PUT MAY carry integer child id-refs — restructuring them is
-                            // the store's 422 (child_restructure_not_supported), not a
-                            // schema error.
+                            // A PUT may carry the children it read, so ids are not a structural refusal
+                            // here: a refused body is the contract's 422, or the store's named 422.
                             const structural = inspectIncomingForest([ body ],
-                                { flattenEmbedded : false, allowIdRefs : true, basePath : '$' });
+                                { flattenEmbedded : !flat, allowIdRefs : true, basePath : '$' });
                             if (structural)
                                 return sendJson(res, structural.status, Object.assign(
                                     { ok : false, error : structural.error, spatialID, nodeId },
                                     structural.detail || {}));
                             return sendJson(res, 422, { ok : false, error : 'node_validation_failed', details : vr.errorsText });
                         }
-                        const r = runtime.updateSpatialNode(spatialID, nodeId, body);
+                        const r = runtime.updateSpatialNode(spatialID, nodeId, body, { form : nodeForm });
                         if (!r.ok)
                             return sendJson(res, r.status, Object.assign(
                                 { ok : false, error : r.error, spatialID, nodeId }, r.detail || {}));
-                        return sendJson(res, 200, r.value);
+                        try { res.setHeader('X-OSL-WoW-Node-Form', nodeForm); } catch (e) {}
+                        return sendJson(res, 200, flat ? r.value : runtime.getSpatialNode(spatialID, nodeId, { form : 'canonical' }));
                     } catch (e) {
                         if (res.headersSent) return res.destroy();
                         return sendJson(res, 400, { ok : false, error : 'node_update_rejected', message : e.message });

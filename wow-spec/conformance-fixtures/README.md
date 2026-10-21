@@ -12,7 +12,7 @@ Node.js 20 or newer is the only runtime requirement:
 node run.mjs
 ```
 
-The runner exits zero only when every fixture produces its declared result, the six schema and six implemented endpoint families each retain minimal-valid, rich-valid, and negative coverage, all machine-readable files declare Apache-2.0, and D1–D8 each have an exercising fixture.
+The runner exits zero only when every fixture produces its declared result, the six schema and six implemented endpoint families each retain minimal-valid, rich-valid, and negative coverage, all machine-readable files declare Apache-2.0, and D1–D9 each have an exercising fixture.
 
 ## Prove the gate can fail
 
@@ -28,6 +28,7 @@ That command must exit non-zero. It demonstrates that the normal green result is
 
 - `CONFORMANT` means the pinned schema accepted a positive fixture or rejected a negative fixture as expected.
 - `DECLARED-DIVERGENCE(D#)` means the runnable fixture exercises a specifically named OSL departure; it is not cosmetic green.
+- `RETIRED(D#)` means OSL once departed from the standard in a named way and no longer does. The fixture shows both sides agreeing, and says in which iteration the departure ended.
 - `GAP` means the relevant canonical surface is absent or omitted in OSL.
 - `SPEC-UNDER-CONSTRAINED` means the published schema permits a payload that a reader may reasonably expect to be too weak, most visibly `{}`.
 
@@ -38,7 +39,7 @@ The canonical schemas contain no required properties. Therefore `{}` is an expli
 - `upstream-schema-subset.json` is the portable canonical subset consumed by the runner.
 - `fixtures/schema-cases.json` covers World, User, Node, Portal, View, and Spatial.
 - `fixtures/endpoint-cases.json` covers the six implemented GET endpoint families.
-- `fixtures/divergence-cases.json` exercises D1–D8.
+- `fixtures/divergence-cases.json` exercises D1–D9.
 - `divergences.json` is the compact cross-link register derived from `wow-spec/OSL-WOW-CONTRACT.md` section 9.
 
 ## Boundaries

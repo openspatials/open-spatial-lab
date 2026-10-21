@@ -21,31 +21,31 @@ const SCHEMA_JSON_PATH = path.join(__dirname, 'generated', 'schema.json');
 
 // read kind -> the schema OSL ACTUALLY SERVES for it.
 //   * the four read surfaces -> the OSL response COMPOSITE (canonical + labeled ext)
-//   * `node` -> OSLFlatNode, the LABELED, NON-CANONICAL flat (id-ref children)
-//     node shape the /wow/spatial/* paths serve. It is NOT the canonical `Node`
-//     (which embeds child objects) — that divergence is DECLARED in schema.yaml
-//     and surfaced by the conformance lane. Validating served nodes against the
-//     schema we actually implement is what lets the conformance lane report the
-//     canonical diff HONESTLY (canonical_node_valid:false) instead of bending the
-//     canonical schema to make our shape look conformant.
+//   * `node` -> the canonical `Node`, children embedded: the default form the
+//     /wow/spatial/* paths serve. `flatNode` -> OSLFlatNode, the LABELED,
+//     NON-CANONICAL flat form (children are integer ids), served only on an explicit
+//     `flat` request.
+//   * `spatial` -> the canonical `Spatial`, what GET /wow/spatial/{id} returns.
 const RESPONSE_SCHEMA_BY_KIND = {
     world: 'OSLWorldResponse', World: 'OSLWorldResponse',
     user: 'OSLUserResponse', User: 'OSLUserResponse',
     view: 'OSLViewResponse', View: 'OSLViewResponse',
     portal: 'OSLPortalResponse', Portal: 'OSLPortalResponse',
-    node: 'OSLFlatNode', Node: 'OSLFlatNode',
+    node: 'Node', Node: 'Node',
+    flatNode: 'OSLFlatNode', OSLFlatNode: 'OSLFlatNode',
+    spatial: 'Spatial', Spatial: 'Spatial',
 };
 
 // canonical read kind -> the PURE canonical schema (for the conformance lane
-// to diff canonical-vs-actual). `node` -> the canonical `Node`, which
-// EMBEDS child Node objects per the open spec. OSL's served flat nodes are
-// EXPECTED to fail this — that is the declared divergence, reported not hidden.
+// to diff canonical-vs-actual). A flat node is EXPECTED to fail `Node`: the flat form
+// is the declared, labeled non-canonical alternative, reported and not hidden.
 const CANONICAL_SCHEMA_BY_KIND = {
     world: 'World', World: 'World',
     user: 'User', User: 'User',
     view: 'View', View: 'View',
     portal: 'Portal', Portal: 'Portal',
-    node: 'Node', Node: 'Node',
+    node: 'Node', Node: 'Node', flatNode: 'Node', OSLFlatNode: 'Node',
+    spatial: 'Spatial', Spatial: 'Spatial',
 };
 
 const BUNDLE_ID = 'osl-wow-spec';

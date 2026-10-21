@@ -181,15 +181,26 @@ async function bootAndRun(port)
     // Exercise the wired server validation path too (observability header parity
     // with wow-spec/proof). The response body is never altered by this flag.
     if (!process.env.OSL_WOW_VALIDATE) process.env.OSL_WOW_VALIDATE = '1';
+    // The gate writes a node into the graph, so the server it starts keeps its graph and its node
+    // ids in a folder of its own, removed at the end. The lab's own store is never touched.
+    const spatialDir = fs.mkdtempSync(path.join(os.tmpdir(), 'osl-wow-conformance-'));
+    const savedDir = process.env.OSL_WOW_SPATIAL_DIR;
+    process.env.OSL_WOW_SPATIAL_DIR = spatialDir;
     const { createServer } = require(
         path.join(REPO_ROOT, 'runtime', 'world-server', 'src', 'server'));
     const validator = createValidator();
-    const built = createServer('a', { http_port: port });
+    let built;
+    try { built = createServer('a', { http_port: port }); }
+    finally {
+        if (savedDir === undefined) delete process.env.OSL_WOW_SPATIAL_DIR;
+        else process.env.OSL_WOW_SPATIAL_DIR = savedDir;
+    }
     await new Promise((resolve) => built.server.listen(port, HOST, resolve));
     try {
-        return await runWowConformance({ baseUrl: 'http://' + HOST + ':' + port, validator });
+        return await runWowConformance({ baseUrl: 'http://' + HOST + ':' + port, validator, allowWrites: true });
     } finally {
         await built.closeAll();
+        fs.rmSync(spatialDir, { recursive: true, force: true });
     }
 }
 
@@ -248,10 +259,9 @@ async function main()
             + 'extension (no cosmetic green); contract-only endpoints reported as such. '
             + 'standards_conformance:false; native_teleportxr_teleport:false; '
             + 'first_party_teleportxr_browser_rendering:false. '
-            + 'The /wow/spatial/* node payloads are the LABELED, non-canonical OSLFlatNode '
-            + '(integer id-ref children), NOT the canonical Node (which embeds child objects) — '
-            + 'a DECLARED divergence, reported per-endpoint as canonical_node_valid:false. '
-            + 'See declared_divergences.',
+            + 'Since iteration 1 the /wow/spatial/* payloads are the canonical Spatial and Node '
+            + '(children embedded) by default. The flat OSLFlatNode form is served only on explicit '
+            + 'request and is probed as a labeled extension. See declared_divergences.',
         provenance: 'CORRECTED 2026-07-11. The previous note here claimed '
             + '"No simpleWorlds code vendored." — too strong to be supportable, and it was written to '
             + 'discharge a licensing concern. What is TRUE: no simpleWorlds SOURCE CODE is vendored, '
@@ -329,8 +339,8 @@ async function main()
         + '  valid-but-DECLARED-DIVERGENT: ' + divergeCount
         + '  contract-only/not-impl: ' + contractOnly + '  extensions-in-use: ' + report.extensions_in_use.length);
     if (divergeCount)
-        console.log('NOTE: ' + divergeCount + ' endpoint(s) validate against the LABELED OSLFlatNode, '
-            + 'NOT the canonical Node. standards_conformance stays FALSE.');
+        console.log('NOTE: ' + divergeCount + ' endpoint(s) carry a LABELED OSL divergence from the standard. '
+            + 'standards_conformance stays FALSE.');
 
     let exitCode = EXIT.OK;
     if (report.problems.length) exitCode = EXIT.FAIL;

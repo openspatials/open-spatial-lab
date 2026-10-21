@@ -11,24 +11,23 @@
  *      /wow/spatial).
  *   B. graph root is POPULATED FROM REAL SCENE DATA (hosted primitives + portals),
  *      emitted as canonical WoW `Node`s (id/label/names/children/16-float
- *      localTransform/spatialAssetURI) — not stubs.
+ *      localTransform/spatialAssetURI) — not stubs. Children are embedded by default; the
+ *      labeled OSLFlatNode (children are ids) is served on an explicit `flat` request.
  *   C. >=2 worlds addressable (demo-room-a on :18981, demo-room-b on :18982),
- *      each with its own graph; a server 404s a spatialID it does not host.
+ *      each with its own graph; a server 404s a spatialID it does not host. The
+ *      graph is addressed by its integer id; GET /wow/spatial/1 is the Spatial.
  *   D. node CRUD round-trips at /wow/spatial/{id}/node/{nodeId}: create / read /
  *      update / delete (+ subtree), structure integrity, error codes.
- *   E. the ADDITIVE env-gated validation (OSL_WOW_VALIDATE=1): pass headers on
- *      good payloads, 422 on bad request bodies; responses validate via wow-spec.
+ *   E. request validation: pass headers on good payloads, 422 on bad request
+ *      bodies; responses validate via wow-spec.
  *   F. env-gated JSON PERSISTENCE (OSL_WOW_SPATIAL_PERSIST=1): a mutation written
  *      by one server instance is re-read from disk by a fresh instance.
- *   G. — NO SILENT CHILD-NODE DATA LOSS. A SPEC-CONFORMANT body
- *      (canonical `Node`, children EMBEDDED) used to be answered 200 OK with its whole
- *      subtree DELETED. G drives a server built with OSL_WOW_VALIDATE **OFF** (the
- *      DEFAULT deployment, and the path where the silent drop lived) and proves the
- *      caller can always tell what happened: 422 by default (naming `OSLFlatNode`,
- *      with machine-readable remedies), or — on the EXPLICIT `X-OSL-WoW-Node-Form:
- *      canonical` opt-in — a faithful flatten that stores the whole subtree and
- *      reports exactly what it stored. Also covers the two OTHER silent drops found:
- *      integer id-refs on POST, and `children` on PUT. Flat-form clients: unaffected.
+ *   G. NO SILENT CHILD-NODE DATA LOSS. A body in the canonical Node form (children
+ *      embedded) used to be answered 200 OK with its whole subtree deleted. It is
+ *      now the default form: the whole subtree is stored, every id is assigned, and
+ *      the response says what was stored. The flat form refuses embedded children by
+ *      name; a PUT never changes children (422 when they differ); integer id-refs on
+ *      a create body are 400.
  *
  * Writes evidence to evidence/spatial-graph.json. Exits non-zero on any
  * failure. Honesty boundary preserved: standards_conformance stays false.
@@ -119,8 +118,9 @@ async function main()
                 .every(e => eps.indexOf(e) !== -1));
 
         // ---- B: graph populated from REAL scene data ----
-        const rootR = await GET(PORT_A, '/wow/spatial/demo-room-a');
-        check('B1 GET /wow/spatial/demo-room-a -> 200', rootR.status === 200, 'status=' + rootR.status);
+        // The graph root is the canonical Node by default: its children are the child nodes themselves.
+        const rootR = await GET(PORT_A, '/wow/spatial/demo-room-a?form=node');
+        check('B1 GET /wow/spatial/demo-room-a?form=node -> 200', rootR.status === 200, 'status=' + rootR.status);
         const root = rootR.json || {};
         check('B2 root is a canonical Node (id 0, names carries world_id, 16-float localTransform)',
             root.id === 0 && Array.isArray(root.names) && root.names.indexOf('demo-room-a') !== -1
@@ -129,29 +129,29 @@ async function main()
         const sceneObjs = (await GET(PORT_A, '/demo/scene-objects')).json.objects.length;
         const portalCount = (await GET(PORT_A, '/wow/world')).json.portals.portal_count;
         check('B3 root populated from real scene data (children == primitives + portals)',
-            Array.isArray(root.children) && root.children.length === sceneObjs + portalCount,
+            Array.isArray(root.children) && root.children.length === sceneObjs + portalCount
+            && root.children.every(c => c && typeof c === 'object' && Number.isInteger(c.id)),
             'children=' + (root.children || []).length + ' expected=' + (sceneObjs + portalCount));
-        // corrected these two: the served node shape is the
-        // LABELED, non-canonical `OSLFlatNode` (children = integer id refs). The
-        // canonical `Node` embeds child OBJECTS and OSL does NOT serve it. These
-        // checks assert BOTH halves honestly — the served shape validates, and the
-        // canonical shape provably does NOT (that is the DECLARED divergence D1).
-        check('B4 root validates against the served OSLFlatNode schema (the labeled divergence)',
-            v.validate('OSLFlatNode', root).valid, v.validate('OSLFlatNode', root).errorsText);
-        check('B4b root does NOT validate against canonical Node (D1 divergence is REAL, not a green label)',
-            v.validate('Node', root).valid === false,
-            'canonical Node errors: ' + v.validate('Node', root).errorsText);
-        check('B5 GET root sets X-OSL-WoW-Validation: pass:OSLFlatNode',
-            rootR.headers['x-osl-wow-validation'] === 'pass:OSLFlatNode',
+        // The canonical Node embeds its children and is what is served by default. The labeled
+        // OSLFlatNode (children = integer ids) is served only when a request says `flat`; it is NOT
+        // canonical, and the two checks below assert both halves.
+        const flatRoot = (await GET(PORT_A, '/wow/spatial/demo-room-a?form=node&nodeForm=flat')).json;
+        check('B4 root validates against the canonical Node schema',
+            v.validate('Node', root).valid, v.validate('Node', root).errorsText);
+        check('B4b the flat form validates against OSLFlatNode and NOT against canonical Node (the labeled form is real)',
+            v.validate('OSLFlatNode', flatRoot).valid && v.validate('Node', flatRoot).valid === false,
+            'canonical Node errors on the flat root: ' + v.validate('Node', flatRoot).errorsText);
+        check('B5 GET root sets X-OSL-WoW-Validation: pass:Node',
+            rootR.headers['x-osl-wow-validation'] === 'pass:Node',
             'header=' + rootR.headers['x-osl-wow-validation']);
         // a primitive seed node + a portal seed node, addressed by id.
         // Seed order is primitives then portals, so the FIRST portal node sits at
         // children[sceneObjs] (the A<->B portal — portals[0] by config order).
         // P1 appended location-a's hosted lobby-return portal,
         // so the LAST child is now the lobby edge, asserted separately as B7b.
-        const primNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[0])).json;
-        const portalNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[sceneObjs])).json;
-        const lastNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[root.children.length - 1])).json;
+        const primNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[0].id)).json;
+        const portalNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[sceneObjs].id)).json;
+        const lastNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[root.children.length - 1].id)).json;
         check('B6 primitive seed node carries labeled osl-primitive: URI (NOT glTF)',
             /^osl-primitive:/.test(primNode.spatialAssetURI || ''), primNode.spatialAssetURI);
         check('B7 portal seed node carries labeled osl-portal: destination URI',
@@ -164,13 +164,20 @@ async function main()
             lastNode.spatialAssetURI);
 
         // ---- C: >=2 worlds addressable, per-world isolation ----
-        const rb = await GET(PORT_B, '/wow/spatial/demo-room-b');
+        const rb = await GET(PORT_B, '/wow/spatial/demo-room-b?form=node');
         check('C1 second world demo-room-b addressable on :' + PORT_B, rb.status === 200 && rb.json.id === 0);
         check('C2 addressable by location_id alias (location-a)',
             (await GET(PORT_A, '/wow/spatial/location-a')).status === 200);
         check('C3 server A 404s a world it does not host (demo-room-b)',
             (await GET(PORT_A, '/wow/spatial/demo-room-b')).status === 404);
         check('C4 unknown spatialID 404s', (await GET(PORT_A, '/wow/spatial/nope')).status === 404);
+        const spatial = await GET(PORT_A, '/wow/spatial/1');
+        check('C5 GET /wow/spatial/1 is the Spatial: an integer id, the root node id and a GeoPose anchor',
+            spatial.status === 200 && spatial.json.id === 1 && spatial.json.rootNodeID === 0
+            && spatial.headers['x-osl-wow-validation'] === 'pass:Spatial'
+            && spatial.headers['x-osl-wow-spatial-form'] === 'descriptor'
+            && v.validate('Spatial', spatial.json).valid,
+            'status=' + spatial.status + ' hdr=' + spatial.headers['x-osl-wow-validation']);
 
         // ---- D + E: CRUD round-trip + validation ----
         const createGood = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0',
@@ -180,15 +187,15 @@ async function main()
         check('D1 POST create child -> 200 Node[]',
             createGood.status === 200 && Array.isArray(createGood.json) && createGood.json.length === 1,
             'status=' + createGood.status);
-        check('E1 POST create sets pass:OSLFlatNode[] header (the shape we actually accept — runtime)',
-            createGood.headers['x-osl-wow-validation'] === 'pass:OSLFlatNode[]',
+        check('E1 POST create sets pass:Node[] header (the canonical Node[] is the default form)',
+            createGood.headers['x-osl-wow-validation'] === 'pass:Node[]',
             'header=' + createGood.headers['x-osl-wow-validation']);
         const newId = createGood.json[0].id;
         check('D2 new node has server-assigned integer id, parent 0',
             Number.isInteger(newId) && newId > 0 && createGood.json[0].parent === 0, 'id=' + newId);
-        const rootAfter = (await GET(PORT_A, '/wow/spatial/demo-room-a')).json;
+        const rootAfter = (await GET(PORT_A, '/wow/spatial/demo-room-a?form=node')).json;
         check('D3 mutation persists across requests (root.children has new id)',
-            rootAfter.children.indexOf(newId) !== -1);
+            rootAfter.children.some(c => c.id === newId));
         check('D4 GET new node -> 200 with its content',
             (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + newId)).json.label === 'validation-node');
 
@@ -209,7 +216,7 @@ async function main()
             && delR.json.deleted.indexOf(gcId) !== -1, JSON.stringify(delR.json));
         check('D7 deleted node 404s + unlinked from root',
             (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + newId)).status === 404
-            && (await GET(PORT_A, '/wow/spatial/demo-room-a')).json.children.indexOf(newId) === -1);
+            && !(await GET(PORT_A, '/wow/spatial/demo-room-a?form=node')).json.children.some(c => c.id === newId));
 
         // error codes
         check('D8 DELETE root rejected (400)',
@@ -223,35 +230,24 @@ async function main()
         check('D12 POST to graph-root resource (no /node) -> 405',
             (await POST(PORT_A, '/wow/spatial/demo-room-a', [ { label: 'x' } ])).status === 405);
 
-        // request validation rejects bad bodies (422) when OSL_WOW_VALIDATE=1
+        // request validation rejects bad bodies (422)
         const badCreate = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0',
             [ { id: 'not-an-int', label: 5 } ]);
         check('E2 POST bad Node[] -> 422 (surfaced, not silently fixed)',
             badCreate.status === 422, 'status=' + badCreate.status);
-        const badPut = await PUT(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[0],
+        const badPut = await PUT(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[0].id,
             { localTransform: 'not-an-array' });
         check('E3 PUT bad Node -> 422', badPut.status === 422, 'status=' + badPut.status);
 
-        // ---- G: — NO SILENT CHILD-NODE DATA LOSS ----
+        // ---- G: NO SILENT CHILD-NODE DATA LOSS ----
         //
-        // THE DEFECT: the canonical WoW `Node` (the STANDARD) types `children` as
-        // EMBEDDED Node objects. This server stores the DECLARED divergence
-        // `OSLFlatNode` (integer id refs). It used to answer a spec-conformant POST
-        // with **200 OK and the whole subtree deleted** — the client believed it had
-        // stored a tree; we had stored a root.
+        // THE DEFECT this section guards: a spec-conformant body (the canonical `Node`, children
+        // EMBEDDED) used to be answered 200 OK with its whole subtree deleted: the client believed it
+        // had stored a tree; the server had stored a root. The canonical Node is now the default form,
+        // so the whole subtree is stored and returned. The labeled flat form refuses embedded
+        // children by name, and a PUT never changes a node's children.
         //
-        // THE BAR: a conformant client must never be able to believe we stored
-        // something we did not. This section drives the DEFAULT path — a server built
-        // with **OSL_WOW_VALIDATE OFF** — because that is the path where the silent
-        // drop lived.
-        const savedValidate = process.env.OSL_WOW_VALIDATE;
-        process.env.OSL_WOW_VALIDATE = '';           // <- the DEFAULT deployment
-        const PORT_OFF = PORT_A + 200;
-        const off = createServer('a', { http_port: PORT_OFF });
-        await new Promise(r => off.server.listen(PORT_OFF, HOST, r));
-        process.env.OSL_WOW_VALIDATE = savedValidate; // restore for the rest of the run
-
-        // The body a SPEC-CONFORMANT client sends: canonical `Node`, children EMBEDDED.
+        // THE BAR: a client must never be able to believe the server stored something it did not.
         const canonicalBody = () => ([ {
             label: 'conformant-root',
             localTransform: [ 1,0,0,0, 0,1,0,0, 0,0,1,0, 1,2,3,1 ],
@@ -264,131 +260,107 @@ async function main()
                   localTransform: [ 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,1,1 ] },
             ],
         } ]);
-        check('G0 the runtime body IS the standard (validates against canonical wow-spec Node[])',
+        check('G0 the body IS the standard (validates against canonical wow-spec Node[])',
             v.validateRequest('Node[]', canonicalBody()).valid,
             v.validateRequest('Node[]', canonicalBody()).errorsText);
 
-        const rootBefore = (await GET(PORT_OFF, '/wow/spatial/demo-room-a')).json;
-        const conformantPost = await POST(PORT_OFF, '/wow/spatial/demo-room-a/node/0', canonicalBody());
+        const rootBefore = (await GET(PORT_A, '/wow/spatial/demo-room-a?form=node&nodeForm=flat')).json;
+        const maxIdBefore = Math.max(...(await GET(PORT_A, '/wow/spatial/demo-room-a?form=node')).json.children.map(c => c.id));
+        const conformantPost = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0', canonicalBody());
 
-        // ---- G1-G3: DEFAULT path (validation OFF) REFUSES, loudly ----
-        check('G1 VALIDATION-OFF: conformant embedded-children POST is NOT silently accepted (no 200)',
-            conformantPost.status !== 200,
+        // ---- G1-G6: the canonical default stores the whole subtree and says so ----
+        check('G1 a conformant embedded-children POST is stored: 200, one node sent, one node returned',
+            conformantPost.status === 200 && Array.isArray(conformantPost.json) && conformantPost.json.length === 1,
             'status=' + conformantPost.status);
-        check('G2 VALIDATION-OFF: it is a 422 naming the divergence + the served schema',
-            conformantPost.status === 422
-            && conformantPost.json && conformantPost.json.error === 'embedded_children_not_supported'
-            && conformantPost.json.served_schema === 'OSLFlatNode'
-            && conformantPost.json.canonical_schema === 'Node',
-            'status=' + conformantPost.status + ' error=' + (conformantPost.json || {}).error);
-        check('G3 the refusal is MACHINE-READABLE (offending path + remedies incl. the opt-in)',
-            !!conformantPost.json && Array.isArray(conformantPost.json.offending_paths)
-            && conformantPost.json.offending_paths.length > 0
-            && Array.isArray(conformantPost.json.remedies)
-            && conformantPost.json.remedies.some(s => /nodeForm=canonical|X-OSL-WoW-Node-Form/.test(s)),
-            JSON.stringify((conformantPost.json || {}).offending_paths));
-        const rootAfterRefusal = (await GET(PORT_OFF, '/wow/spatial/demo-room-a')).json;
-        check('G4 the refusal stored NOTHING (clean reject — no partial write, no orphans)',
-            rootAfterRefusal.children.length === rootBefore.children.length,
-            'before=' + rootBefore.children.length + ' after=' + rootAfterRefusal.children.length);
-
-        // ---- G5-G8: the EXPLICIT opt-in flattens FAITHFULLY and says so ----
-        // The caller ASKS for the flattening, so the transform can never surprise it.
-        const optIn = await httpReq('POST', PORT_OFF, '/wow/spatial/demo-room-a/node/0', canonicalBody(),
-            { 'X-OSL-WoW-Node-Form': 'canonical' });
-        check('G5 opt-in (X-OSL-WoW-Node-Form: canonical) -> 200 and stores the WHOLE subtree',
-            optIn.status === 200 && Array.isArray(optIn.json) && optIn.json.length === 4,
-            'status=' + optIn.status + ' stored=' + (Array.isArray(optIn.json) ? optIn.json.length : '?')
-            + ' (expected 4: root + 2 children + 1 grandchild)');
-        check('G6 the response TELLS the caller what happened (headers: form + stored/requested + flattened)',
-            optIn.headers['x-osl-wow-node-form'] === 'flattened-from-canonical'
-            && optIn.headers['x-osl-wow-nodes-stored'] === '4/1'
-            && optIn.headers['x-osl-wow-children-flattened'] === '3',
-            'form=' + optIn.headers['x-osl-wow-node-form']
-            + ' stored=' + optIn.headers['x-osl-wow-nodes-stored']
-            + ' flattened=' + optIn.headers['x-osl-wow-children-flattened']);
-        // every returned node is a real, addressable, correctly-parented OSLFlatNode
-        const byLabel = {};
-        for (const n of (optIn.json || [])) byLabel[n.label] = n;
-        const cr = byLabel['conformant-root'], c1 = byLabel['embedded-child-1'],
-              c2 = byLabel['embedded-child-2'], gc = byLabel['embedded-grandchild'];
-        check('G7 the flattened tree PRESERVES the caller\'s structure (parent links at every depth)',
-            !!cr && !!c1 && !!c2 && !!gc
-            && cr.parent === 0 && c1.parent === cr.id && c2.parent === cr.id && gc.parent === c1.id
-            && cr.children.indexOf(c1.id) !== -1 && cr.children.indexOf(c2.id) !== -1
-            && c1.children.indexOf(gc.id) !== -1,
-            cr && c1 && gc ? 'root=' + cr.id + ' child1=' + c1.id + ' grandchild=' + gc.id : 'MISSING NODES');
-        const gcLive = await GET(PORT_OFF, '/wow/spatial/demo-room-a/node/' + (gc || {}).id);
-        check('G8 the depth-3 grandchild is REALLY stored (GET returns it, with its transform)',
-            gcLive.status === 200 && gcLive.json.label === 'embedded-grandchild'
-            && gcLive.json.localTransform[13] === 2,
+        const sent = (conformantPost.json || [])[0] || {};
+        const idsOf = (n) => [ n.id ].concat((n.children || []).flatMap(idsOf));
+        const allIds = idsOf(sent);
+        check('G2 the response is the nodes sent with their subtrees, every id assigned at every depth',
+            sent.label === 'conformant-root' && (sent.children || []).length === 2
+            && (sent.children[0].children || []).length === 1
+            && allIds.length === 4 && new Set(allIds).size === 4 && allIds.every(id => Number.isInteger(id) && id > maxIdBefore),
+            'ids=' + allIds.join(','));
+        check('G3 the response TELLS the caller what happened (headers: form + stored/sent)',
+            conformantPost.headers['x-osl-wow-node-form'] === 'canonical'
+            && conformantPost.headers['x-osl-wow-nodes-stored'] === '4/1'
+            && conformantPost.headers['x-osl-wow-validation'] === 'pass:Node[]',
+            'form=' + conformantPost.headers['x-osl-wow-node-form'] + ' stored=' + conformantPost.headers['x-osl-wow-nodes-stored']
+            + ' validation=' + conformantPost.headers['x-osl-wow-validation']);
+        const c1 = sent.children[0], c2 = sent.children[1], gc = c1.children[0];
+        check('G4 the stored tree PRESERVES the caller\'s structure (parent links at every depth)',
+            sent.parent === 0 && c1.parent === sent.id && c2.parent === sent.id && gc.parent === c1.id,
+            'root=' + sent.id + ' child1=' + c1.id + ' grandchild=' + gc.id);
+        const gcLive = await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + gc.id);
+        check('G5 the depth-3 grandchild is REALLY stored (GET returns it, with its transform)',
+            gcLive.status === 200 && gcLive.json.label === 'embedded-grandchild' && gcLive.json.localTransform[13] === 2,
             'status=' + gcLive.status);
-        // The contract (schema.yaml) PROMISES parents-first so the caller can replay the
-        // array top-down. Pin it: every node's `parent` must already have appeared.
-        const seen = new Set([ 0 ]);
-        const preOrder = (optIn.json || []).every(n => {
-            const ok = seen.has(n.parent);
-            seen.add(n.id);
-            return ok;
-        });
-        check('G8b the returned array is PARENTS-FIRST, exactly as the contract promises',
-            preOrder, 'order=' + (optIn.json || []).map(n => n.id + '<-' + n.parent).join(' '));
+        const subtree = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id)).json;
+        check('G6 reading the node returns the same subtree the POST returned',
+            JSON.stringify(subtree) === JSON.stringify(sent));
 
-        // ---- G9-G11: the OTHER silent drops this change found (POST id-refs, PUT children) ----
-        const idRefPost = await POST(PORT_OFF, '/wow/spatial/demo-room-a/node/0',
+        // ---- G7-G8: the flat form is explicit, and refuses what it cannot store ----
+        const flatEmbedded = await httpReq('POST', PORT_A, '/wow/spatial/demo-room-a/node/0', canonicalBody(),
+            { 'X-OSL-WoW-Node-Form': 'flat' });
+        check('G7 the flat form refuses an embedded body: 422 naming OSLFlatNode, with offending paths and remedies',
+            flatEmbedded.status === 422 && flatEmbedded.json.error === 'embedded_children_not_supported'
+            && flatEmbedded.json.served_schema === 'OSLFlatNode' && flatEmbedded.json.canonical_schema === 'Node'
+            && Array.isArray(flatEmbedded.json.offending_paths) && flatEmbedded.json.offending_paths.length > 0
+            && flatEmbedded.json.remedies.some(r => /X-OSL-WoW-Node-Form: flat/.test(r)),
+            'status=' + flatEmbedded.status + ' error=' + (flatEmbedded.json || {}).error);
+        const rootAfterRefusal = (await GET(PORT_A, '/wow/spatial/demo-room-a?form=node&nodeForm=flat')).json;
+        check('G8 the refusal stored NOTHING (clean reject: no partial write, no orphans)',
+            rootAfterRefusal.children.length === rootBefore.children.length + 1,
+            'before=' + rootBefore.children.length + ' after=' + rootAfterRefusal.children.length + ' (one root stored by G1)');
+
+        // ---- G9-G13: ids on a create body, and PUT never changing children ----
+        const idRefPost = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0',
             [ { label: 'wants-existing-children', children: [ 1, 2 ] } ]);
-        check('G9 POST with INTEGER id-ref children -> 400 (was ALSO silently dropped: `node.children = []`)',
+        check('G9 POST with INTEGER id-ref children -> 400 (they were once silently dropped)',
             idRefPost.status === 400 && idRefPost.json.error === 'child_id_refs_not_supported_on_create',
             'status=' + idRefPost.status + ' error=' + (idRefPost.json || {}).error);
-        const restructurePut = await PUT(PORT_OFF, '/wow/spatial/demo-room-a/node/' + cr.id,
-            { label: 'renamed', children: [ 999 ] });
-        check('G10 PUT that RESTRUCTURES children -> 422 (was silently IGNORED)',
+        const restructurePut = await PUT(PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id,
+            { label: 'renamed', children: [ { id: 999, label: 'not-a-child' } ] });
+        check('G10 a PUT whose children differ -> 422 child_restructure_not_supported (never silently ignored)',
             restructurePut.status === 422 && restructurePut.json.error === 'child_restructure_not_supported',
             'status=' + restructurePut.status + ' error=' + (restructurePut.json || {}).error);
-        const embeddedPut = await PUT(PORT_OFF, '/wow/spatial/demo-room-a/node/' + cr.id,
-            { label: 'renamed', children: [ { label: 'sneaky-embedded' } ] });
-        check('G11 PUT with EMBEDDED children -> 422 naming OSLFlatNode (was silently IGNORED)',
-            embeddedPut.status === 422 && embeddedPut.json.error === 'embedded_children_not_supported'
-            && embeddedPut.json.served_schema === 'OSLFlatNode',
-            'status=' + embeddedPut.status + ' error=' + (embeddedPut.json || {}).error);
-
-        // ---- G12-G13: EXISTING FLAT-FORM CLIENTS ARE UNAFFECTED ----
-        // (a) the read-modify-write echo: GET a node, change content, PUT it back
-        //     WITH its children unchanged. This is the normal flat-client pattern and
-        //     it MUST still work — the refusal is for RESTRUCTURING, not for echoing.
-        const rmwGet = (await GET(PORT_OFF, '/wow/spatial/demo-room-a/node/' + cr.id)).json;
+        const stillThere = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id)).json;
+        check('G11 the refused PUT changed nothing (label and children intact)',
+            stillThere.label === 'conformant-root' && JSON.stringify(stillThere.children) === JSON.stringify(sent.children));
+        const rmwGet = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id)).json;
         rmwGet.label = 'rmw-renamed';
-        const rmwPut = await PUT(PORT_OFF, '/wow/spatial/demo-room-a/node/' + cr.id, rmwGet);
-        check('G12 flat client read-modify-write (children ECHOED unchanged) still 200s',
-            rmwPut.status === 200 && rmwPut.json.label === 'rmw-renamed'
-            && rmwPut.json.children.length === 2,
+        const rmwPut = await PUT(PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id, rmwGet);
+        check('G12 read-modify-write: GET the node, change a label, PUT it back with its children repeated -> 200',
+            rmwPut.status === 200 && rmwPut.json.label === 'rmw-renamed' && rmwPut.json.children.length === 2
+            && rmwPut.headers['x-osl-wow-validation'] === 'pass:Node',
             'status=' + rmwPut.status);
-        // (b) a plain leaf create — the overwhelmingly common flat path — byte-identical
-        const leafCreate = await POST(PORT_OFF, '/wow/spatial/demo-room-a/node/0',
-            [ { label: 'plain-leaf', children: [], spatialAssetURI: 'osl-primitive:box?size_m=1' } ]);
-        check('G13 flat client leaf create (children: []) unchanged -> 200, 1 node, no flatten header',
-            leafCreate.status === 200 && leafCreate.json.length === 1
-            && leafCreate.json[0].children.length === 0
-            && leafCreate.headers['x-osl-wow-node-form'] === 'osl-flat'
-            && leafCreate.headers['x-osl-wow-children-flattened'] === undefined,
-            'status=' + leafCreate.status + ' form=' + leafCreate.headers['x-osl-wow-node-form']);
-        await off.closeAll();
 
-        // ---- G14: the VALIDATION-ON path still behaves ----
-        const onRefusal = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0', canonicalBody());
-        check('G14 VALIDATION-ON: conformant embedded POST still 422 (runtime path intact)',
-            onRefusal.status === 422, 'status=' + onRefusal.status);
-        const onOptIn = await httpReq('POST', PORT_A, '/wow/spatial/demo-room-a/node/0', canonicalBody(),
-            { 'X-OSL-WoW-Node-Form': 'canonical' });
-        check('G15 VALIDATION-ON: opt-in validates the body as canonical Node[] and stores all 4',
-            onOptIn.status === 200 && Array.isArray(onOptIn.json) && onOptIn.json.length === 4
-            && onOptIn.headers['x-osl-wow-validation'] === 'pass:OSLFlatNode[]',
-            'status=' + onOptIn.status + ' hdr=' + onOptIn.headers['x-osl-wow-validation']);
-        // the query-param form of the opt-in works too (curl-friendly)
-        const qOptIn = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0?nodeForm=canonical', canonicalBody());
-        check('G16 ?nodeForm=canonical is an equivalent opt-in',
-            qOptIn.status === 200 && Array.isArray(qOptIn.json) && qOptIn.json.length === 4,
-            'status=' + qOptIn.status);
+        // ---- G13-G15: the explicit flat form, for clients that read ids ----
+        const flatLeaf = await httpReq('POST', PORT_A, '/wow/spatial/demo-room-a/node/0',
+            [ { label: 'plain-leaf', children: [], spatialAssetURI: 'osl-primitive:box?size_m=1' } ],
+            { 'X-OSL-WoW-Node-Form': 'flat' });
+        check('G13 flat form leaf create: 200, one OSLFlatNode back, header says flat',
+            flatLeaf.status === 200 && flatLeaf.json.length === 1 && flatLeaf.json[0].children.length === 0
+            && flatLeaf.headers['x-osl-wow-node-form'] === 'flat'
+            && flatLeaf.headers['x-osl-wow-validation'] === 'pass:OSLFlatNode[]',
+            'status=' + flatLeaf.status + ' form=' + flatLeaf.headers['x-osl-wow-node-form']);
+        const flatGet = await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id + '?nodeForm=flat');
+        check('G14 ?nodeForm=flat is the query form of the header: children are ids, validated as OSLFlatNode',
+            flatGet.status === 200 && JSON.stringify(flatGet.json.children) === JSON.stringify([ c1.id, c2.id ])
+            && flatGet.headers['x-osl-wow-validation'] === 'pass:OSLFlatNode',
+            'status=' + flatGet.status);
+        flatGet.json.label = 'flat-rmw';
+        const flatRmw = await httpReq('PUT', PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id, flatGet.json,
+            { 'X-OSL-WoW-Node-Form': 'flat' });
+        const flatRestructure = await httpReq('PUT', PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id,
+            { label: 'x', children: [ 999 ] }, { 'X-OSL-WoW-Node-Form': 'flat' });
+        const flatEmbeddedPut = await httpReq('PUT', PORT_A, '/wow/spatial/demo-room-a/node/' + sent.id,
+            { label: 'x', children: [ { label: 'sneaky-embedded' } ] }, { 'X-OSL-WoW-Node-Form': 'flat' });
+        check('G15 flat PUT: a repeated children list is 200; changed ids are 422 child_restructure_not_supported; embedded is 422 naming OSLFlatNode',
+            flatRmw.status === 200 && flatRmw.json.label === 'flat-rmw'
+            && flatRestructure.status === 422 && flatRestructure.json.error === 'child_restructure_not_supported'
+            && flatEmbeddedPut.status === 422 && flatEmbeddedPut.json.error === 'embedded_children_not_supported'
+            && flatEmbeddedPut.json.served_schema === 'OSLFlatNode',
+            'rmw=' + flatRmw.status + ' restructure=' + flatRestructure.status + ' embedded=' + flatEmbeddedPut.status);
 
         // ---- F: env-gated JSON persistence across a fresh server instance ----
         persistDir = fs.mkdtempSync(path.join(os.tmpdir(), 'osl-runtime-persist-'));

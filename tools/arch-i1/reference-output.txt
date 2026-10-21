@@ -1,0 +1,12 @@
+F1  east -189013.869  north -128642.040  up -4220.171
+F2  x 100.0000033 m  y -0.7825 mm  z -0.8599 mm
+F2  flat mutant (111,320 m per degree x cos lat): x 99.82 m, y 0, z 0
+I9  x 199.9999991 m  y -3.1300 mm  z -3.4398 mm
+F3  +X of G2 in G1: (-1.7199e-05, 1.3458e-10, -0.99999999985)  convergence 1.7199e-05 rad
+F5  seed 1: local per-axis max 0.2436 mm, local 3-D max 0.2631 mm; Earth-centred median 0.163 m, max 0.294 m, share under 0.1 m 12.6%
+F5  200 seeds: per-axis max 0.2441 mm; 3-D max 0.2691 mm; median range 0.156-0.174 m; smallest max 0.281 m
+W5  200 seeds: no re-root, smallest largest-error 0.124 m; re-rooted, largest error 1.91e-06 m
+W5  B origin alone: float32(3000000.37) = 3000000.25, error 0.12 m
+GP  radians, yaw about z then pitch about x: difference 1.1e-16
+GP  radians, yaw about z then pitch about y: difference 2.8e-01
+GP  degrees, yaw about z then pitch about y: difference 4.1e-01

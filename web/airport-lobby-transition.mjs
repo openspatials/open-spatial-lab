@@ -75,7 +75,7 @@ export function recoverAirportLobbyPortalResources(clientMode, wowWorld, wowPort
     id: 3,
     label: "Portal to Denver Skyport",
     geoPose: {
-      position: { lat: 4.4, lan: 0, h: 0 },
+      position: { lat: 4.4, lon: 0, h: 0 },
       angles: { yaw: 0, pitch: 0, roll: 0 },
     },
     destination: {},

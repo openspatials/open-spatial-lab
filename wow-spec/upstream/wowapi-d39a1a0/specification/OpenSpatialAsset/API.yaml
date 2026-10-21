@@ -1,0 +1,222 @@
+openapi: '3.0.3'
+info:
+  title: OpenSpatialAsset API
+  contact:
+    name: OpenSpatailWorld  
+    url: https://www.WebOfWorlds.io/
+  version: '0.0.1'
+
+servers:
+  - url: https://asset.OpenSpatialWorld.io/v1
+    description: Test Server
+
+externalDocs:
+  url: https://www.iana.org/assignments/media-types/model.csv
+  description: Official list of available IANA registered model types.
+
+paths:
+  /:
+    head:
+      description: Used to authorize resources and simultaneously check whether ETag still matches cached ETag.
+      tags:
+        - Authorize and validate access 
+      responses:
+        '200':
+          description: User has access to this resource. Any other response is regarded as being unauthorized. Redirects are not followed.
+          headers:
+            ETag:
+              description: RFC2616 revision control. Used to determine if cached data is current.
+              schema:
+                type: string
+        '403':
+          description: Forbidden. User does not have authorization to view this resource.
+        '404':
+          description: Not Found. Element does not exist or user does not have authorization to know whether this resource exists or not.
+    get:
+      description: Used to negotiate and fetch a data instance as resources.
+      tags:
+        - Asset content provisioning
+      responses:
+        '200':
+          description: Success. See the examples below for a full list of possible Content-Types to return.
+          headers:
+            ETag:
+              description: RFC2616 revision control. Used to determine if cached data is current.
+              schema:
+                type: string
+            Content-Disposition:
+              description: HTTP header which defines a filename for the content. Will be used as a fallback if Content-Type is not given. The file extension will be used as a hint to select an appropriate loader.
+              schema:
+                type: string
+          content:
+            model/3mf:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/e57:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/gltf-binary:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/gltf+json:
+              example: json
+              schema:
+                type: string
+                format: json
+            model/JT:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/iges:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/mtl:
+              example: binary-data
+              schema:
+                type: string
+                format: binary            
+            model/obj:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/prc:
+              example: binary
+              schema:
+                type: string
+                format: binary
+
+            model/step:
+              example: binary
+              schema:
+                type: string
+                format: binary
+            model/step+xml:
+              example: xml-data
+              schema:
+                type: string
+                format: xml-data
+            model/step+zip:
+              example: binary
+              schema:
+                type: string
+                format: binary
+            model/step-xml+zip:
+              example: binary
+              schema:
+                type: string
+                format: binary
+
+            model/stl:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+
+            model/vnd.collada+xml:
+              example: xml-data
+              schema:
+                type: string
+                format: xml-data
+
+            model/vnd.usda:
+              example: binary
+              schema:
+                type: string
+                format: binary
+            model/vnd.usdz+zip:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+
+            model/vrml:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/x3d-vrml:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/x3d+fastinfoset:
+              example: binary-data
+              schema:
+                type: string
+                format: binary
+            model/x3d+xml:
+              example: xml-data
+              schema:
+                type: string
+                format: xml-data
+  /wow/asset:
+    get:
+      summary: Returns a asset status as a single data state 
+      responses:
+        "200": # status code
+          description: "asset state and summary"
+          content:
+            application/json:             
+              schema:
+                $ref: "#/components/schemas/Asset"    
+        '302':
+          description: Resource is located elsewhere.
+        '403':
+          description: Forbidden.
+        '404':
+          description: Not Found.
+components:
+  schemas:
+    Asset:
+      type: object
+      properties:
+        content:
+          type: object
+          properties: 
+            label:
+              type: string
+            age_restriction:
+              type: number
+            license:
+              type: string
+            cost: 
+              type: string 
+            version: 
+              type: number     
+        geoPose:
+          type: object
+          properties:
+            position:
+              type: object
+              properties:
+                lat: 
+                  type: number
+                lan:
+                  type: number
+                h:
+                  type: number
+            angles:
+              type: object
+              properties:
+                yaw:
+                  type: number
+                pitch:
+                  type: number
+                roll:
+                  type: number
+
+
+
+tags:
+  - name: Authorize
+  - name: Load

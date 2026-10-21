@@ -162,7 +162,7 @@ async function main()
         function assertGeoPose(g, where)
         {
             assert.ok(g && g.position && g.angles, 'geoPose present on ' + where);
-            for (const k of [ 'lat', 'lan', 'h' ])
+            for (const k of [ 'lat', 'lon', 'h' ])
                 assert.strictEqual(typeof g.position[k], 'number', 'geoPose.position.' + k + ' number on ' + where);
             for (const k of [ 'yaw', 'pitch', 'roll' ])
                 assert.strictEqual(typeof g.angles[k], 'number', 'geoPose.angles.' + k + ' number on ' + where);
@@ -239,8 +239,15 @@ async function main()
                          { base : B, spatial : 'demo-room-b', loc : 'location-b' } ];
         for (const w of worlds)
         {
+            // (0) the graph by its integer id is the Spatial: id, root node id, GeoPose anchor
+            const spatialR = await get(w.base + '/wow/spatial/1');
+            assert.strictEqual(spatialR.status, 200, 'GET /wow/spatial/1 is 200 for ' + w.spatial);
+            assert.strictEqual(spatialR.json.id, 1, 'Spatial.id is the integer graph id');
+            assert.strictEqual(spatialR.json.rootNodeID, 0, 'Spatial.rootNodeID points at the root node');
+            assert.ok(spatialR.json.geoPose && spatialR.json.geoPose.position && typeof spatialR.json.geoPose.position.lon === 'number',
+                'Spatial.geoPose anchors the graph');
             // (1) graph root by world_id -> canonical Node, populated from real scene data
-            const rootR = await get(w.base + '/wow/spatial/' + w.spatial);
+            const rootR = await get(w.base + '/wow/spatial/' + w.spatial + '?form=node');
             assert.strictEqual(rootR.status, 200, 'graph root 200 for ' + w.spatial);
             const root = rootR.json;
             assert.strictEqual(root.id, 0, 'root id is 0');
@@ -257,14 +264,14 @@ async function main()
             assert.strictEqual(unknown.status, 404, 'unknown spatialID 404s');
 
             // (3) fetch a seeded child node (a portal or primitive) by id
-            const childId = root.children[0];
+            const childId = root.children[0].id;
             const childR = await get(w.base + '/wow/spatial/' + w.spatial + '/node/' + childId);
             assert.strictEqual(childR.status, 200, 'seeded child node 200');
             assert.strictEqual(childR.json.id, childId, 'child node id matches');
             assert.strictEqual(childR.json.parent, 0, 'seeded child parent is root');
             // a portal seed node carries the labeled osl-portal: destination URI
             const portalNodeR = await get(w.base + '/wow/spatial/' + w.spatial + '/node/'
-                + root.children[root.children.length - 1]);
+                + root.children[root.children.length - 1].id);
             assert.ok(/^osl-portal:/.test(portalNodeR.json.spatialAssetURI || ''),
                 'last seed child is a portal node with a labeled osl-portal URI');
 
@@ -280,8 +287,8 @@ async function main()
             assert.strictEqual(created.json[0].parent, 0, 'new node attached under root');
 
             // (5) mutation PERSISTS across requests — re-GET root shows the new child
-            const root2 = (await get(w.base + '/wow/spatial/' + w.spatial)).json;
-            assert.ok(root2.children.indexOf(newId) !== -1, 'new child persisted into root.children');
+            const root2 = (await get(w.base + '/wow/spatial/' + w.spatial + '?form=node')).json;
+            assert.ok(root2.children.some(c => c.id === newId), 'new child persisted into root.children');
             const newNode = (await get(w.base + '/wow/spatial/' + w.spatial + '/node/' + newId)).json;
             assert.strictEqual(newNode.label, 'test-node', 'new node readable with its label');
 
@@ -299,8 +306,8 @@ async function main()
             assert.strictEqual(delR.status, 200, 'DELETE 200');
             const afterDel = await get(w.base + '/wow/spatial/' + w.spatial + '/node/' + newId);
             assert.strictEqual(afterDel.status, 404, 'deleted node 404s');
-            const root3 = (await get(w.base + '/wow/spatial/' + w.spatial)).json;
-            assert.ok(root3.children.indexOf(newId) === -1, 'deleted child unlinked from root');
+            const root3 = (await get(w.base + '/wow/spatial/' + w.spatial + '?form=node')).json;
+            assert.ok(!root3.children.some(c => c.id === newId), 'deleted child unlinked from root');
 
             // (8) root is protected; bad node id is a 400
             const delRoot = await del(w.base + '/wow/spatial/' + w.spatial + '/node/0');

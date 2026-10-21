@@ -142,14 +142,14 @@ async function main()
             v.validateResponse('world', badPB).errorsText);
 
         // ---- PART D: node request-body validation ----
-        // the node body OSL serves/accepts is the LABELED,
-        // NON-CANONICAL `OSLFlatNode` (children = INTEGER id refs). The CANONICAL
-        // `Node` EMBEDS child Node objects (open spec, API.yaml:484-487). Both are
-        // asserted here, each against its OWN schema — never conflated.
+        // OSL serves and accepts the CANONICAL `Node`, which EMBEDS child Node objects
+        // (open spec, API.yaml:484-487), by default. The LABELED, NON-CANONICAL
+        // `OSLFlatNode` (children = INTEGER id refs) is served only on explicit request.
+        // Both are asserted here, each against its OWN schema — never conflated.
         const goodFlatNode = { id: 1, label: 'root', parent: 0, children: [ 2 ],
             localTransform: sixteenIdentity(), spatialAssetURI: 'asset://duck.glb' };
         const badNode = { id: 'not-an-int', label: 5 };
-        check('D1 good OSLFlatNode request body is ACCEPTED (the shape OSL serves)',
+        check('D1 good OSLFlatNode request body is ACCEPTED (OSL\'s flat form, served on request)',
             v.validateRequest('OSLFlatNode', goodFlatNode).valid,
             v.validateRequest('OSLFlatNode', goodFlatNode).errorsText);
         check('D2 bad node request body is REJECTED',
@@ -164,7 +164,7 @@ async function main()
 
         // ---- PART D2: the canonical Node is the STANDARD, not OSL's shape ----
         // These four pin the un-inversion: a genuinely spec-conformant node
-        // MUST validate against canonical `Node`, and OSL's flat node must NOT.
+        // MUST validate against canonical `Node`, and OSL's flat form must NOT.
         const canonicalNodeFixture = { id: 1, label: 'root', parent: 0,
             children: [ { id: 2, label: 'child-2', parent: 1, children: [] } ],
             localTransform: sixteenIdentity() };
@@ -197,10 +197,10 @@ async function main()
             v.doc.components.schemas.Node.properties.children.items.$ref
                 === '#/components/schemas/Node',
             JSON.stringify(v.doc.components.schemas.Node.properties.children.items));
-        // The /wow/spatial prefix IS served. `demo` is simply not a
-        // resolvable graph id on 041 (SPATIAL_ACCEPTED_IDS), so it honestly 404s.
+        // The /wow/spatial prefix IS served. `demo` is not a graph id of this world
+        // (the graph id is the integer 1), so it honestly 404s.
         const rs = await httpGetJson('/wow/spatial/demo');
-        check('E4 /wow/spatial/demo 404s — `demo` is not a resolvable graph id (prefix IS served; runtime)',
+        check('E4 /wow/spatial/demo 404s — `demo` is not a graph id (prefix IS served)',
             rs.status === 404, 'status=' + rs.status);
 
         // ================================================================

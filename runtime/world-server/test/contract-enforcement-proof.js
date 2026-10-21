@@ -153,21 +153,23 @@ async function main()
         const badWhileOff = await POST(PORT.envOff, '/wow/spatial/' + SPATIAL_ID + '/node/0',
             [ { label : 12345 } ]);
         check('A3 OSL_WOW_VALIDATE=0 CANNOT disable REQUEST enforcement either',
-            badWhileOff.status === 422 && V(badWhileOff) === 'fail:OSLFlatNode[]',
+            badWhileOff.status === 422 && V(badWhileOff) === 'fail:Node[]',
             'status=' + badWhileOff.status + ' hdr=' + V(badWhileOff));
         delete process.env.OSL_WOW_VALIDATE;
 
         // =================================================================
         // B — NO CONFORMANT BEHAVIOUR CHANGED
         // =================================================================
-        const root = (await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID)).json;
+        const root = (await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '?form=node')).json;
         const preserved = [
             [ '/wow/world', 'pass:OSLWorldResponse' ],
             [ '/wow/user/1', 'pass:OSLUserResponse' ],
             [ '/wow/view/1', 'pass:OSLViewResponse' ],
             [ '/wow/portal/1', 'pass:OSLPortalResponse' ],
-            [ '/wow/spatial/' + SPATIAL_ID, 'pass:OSLFlatNode' ],
-            [ '/wow/spatial/' + SPATIAL_ID + '/node/' + root.children[0], 'pass:OSLFlatNode' ],
+            [ '/wow/spatial/' + SPATIAL_ID, 'pass:Spatial' ],
+            [ '/wow/spatial/' + SPATIAL_ID + '?form=node', 'pass:Node' ],
+            [ '/wow/spatial/' + SPATIAL_ID + '/node/' + root.children[0].id, 'pass:Node' ],
+            [ '/wow/spatial/' + SPATIAL_ID + '/node/' + root.children[0].id + '?nodeForm=flat', 'pass:OSLFlatNode' ],
         ];
         const preservedSeen = [];
         for (const [ p, want ] of preserved)
@@ -179,13 +181,13 @@ async function main()
         }
         const createOk = await POST(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/0',
             [ { label : 'runtime-conformant', localTransform : [ 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 ] } ]);
-        check('B1c POST 200 still reads pass:OSLFlatNode[]',
-            createOk.status === 200 && V(createOk) === 'pass:OSLFlatNode[]',
+        check('B1c POST 200 reads pass:Node[] (the canonical form is the default)',
+            createOk.status === 200 && V(createOk) === 'pass:Node[]',
             'status=' + createOk.status + ' hdr=' + V(createOk));
         const putOk = await PUT(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/' + createOk.json[0].id,
             { label : 'runtime-renamed' });
-        check('B1d PUT 200 still reads pass:OSLFlatNode',
-            putOk.status === 200 && V(putOk) === 'pass:OSLFlatNode',
+        check('B1d PUT 200 reads pass:Node',
+            putOk.status === 200 && V(putOk) === 'pass:Node',
             'status=' + putOk.status + ' hdr=' + V(putOk));
 
         // The body on the wire is EXACTLY what the runtime produced — validation
@@ -197,24 +199,25 @@ async function main()
             worldOnWire === worldFromRuntime,
             'wire=' + worldOnWire.length + 'B runtime=' + worldFromRuntime.length + 'B');
 
-        // descriptor opt-in preserved, and its contract status is now stated.
-        // The expected verdict is COMPUTED the way the superseded env-gated layer
-        // computed it (validateResponse('Spatial', ...)), not hardcoded — so this
-        // asserts EQUIVALENCE with the old layer rather than a guess about it.
+        // The Spatial is the default response of GET /wow/spatial/{id}. The expected verdict is COMPUTED
+        // the way the superseded env-gated layer computed it (validateResponse('Spatial', ...)), not
+        // hardcoded, so this asserts EQUIVALENCE with that layer rather than a guess about it.
         const preValidator = createValidator();
         const descPayload = a.runtime.getSpatialDescriptor(SPATIAL_ID);
         const oldLayer = preValidator.validateResponse('Spatial', descPayload);
         const oldLayerVerdict = (oldLayer.valid ? 'pass:' : 'fail:') + oldLayer.schema;
-        const desc = await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '?form=descriptor');
-        check('B3 runtime descriptor opt-in: verdict is IDENTICAL to the superseded layer\'s ('
+        const desc = await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID);
+        check('B3 the Spatial is the default response: verdict is IDENTICAL to the superseded layer\'s ('
             + oldLayerVerdict + ')',
             desc.status === 200 && V(desc) === oldLayerVerdict
             && desc.headers['x-osl-wow-spatial-form'] === 'descriptor',
             'status=' + desc.status + ' hdr=' + V(desc) + ' old-layer=' + oldLayerVerdict
             + ' errors=' + oldLayer.errorsText);
-        check('B3b the descriptor variant is HONESTLY reported as undeclared at the operation level',
-            desc.headers['x-osl-wow-contract'] === 'variant-undeclared-in-contract:spatial-form-descriptor',
-            'contract-hdr=' + desc.headers['x-osl-wow-contract']);
+        const nodeForm = await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '?form=node');
+        check('B3b the form=node variant is declared at the operation level: no variant-undeclared note on the wire',
+            nodeForm.headers['x-osl-wow-contract'] === undefined && desc.headers['x-osl-wow-contract'] === undefined
+            && V(nodeForm) === 'pass:Node' && nodeForm.headers['x-osl-wow-spatial-form'] === 'node',
+            'contract-hdr=' + nodeForm.headers['x-osl-wow-contract']);
 
         // =================================================================
         // C — BROADER COVERAGE, MEASURED
@@ -312,48 +315,56 @@ async function main()
         // =================================================================
         // E — CONTROLLED RED: a bad REQUEST body
         // =================================================================
-        const rootBefore = (await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID)).json;
-        const badBody = [ { label : 12345 } ];   // contract: OSLFlatNode.label is a string
+        const rootBefore = (await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '?form=node')).json;
+        const badBody = [ { label : 12345 } ];   // contract: Node.label is a string
         check('E0 the bad body really violates the CONTRACT request schema',
-            !v.validateRequest('OSLFlatNode[]', badBody).valid,
-            v.validateRequest('OSLFlatNode[]', badBody).errorsText);
+            !v.validateRequest('Node[]', badBody).valid,
+            v.validateRequest('Node[]', badBody).errorsText);
         const badPost = await POST(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/0', badBody);
         check('E1 CONTROLLED RED (request): a contract-violating POST body is REFUSED 422',
             badPost.status === 422 && badPost.json.error === 'node_validation_failed'
-            && V(badPost) === 'fail:OSLFlatNode[]',
+            && V(badPost) === 'fail:Node[]',
             'status=' + badPost.status + ' hdr=' + V(badPost));
-        const rootAfterBad = (await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID)).json;
+        const rootAfterBad = (await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '?form=node')).json;
         check('E2 the refused request STORED NOTHING',
             rootAfterBad.children.length === rootBefore.children.length,
             'before=' + rootBefore.children.length + ' after=' + rootAfterBad.children.length);
-        const badPut = await PUT(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/' + rootBefore.children[0],
+        const badPut = await PUT(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/' + rootBefore.children[0].id,
             { localTransform : 'not-an-array' });
         check('E3 CONTROLLED RED (request): a contract-violating PUT body is REFUSED 422',
             badPut.status === 422 && badPut.json.error === 'node_validation_failed'
-            && V(badPut) === 'fail:OSLFlatNode',
+            && V(badPut) === 'fail:Node',
             'status=' + badPut.status + ' hdr=' + V(badPut));
 
-        // RICHER refusal must survive always-on ajv: an embedded canonical
-        // body is still named, with machine-readable remedies, not reduced to a
-        // bare schema error.
+        // The canonical Node, children embedded, is the default form: the subtree is stored and the
+        // verdict is taken against the contract's Node[]. The explicit `flat` form is measured against
+        // OSLFlatNode[], so an embedded body is refused by name there, with machine-readable remedies,
+        // not reduced to a bare schema error.
         const canonicalBody = [ {
             label : 'runtime-conformant-root',
             localTransform : [ 1,0,0,0, 0,1,0,0, 0,0,1,0, 1,2,3,1 ],
             children : [ { label : 'runtime-embedded-child' } ],
         } ];
         const embedded = await POST(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/0', canonicalBody);
-        check('E4 runtime preserved under always-on: embedded body -> 422 embedded_children_not_supported',
-            embedded.status === 422 && embedded.json.error === 'embedded_children_not_supported'
-            && embedded.json.served_schema === 'OSLFlatNode'
-            && Array.isArray(embedded.json.remedies)
-            && embedded.json.remedies.some(s => /nodeForm=canonical|X-OSL-WoW-Node-Form/.test(s)),
-            'status=' + embedded.status + ' error=' + (embedded.json || {}).error);
-        const optIn = await POST(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/0?nodeForm=canonical',
+        check('E4 an embedded body is stored in the default form: 200, pass:Node[], the subtree returned with its ids',
+            embedded.status === 200 && Array.isArray(embedded.json) && embedded.json.length === 1
+            && embedded.json[0].children.length === 1 && Number.isInteger(embedded.json[0].children[0].id)
+            && V(embedded) === 'pass:Node[]',
+            'status=' + embedded.status + ' hdr=' + V(embedded));
+        const flatRefusal = await httpReq('POST', PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/0', canonicalBody,
+            { 'X-OSL-WoW-Node-Form': 'flat' });
+        check('E4b the flat form refuses the same body by name: 422 embedded_children_not_supported, measured as OSLFlatNode[]',
+            flatRefusal.status === 422 && flatRefusal.json.error === 'embedded_children_not_supported'
+            && flatRefusal.json.served_schema === 'OSLFlatNode'
+            && Array.isArray(flatRefusal.json.remedies)
+            && flatRefusal.json.remedies.some(s => /X-OSL-WoW-Node-Form: flat/.test(s)),
+            'status=' + flatRefusal.status + ' error=' + (flatRefusal.json || {}).error);
+        const sameForm = await POST(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '/node/0?nodeForm=canonical',
             canonicalBody);
-        check('E5 the contract-DECLARED canonical opt-in still validates as Node[] and stores the subtree',
-            optIn.status === 200 && Array.isArray(optIn.json) && optIn.json.length === 2
-            && V(optIn) === 'pass:OSLFlatNode[]',
-            'status=' + optIn.status + ' stored=' + (optIn.json || []).length + ' hdr=' + V(optIn));
+        check('E5 ?nodeForm=canonical is the default form by another name: validates as Node[] and stores the subtree',
+            sameForm.status === 200 && Array.isArray(sameForm.json) && sameForm.json.length === 1
+            && V(sameForm) === 'pass:Node[]',
+            'status=' + sameForm.status + ' hdr=' + V(sameForm));
 
         // =================================================================
         // F — CONTRACT-DRIVEN: change the CONTRACT, enforcement follows.
@@ -373,7 +384,7 @@ async function main()
 
         // F2 LOOSEN: make the body that E1 refused legal.
         const loosened = cloneContract();
-        loosened.components.schemas.OSLFlatNode.properties.label = {};
+        loosened.components.schemas.Node.properties.label = {};
         const l = await listen('a', { wow_contract_doc : loosened }, PORT.loosen); started.push(l);
         const loosePost = await POST(PORT.loosen, '/wow/spatial/' + SPATIAL_ID + '/node/0', badBody);
         check('F2 CONTRACT LOOSENED -> the body E1 refused is now ACCEPTED (no code change)',
@@ -423,11 +434,11 @@ async function main()
         check('G3 a declared VARIANT cannot outlive its contract anchor (header param removed -> THROW)',
             (() => { try { createContractEnforcer({ doc : unanchored }); return false; }
                      catch (e) { return /X-OSL-WoW-Node-Form/.test(e.message); } })());
-        const noSpatial = cloneContract();
-        delete noSpatial.components.schemas.Spatial;
-        check('G4 a declared VARIANT cannot outlive its contract component (Spatial removed -> THROW)',
-            (() => { try { createContractEnforcer({ doc : noSpatial }); return false; }
-                     catch (e) { return /Spatial/.test(e.message); } })());
+        const noFlat = cloneContract();
+        delete noFlat.components.schemas.OSLFlatNode;
+        check('G4 a declared VARIANT cannot outlive its contract component (OSLFlatNode removed -> THROW)',
+            (() => { try { createContractEnforcer({ doc : noFlat }); return false; }
+                     catch (e) { return /OSLFlatNode/.test(e.message); } })());
 
         // =================================================================
         // H — BLAST RADIUS

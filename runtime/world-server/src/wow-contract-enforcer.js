@@ -81,54 +81,66 @@ const HTTP_METHODS = [ 'get', 'put', 'post', 'delete', 'patch', 'head', 'options
  * These are NOT a parallel schema list: each one is ANCHORED IN the contract and
  * verified against it at startup (the header parameter must be declared on that
  * operation, the schema must exist in the contract's components). If the
- * contract stops declaring the anchor, construction THROWS — the variant cannot
+ * contract stops declaring the anchor, construction THROWS: the variant cannot
  * outlive the contract clause that authorises it.
  *
- * `contract_declared` records, honestly and visibly, whether the contract
- * declares the variant at the OPERATION level or whether OSL serves it as a
- * labeled extension the contract has not yet caught up with. An undeclared
- * variant is surfaced on the wire (X-OSL-WoW-Contract) and in describe(); it is
- * never a silent omission.
+ * The default node form is the canonical `Node` (children embedded). The variants
+ * here are the explicit `flat` form (the labeled OSLFlatNode, children are ids) and
+ * the `node` form of the graph root.
+ *
+ * `contract_declared` records whether the contract declares the variant at the
+ * OPERATION level. An undeclared variant is surfaced on the wire (X-OSL-WoW-Contract)
+ * and in describe(); it is never a silent omission.
  */
+const NODE_PATH = '/wow/spatial/{spatialID}/node/{nodeId}';
+const SPATIAL_PATH = '/wow/spatial/{spatialID}';
+const isFlat = (ctx) => !!ctx && ctx.nodeForm === 'flat';
+const flatVariant = (kind, method, schema_name, array, item_component) => ({
+    id : 'node-form-flat-' + kind + '-' + method.toLowerCase(),
+    kind,
+    method,
+    template : NODE_PATH,
+    status : kind === 'response' ? 200 : undefined,
+    selector : isFlat,
+    requires_header_param : 'X-OSL-WoW-Node-Form',
+    schema_name,
+    item_component,
+    array,
+    contract_declared : true,
+    why : 'the explicit `X-OSL-WoW-Node-Form: flat` form, declared as a header parameter on this operation; '
+        + 'the node is the labeled OSLFlatNode and is validated as such.',
+});
 const DECLARED_VARIANTS = [
+    flatVariant('request', 'POST', 'OSLFlatNode[]', true, 'OSLFlatNode'),
+    flatVariant('request', 'PUT', 'OSLFlatNode', false, 'OSLFlatNode'),
+    flatVariant('response', 'GET', 'OSLFlatNode', false, 'OSLFlatNode'),
+    flatVariant('response', 'POST', 'OSLFlatNode[]', true, 'OSLFlatNode'),
+    flatVariant('response', 'PUT', 'OSLFlatNode', false, 'OSLFlatNode'),
     {
-        id : 'node-form-canonical',
-        kind : 'request',
-        method : 'POST',
-        template : '/wow/spatial/{spatialID}/node/{nodeId}',
-        // `X-OSL-WoW-Node-Form: canonical` (or
-        // ?nodeForm=canonical) means the body IS the canonical, embedded-children
-        // `Node[]`, so THAT is the schema it must be measured against.
-        selector : (ctx) => !!ctx && ctx.nodeForm === 'canonical',
-        requires_header_param : 'X-OSL-WoW-Node-Form',
-        schema_name : 'Node[]',
-        item_component : 'Node',
-        array : true,
-        contract_declared : true,
-        why : 'runtime opt-in, declared as a header parameter on this operation in '
-            + 'the contract; the body is the CANONICAL Node[] and is validated as such.',
-    },
-    {
-        id : 'spatial-form-descriptor',
+        id : 'spatial-form-node-flat',
         kind : 'response',
         method : 'GET',
-        template : '/wow/spatial/{spatialID}',
+        template : SPATIAL_PATH,
         status : 200,
-        // `X-OSL-WoW-Spatial-Form: descriptor` (or
-        // ?form=descriptor) returns the canonical `Spatial` DESCRIPTOR instead of
-        // the root node. The handler already emits the response header naming the
-        // form it served; the verdict is taken from that, not from new plumbing.
-        selector : (ctx) => !!ctx && ctx.spatialForm === 'descriptor',
-        requires_component : 'Spatial',
-        schema_name : 'Spatial',
+        selector : (ctx) => !!ctx && ctx.spatialForm === 'node' && ctx.nodeForm === 'flat',
+        requires_header_param : 'X-OSL-WoW-Spatial-Form',
+        schema_name : 'OSLFlatNode',
         array : false,
-        // HONEST: the contract declares only the default (OSLFlatNode) response
-        // for this operation. The descriptor form is an OSL versioned opt-in the
-        // contract does not yet declare at the operation level.
-        contract_declared : false,
-        why : 'runtime Gap 3 versioned opt-in. The contract declares OSLFlatNode as '
-            + 'this operation\'s 200; the descriptor form is validated against the '
-            + 'contract component `Spatial` and REPORTED as operation-undeclared.',
+        contract_declared : true,
+        why : '`form=node` with the node form `flat`: the graph root as the labeled OSLFlatNode.',
+    },
+    {
+        id : 'spatial-form-node',
+        kind : 'response',
+        method : 'GET',
+        template : SPATIAL_PATH,
+        status : 200,
+        selector : (ctx) => !!ctx && ctx.spatialForm === 'node',
+        requires_header_param : 'X-OSL-WoW-Spatial-Form',
+        schema_name : 'Node',
+        array : false,
+        contract_declared : true,
+        why : '`form=node`: the graph root itself, as the canonical Node, instead of the Spatial.',
     },
 ];
 

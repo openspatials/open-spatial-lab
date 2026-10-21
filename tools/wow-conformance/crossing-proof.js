@@ -230,25 +230,19 @@ function req(method, baseUrl, p, body) {
 const getJson = (b, p) => req('GET', b, p, null);
 const postJson = (b, p, body) => req('POST', b, p, body);
 
-// Walk the live canonical composition graph exactly as the client does
-// (GET /wow/spatial/{id} root Node + BFS /node/{id}) into a flat {id:Node} map.
+// Read the live canonical composition graph exactly as the client does: GET /wow/spatial/{id} is the
+// Spatial (id, rootNodeID, geoPose); its root node, at /node/{rootNodeID}, is a canonical Node with
+// every child embedded; the shared flatten (web/wow-graph.mjs) turns it into a flat {id:Node} map.
 async function walkGraph(base, spatialId) {
-    const rootR = await getJson(base, '/wow/spatial/' + encodeURIComponent(spatialId));
-    if (rootR.status !== 200 || !rootR.json || rootR.json.id == null) return { ok: false, status: rootR.status, nodes: {}, stats: { total: 0 } };
-    const nodes = {}; nodes[Number(rootR.json.id)] = rootR.json;
-    const seen = new Set([ Number(rootR.json.id) ]);
-    const queue = (Array.isArray(rootR.json.children) ? rootR.json.children : []).map(Number);
-    let fetched = 0, failed = 0;
-    while (queue.length) {
-        const id = Number(queue.shift());
-        if (seen.has(id)) continue; seen.add(id);
-        const nR = await getJson(base, '/wow/spatial/' + encodeURIComponent(spatialId) + '/node/' + id);
-        if (nR.status === 200 && nR.json && nR.json.id != null) {
-            nodes[Number(nR.json.id)] = nR.json; fetched++;
-            for (const c of (Array.isArray(nR.json.children) ? nR.json.children : [])) if (!seen.has(Number(c))) queue.push(Number(c));
-        } else { failed++; }
-    }
-    return { ok: true, root: Number(rootR.json.id), nodes, stats: { fetched, failed, total: Object.keys(nodes).length } };
+    const spatialR = await getJson(base, '/wow/spatial/' + encodeURIComponent(spatialId));
+    if (spatialR.status !== 200 || !spatialR.json || spatialR.json.rootNodeID == null)
+        return { ok: false, status: spatialR.status, nodes: {}, stats: { total: 0 } };
+    const rootR = await getJson(base, '/wow/spatial/' + encodeURIComponent(spatialId) + '/node/' + spatialR.json.rootNodeID);
+    if (rootR.status !== 200 || !rootR.json || rootR.json.id == null)
+        return { ok: false, status: rootR.status, nodes: {}, stats: { total: 0 } };
+    const { flattenCanonicalNode } = await import(pathToFileURL(path.join(REPO_ROOT, 'web', 'wow-graph.mjs')).href);
+    const flat = flattenCanonicalNode(rootR.json);
+    return { ok: true, root: flat.rootId, nodes: flat.nodes, stats: { fetched: 1, failed: 0, total: flat.count } };
 }
 
 function near(a, b, tol) { return Math.abs((Number(a) || 0) - (Number(b) || 0)) <= (tol || 0.001); }

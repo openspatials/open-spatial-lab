@@ -1,0 +1,11 @@
+{
+  "graphs": [
+    {
+      "id": 1,
+      "geoPose": {
+        "position": { "lat": 47.7, "lon": -122.3, "h": 11.5 },
+        "angles": { "yaw": 0, "pitch": 0, "roll": 0 }
+      }
+    }
+  ]
+}

@@ -27,6 +27,8 @@
 // backing GET/POST/PUT/DELETE /wow/spatial/... (canonical WoW `Node`s). Vanilla
 // Node, additive; see spatial-graph.js for the store + env-gated persistence.
 const { createSpatialGraphStore, translationMatrix } = require('./spatial-graph');
+const { loadAnchors } = require('./spatial-anchor');
+const wowGeo = require('../../../web/wow-geopose.js');
 
 // P1: the shared-edge identity derivation is single-sourced
 // in config.js (where the topology is validated at load); descriptors reuse it.
@@ -133,22 +135,19 @@ const FABRIC_BACKGROUND_RRGGBB = '0B1020';
 //     OpenSpatialWorld/API.yaml
 // (schemas World, User, View, Portal; runnable reference: repos/simpleWorlds).
 //
-// The schema's geoPose is { position: { lat, lan, h }, angles: { yaw, pitch,
-// roll } } ("lan" is the spec's own spelling). Our worlds are demo-local
-// Cartesian scenes, NOT georeferenced, so we project local metres onto a
-// demo-local tangent frame and say so on every resource:
-//   lat <- -z   (local metres "north"; three.js forward is -z)
-//   lan <- +x   (local metres "east")
-//   h   <- +y   (local metres up)
-// Angles are degrees; yaw is the scene's native yaw (rotation about +h, with
-// yaw 0 facing local +z, matching the live client's rotation_y convention).
-// No GeoPose/standards conformance is claimed (see getWowProofBoundary()).
+// Every GeoPose is { position: { lat, lon, h }, angles: { yaw, pitch, roll } } (OGC GeoPose
+// Basic-YPR; the World API at d39a1a0 spells longitude `lan`, which the reader still accepts).
+// A graph's anchor GeoPose places its origin on the WGS-84 ellipsoid: at zero angles local +X is
+// east, +Y is up and +Z is south, in metres. A position inside the graph is converted to
+// geographic coordinates through that anchor (EPSG 9837 inverse, web/wow-geopose.js), and the
+// angles are the pose's angles about the graph's axes plus the anchor's own. The anchors are lab
+// placements, not surveyed ones, and no standards conformance is claimed (see getWowProofBoundary()).
 const WOW_GEOPOSE_MAPPING = {
-    frame : 'demo-local-tangent (NOT georeferenced)',
-    lat : '-z in local metres',
-    lan : '+x in local metres (spec spells longitude "lan")',
-    h : '+y in local metres',
-    angles : 'degrees; yaw about +h with 0 facing local +z (scene rotation_y), roll fixed 0',
+    frame : 'graph frame anchored by the graph GeoPose: metres, right-handed, +X east, +Y up, +Z south at zero angles (WGS-84)',
+    lat : 'geodetic latitude of the local point, through the anchor',
+    lon : 'geodetic longitude of the local point, through the anchor (the World API at d39a1a0 spells it lan)',
+    h : 'height above the WGS-84 ellipsoid, in metres',
+    angles : 'degrees; the pose angles about the graph axes (yaw about +Y with 0 facing local +Z, scene rotation_y) plus the anchor angles; roll fixed 0',
 };
 
 // Fixed per-world Web of Worlds resource ids (spec path params are integers).
@@ -458,6 +457,13 @@ const WOW_VIEW_CAMERA_RIG = {
 function createRuntime(opts)
 {
     const cfg = opts || {};
+    // Each graph's anchor, read through the one GeoPose reader. A fixture the reader refuses stops
+    // the server here, with the reader's named error.
+    const SPATIAL_ANCHORS = loadAnchors(cfg.spatial_anchor_fixture !== undefined ? cfg.spatial_anchor_fixture : cfg.spatial_anchors);
+    const SPATIAL_GRAPH_ID = 1;
+    if (!SPATIAL_ANCHORS.has(SPATIAL_GRAPH_ID))
+        throw new Error('the spatial anchor fixture names no graph ' + SPATIAL_GRAPH_ID + ' (this world serves one graph, id 1)');
+    const WORLD_ANCHOR = SPATIAL_ANCHORS.get(SPATIAL_GRAPH_ID);
     const LOCATION_ID = String(cfg.location_id);
     const WORLD_ID = String(cfg.world_id);
     const SESSION_ID = String(cfg.session_id);
@@ -746,32 +752,21 @@ function createRuntime(opts)
         };
     }
 
-    /** Degrees from radians, rounded for stable JSON evidence. */
-    function wowDegrees(rad)
-    {
-        const n = Number(rad);
-        return Number.isFinite(n) ? Number((n * 180 / Math.PI).toFixed(3)) : 0;
-    }
-
     /**
-     * Project a demo-local Cartesian pose into the WoW schema geoPose shape
-     * { position: { lat, lan, h }, angles: { yaw, pitch, roll } } using the
-     * documented WOW_GEOPOSE_MAPPING (local tangent frame, NOT georeferenced).
+     * A pose in this world's graph (local metres, yaw and pitch in radians) as a GeoPose
+     * { position: { lat, lon, h }, angles: { yaw, pitch, roll } }: the position by real geodesy
+     * through the graph's anchor, the angles per WOW_GEOPOSE_MAPPING. Rounded for stable JSON:
+     * 11 decimals of a degree (about a micrometre), 4 decimals of a metre, 3 of a degree.
      */
     function wowGeoPoseFromLocal(position, yawRad, pitchRad)
     {
         const p = Array.isArray(position) ? position : [ 0, 0, 0 ];
+        const local = [ Number(p[0]) || 0, Number(p[1]) || 0, Number(p[2]) || 0 ];
+        const pose = wowGeo.localPoseToGeoPose(WORLD_ANCHOR, local, Number(yawRad) || 0, Number(pitchRad) || 0);
+        const round = (v, places) => Number(v.toFixed(places));
         return {
-            position : {
-                lat : Number((-(Number(p[2]) || 0)).toFixed(4)),
-                lan : Number((Number(p[0]) || 0).toFixed(4)),
-                h : Number((Number(p[1]) || 0).toFixed(4)),
-            },
-            angles : {
-                yaw : wowDegrees(yawRad),
-                pitch : wowDegrees(pitchRad),
-                roll : 0,
-            },
+            position : { lat : round(pose.position.lat, 11), lon : round(pose.position.lon, 11), h : round(pose.position.h, 4) },
+            angles : { yaw : round(pose.angles.yaw, 3), pitch : round(pose.angles.pitch, 3), roll : round(pose.angles.roll, 3) },
         };
     }
 
@@ -797,7 +792,8 @@ function createRuntime(opts)
                 version : 0.1,
                 duration : 0,
             },
-            geoPose : wowGeoPoseFromLocal([ 0, 0, 0 ], 0, 0), // world anchor = local origin
+            // The world's location for discovery, not a placement: the anchor of its graph.
+            geoPose : clone(WORLD_ANCHOR),
             presence : {
                 avatar : 'vrm-glb-avatar (client-rendered)',
                 navigation : 'walk-wasd-jump',
@@ -867,6 +863,8 @@ function createRuntime(opts)
                 avatars : projected.presence.avatars,
             }),
             technology : Object.assign({}, projected.technology, authored.technology || {}),
+            // The anchor fixture is the one source of the world's location. Authored data does not set it.
+            geoPose : projected.geoPose,
             users : projected.users,
             views : projected.views,
             portals : projected.portals,
@@ -1032,9 +1030,10 @@ function createRuntime(opts)
             // `Portal.destination` (a measurable shrink of this private bag). What
             // remains as a WoW-native pointer is the COMPOSITION-GRAPH REFERENCE:
             // this portal's own graph node id, and the RESOLVABLE destination — the
-            // target world's canonical /wow/spatial graph endpoint.
+            // target world's /wow/spatial graph, by its integer id (the first graph of that
+            // world's server), relative to the target's base URL.
             portal_node_id : wowPortalNodeId(wowId),
-            target_spatial_graph_endpoint : targetWorldId ? '/wow/spatial/' + targetWorldId : undefined,
+            target_spatial_graph_endpoint : targetWorldId ? '/wow/spatial/' + SPATIAL_GRAPH_ID : undefined,
             // fixture-backed destinations are a distinct
             // client scene-load contract, never disguised as a backend URL.
             target_fixture : portal.target_fixture
@@ -2575,7 +2574,7 @@ function createRuntime(opts)
                     // /wow/spatial graph id + endpoint (B composition-graph
                     // reference — the minimal path that needs no spec change).
                     target_spatial_id : targetWorldId || undefined,
-                    target_spatial_graph_endpoint : targetWorldId ? '/wow/spatial/' + targetWorldId : undefined,
+                    target_spatial_graph_endpoint : targetWorldId ? '/wow/spatial/' + SPATIAL_GRAPH_ID : undefined,
                     target_world_id : targetWorldId || undefined,
                     target_location_id : targetLocationId || undefined,
                     target_base_url : portal.target_base_url || undefined,
@@ -2600,6 +2599,7 @@ function createRuntime(opts)
 
     const spatialStore = createSpatialGraphStore({
         spatialId : SPATIAL_ID,
+        graphId : SPATIAL_GRAPH_ID,
         acceptedIds : SPATIAL_ACCEPTED_IDS,
         seedBuilder : buildSpatialSeedNodes,
     });
@@ -2610,65 +2610,55 @@ function createRuntime(opts)
         return spatialStore.matches(spatialID) ? spatialStore : null;
     }
 
-    /** GET /wow/spatial/{spatialID} — the composition graph's root Node. */
-    function getSpatialGraphRoot(spatialID)
+    /** The composition graph's root node, as the canonical Node, or as the OSLFlatNode with opts.form 'flat'. */
+    function getSpatialGraphRoot(spatialID, opts)
     {
         const store = spatialResolve(spatialID);
-        return store ? store.getRoot() : null;
+        return store ? store.getRoot(opts) : null;
     }
 
     /**
-     * the canonical `Spatial` DESCRIPTOR that the
-     * open spec returns from GET /wow/spatial/{spatialID} (operationId
-     * getSpatialById): {id, rootNodeID, geoPose}. It POINTS AT the root node via
-     * `rootNodeID` — it is NOT the root node itself (that stays the default
-     * response and lives at /wow/spatial/{id}/node/{rootNodeID}). restored
-     * this schema and deferred serving it; this serves it, on the versioned opt-in.
+     * The `Spatial` that GET /wow/spatial/{spatialID} returns: the graph's integer id, the id of
+     * its root node and the GeoPose that anchors its origin. It POINTS AT the root node, which is
+     * at /wow/spatial/{id}/node/{rootNodeID}.
      */
     function getSpatialDescriptor(spatialID)
     {
         const store = spatialResolve(spatialID);
         if (!store) return null;
-        const root = store.getRoot();
+        const root = store.getRoot({ form : 'flat' });
         const rootNodeID = root ? root.id : 0;
         return {
-            // CANONICAL {id, rootNodeID, geoPose}. `id` is the STRING graph address
-            // (declared divergence D4: the standard types it `number`; OSL addresses
-            // graphs by world_id/location_id string — consistent with the path param).
-            id : store.spatialId,
+            id : store.graphId,
             rootNodeID : rootNodeID,
-            geoPose : wowGeoPoseFromLocal([ 0, 0, 0 ], 0, 0), // graph anchor = world origin (local tangent; not georeferenced)
-            // LABELED, NON-CANONICAL additive — the discriminator made explicit.
+            geoPose : clone(WORLD_ANCHOR), // the graph's anchor, as read from the fixture
+            // LABELED, NON-CANONICAL additive members.
             webofworlds_extension : {
                 x_osl_extension : true,
                 spatial_id : store.spatialId,
                 accepted_ids : store.acceptedIds,
-                root_node_endpoint : '/wow/spatial/' + store.spatialId + '/node/' + rootNodeID,
-                id_type_divergence : 'D4 — the standard types Spatial.id `number`; OSL serves the STRING graph '
-                    + 'address in the canonical field (same divergence as the /wow/spatial path param).',
-                note : 'CANONICAL Spatial descriptor. It POINTS AT the root node via rootNodeID; the root node '
-                    + 'ITSELF is at root_node_endpoint. Served on the versioned opt-in (X-OSL-WoW-Spatial-Form: '
-                    + 'descriptor, or ?form=descriptor). The DEFAULT GET keeps returning the root node so existing '
-                    + 'clients are not broken (declared, versioned).',
+                root_node_endpoint : '/wow/spatial/' + store.graphId + '/node/' + rootNodeID,
+                note : 'The graph id is the integer `id`. The world id and the location id in `accepted_ids` are '
+                    + 'deprecated aliases that still resolve. The root node is at root_node_endpoint.',
             },
             proof_boundary : getWowProofBoundary(),
         };
     }
 
-    /** GET /wow/spatial/{spatialID}/node/{nodeId} — a single Node. */
-    function getSpatialNode(spatialID, nodeId)
+    /** A node with its subtree embedded (the canonical Node), or as the OSLFlatNode with opts.form 'flat'. */
+    function getSpatialNode(spatialID, nodeId, opts)
     {
         const store = spatialResolve(spatialID);
-        return store ? store.getNode(nodeId) : null;
+        return store ? store.getNode(nodeId, opts) : null;
     }
 
     /**
      * POST — create child nodes under a parent (broadcasts a state change).
      *
-     * `opts.flattenEmbedded` carries the caller's EXPLICIT
-     * opt-in (X-OSL-WoW-Node-Form: canonical) to have an embedded canonical
-     * subtree flattened into our OSLFlatNode graph. Without it, an embedded body
-     * is 422'd by the store — never silently truncated.
+     * The body is canonical (children embedded) unless the caller asked for the flat form. With
+     * `opts.flattenEmbedded` an embedded subtree is stored whole, one node per object, and every id
+     * is assigned. Without it (the flat form) an embedded child is refused with a named 422: a body
+     * is never stored with part of it dropped.
      */
     function createSpatialNodes(spatialID, parentId, incoming, opts)
     {
@@ -2684,12 +2674,12 @@ function createRuntime(opts)
         return r;
     }
 
-    /** PUT — update a node's content (broadcasts a state change). */
-    function updateSpatialNode(spatialID, nodeId, node)
+    /** PUT — update a node's content or move it (broadcasts a state change). opts.form is 'flat' or canonical. */
+    function updateSpatialNode(spatialID, nodeId, node, opts)
     {
         const store = spatialResolve(spatialID);
         if (!store) return { ok : false, status : 404, error : 'spatial_graph_not_found', spatialID : spatialID };
-        const r = store.updateNode(nodeId, node);
+        const r = store.updateNode(nodeId, node, opts);
         if (r.ok)
         {
             state.debug.last_input_source = 'wow-spatial-node-update'; bumpRevision(); notifySubscribers();

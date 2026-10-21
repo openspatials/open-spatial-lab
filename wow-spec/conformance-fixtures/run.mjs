@@ -22,7 +22,7 @@ const ENDPOINTS = [
   'GET /wow/spatial/{spatialID}',
   'GET /wow/spatial/{spatialID}/node/{nodeId}'
 ];
-const DIVERGENCE_IDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8'];
+const DIVERGENCE_IDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9'];
 
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, relativePath), 'utf8'));
@@ -75,10 +75,16 @@ function evaluateFixture(fixture, schemas, divergences) {
   const errors = [];
   if (fixture.declaredObservation || fixture.comparison) {
     if (!fixture.divergences?.length) errors.push('declared observation has no divergence cross-link');
-    if (!['GAP', `DECLARED-DIVERGENCE(${fixture.divergences?.[0]})`].includes(fixture.classification)) {
+    const retired = fixture.classification === `RETIRED(${fixture.divergences?.[0]})`;
+    if (!['GAP', `DECLARED-DIVERGENCE(${fixture.divergences?.[0]})`, `RETIRED(${fixture.divergences?.[0]})`].includes(fixture.classification)) {
       errors.push('declared observation has an invalid classification');
     }
-    if (fixture.comparison && JSON.stringify(fixture.comparison.upstream) === JSON.stringify(fixture.comparison.osl)) {
+    const converged = fixture.comparison && JSON.stringify(fixture.comparison.upstream) === JSON.stringify(fixture.comparison.osl);
+    // A live divergence must show a difference. A retired one must show that the two sides now agree.
+    if (retired) {
+      if (!fixture.retiredIn) errors.push('retired divergence does not say when it was retired');
+      if (fixture.comparison && !converged) errors.push('retired divergence still shows a difference');
+    } else if (converged) {
       errors.push('comparison does not exercise a difference');
     }
     if (!fixture.schema && !fixture.inlineSchema) return { pass: errors.length === 0, errors };
@@ -173,7 +179,7 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  console.log(`\nRESULT PASS (${passed}/${fixtures.length} fixtures; D1-D8 cross-linked; standards_conformance remains unclaimed)`);
+  console.log(`\nRESULT PASS (${passed}/${fixtures.length} fixtures; D1-D9 cross-linked; standards_conformance remains unclaimed)`);
 }
 
 main();

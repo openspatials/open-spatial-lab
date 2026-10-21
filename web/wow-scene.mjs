@@ -38,6 +38,8 @@
 // DISCOVERY ONLY: no fetch, no verify, no map.wasm, no compose, no draw — those are
 // the mount pass. This module stays PURE and dependency-free.
 
+import { flattenEmbeddedChildren } from "./wow-graph.mjs";
+
 const IDENTITY_4X4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const MAX_NODES = 20000; // safety cap against a pathological/cyclic graph
 
@@ -193,8 +195,8 @@ const COL_ROOT = 0xffd166;
 /**
  * Normalize the resolved graph into `{ spatialID, rootId, nodes: Map<number,Node> }`.
  * Accepts either a dev-bundle / live-walk shape `{ spatialID, root, nodes:{id:Node} }`
- * or `{ nodes: [Node,...] }` (array). `root` may be omitted — we then infer the
- * node whose `parent` is null/undefined (falling back to the first node).
+ * or `{ nodes: [Node,...] }` (array). Children may be ids or embedded Nodes. `root` may be
+ * omitted — we then infer the node whose `parent` is null/undefined (falling back to the first node).
  */
 function normalizeGraph(graph) {
   const spatialID = (graph && (graph.spatialID || graph.spatial_id)) || null;
@@ -209,6 +211,11 @@ function normalizeGraph(graph) {
       if (Number.isFinite(id)) nodes.set(id, n);
     }
   }
+  // A canonical Node embeds its children. The builder walks ids, so each embedded child becomes a node
+  // of its own and its parent lists the child's id.
+  const flattened = flattenEmbeddedChildren(nodes);
+  nodes.clear();
+  for (const [id, n] of flattened) nodes.set(id, n);
   let rootId =
     graph && graph.root != null
       ? Number(graph.root)

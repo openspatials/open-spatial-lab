@@ -111,6 +111,7 @@ npm run proof:spatial-graph   # the spatial composition graph, end to end
 npm run proof:contract        # contract-driven request and response validation
 npm run proof:presence        # WebSocket events and presence
 npm run proof:acceptance      # world-server exit and arrival acceptance tests
+npm run arch-i1-proof        # frames, GeoPose anchors, transforms and the node tree, with a mutant for every check
 npm run conformance           # Web of Worlds conformance runner
 npm run conformance:fixtures  # pinned OpenSpatialWorld schema and endpoint fixtures
 npm run wow-schema-json       # rebuild wow-spec/generated/schema.json from wow-spec/schema.yaml

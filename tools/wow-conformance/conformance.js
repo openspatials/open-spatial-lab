@@ -26,6 +26,9 @@ const http = require('http');
 const crypto = require('crypto');
 const fx = require('./fixtures');
 
+// The first graph of every world server. A graph id is an integer, as the API types it.
+const GRAPH_ID = 1;
+
 // --------------------------------------------------------------------------
 // Endpoint catalog — the WoW surface under conformance test. `live:true` are
 // served by 041 today; `contractOnly:true` are in the contract but not
@@ -45,28 +48,25 @@ const ENDPOINTS = [
         responseSchema: 'OSLPortalResponse', canonicalSchema: 'Portal', live: true,
         fixture: fx.portalResponse },
 
-    // Spatial composition graph — CANONICAL PATHS, OSL-DIVERGENT PAYLOADS.
-    // `responseSchema: OSLFlatNode` is the shape OSL actually serves (integer
-    // id-ref children); `canonicalSchema: Node` is the STANDARD (embedded child
-    // objects). Our payloads are EXPECTED to fail the canonical diff — that is
-    // the DECLARED divergence (D1), reported as canonical_core_valid:false and
-    // never made green by bending the canonical schema.
-    //
-    // These three probe the literal graph id `demo`, which is NOT a resolvable
-    // graph id on 041 (SPATIAL_ACCEPTED_IDS = world_id/location_id/default/world),
-    // so they 404 BY DESIGN. That is NOT "the endpoint isn't served":
-    // landed and server.js fully owns the /wow/spatial/ prefix. The REAL live
-    // coverage is the spatial.live.* records below, which resolve the world's
-    // actual graph id from /wow/world and drive it.
-    { id: 'spatial.root', method: 'GET', path: '/wow/spatial/demo', kind: 'node',
-        responseSchema: 'OSLFlatNode', canonicalSchema: 'Node', contractOnly: true,
-        fixture: fx.graphRootNode, trackedBy: 'live coverage: spatial.live.root' },
-    { id: 'spatial.node', method: 'GET', path: '/wow/spatial/demo/node/1', kind: 'node',
-        responseSchema: 'OSLFlatNode', canonicalSchema: 'Node', contractOnly: true,
-        fixture: fx.graphRootNode, trackedBy: 'live coverage: spatial.live.root' },
-    { id: 'spatial.node.create', method: 'POST', path: '/wow/spatial/demo/node/1', kind: 'node',
-        requestSchema: 'OSLFlatNode[]', canonicalSchema: 'Node', contractOnly: true,
-        requestBody: true, fixture: fx.nodeCreateBody, trackedBy: 'live coverage: spatial.live.root' },
+    // Spatial composition graph. Since iteration 1 OSL serves the canonical shapes by default: the
+    // `Spatial` resource at /wow/spatial/{spatialID} and the canonical `Node` (children embedded) at
+    // /node/{nodeId}. Graph id 1 is the first graph of every world server, an integer as the API
+    // types it. OSL's flat node (`OSLFlatNode`, children are integer ids) is served only on an
+    // explicit request, `?nodeForm=flat`; it is the labeled extension that remains of D1.
+    { id: 'spatial.root', method: 'GET', path: '/wow/spatial/1', kind: 'spatial',
+        responseSchema: 'Spatial', canonicalSchema: 'Spatial', live: true,
+        fixture: fx.spatialDescriptor },
+    { id: 'spatial.node', method: 'GET', path: '/wow/spatial/1/node/0', kind: 'node',
+        responseSchema: 'Node', canonicalSchema: 'Node', live: true,
+        fixture: fx.canonicalNode },
+    { id: 'spatial.node.flat', method: 'GET', path: '/wow/spatial/1/node/0?nodeForm=flat', kind: 'flatNode',
+        responseSchema: 'OSLFlatNode', canonicalSchema: 'Node', live: true,
+        fixture: fx.graphRootNode },
+    // A write. The gate sends it only to a server it started itself (opts.allowWrites), never to a
+    // server it was handed, so a run cannot change someone else's graph.
+    { id: 'spatial.node.create', method: 'POST', path: '/wow/spatial/1/node/1', kind: 'node',
+        requestSchema: 'Node[]', canonicalSchema: 'Node', requestBody: true, writes: true,
+        fixture: fx.nodeCreateBody },
 
     // Labeled NON-CANONICAL realtime convention (OSL-WOW-CONTRACT §6). Out of
     // the OpenAPI HTTP contract on purpose; shape asserted ourselves..
@@ -136,6 +136,8 @@ function surfaceExtensions(doc, kind, payload, canonicalSchema, responseSchema)
 {
     const canonSet = propKeys(doc, canonicalSchema);
     const declaredExt = responseSchema ? compositeExtensionKeys(doc, responseSchema) : new Set();
+    // The Spatial resource is the canonical object plus the same labeled bag the other resources carry.
+    if (kind === 'spatial') { declaredExt.add('webofworlds_extension'); declaredExt.add('proof_boundary'); }
     const present = payload && typeof payload === 'object' ? Object.keys(payload) : [];
 
     const canonicalFieldsPresent = [];
@@ -184,58 +186,77 @@ function driftCheck(kind, payload)
     const out = [];
     if (!payload || typeof payload !== 'object') return out;
 
-    // geoPose longitude: the standard misspells it `lan`. `lon` is drift.
+    // geoPose longitude. The contract (the iteration 1 overlay, a proposed upstream edit) spells
+    // it `lon`, as the OGC GeoPose schema does; the World API at d39a1a0 spells it `lan`. That
+    // difference is declared as D9. `lan` is deprecated and a server never emits it.
     const gp = payload.geoPose && payload.geoPose.position;
     if (gp && typeof gp === 'object') {
-        if (Object.prototype.hasOwnProperty.call(gp, 'lon') &&
-            !Object.prototype.hasOwnProperty.call(gp, 'lan'))
+        const hasLon = Object.prototype.hasOwnProperty.call(gp, 'lon');
+        const hasLan = Object.prototype.hasOwnProperty.call(gp, 'lan');
+        if (hasLon && !hasLan)
+            out.push({ level: 'divergence',
+                msg: 'geoPose.position spells longitude `lon` — a DECLARED divergence (D9): the OSL overlay, a '
+                    + 'proposed upstream edit; the World API at d39a1a0 spells it `lan`. Not drift.' });
+        else if (hasLan)
             out.push({ level: 'drift',
-                msg: 'geoPose.position uses `lon` — the OpenSpatialWorld standard misspells longitude `lan`' });
-        else if (Object.prototype.hasOwnProperty.call(gp, 'lan'))
-            out.push({ level: 'note',
-                msg: 'geoPose.position uses the standard\'s (misspelled) `lan` for longitude — conformant-to-standard' });
+                msg: 'geoPose.position carries the deprecated `lan`' + (hasLon ? ' beside `lon`' : '')
+                    + ' — OSL serves `lon` only' });
     }
 
-    if (kind === 'node') {
-        // ⚠ — THIS CHECK USED TO ASSERT THE INVERSE OF THE
-        // STANDARD. It read "Node.children MUST be INTEGER id references (not
-        // embedded objects)" and flagged the genuinely spec-conformant shape as
-        // drift, so the harness certified REJECTING the standard as conformance.
-        //
-        // The STANDARD (WoWAPI@d39a1a0, API.yaml:484-487) types children as
-        // EMBEDDED Node objects (items: $ref Node). OSL deliberately serves
-        // INTEGER id refs — the LABELED `OSLFlatNode` divergence. Report BOTH
-        // directions honestly; NEVER assert the OSL convention as the standard.
+    if (kind === 'node' || kind === 'flatNode') {
+        // The standard (WoWAPI@d39a1a0, API.yaml:484-487) types children as EMBEDDED Node objects.
+        // OSL serves exactly that by default. Integer id references are OSL's flat form, served only
+        // on an explicit request (`?nodeForm=flat`): the labeled extension that remains of D1.
+        //   kind 'node'     : the default form. Integer ids here mean the server answered the default
+        //                     request in the flat form, which is drift.
+        //   kind 'flatNode' : the form that was asked for by name. Integer ids are the declared
+        //                     divergence; embedded objects here mean the server ignored the request.
+        // Children that mix the two conform to neither.
         if (Array.isArray(payload.children) && payload.children.length) {
             const nonInt = payload.children.filter(c => !Number.isInteger(c));
-            if (nonInt.length === 0)
-                out.push({ level: 'divergence',
-                    msg: 'Node.children uses INTEGER id references — a DECLARED, LABELED OSL '
-                        + 'divergence (schema OSLFlatNode). The OpenSpatialWorld standard EMBEDS '
-                        + 'child Node objects (items: $ref Node). Not drift: declared.' });
-            else if (nonInt.length === payload.children.length)
-                out.push({ level: 'note',
-                    msg: 'Node.children EMBEDS child objects — CONFORMANT-TO-STANDARD (canonical Node). '
-                        + 'NB: this is not the OSL flat-graph shape; OSL readers expect id refs.' });
-            else
+            const allIds = nonInt.length === 0;
+            const noIds = nonInt.length === payload.children.length;
+            if (!allIds && !noIds)
                 out.push({ level: 'drift',
                     msg: 'Node.children MIXES integer id refs and embedded objects — conforms to '
-                        + 'NEITHER the standard NOR the OSLFlatNode divergence' });
+                        + 'NEITHER the standard NOR the OSLFlatNode form' });
+            else if (kind === 'node' && noIds)
+                out.push({ level: 'note',
+                    msg: 'Node.children EMBEDS child objects — CONFORMANT-TO-STANDARD (canonical Node), '
+                        + 'the default form since iteration 1.' });
+            else if (kind === 'node' && allIds)
+                out.push({ level: 'drift',
+                    msg: 'Node.children are integer id references on a DEFAULT request — the canonical Node '
+                        + 'embeds child objects. OSL serves id references only on an explicit flat request.' });
+            else if (kind === 'flatNode' && allIds)
+                out.push({ level: 'divergence',
+                    msg: 'Node.children uses INTEGER id references — OSL\'s LABELED flat form (OSLFlatNode), '
+                        + 'served only on explicit request (D1, narrowed). The OpenSpatialWorld standard EMBEDS '
+                        + 'child Node objects (items: $ref Node). Not drift: declared.' });
+            else
+                out.push({ level: 'drift',
+                    msg: 'Node.children EMBEDS child objects although the flat form was requested' });
         }
         if (Array.isArray(payload.localTransform)) {
-            // The standard constrains neither the length nor the major order of
-            // localTransform (items: number, that is all). 16-float column-major
-            // is an OSL CONVENTION — so a non-16 length is a divergence from US,
-            // not drift from the standard. Say which is which.
+            // The standard constrains neither the length nor the major order of localTransform
+            // (items: number, that is all). Iteration 1 constrains both (D9): column-major, 16 numbers.
             if (payload.localTransform.length !== 16)
                 out.push({ level: 'divergence',
-                    msg: 'Node.localTransform is not 16 floats (found length '
-                        + payload.localTransform.length + '). NB: 16-float column-major 4x4 is an OSL '
-                        + 'CONVENTION — the standard constrains neither length nor major order.' });
+                    msg: 'Node.localTransform is not 16 numbers (found length '
+                        + payload.localTransform.length + '). The standard allows any length; OSL requires 16 '
+                        + '(column-major 4x4) — the iteration 1 overlay, declared as D9.' });
             else if (!payload.localTransform.every(n => typeof n === 'number'))
                 out.push({ level: 'drift', msg: 'Node.localTransform contains non-number entries '
                     + '(the standard types the items `number`)' });
         }
+    }
+    if (kind === 'spatial') {
+        // D4 retired: the graph id is an integer, as the API types it.
+        if (!Number.isInteger(payload.id))
+            out.push({ level: 'drift', msg: 'Spatial.id is not an integer (' + JSON.stringify(payload.id)
+                + ') — the API types a graph id as integer' });
+        if (!Number.isInteger(payload.rootNodeID))
+            out.push({ level: 'drift', msg: 'Spatial.rootNodeID is not an integer' });
     }
     return out;
 }
@@ -244,34 +265,27 @@ function driftCheck(kind, payload)
 // upstream line references. Emitted into the evidence so a reader can never
 // mistake OSL's shape for the standard's.
 const DECLARED_DIVERGENCES = [
+    // Iteration 1 retired D1, D3, D4 and D7, and D2 with them. A retired entry keeps its id and says
+    // what replaced it. D1 and D7 leave one labeled extension behind: the flat node form on request.
     { id: 'D1', subject: 'Node.children', upstream: 'API.yaml:484-487 (items: $ref Node)',
         standard: 'children are EMBEDDED child Node objects',
-        osl: 'children are INTEGER node-id references (flat graph)',
-        schema: 'OSLFlatNode', status: 'DECLARED — served on every /wow/spatial/* payload' },
-    // D2/D3 were STALE UNDER-CLAIMS. They said the canonical
-    // Spatial descriptor was "NOT yet served" / "contract-only" for twelve days after
-    // served it. An under-claim is the same defect as an
-    // over-claim: the claim surface and the code drifted apart and nothing detected
-    // it. Both are now re-derived from a running server on every run of
-    // src/wow-claim-drift-proof.mjs, which goes RED in BOTH directions.
+        osl: 'RETIRED as the default. A node read or written without a form is the canonical Node, children embedded. '
+            + 'One labeled extension remains: OSL\'s flat form (OSLFlatNode, children are integer node ids) is served and '
+            + 'accepted only on explicit request (`X-OSL-WoW-Node-Form: flat` or `?nodeForm=flat`).',
+        schema: 'OSLFlatNode', status: 'RETIRED in iteration 1 — the flat form remains as a labeled extension on request' },
     { id: 'D2', subject: 'Spatial schema', upstream: 'API.yaml:438-468',
         standard: 'a graph DESCRIPTOR {id, rootNodeID, geoPose}',
-        osl: 'transcribed into the contract AND SERVED on a versioned opt-in '
-            + '(?form=descriptor / X-OSL-WoW-Spatial-Form: descriptor); the DEFAULT response stays '
-            + 'the root node so no existing client breaks. NOTE: the opt-in itself (the `form` query '
-            + 'parameter and the X-OSL-WoW-Spatial-Form header) is declared in NO schema.yaml path — '
-            + 'the capability is served and proven, its OpenAPI DECLARATION is outstanding.',
-        schema: 'Spatial',
-        status: 'DECLARED — served on a versioned opt-in; wire-proven by '
-            + 'src/wow-gaps-validation.mjs and drift-guarded by src/wow-claim-drift-validation.mjs' },
+        osl: 'RETIRED. The descriptor is served by default, with integer ids. The opt-in it needed (`?form=descriptor`, '
+            + '`X-OSL-WoW-Spatial-Form`) is gone; `?form=node` returns the root node, an OSL convenience.',
+        schema: 'Spatial', status: 'RETIRED in iteration 1' },
     { id: 'D3', subject: 'GET /wow/spatial/{spatialID} response', upstream: 'API.yaml:133-153 (getSpatialById)',
         standard: 'returns a Spatial descriptor (points AT a root node)',
-        osl: 'returns the root node itself BY DEFAULT (backward compatibility); returns the canonical '
-            + 'Spatial descriptor on the D2 versioned opt-in',
-        schema: 'OSLFlatNode', status: 'DECLARED — default node · descriptor on opt-in; versioned, never silent' },
+        osl: 'RETIRED. It returns the Spatial descriptor by default. The root node stays at /node/{rootNodeID}.',
+        schema: 'Spatial', status: 'RETIRED in iteration 1' },
     { id: 'D4', subject: 'spatialID path param', upstream: 'API.yaml:141-146 (type: integer)',
-        standard: 'integer', osl: 'string (world_id / location_id / default / world)',
-        schema: null, status: 'DECLARED — deliberate; 041 addresses graphs by string id' },
+        standard: 'integer', osl: 'RETIRED. The graph id is an integer. The server still resolves four legacy string '
+            + 'aliases (the world id, the location id, `default`, `world`) for compatibility; the contract does not list them.',
+        schema: null, status: 'RETIRED in iteration 1 — legacy string aliases still resolve, outside the contract' },
     { id: 'D5', subject: 'node-path parameters', upstream: 'API.yaml:163-253',
         standard: 'omits the spatialID path param on all four node ops; DELETE misspells nodeid',
         osl: 'declares spatialID on all four; spells nodeId correctly',
@@ -284,13 +298,12 @@ const DECLARED_DIVERGENCES = [
     { id: 'D7', subject: 'POST/PUT of a CONFORMANT node body (embedded children)',
         upstream: 'API.yaml:163-253',
         standard: 'a Node body (children = EMBEDDED objects) is simply stored',
-        osl: 'REFUSED 422 embedded_children_not_supported by default; stored ONLY on the explicit '
-            + 'X-OSL-WoW-Node-Form: canonical opt-in, which flattens the subtree to id-refs and reports '
-            + 'what it stored (X-OSL-WoW-Nodes-Stored / X-OSL-WoW-Children-Flattened). Until 2026-07-11 '
-            + 'such a body was answered 200 OK with its subtree SILENTLY DELETED — that data loss is fixed.',
-        schema: 'OSLFlatNode',
-        status: 'DECLARED EXTENSION — the opt-in header, the query form, the two response headers and the '
-            + '400/422 refusal codes are OSL extensions; the standard specifies none of them' },
+        osl: 'RETIRED. A canonical POST with embedded children is stored by default, and the response lists the nodes '
+            + 'created at the top level. A body in the flat form is accepted only on explicit request. The 400 and 422 '
+            + 'refusal codes (`payload_too_large`, `invalid_parent`, `child_restructure_not_supported` and others) are '
+            + 'OSL extensions: the standard specifies none of them.',
+        schema: 'Node',
+        status: 'RETIRED in iteration 1 — the refusal codes remain OSL extensions' },
     // a node that TRANSCLUDES a signed.msf fabric as a SUBTREE.
     { id: 'D8', subject: 'SpatialFabricSubtree (a node that transcludes a SIGNED .msf fabric as a SUBTREE)',
         upstream: 'API.yaml Node.spatialAssetURI (bare string) + OpenSpatialAsset media-type list',
@@ -313,6 +326,17 @@ const DECLARED_DIVERGENCES = [
             + 'OpenSpatialAsset type for a signed, verifiable spatial document). `application/msf+jws` is a '
             + 'PROVISIONAL, UNREGISTERED label — no such IANA media type exists. NOTHING HERE EARNS A '
             + 'CONFORMANCE FLIP: standards_conformance stays false.' },
+    // The iteration 1 overlay: behaviour OSL serves that the standard at d39a1a0 does not state.
+    { id: 'D9', subject: 'iteration 1 overlay (proposed upstream edits)',
+        upstream: 'API.yaml:294,368,395,424,456 (lan); 488-491 (localTransform); 482-487 (parent, children)',
+        standard: 'spells longitude `lan`; types `localTransform` as an array of numbers of any length; says nothing '
+            + 'about whether `children` can be written, how a node moves, or whether a node id can be reused',
+        osl: 'spells longitude `lon` (`lan` is read as deprecated and never emitted); refuses a `localTransform` that is not '
+            + '16 numbers with a last row of 0,0,0,1, or that has shear or zero scale; derives `children` from the tree '
+            + '(a PUT that changes them is 422); moves a node by a PUT of `parent`; never reuses a node id within a world',
+        schema: 'GeoPose',
+        status: 'DECLARED OVERLAY — each item is a proposed upstream edit, proven by `npm run arch-i1-proof`; '
+            + 'standards_conformance stays false' },
 ];
 
 // Honesty guard: /wow read responses MUST carry proof_boundary with
@@ -320,7 +344,7 @@ const DECLARED_DIVERGENCES = [
 function honestyCheck(kind, payload)
 {
     const problems = [];
-    if (kind === 'events' || kind === 'node') return { ok: true, problems };
+    if (kind === 'events' || kind === 'node' || kind === 'flatNode') return { ok: true, problems };
     const pb = payload && payload.proof_boundary;
     if (!pb || typeof pb !== 'object') {
         problems.push('response missing required proof_boundary');
@@ -488,6 +512,12 @@ async function runWowConformance(opts)
                 if (probe.upgraded) { r.status = 'conformant'; r.reason = 'WS /events upgraded (labeled non-canonical convention)'; }
                 else { r.status = 'not-implemented'; r.reason = 'WS /events not served (' + probe.detail
                     + ') — labeled non-canonical convention, tracked by ' + (ep.trackedBy || 'runtime'); }
+            } else if (ep.writes && !opts.allowWrites) {
+                // A write is never sent to a server this gate did not start.
+                r.live = { attempted: false, http_status: null };
+                r.status = 'contract-only';
+                r.reason = 'write not driven: this run was handed a running server, and the gate does not '
+                    + 'write to a server it did not start. The fixture validates the request body against the contract.';
             } else {
                 const body = ep.requestBody ? fixtureData : null;
                 const resp = await httpRequestJson(baseUrl, ep.method, ep.path, body);
@@ -502,12 +532,26 @@ async function runWowConformance(opts)
                     // honest not-yet-implemented / not-resolvable for contract-only endpoints
                     r.status = ep.contractOnly ? 'contract-only' : 'gap';
                     r.reason = ep.contractOnly
-                        ? 'live 404 — the fixed probe id `demo` is not a resolvable graph id on 041 '
-                          + '(SPATIAL_ACCEPTED_IDS). NOT "unserved": runtime landed and server.js owns the '
-                          + '/wow/spatial/ prefix. The fixture validates the contract shape; '
-                          + (ep.trackedBy || 'live coverage: spatial.live.root')
+                        ? 'live 404 — contract-only: the fixture validates the contract shape, the server does not serve it yet'
                         : 'live 404 — endpoint expected live but not served';
                     if (!ep.contractOnly) problems.push(ep.id + ' live: expected-live endpoint returned 404');
+                } else if (ep.writes && (resp.status === 200 || resp.status === 201)) {
+                    // The nodes the server created, top level, in the canonical form.
+                    const res = validator.validateRequest('Node[]', resp.json);
+                    const created = Array.isArray(resp.json) ? resp.json : [];
+                    const createdDrift = created.flatMap(n => driftCheck('node', n).filter(d => d.level === 'drift').map(d => d.msg));
+                    r.live.response_valid = res.valid;
+                    r.live.served_schema = 'Node[]';
+                    r.live.response_errors = res.valid ? null : res.errorsText;
+                    r.live.created = created.length;
+                    r.drift = createdDrift;
+                    if (!res.valid) { r.status = 'fail'; r.reason = 'created nodes fail Node[]: ' + res.errorsText;
+                        problems.push(ep.id + ' live: created nodes fail Node[]: ' + res.errorsText); }
+                    else if (createdDrift.length) { r.status = 'fail'; r.reason = 'drift on created nodes: ' + createdDrift.join('; ');
+                        for (const d of createdDrift) problems.push(ep.id + ' live: drift — ' + d); }
+                    else if (!created.length) { r.status = 'fail'; r.reason = 'the write created no nodes';
+                        problems.push(ep.id + ' live: the write created no nodes'); }
+                    else { r.status = 'conformant'; r.reason = created.length + ' node(s) created; the response is valid vs the canonical Node[]'; }
                 } else if (resp.status === 200 && ep.responseSchema) {
                     const res = validator.validateResponse(ep.kind, resp.json);
                     const canon = validator.validateCanonical(ep.kind, resp.json);
@@ -541,6 +585,12 @@ async function runWowConformance(opts)
                             + '(standards_conformance:false); canonical ' + (ep.canonicalSchema || 'schema')
                             + ' valid: ' + canon.valid + ' — DECLARED divergence, see declared_divergences';
                     }
+                    else if (ep.kind === 'flatNode' && !canon.valid) {
+                        // A flat leaf can satisfy both shapes; a flat node whose canonical check fails for
+                        // another reason is not a plain pass.
+                        r.status = 'conformant-with-declared-divergence';
+                        r.reason = 'response valid vs OSLFlatNode (LABELED, non-canonical); canonical Node valid: false';
+                    }
                     else { r.status = 'conformant'; r.reason = 'response valid + honest (standards_conformance:false)'; }
                 } else {
                     r.status = 'fail'; r.reason = 'unexpected live status ' + resp.status;
@@ -561,116 +611,103 @@ async function runWowConformance(opts)
     }
 
     // ---- LIVE composition-graph portal-node conformance ----
-    // Additive, LIVE-only (fixtures-only mode is byte-identical — this whole block
-    // is skipped when no server is driven). Now that serves /wow/spatial and
-    // lands the portal node's RESOLVABLE destination, drive the REAL graph:
-    // resolve the world's spatialID from /wow/world, validate the root + each PORTAL
-    // node, assert the destination is resolvable (a composition-graph reference), and
-    // SURFACE the labeled portal extension (never hidden). Portal nodes are found by
-    // role==='portal' / the labeled osl-portal: URI.
-    //
-    // these nodes are validated against the schema OSL ACTUALLY
-    // SERVES (`OSLFlatNode` — integer id-ref children), and the canonical `Node` diff
-    // (which they are EXPECTED to fail, because the standard embeds child objects) is
-    // recorded as `canonical_node_valid:false` — a DECLARED divergence, surfaced, not
-    // a bent yardstick. Previously this block validated the flat nodes against a
-    // `Node` schema that had been (wrongly) redefined to expect id refs, which is how
-    // the harness came to certify rejecting the standard as conformance.
+    // LIVE-only (a fixtures-only run skips this whole block). Walk the real graph the way a client
+    // does: read the Spatial resource of graph 1, read the root node it points at, walk the embedded
+    // children, fetch every node by its own URL, and validate each portal node (found by
+    // role==='portal' or the labeled osl-portal: URI). Everything is validated against the canonical
+    // `Node`, which is what OSL serves by default since iteration 1. The labeled flat form is
+    // probed separately by the `spatial.node.flat` endpoint above.
     if (baseUrl) {
         const nodeKeySet = propKeys(doc, 'Node');
-        const world = await httpRequestJson(baseUrl, 'GET', '/wow/world');
-        const spatialId = world && world.json && world.json.id;
-        const spPath = spatialId ? '/wow/spatial/' + encodeURIComponent(spatialId) : null;
+        const spPath = '/wow/spatial/' + GRAPH_ID;
         const rootRec = {
-            id: 'spatial.live.root', method: 'GET', path: spPath || '/wow/spatial/{world_id}', kind: 'node',
+            id: 'spatial.live.root', method: 'GET', path: spPath + '/node/{rootNodeID}', kind: 'node',
             declared: 'live', tracked_by: 'runtime/runtime', fixture: null,
-            live: { attempted: true, http_status: null }, drift: [],
+            live: { attempted: true, http_status: null }, drift: [], divergences: [], notes: [],
             canonical_fields_present: [], extensions_in_use: [], undeclared_fields: [], wow_extension: null,
             status: null, reason: null,
         };
         endpoints.push(rootRec);
-        if (!spatialId) {
-            rootRec.status = 'error'; rootRec.reason = 'could not resolve world_id from /wow/world';
-            problems.push('spatial.live.root: could not resolve world_id from /wow/world');
+        const spatialResp = await httpRequestJson(baseUrl, 'GET', spPath);
+        const rootNodeID = spatialResp.json && spatialResp.json.rootNodeID;
+        if (spatialResp.status !== 200 || !Number.isInteger(rootNodeID)) {
+            rootRec.status = 'error';
+            rootRec.reason = 'could not read the Spatial resource of graph ' + GRAPH_ID + ' (HTTP ' + spatialResp.status + ')';
+            problems.push('spatial.live.root: ' + rootRec.reason);
         } else {
-            const rootResp = await httpRequestJson(baseUrl, 'GET', spPath);
+            rootRec.path = spPath + '/node/' + rootNodeID;
+            const rootResp = await httpRequestJson(baseUrl, 'GET', rootRec.path);
             rootRec.live.http_status = rootResp.status || null;
             if (rootResp.status !== 200 || !rootResp.json) {
                 rootRec.status = 'fail';
-                rootRec.reason = 'root /wow/spatial/{id} not 200 (' + rootResp.status + ')';
-                problems.push('spatial.live.root: /wow/spatial/' + spatialId + ' returned ' + rootResp.status);
+                rootRec.reason = 'root node ' + rootRec.path + ' not 200 (' + rootResp.status + ')';
+                problems.push('spatial.live.root: ' + rootRec.path + ' returned ' + rootResp.status);
             } else {
-                // Validate against what we SERVE (OSLFlatNode) — that is the hard gate.
                 const sv = validator.validateResponse('node', rootResp.json);
-                // …and diff against the STANDARD (canonical Node), which our flat shape
-                // is expected to fail. Recorded, never converted into a pass.
-                const cv = validator.validateCanonical('node', rootResp.json);
                 const all = driftCheck('node', rootResp.json);
                 const drift = all.filter(d => d.level === 'drift').map(d => d.msg);
                 rootRec.drift = drift;
                 rootRec.divergences = all.filter(d => d.level === 'divergence').map(d => d.msg);
                 rootRec.notes = all.filter(d => d.level === 'note').map(d => d.msg);
-                rootRec.live.served_schema = 'OSLFlatNode';
+                rootRec.live.served_schema = 'Node';
                 rootRec.live.served_valid = sv.valid;
                 rootRec.live.canonical_schema = 'Node';
-                rootRec.live.canonical_node_valid = cv.valid;
-                rootRec.live.canonical_node_errors = cv.valid ? null : cv.errorsText;
+                rootRec.live.canonical_node_valid = sv.valid;
+                rootRec.live.canonical_node_errors = sv.valid ? null : sv.errorsText;
                 rootRec.canonical_fields_present = Object.keys(rootResp.json).filter(k => nodeKeySet.has(k));
-                if (!sv.valid) { rootRec.status = 'fail'; rootRec.reason = 'root fails served schema OSLFlatNode: ' + sv.errorsText;
+                if (!sv.valid) { rootRec.status = 'fail'; rootRec.reason = 'root fails the canonical Node: ' + sv.errorsText;
                     problems.push('spatial.live.root: ' + sv.errorsText); }
                 else if (drift.length) { rootRec.status = 'fail'; rootRec.reason = 'drift: ' + drift.join('; ');
                     for (const d of drift) problems.push('spatial.live.root: drift — ' + d); }
-                else if (rootRec.divergences.length || !cv.valid) {
-                    rootRec.status = 'conformant-with-declared-divergence';
-                    rootRec.reason = 'root node valid vs OSLFlatNode (LABELED, non-canonical); canonical Node valid: '
-                        + cv.valid + ' — DECLARED divergence D1 (the standard embeds child Node objects; OSL serves '
-                        + 'integer id refs). NOT a claim of standards conformance';
-                } else {
-                    // No children to diverge over (a leaf): the payload satisfies BOTH the
-                    // served OSLFlatNode AND the canonical Node. Say that precisely — do not
-                    // label a genuinely canonical payload as divergent.
-                    rootRec.status = 'conformant';
-                    rootRec.reason = 'root node valid vs OSLFlatNode AND vs the canonical Node '
-                        + '(no children -> the id-ref/embedded divergence does not arise here)';
-                }
+                else { rootRec.status = 'conformant'; rootRec.reason = 'root node valid vs the canonical Node, children embedded'; }
 
+                // The tree, walked without recursion. A node that appears twice is a defect in the tree.
+                const tree = [];
+                const seen = new Set();
+                const stack = [ rootResp.json ];
+                let duplicateIds = 0;
+                while (stack.length && tree.length < 20000) {
+                    const node = stack.pop();
+                    if (seen.has(node.id)) { duplicateIds += 1; continue; }
+                    seen.add(node.id);
+                    tree.push(node);
+                    for (const child of Array.isArray(node.children) ? node.children : [])
+                        if (child && typeof child === 'object') stack.push(child);
+                }
+                if (duplicateIds) problems.push('spatial.live.root: ' + duplicateIds + ' node id(s) appear more than once in the tree');
+
+                // N5 on the wire: every node URL resolves.
+                let fetched = 0;
+                const failed = [];
                 let portalCount = 0;
-                // a child-node fetch that 500'd, timed out, or came
-                // back unparseable used to be SILENTLY DROPPED (`continue`). If 2 of 3 portal
-                // nodes failed, the evidence recorded the ONE that worked and said nothing about
-                // the two it never saw — a partial graph presented as the whole graph. Count
-                // every failure, record it in the evidence, and make it a hard problem.
-                let childrenFetched = 0;
-                const childrenFailed = [];
-                const children = Array.isArray(rootResp.json.children) ? rootResp.json.children : [];
-                for (const cid of children) {
-                    const nr = await httpRequestJson(baseUrl, 'GET', spPath + '/node/' + encodeURIComponent(cid));
-                    if (nr.status !== 200 || !nr.json) {
-                        childrenFailed.push({ id: cid, http_status: nr.status ?? null,
-                            reason: nr.status !== 200 ? ('HTTP ' + (nr.status ?? 'no-response')) : 'unparseable JSON body' });
-                        problems.push('spatial.live.node.' + cid + ': child-node fetch FAILED ('
-                            + (nr.status !== 200 ? ('HTTP ' + (nr.status ?? 'no-response')) : 'unparseable body')
-                            + ') — the composition graph was only PARTIALLY walked; this diagnostics does not cover node ' + cid);
+                for (const embedded of tree) {
+                    if (embedded.id === rootNodeID) continue;
+                    const nr = await httpRequestJson(baseUrl, 'GET', spPath + '/node/' + encodeURIComponent(embedded.id));
+                    if (nr.status !== 200 || !nr.json || nr.json.id !== embedded.id) {
+                        failed.push({ id: embedded.id, http_status: nr.status ?? null,
+                            reason: nr.status !== 200 ? ('HTTP ' + (nr.status ?? 'no-response')) : 'unparseable or mismatched body' });
+                        problems.push('spatial.live.node.' + embedded.id + ': node fetch FAILED ('
+                            + (nr.status !== 200 ? ('HTTP ' + (nr.status ?? 'no-response')) : 'unparseable or mismatched body')
+                            + ') — the composition graph was only PARTIALLY walked; this diagnostics does not cover node ' + embedded.id);
                         continue;
                     }
-                    childrenFetched++;
+                    fetched++;
                     const node = nr.json;
                     const ext = node.webofworlds_extension || {};
                     const isPortal = ext.role === 'portal' || /^osl-portal:/.test(node.spatialAssetURI || '');
                     if (!isPortal) continue;
                     portalCount += 1;
-                    const pv = validator.validateResponse('node', node);      // served: OSLFlatNode (the gate)
-                    const pcv = validator.validateCanonical('node', node);    // standard: Node (expected to fail — declared)
+                    const pv = validator.validateResponse('node', node);
                     const pall = driftCheck('node', node);
                     const pdrift = pall.filter(d => d.level === 'drift').map(d => d.msg);
                     const resolvable = typeof ext.target_spatial_graph_endpoint === 'string' && ext.target_spatial_graph_endpoint.length > 0;
                     const rec = {
-                        id: 'spatial.live.portal.node.' + cid, method: 'GET', path: spPath + '/node/' + cid, kind: 'node',
+                        id: 'spatial.live.portal.node.' + embedded.id, method: 'GET', path: spPath + '/node/' + embedded.id, kind: 'node',
                         declared: 'live', tracked_by: 'runtime', fixture: null,
                         live: { attempted: true, http_status: nr.status, portal_id: ext.portal_id || null,
-                            served_schema: 'OSLFlatNode', served_valid: pv.valid,
-                            canonical_schema: 'Node', canonical_node_valid: pcv.valid,
-                            canonical_node_errors: pcv.valid ? null : pcv.errorsText,
+                            served_schema: 'Node', served_valid: pv.valid,
+                            canonical_schema: 'Node', canonical_node_valid: pv.valid,
+                            canonical_node_errors: pv.valid ? null : pv.errorsText,
                             destination_resolvable: resolvable, target_spatial_graph_endpoint: ext.target_spatial_graph_endpoint || null },
                         drift: pdrift,
                         divergences: pall.filter(d => d.level === 'divergence').map(d => d.msg),
@@ -684,45 +721,34 @@ async function runWowConformance(opts)
                         noteExt('webofworlds_extension', 'WebOfWorldsExtension',
                             'portal node destination', rec.id);
                     }
-                    if (!pv.valid) { rec.status = 'fail'; rec.reason = 'portal node fails served schema OSLFlatNode: ' + pv.errorsText;
+                    if (!pv.valid) { rec.status = 'fail'; rec.reason = 'portal node fails the canonical Node: ' + pv.errorsText;
                         problems.push(rec.id + ': ' + pv.errorsText); }
                     else if (pdrift.length) { rec.status = 'fail'; rec.reason = 'drift: ' + pdrift.join('; ');
                         for (const d of pdrift) problems.push(rec.id + ': drift — ' + d); }
                     else if (!resolvable) { rec.status = 'fail';
                         rec.reason = 'portal node destination NOT resolvable (no target_spatial_graph_endpoint)';
                         problems.push(rec.id + ': destination not resolvable'); }
-                    else if (rec.divergences.length || !pcv.valid) {
-                        rec.status = 'conformant-with-declared-divergence';
-                        rec.reason = 'portal node valid vs OSLFlatNode (LABELED, non-canonical) + resolvable destination '
-                            + '(labeled, surfaced); canonical Node valid: ' + pcv.valid
-                            + ' — DECLARED divergence D1, not a standards-conformance claim';
-                    } else {
-                        // A LEAF portal node (children: []) satisfies BOTH shapes — the
-                        // id-ref/embedded divergence simply does not arise with no children.
-                        // Report that truthfully instead of stamping a false divergence.
+                    else {
                         rec.status = 'conformant';
-                        rec.reason = 'portal node valid vs OSLFlatNode AND vs the canonical Node (leaf: no '
-                            + 'children, so the id-ref/embedded divergence does not arise) + resolvable '
-                            + 'destination (labeled, surfaced). Canonical validity here does NOT imply '
-                            + 'OSL\'s graph is canonical — the ROOT diverges (D1)';
+                        rec.reason = 'portal node valid vs the canonical Node + resolvable destination (labeled, surfaced)';
                     }
                     endpoints.push(rec);
                 }
-                // R2: the walk's COVERAGE is part of the evidence, not an implicit assumption.
+                // The walk's COVERAGE is part of the evidence, not an implicit assumption.
                 rootRec.graph_walk = {
-                    children_declared: children.length,
-                    children_fetched: childrenFetched,
-                    children_failed: childrenFailed.length,
-                    failures: childrenFailed,
-                    complete: childrenFailed.length === 0,
+                    nodes_in_tree: tree.length,
+                    nodes_fetched_by_url: fetched,
+                    nodes_failed: failed.length,
+                    failures: failed,
+                    complete: failed.length === 0 && duplicateIds === 0,
                 };
                 rootRec.reason += portalCount
                     ? '; ' + portalCount + ' portal node(s) validated live'
                     : '; WARNING: no portal nodes found in graph';
-                if (childrenFailed.length) {
+                if (failed.length) {
                     rootRec.status = 'fail';
-                    rootRec.reason += '; PARTIAL WALK: ' + childrenFailed.length + ' of ' + children.length
-                        + ' declared child node(s) could NOT be fetched — this record does not describe the whole graph';
+                    rootRec.reason += '; PARTIAL WALK: ' + failed.length + ' of ' + (tree.length - 1)
+                        + ' node(s) below the root could NOT be fetched — this record does not describe the whole graph';
                 }
                 if (!portalCount) problems.push('spatial.live.root: no portal nodes found in the live composition graph');
             }
@@ -735,22 +761,30 @@ async function runWowConformance(opts)
         selfChecks.push({ name, caught: !!caught, detail: detail || null });
         if (!caught) problems.push('self-test FAILED (guard is cosmetic): ' + name);
     }
-    // ---- THE UN-INVERSION ----
-    // Until 2026-07-11 this block asserted "ajv rejects Node with
-    // children-as-objects" and booked it GREEN — i.e. it certified REJECTING the
-    // OpenSpatialWorld standard as conformance. The canonical `Node` EMBEDS child
-    // Node objects (API.yaml:484-487). These four checks pin BOTH shapes to the
-    // right schema so that inversion cannot silently return.
+    // ---- THE UN-INVERSION, kept ----
+    // Until 2026-07-11 this block certified REJECTING the standard as conformance. The canonical
+    // `Node` EMBEDS child Node objects (API.yaml:484-487). Since iteration 1 OSL serves that shape by
+    // default, and the flat form only on request. These checks pin each shape to the right schema.
     selfCheck('canonical Node ACCEPTS embedded child objects (THE STANDARD — was inverted)',
         validator.validateCanonical('node', fx.canonicalNode()).valid === true,
         validator.validateCanonical('node', fx.canonicalNode()).errorsText);
-    selfCheck('canonical Node REJECTS integer id-ref children (proves `Node` is the STANDARD, not OSL\'s shape)',
+    selfCheck('canonical Node REJECTS integer id-ref children (proves `Node` is the STANDARD, not the flat form)',
         validator.validateCanonical('node', fx.graphRootNode()).valid === false);
-    selfCheck('OSLFlatNode ACCEPTS the flat id-ref node OSL actually serves',
-        validator.validateResponse('node', fx.graphRootNode()).valid === true,
-        validator.validateResponse('node', fx.graphRootNode()).errorsText);
-    selfCheck('OSLFlatNode REJECTS embedded child objects (our divergence is enforced on our own shape)',
-        validator.validateResponse('node', fx.canonicalNode()).valid === false);
+    selfCheck('the DEFAULT node form accepts embedded children and rejects id refs',
+        validator.validateResponse('node', fx.canonicalNode()).valid === true
+        && validator.validateResponse('node', fx.graphRootNode()).valid === false);
+    selfCheck('OSLFlatNode ACCEPTS the flat id-ref node OSL serves on explicit request',
+        validator.validateResponse('flatNode', fx.graphRootNode()).valid === true,
+        validator.validateResponse('flatNode', fx.graphRootNode()).errorsText);
+    selfCheck('OSLFlatNode REJECTS embedded child objects (the flat form is enforced on its own shape)',
+        validator.validateResponse('flatNode', fx.canonicalNode()).valid === false);
+    selfCheck('Spatial ACCEPTS {id, rootNodeID, geoPose} with an integer id',
+        validator.validateResponse('spatial', fx.spatialDescriptor()).valid === true,
+        validator.validateResponse('spatial', fx.spatialDescriptor()).errorsText);
+    selfCheck('Spatial REJECTS a string graph id (D4 retired: the graph id is an integer)',
+        validator.validateResponse('spatial', Object.assign(fx.spatialDescriptor(), { id: 'world' })).valid === false);
+    selfCheck('Node REJECTS a localTransform that is not 16 numbers (iteration 1 overlay, D9)',
+        validator.validateResponse('node', fx.badNodes().shortTransform).valid === false);
 
     // ajv catches structural breaks, under BOTH schemas
     selfCheck('ajv rejects a node with wrong types (canonical Node)',
@@ -762,20 +796,31 @@ async function runWowConformance(opts)
         && validator.validateResponse('node', fx.badNodes().mixedChildren).valid === false);
 
     // drift guard: it must name the STANDARD correctly in BOTH directions
-    selfCheck('drift guard reports embedded children as CONFORMANT-TO-STANDARD (a note, never drift)',
+    selfCheck('drift guard reports embedded children on a DEFAULT node as CONFORMANT-TO-STANDARD (a note, never drift)',
         driftCheck('node', fx.canonicalNode()).some(d => d.level === 'note')
         && !driftCheck('node', fx.canonicalNode()).some(d => d.level === 'drift'));
-    selfCheck('drift guard reports OSL id-ref children as a DECLARED DIVERGENCE (never as the standard)',
-        driftCheck('node', fx.graphRootNode()).some(d => d.level === 'divergence')
-        && !driftCheck('node', fx.graphRootNode()).some(d => d.level === 'drift'));
-    selfCheck('drift guard catches MIXED children as real drift',
-        driftCheck('node', fx.badNodes().mixedChildren).some(d => d.level === 'drift'));
+    selfCheck('drift guard flags integer id children on a DEFAULT node as drift (the flat form is only served on request)',
+        driftCheck('node', fx.graphRootNode()).some(d => d.level === 'drift'));
+    selfCheck('drift guard reports id-ref children on an explicit FLAT node as the labeled divergence (never as the standard)',
+        driftCheck('flatNode', fx.graphRootNode()).some(d => d.level === 'divergence')
+        && !driftCheck('flatNode', fx.graphRootNode()).some(d => d.level === 'drift'));
+    selfCheck('drift guard flags embedded children on an explicit FLAT node (the server ignored the request)',
+        driftCheck('flatNode', fx.canonicalNode()).some(d => d.level === 'drift'));
+    selfCheck('drift guard catches MIXED children as real drift, in both forms',
+        driftCheck('node', fx.badNodes().mixedChildren).some(d => d.level === 'drift')
+        && driftCheck('flatNode', fx.badNodes().mixedChildren).some(d => d.level === 'drift'));
+    selfCheck('drift guard catches a non-integer Spatial id',
+        driftCheck('spatial', Object.assign(fx.spatialDescriptor(), { id: 'world' })).some(d => d.level === 'drift')
+        && !driftCheck('spatial', fx.spatialDescriptor()).some(d => d.level === 'drift'));
     // drift guard catches what ajv (open schemas) does not
-    selfCheck('drift guard flags non-16 localTransform (an OSL CONVENTION, reported as divergence)',
-        driftCheck('node', fx.badNodes().shortTransform)
-            .some(d => d.level === 'divergence' && /localTransform/.test(d.msg)));
-    selfCheck('drift guard catches lon-instead-of-lan',
-        driftCheck('world', fx.worldWithLonDrift()).some(d => d.level === 'drift'));
+    selfCheck('drift guard flags a non-16 localTransform (the iteration 1 overlay, reported as the divergence D9)',
+        driftCheck('flatNode', fx.badNodes().shortTransform)
+            .some(d => d.level === 'divergence' && /localTransform/.test(d.msg) && /D9/.test(d.msg)));
+    selfCheck('drift guard catches the deprecated lan',
+        driftCheck('world', fx.worldWithLanDrift()).some(d => d.level === 'drift'));
+    selfCheck('drift guard reports lon as the declared divergence D9, never as drift',
+        driftCheck('world', fx.worldResponse()).some(d => d.level === 'divergence' && /D9/.test(d.msg))
+        && !driftCheck('world', fx.worldResponse()).some(d => d.level === 'drift'));
     // honesty guard catches cosmetic green (ajv passes it — a boolean true is a valid boolean)
     selfCheck('honesty guard catches cosmetic standards_conformance:true',
         honestyCheck('world', fx.worldWithCosmeticGreen()).ok === false
@@ -826,8 +871,10 @@ async function runWowConformance(opts)
                     + (e.live.error ? 'transport error ' + e.live.error : 'HTTP ' + e.live.http_status)
                     + '. This endpoint contributes NOTHING to endpoints_live_validated.',
         }));
+    const writesNotDriven = endpoints.filter(e => e.live && e.live.attempted === false);
     const notCovered = liveDriven ? liveShortfall.map(s =>
-        'LIVE ' + s.method + ' ' + s.path + ' — ' + s.why) : [
+        'LIVE ' + s.method + ' ' + s.path + ' — ' + s.why).concat(writesNotDriven.map(e =>
+        'LIVE ' + e.method + ' ' + e.path + ' — write not driven: ' + e.reason)) : [
         'LIVE HTTP pass: no WoW endpoint was driven against a running server. Every '
             + 'endpoint below is a CONTRACT/FIXTURE result only — it proves the fixture matches '
             + 'the schema, NOT that the server emits it.',
@@ -836,8 +883,8 @@ async function runWowConformance(opts)
             + 'would NOT have been caught by this run.',
         'LIVE composition-graph portal battery: the /wow/spatial graph walk, the portal '
             + 'node role/URI surfacing, and the resolvable-destination assertion did not run.',
-        'LIVE canonical_node_valid observation (declared divergence D1): no served node payload was '
-            + 'compared against the canonical Node schema in this run.',
+        'LIVE canonical Node observation: no served node payload was compared against the canonical '
+            + 'Node schema in this run.',
         'LIVE X-OSL-WoW-Validation header parity (server-side validator observability).',
         'WS /events upgrade probe.',
     ];
@@ -847,7 +894,7 @@ async function runWowConformance(opts)
         mode: liveDriven ? 'fixtures+live' : 'fixtures-only',
         coverage: {
             live_driven: liveDriven,
-            complete: liveDriven && liveShortfall.length === 0,
+            complete: liveDriven && liveShortfall.length === 0 && writesNotDriven.length === 0,
             complete_means: 'the LIVE pass ran AND every endpoint it attempted had its live '
                 + 'response VALIDATED. It has never meant, and does not mean, "the server conforms".',
             endpoints_total: endpoints.length,
@@ -888,21 +935,16 @@ async function runWowConformance(opts)
             'standards_conformance stays false on every /wow response — no cosmetic green.',
             'native_teleportxr_teleport:false; first_party_teleportxr_browser_rendering:false.',
             'WS /events is a LABELED non-canonical convention, NOT part of the OpenAPI HTTP contract.',
-            'The /wow/spatial/* NODE PAYLOADS ARE NOT CANONICAL. OSL serves `OSLFlatNode` '
-                + '(children = integer id refs); the OpenSpatialWorld standard EMBEDS child Node '
-                + 'objects (API.yaml:484-487). '
+            'Since iteration 1 the /wow/spatial/* payloads are the canonical shapes by default: the `Spatial` '
+                + 'resource at /wow/spatial/{spatialID} and the canonical `Node`, children embedded, at /node/{nodeId}. '
+                + 'This run validated them against the contract that OSL itself maintains, which carries the iteration 1 '
+                + 'overlay (D9): a node\'s localTransform is 16 numbers, longitude is `lon`. Those are proposed upstream '
+                + 'edits, not yet part of the upstream standard, so a pass here is NOT a claim of standards conformance. '
                 + (liveDriven
-                    ? 'Every live spatial record below reports canonical_node_valid:false. '
-                    : 'THIS RUN DROVE NO LIVE SPATIAL RECORDS, so it made no canonical_node_valid '
-                        + 'observation at all — the divergence below is DECLARED, not measured here. ')
-                + 'That is a DECLARED divergence (D1) — see declared_divergences — NOT a '
-                + 'conformance claim.',
-            'GET /wow/spatial/{spatialID} returns the root node BY DEFAULT; the standard returns a '
-                + '`Spatial` descriptor (D3). The canonical `Spatial` schema IS in the contract and IS '
-                + 'SERVED, on the versioned opt-in ?form=descriptor / X-OSL-WoW-Spatial-Form: descriptor '
-                + '. What is NOT claimed is the DEFAULT response shape — it stays the root node '
-                + 'for backward compatibility — and the OpenAPI DECLARATION of the opt-in, which appears '
-                + 'in no schema.yaml path stanza.',
+                    ? 'The flat node form (OSLFlatNode) was probed on explicit request and reports canonical_core_valid:false where it has children.'
+                    : 'THIS RUN DROVE NO LIVE SPATIAL RECORDS, so it made no observation of what the server serves.'),
+            'The flat node form is OSL\'s labeled extension (D1, narrowed). It is served only on explicit request '
+                + '(`X-OSL-WoW-Node-Form: flat` or `?nodeForm=flat`). The standard specifies neither.',
             'PROVENANCE (corrected 2026-07-11): OSL\'s first transcription of `Node` and of five '
                 + 'operationIds matched the STALE spec copy vendored in the simpleWorlds reference '
                 + 'implementation, not the open spec. `Node` is corrected; the operationId NAMING is '

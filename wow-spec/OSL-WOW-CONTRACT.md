@@ -40,8 +40,8 @@ Regenerate `generated/*` whenever `schema.yaml` changes and re-run `wow-proof`.
 Pinned to upstream **`WoWAPI@d39a1a0`** ("fixed node children type", 2026-05-21).
 
 - **Schemas:** `GeoPose`, `World`, `User`, `View`, `Portal`, `Node`, `Spatial`.
-  (`GeoPose` is factored for DRY; the standard inlines the identical shape — the
-  `lan` misspelling of *longitude* is carried verbatim.)
+  (`GeoPose` is factored for DRY; the standard inlines the same shape. The iteration 1
+  overlay spells longitude `lon`, as OGC GeoPose does, and reads `lan` as deprecated: D9.)
 - **Paths:** `GET /wow/world`, `GET|DELETE /wow/user/{userId}`,
   `GET /wow/view/{viewId}`, `GET /wow/portal/{portalId}`, and the **canonical
   Spatial Composition Graph** `GET /wow/spatial/{spatialID}` +
@@ -59,30 +59,24 @@ Pinned to upstream **`WoWAPI@d39a1a0`** ("fixed node children type", 2026-05-21)
   the root with `400 cannot_delete_root`
   (`runtime/world-server/src/server.js`; tested by
   `runtime/world-server/test/spatial-graph-proof.js`
-  checks D6/D8). **`DELETE /wow/user/{userId}` is contracted
-  (`operationId: user.deleteUser`) but is NOT served** — the live server answers
-  `404`. That single method is the whole of the DELETE gap. Both facts are
-  re-derived from a running server on every run of
-  `src/wow-claim-drift-proof.mjs`.
+  checks D6/D8). **`DELETE /wow/user/{userId}` is served too** (`operationId:
+  user.deleteUser`): it removes a registered presence user (`200`), answers `404` for an unknown
+  or already removed user, and `400` for the hosted local identity.
+  Every contracted method is served. `tools/verify-wowapi-smoke.mjs` drives them
+  all (`npm run smoke:wowapi`).
 
-> ⚠️ **The `/wow/spatial/*` PATHS are canonical; their PAYLOADS are NOT.**
-> OSL serves the labeled `OSLFlatNode`, **not** the canonical `Node`, and **by
-> default** it returns the **root node** where the standard returns a **`Spatial`
-> descriptor**. `Spatial` is in the contract **and IS SERVED** — on a **versioned
-> opt-in** (`?form=descriptor`, or header `X-OSL-WoW-Spatial-Form: descriptor`),
-> with the served form echoed back in `X-OSL-WoW-Spatial-Form: descriptor|node`.
-> The **default** deliberately stays the root node so no existing client breaks;
-> that default is the whole of the remaining divergence. Served by
-> ****wire-proven by `src/wow-gaps-proof.mjs`
-> (10 checks) and drift-guarded by `src/wow-claim-drift-proof.mjs`.
-> **DECLARED:** the opt-in itself — the `form` query
-> parameter, the `X-OSL-WoW-Spatial-Form` request header, and the
-> `X-OSL-WoW-Spatial-Form` response header — is declared on the
-> `GET /wow/spatial/{spatialID}` operation in `schema.yaml`, and the `Spatial`
-> schema stanza states it is served on the versioned opt-in. The contract
-> declaration and the served behavior are kept in lockstep by
-> `src/wow-claim-drift-proof.mjs` (bidirectional: it goes RED if either
-> drifts from the other). See **§9**.
+> **The `/wow/spatial/*` payloads are the canonical shapes by default (iteration 1).**
+> `GET /wow/spatial/{spatialID}` returns the **`Spatial`** descriptor `{id, rootNodeID,
+> geoPose}`, and the graph id is an **integer**. The root node is at
+> `/wow/spatial/{spatialID}/node/{rootNodeID}`. Nodes are the canonical **`Node`**,
+> children **embedded**. Two OSL conveniences ride on top, and both are labeled:
+> `?form=node` on the Spatial path returns the root node itself, and
+> `X-OSL-WoW-Node-Form: flat` (or `?nodeForm=flat`) selects the flat node form,
+> **`OSLFlatNode`**, whose `children` are integer ids. The server also still
+> resolves four legacy string aliases for a graph id (the world id, the location
+> id, `default`, `world`); the contract does not list them. The divergences this
+> note once declared here (D1 to D4 and D7) are **retired**. See **§9**. What
+> iteration 1 adds that the standard does not state is declared as **D9**.
 
 **Canonical `Node` — read this before you touch it.** `Node.children` is an array
 of **EMBEDDED `Node` objects** (`items: $ref: Node`, upstream `API.yaml:484-487`).
@@ -105,7 +99,7 @@ hide — extension usage.**
 | `SpatialFabricSubtree` | WoW can **address** a subtree but cannot **specify** one. A `.msf` URL in `Node.spatialAssetURI` is **spec-legal today** (the canonical `Node` types it as a bare `string` — no `format`, no `mediaType`, no enum, no prose), and the sibling OpenSpatialAsset spec is already media-type-plural — but neither has any concept of a **signed, executable spatial document**, and the address cannot carry what a *subtree* needs and a *leaf* does not: the scale, the up-axis, the trust policy, the recursion cap, the epoch. So `spatialAssetURI` stays **the address** (adopt WoW) and this labeled, **strict** schema is **the contract** (label it). **Divergence D8.** |
 | `Zone`, `PortalTraversal` | OSL-native portal interaction volumes and traversal-direction rules. |
 | `WebOfWorldsExtension` | The **open** (`additionalProperties:true`) labeled bag the live 041 server already rides on the read surface (`spatial_fabric_address`, `zones`, `geopose_mapping`, …). Non-canonical and evolving. |
-| `OSLFlatNode` | **The node OSL actually serves.** Here the standard is *not* silent — it says something else, and we disagree with it on purpose. The canonical `Node` **embeds** child objects; OSL serves a **flat graph** whose `children` are **integer id references**, so a node is addressable at `/wow/spatial/{id}/node/{nodeId}` in O(1), updatable without rewriting an enclosing subtree, and cycle-free on the wire. A **declared divergence (D1)**, not a reading of the spec — proposed upstream alongside `PortalDestination`. Every `/wow/spatial/*` request body and response references **this**, never `Node`. |
+| `OSLFlatNode` | **OSL's flat node form**, a labeled extension. The canonical `Node` **embeds** child objects, and OSL serves that by default. Some clients want a node whose `children` are **integer id references**: it is cheap to read without the subtree and cycle-free on the wire. OSL serves and accepts that form only on explicit request (`X-OSL-WoW-Node-Form: flat` or `?nodeForm=flat`). It is the labeled remainder of the retired divergence **D1**. |
 
 **OSL response composites** — what the 041 server *actually* returns — are the
 canonical schema **plus** the labeled extensions, composed with `allOf`:
@@ -166,8 +160,9 @@ migration.** Server: `runtime/world-server/src/runtime-state.js`
 (WoW projections). Client: `web/live-adapter.js` (`worldFromLive` /
 `portalEntryFromWowPortal`).
 
-> When you mean *"a node OSL serves"*, the type is **`OSLFlatNode`**.
-> `Node` means **the standard**. They are not interchangeable.
+> When you mean *"a node OSL serves"*, the type is **`Node`**, children embedded.
+> `OSLFlatNode` is the flat form, served only on explicit request. It is OSL's
+> labeled extension and is not the standard. They are not interchangeable.
 
 ---
 
@@ -182,62 +177,55 @@ position; a divergence we hide is a false claim.
 
 | ID | Subject | The standard says | OSL does | Status |
 |---|---|---|---|---|
-| **D1** | `Node.children` (`API.yaml:484-487`) | **EMBEDDED** child `Node` objects (`items: $ref: Node`) | **INTEGER id references** (flat graph) | **DECLARED** — served on every `/wow/spatial/*` payload as `OSLFlatNode`. Conformance reports `canonical_node_valid:false`. |
-| **D2** | `Spatial` schema (`API.yaml:438-468`) | a graph **descriptor** `{id, rootNodeID, geoPose}` | transcribed **AND SERVED** on a versioned opt-in (`?form=descriptor` / `X-OSL-WoW-Spatial-Form: descriptor`) | **DECLARED** — served on a versioned opt-in. Wire-proven: `src/wow-gaps-proof.mjs` (10 checks, `--negative=spatial` demands RED); drift-guarded: `src/wow-claim-drift-proof.mjs`. **The opt-in — `form` query param + `X-OSL-WoW-Spatial-Form` request/response header — is DECLARED on `GET /wow/spatial/{spatialID}`.** |
-| **D3** | `GET /wow/spatial/{spatialID}` (`API.yaml:133-153`) | returns a **`Spatial`** descriptor (`getSpatialById`) | returns **the root node itself BY DEFAULT**; returns the canonical descriptor on the D2 opt-in | **DECLARED** — default node · descriptor on opt-in. The break is versioned, never silent. |
-| **D4** | `spatialID` path param (`API.yaml:141-146`) | `integer` | `string` (`world_id`, `location_id`, `default`, `world`) | **DECLARED** — deliberate; 041 addresses graphs by string id. |
+| **D1** | `Node.children` (`API.yaml:484-487`) | **EMBEDDED** child `Node` objects (`items: $ref: Node`) | embeds child `Node` objects, as the standard does. One labeled extension remains: the **flat form** (`OSLFlatNode`, `children` are integer ids) is served and accepted only on explicit request (`X-OSL-WoW-Node-Form: flat` or `?nodeForm=flat`) | **RETIRED** in iteration 1. The flat form is OSL's, labeled, and the standard specifies neither it nor the request header. |
+| **D2** | `Spatial` schema (`API.yaml:438-468`) | a graph **descriptor** `{id, rootNodeID, geoPose}` | serves the descriptor **by default**, with integer ids | **RETIRED** in iteration 1. The opt-in it once needed (`?form=descriptor`, `X-OSL-WoW-Spatial-Form`) is gone. `?form=node` returns the root node, an OSL convenience. |
+| **D3** | `GET /wow/spatial/{spatialID}` (`API.yaml:133-153`) | returns a **`Spatial`** descriptor (`getSpatialById`) | returns the **`Spatial`** descriptor. The root node stays at `/node/{rootNodeID}` | **RETIRED** in iteration 1. |
+| **D4** | `spatialID` path param (`API.yaml:141-146`) | `integer` | `integer` | **RETIRED** in iteration 1. The server still resolves four legacy string aliases (the world id, the location id, `default`, `world`) for compatibility; the contract does not list them. |
 | **D5** | node-path params (`API.yaml:163-253`) | **omits** `spatialID` on all four node ops; DELETE misspells it `nodeid` | declares `spatialID` on all four; spells `nodeId` correctly | **LABELED REPAIR** of an upstream defect (OpenAPI requires every template var be declared) — propose upstream. |
 | **D6** | `GET /` (`API.yaml:17-29`) | returns `text/html` (provisions the web app) | not in the OSL contract | **OMITTED** — OSL serves its client differently. |
-| **D7** | write path for a **conformant** node body (`API.yaml:163-253`) | a `Node` body (embedded children) is simply **stored** | **422 `embedded_children_not_supported`** by default; stored only on the **explicit** `X-OSL-WoW-Node-Form: canonical` opt-in, which **flattens** the subtree into id-refs and reports what it stored | **DECLARED EXTENSION**. The opt-in header, the `?nodeForm=canonical` query form, the `X-OSL-WoW-Nodes-Stored` / `X-OSL-WoW-Children-Flattened` response headers, and the 400/422 refusal codes are **OSL extensions** — the standard specifies none of them. |
+| **D7** | write path for a **conformant** node body (`API.yaml:163-253`) | a `Node` body (embedded children) is simply **stored** | stores it by default, and the response lists the nodes created at the top level | **RETIRED** in iteration 1. The 400 and 422 refusal codes (`payload_too_large`, `invalid_parent`, `child_restructure_not_supported` and others) are **OSL extensions**: the standard specifies none of them. |
 | **D8** | a node that **transcludes a signed `.msf` fabric as a SUBTREE** | a `.msf` URL in `spatialAssetURI` is **permitted** (bare `string`), but the standard says nothing about what the URI resolves to and has **no signed-document type** at all (OpenSpatialAsset is media-type-plural but has none) | `spatialAssetURI` = the **ADDRESS** (adopted); `webofworlds_extension.spatial_fabric_subtree` = the **CONTRACT** (`SpatialFabricSubtree`, strict) | **DECLARED EXTENSION**. See **§11**. |
+| **D9** | the **iteration 1 overlay** (`API.yaml:294,368,395,424,456` `lan`; `488-491` `localTransform`; `482-487` `parent`, `children`) | spells longitude `lan`; types `localTransform` as an array of numbers of any length; says nothing about whether `children` can be written, how a node moves, or whether a node id can be reused | spells longitude **`lon`** (`lan` is read as deprecated and never emitted); refuses a `localTransform` that is not 16 numbers with a last row of 0,0,0,1, or that has shear or zero scale (**422**); **derives `children`** from the tree (a PUT that changes them is **422**); **moves** a node by a PUT of `parent`; **never reuses** a node id within a world | **DECLARED OVERLAY** — each item is a proposed upstream edit, proven by `npm run arch-i1-proof`. See **D9** below. |
 
-### D7 — why a conformant body is refused by default
+### D1 to D4 and D7 — retired in iteration 1
 
-Until 2026-07-11, `spatial-graph.js` ran `.filter(Number.isInteger)` over a node's
-`children` and `createChildren()` then forced `node.children = []`. A **spec-conformant**
-`POST` — canonical `Node`, children **embedded** — was therefore answered **`200 OK`
-with its entire subtree deleted**. The client believed it had stored a tree; we had
-stored a root. `422` only existed when `OSL_WOW_VALIDATE=1`, and **validation
-is off by default**, so on the path most callers take the deletion was still silent.
+Until iteration 1 OSL served a flat graph: `children` were integer ids, `GET /wow/spatial/{id}` returned the
+root node, graph ids were strings, and a node body with embedded children was refused. Each was a declared
+departure from the standard. They are gone. OSL now serves the canonical shapes by default, and a node
+body with embedded children is stored. Their ids stay in this register so that an older reference still
+resolves.
 
-**Silent data loss is the worst failure mode in this system.** A loud rejection is fine;
-a quiet truncation the caller cannot detect is not. The check is now **structural** — it
-lives in the store, not in the env-gated validation layer, so it holds on **every** path:
+What remains is one labeled extension, the flat node form on explicit request, and the refusal codes OSL
+uses to say why it will not store a body. Both are OSL's, and the standard specifies neither.
 
-| Body | Before | Now |
-|---|---|---|
-| flat, leaf (`children: []` / omitted) | 200, stored | **unchanged** — 200, stored, byte-identical |
-| canonical, children EMBEDDED | **200, subtree SILENTLY DELETED** | **422** `embedded_children_not_supported` (names `OSLFlatNode`, gives offending paths + remedies); **nothing stored** |
-| canonical + `X-OSL-WoW-Node-Form: canonical` | n/a | **200** — whole subtree stored, ids assigned, **every** stored node returned, `X-OSL-WoW-Children-Flattened` reports the transform |
-| integer child id-refs on POST | **200, SILENTLY DROPPED** | **400** `child_id_refs_not_supported_on_create` |
-| `children` on PUT that restructures | **200, SILENTLY IGNORED** | **422** `child_restructure_not_supported` |
-| `children` on PUT echoed unchanged (read-modify-write) | 200 | **unchanged** — 200 |
-
-Rejecting outright would have dead-ended every conformant client; accepting-and-flattening
-unconditionally would have made us accept a body our own published contract says we do not,
-and would have turned the API into a silent "write canonical, read flat". **Reject by
-default, flatten only when asked** keeps the published contract enforced *and* gives the
-conformant client a labeled way through. Proven by section **G** of
-`runtime/world-server/test/spatial-graph-proof.js`, which drives a
-server built with `OSL_WOW_VALIDATE` **off**.
-
-**Was deferred here; now DELIVERED (do not re-open):** serving the real `Spatial`
-descriptor. shipped it as the versioned opt-in described
-in **D2/D3** — `GET /wow/spatial/{spatialID}?form=descriptor` (or
-`X-OSL-WoW-Spatial-Form: descriptor`) returns the canonical
-`{id, rootNodeID, geoPose}`; the default response is unchanged.
-
-**Now DELIVERED:** *declaring* that opt-in
-in `wow-spec/schema.yaml` — the `form` query parameter, the
-`X-OSL-WoW-Spatial-Form` request header, and the `X-OSL-WoW-Spatial-Form`
-response header are declared on the `GET /wow/spatial/{spatialID}` operation, and
-the `Spatial` schema stanza states it is served on the versioned opt-in. The
-declaration and the served behavior are drift-guarded (bidirectionally) by
-`src/wow-claim-drift-proof.mjs`.
+A silent truncation was the worst failure here, and it stays fixed: no body is ever stored with part of
+it dropped. A body OSL cannot store whole is refused with a code that says why. Proven by section G of
+`runtime/world-server/test/spatial-graph-proof.js` and by `npm run arch-i1-proof` (checks N1 to N6).
 
 ### D8 — `SpatialFabricSubtree`: the address is WoW's, the contract is ours
 
 See **§11** for the full statement. In one line: **"permitted" is not "specified."**
+
+### D9 — the iteration 1 overlay: five proposed edits, served and proven
+
+OSL serves behaviour that the standard at `d39a1a0` does not state. Each item is a proposed upstream
+edit (`wow-spec/overlays/iteration-1/`), and each is proven by `npm run arch-i1-proof` with a negative
+case that fails on purpose:
+
+1. **One frame.** Metres, right-handed, +Y up. A graph's GeoPose anchors its origin on the WGS-84
+   ellipsoid; at zero angles +X is east, +Y up and +Z south. Every position inside a graph is local
+   to its parent. Real geodesy converts between the two (EPSG method 9837); checks F1 to F5.
+2. **`lon`, not `lan`.** One GeoPose definition (OGC Basic-YPR). The reader maps `lan` to `lon`
+   with a deprecation warning and refuses a `lon` and `lan` that disagree. Check F4.
+3. **One meaning for a matrix.** `localTransform` is a column-major 4x4 that decomposes into
+   translation, rotation and non-zero scale, with no shear (glTF 2.0 section 3.5.3). Checks T1, T2.
+4. **A true tree.** `children` is derived and a PUT never changes it; a node moves by a PUT of
+   `parent`; there is one parent per node. Checks N1, N2, N5.
+5. **Ids are never reused** within a world, after a delete, a reset or a restart. Check N3.
+
+The rotation sense and order of GeoPose angles (positive yaw turns east toward north; yaw, then
+pitch, then roll) are an assumption until the GeoPose working group answers. They live in one place,
+`ROTATION_CONVENTION` in `web/wow-geopose.js`.
 
 ## 10. Provenance — corrected 2026-07-11
 

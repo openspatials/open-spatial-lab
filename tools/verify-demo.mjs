@@ -192,9 +192,18 @@ async function assertEnabledWowContracts() {
     await assertValidatedJson(`${BASE}/api/${world}/wow/view/1`);
     const portalCount = Number(worldResource.portals?.portal_count) || 0;
     for (let id = 1; id <= portalCount; id += 1) await assertValidatedJson(`${BASE}/api/${world}/wow/portal/${id}`);
-    const spatialId = worldResource.id;
-    const root = await assertValidatedJson(`${BASE}/api/${world}/wow/spatial/${encodeURIComponent(spatialId)}`);
-    for (const id of [root.id, ...(root.children || [])]) await assertValidatedJson(`${BASE}/api/${world}/wow/spatial/${encodeURIComponent(spatialId)}/node/${id}`);
+    // The graph is addressed by its integer id. Its Spatial resource names the root node, the root node
+    // embeds the tree, and every node below it is also fetched by its own URL.
+    const spatial = await assertValidatedJson(`${BASE}/api/${world}/wow/spatial/1`);
+    if (!Number.isInteger(spatial.id) || !Number.isInteger(spatial.rootNodeID)) throw new Error(`${world}: the Spatial resource has no integer id and rootNodeID`);
+    const root = await assertValidatedJson(`${BASE}/api/${world}/wow/spatial/${spatial.id}/node/${spatial.rootNodeID}`);
+    const below = [];
+    for (const stack = [...(root.children || [])]; stack.length;) {
+      const node = stack.pop();
+      below.push(node.id);
+      stack.push(...(node.children || []));
+    }
+    for (const id of below) await assertValidatedJson(`${BASE}/api/${world}/wow/spatial/${spatial.id}/node/${id}`);
   }
 }
 

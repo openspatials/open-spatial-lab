@@ -386,6 +386,18 @@ function validateSharedEdgeTopology(nodes)
 // can boot on a broken topology.
 const SHARED_EDGE_TOPOLOGY = validateSharedEdgeTopology(NODES);
 
+// Where each world's graph 1 sits on Earth: lab placements, not surveyed ones. World A is at the
+// GeoPose standard's example position, world B is 100 m east of it, the lobby 100 m west of A, and
+// the airport is at a Denver airport. A harness overrides them with `spatial_anchor_fixture` (a
+// path) or `spatial_anchors` (an object) in the config it passes to createServer.
+const ZERO_ANGLES = { yaw : 0, pitch : 0, roll : 0 };
+const SPATIAL_ANCHORS = {
+    a : { graphs : [ { id : 1, geoPose : { position : { lat : 47.7, lon : -122.3, h : 11.5 }, angles : ZERO_ANGLES } } ] },
+    b : { graphs : [ { id : 1, geoPose : { position : { lat : 47.7, lon : -122.2986676811, h : 11.5 }, angles : ZERO_ANGLES } } ] },
+    lobby : { graphs : [ { id : 1, geoPose : { position : { lat : 47.7, lon : -122.3013323189, h : 11.5 }, angles : ZERO_ANGLES } } ] },
+    airport : { graphs : [ { id : 1, geoPose : { position : { lat : 39.8561, lon : -104.6737, h : 1655.0 }, angles : ZERO_ANGLES } } ] },
+};
+
 function makeConfig(role, extraOpts)
 {
     const key = String(role).toLowerCase().replace('location-', '');
@@ -393,6 +405,8 @@ function makeConfig(role, extraOpts)
     if (!base)
         throw new Error('unknown node role "' + role + '" (expected a|b|lobby|airport|location-a|location-b|location-lobby|location-airport)');
     const cfg = Object.assign({}, base, extraOpts || {});
+    if (cfg.spatial_anchors === undefined && cfg.spatial_anchor_fixture === undefined)
+        cfg.spatial_anchors = SPATIAL_ANCHORS[key];
     cfg.portals = (cfg.portals || []).map(portal => {
         const override = traversalOverrideFor(portal.portal_id);
         return override ? Object.assign({}, portal, { traversal : override }) : portal;
@@ -401,6 +415,6 @@ function makeConfig(role, extraOpts)
 }
 
 module.exports = {
-    NODES, makeConfig,
+    NODES, makeConfig, SPATIAL_ANCHORS,
     portalEdgeId, validateSharedEdgeTopology, SHARED_EDGE_TOPOLOGY,
 };
