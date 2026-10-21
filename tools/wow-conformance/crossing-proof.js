@@ -33,7 +33,7 @@
  * Additive / reuse-driven: no server/client/spec change is made by this proof.
  *
  * Usage: node tools/wow-conformance/crossing-proof.js
- *        OSL_WO019_PORT_A / OSL_WO019_PORT_B override the isolated ports.
+ *        OSL_CROSSING_PROOF_PORT_A / OSL_CROSSING_PROOF_PORT_B override the isolated ports.
  */
 
 const os = require('os');
@@ -45,8 +45,8 @@ const { pathToFileURL } = require('url');
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const HOST = '127.0.0.1';
 const FORBIDDEN_PORTS = new Set([ 8143, 18151, 18152, 18153, 3000 ]);
-const PORT_A = Number(process.env.OSL_WO019_PORT_A || 18987);
-const PORT_B = Number(process.env.OSL_WO019_PORT_B || 18988);
+const PORT_A = Number(process.env.OSL_CROSSING_PROOF_PORT_A || 18987);
+const PORT_B = Number(process.env.OSL_CROSSING_PROOF_PORT_B || 18988);
 const LOAD_GATE = 14; // the repo-wide browser-proof gate; this Node proof records it, never fakes it
 
 // The two kebab-case, POST-only crossing paths (§3.5.3 URL paths, §5.2.1 POST-only). These
@@ -84,7 +84,7 @@ const IWPS_TELEPORT_PATH = '/portal/arrival';
 // ---------------------------------------------------------------------------
 const NEGATIVE = (() => {
     const arg = process.argv.slice(2).find((a) => a.startsWith('--negative'));
-    const env = process.env.OSL_WO019_NEGATIVE;
+    const env = process.env.OSL_CROSSING_PROOF_NEGATIVE;
     const raw = arg ? (arg.includes('=') ? arg.split('=')[1] : 'route') : (env || '');
     if (!raw) return null;
     if (raw !== 'route' && raw !== 'claim' && raw !== 'continuity') {

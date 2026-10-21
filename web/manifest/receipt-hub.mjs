@@ -97,7 +97,7 @@
 //     fragment wrote is never re-statused) · holderBindingStatus/effectiveTrustTier
 //     → rolled · engine/rejectedBy/floorViolations/deferredClaims/deferredFacetIds
 //     → diagnostics (NOT wire members).
-// evaluateWo134 receipt:
+// evaluateHolderBinding receipt:
 //     already receipt-shaped — outcome/signatureCheck/freshnessCheck/
 //     keyRefResolution/presentationProofStatus/holderBindingStatus/
 //     effectiveTrustTier/claimStatuses/warnings merge directly.
@@ -109,7 +109,7 @@
 //     facetStatuses (incl. "not-projected") / claimStatuses / unprocessedEntries /
 //     holderBindingStatus / effectiveTrustTier merge directly; verdict → outcome
 //     contribution.
-// evaluateWo139 receipt:
+// evaluateDelegationRegistry receipt:
 //     outcome/signatureCheck/warnings merge directly (its warnings[]{code,message}
 //     shape anticipated this hub and is adopted UNCHANGED as the canonical
 //     warning shape); delegations[] → diagnostics (not a schema.jsonld term).

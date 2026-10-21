@@ -184,7 +184,7 @@ import { buildTierDemoSurface, DEFAULT_MAX_SUPPORTED_TRUST_TIER } from "./manife
 // interactive attach + replay-reject path is proven in web/manifest/verify.mjs (34/34).
 import {
   issueVerifierChallenge as featureIssueVerifierChallenge,
-  evaluateWo134 as featureEvaluateWo134,
+  evaluateHolderBinding as featureEvaluateHolderBinding,
 } from "./manifest/holder-binding.mjs";
 // JWE sealed-facet surface (P6): REAL crypto is proven in
 // web/manifest/verify.mjs (34/34); this attaches the receipt rows the
@@ -948,7 +948,7 @@ async function featureSignManifestOntoPacket(packet, world, transport) {
       const featureChallenge = featureIssueVerifierChallenge({
         audience: `did:web:${(packet.target && packet.target.location_id) || "destination"}`,
       });
-      const featureEval = await featureEvaluateWo134(manifest, {
+      const featureEval = await featureEvaluateHolderBinding(manifest, {
         now: new Date().toISOString(),
         maxSupportedTrustTier: DEFAULT_MAX_SUPPORTED_TRUST_TIER,
       });
@@ -1027,7 +1027,7 @@ async function featureSignManifestOntoPacket(packet, world, transport) {
     // no engine; it composes fragments. NO conformance flag flipped. Best-effort:
     // never blocks the signed crossing. Full 72-fixture matrix run is (out of scope here).
     try {
-      const featureEval = await featureEvaluateWo134(manifest, {
+      const featureEval = await featureEvaluateHolderBinding(manifest, {
         now: new Date().toISOString(),
         maxSupportedTrustTier: DEFAULT_MAX_SUPPORTED_TRUST_TIER,
       });

@@ -395,15 +395,15 @@ async function main()
 
         // F4 RENAME A SCHEMA: the header TEXT itself is contract-derived.
         const renamed = cloneContract();
-        renamed.components.schemas.OSLWorldResponseRenamedByWO129 =
+        renamed.components.schemas.OSLWorldResponseRenamedForProof =
             renamed.components.schemas.OSLWorldResponse;
         delete renamed.components.schemas.OSLWorldResponse;
         renamed.paths['/wow/world'].get.responses['200'].content['application/json'].schema.$ref =
-            '#/components/schemas/OSLWorldResponseRenamedByWO129';
+            '#/components/schemas/OSLWorldResponseRenamedForProof';
         const rn = await listen('a', { wow_contract_doc : renamed }, PORT.rename); started.push(rn);
         const rnRes = await GET(PORT.rename, '/wow/world');
         check('F4 SCHEMA RENAMED IN CONTRACT -> the header text follows it (nothing hardcodes the name)',
-            rnRes.status === 200 && V(rnRes) === 'pass:OSLWorldResponseRenamedByWO129',
+            rnRes.status === 200 && V(rnRes) === 'pass:OSLWorldResponseRenamedForProof',
             'hdr=' + V(rnRes));
 
         // =================================================================

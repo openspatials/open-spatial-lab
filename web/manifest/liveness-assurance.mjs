@@ -28,7 +28,7 @@
 //   facetStatuses[]: { ..., status: "assuranceInsufficient",
 //                      assuranceStatus?: { assertedClass, met } }
 // via createReceipt → mergeFragment → finalizeReceipt. The receipt shape is NOT
-// forked here; buildWo135Fragment is the composition surface
+// forked here; buildLivenessAssuranceFragment is the composition surface
 // (recommended merge order: tier(133) → assurance(135) → sealed(132) →
 // consent(122) → projection(123) — result artifact).
 //
@@ -85,7 +85,7 @@
 // FILE DISCIPLINE: NEW, specific module. Imports the receipt hub
 // (canonical container — the task dependency) and the signing library
 // (read-only reuse, same as). Imported by nothing yet. Registration into
-// a composed v0.4 runner is via registerWo135() — one wiring line, applied by
+// a composed v0.4 runner is via registerLivenessAssurance() — one wiring line, applied by
 // the integration step, not by this module. The v0.1 gate
 // (web/conformance/run-um-conformance.mjs) is NOT touched.
 
@@ -239,7 +239,7 @@ export function validateRequiredAssuranceClassShape(v) {
  * (when present) + every facet's requiredLiveness / requiredAssuranceClass
  * (when present). Returns { valid, errors }.
  */
-export function validateWo135Structural(manifest) {
+export function validateLivenessAssuranceStructural(manifest) {
   const errors = [];
   if (!isPlainObject(manifest)) return { valid: false, errors: ["manifest must be an object"] };
   if (manifest.livenessAttestation !== undefined) {
@@ -288,10 +288,10 @@ function envelopeErrors(manifest) {
  * shapes, signature LAST (shape defects report their own reason, not a
  * crypto one — mirrors the sibling structural verdicts).
  */
-export async function structuralVerdictWo135(manifest) {
+export async function structuralVerdictLivenessAssurance(manifest) {
   const reasons = [];
   reasons.push(...envelopeErrors(manifest));
-  if (reasons.length === 0) reasons.push(...validateWo135Structural(manifest).errors);
+  if (reasons.length === 0) reasons.push(...validateLivenessAssuranceStructural(manifest).errors);
   let sigReport = null;
   if (reasons.length === 0) {
     sigReport = await verifyManifestProfileA(manifest);
@@ -666,7 +666,7 @@ export async function evaluateFacetFloors(manifest, context = {}) {
  * statuses (+ off-wire floorViolations diagnostics). Floor-met facets get NO
  * entry — release is the consent/projection engines' call.
  */
-export async function buildWo135Fragment(manifest, context = {}) {
+export async function buildLivenessAssuranceFragment(manifest, context = {}) {
   return (await evaluateFacetFloors(manifest, context)).fragment;
 }
 
@@ -685,9 +685,9 @@ export async function buildWo135Fragment(manifest, context = {}) {
  * Returns { result: "accept"|"reject", receipt }. Facets that pass every gate
  * this slice can check are recorded "processed" ONLY in this STANDALONE mode
  * (consent precheck passed + floors met); composition use
- * buildWo135Fragment instead and leave release to the owning engines.
+ * buildLivenessAssuranceFragment instead and leave release to the owning engines.
  */
-export async function evaluateWo135(manifest, context = {}) {
+export async function evaluateLivenessAssurance(manifest, context = {}) {
   const nowMs = isIsoDateTime(context.now) ? Date.parse(context.now) : Date.now();
   const manifestId = isPlainObject(manifest) && isNonEmptyString(manifest["@id"]) ? manifest["@id"] : "(unknown)";
   const receipt = createReceipt({ manifestId, evaluatorId: context.evaluatorId });
@@ -695,7 +695,7 @@ export async function evaluateWo135(manifest, context = {}) {
 
   // --- Arrive/Verify: envelope + shapes ------------------------------
   const envErrors = envelopeErrors(manifest);
-  const shapeErrors = envErrors.length === 0 ? validateWo135Structural(manifest).errors : [];
+  const shapeErrors = envErrors.length === 0 ? validateLivenessAssuranceStructural(manifest).errors : [];
   if (envErrors.length > 0 || shapeErrors.length > 0) {
     mergeFragment(receipt, {
       engine: "runtime-liveness-assurance",
@@ -859,7 +859,7 @@ export async function demoLockedFacetScenario({ demoUnlock = false, now } = {}) 
   const manifest = await attachSignatureProfileA(draft, subjectKeys.seed);
 
   // LOCKED pass — presented class defaults fail-closed to "software".
-  const locked = await evaluateWo135(manifest, {
+  const locked = await evaluateLivenessAssurance(manifest, {
     now: nowIso,
     presentedAssuranceClass: "software",
     demoAttesterPublicKey: attesterKeys.rawPublicKey,
@@ -879,7 +879,7 @@ export async function demoLockedFacetScenario({ demoUnlock = false, now } = {}) 
   };
 
   if (demoUnlock) {
-    const unlocked = await evaluateWo135(manifest, {
+    const unlocked = await evaluateLivenessAssurance(manifest, {
       now: nowIso,
       presentedAssuranceClass: "hardware-bound", // SIMULATED demo toggle — labeled, never a provenance claim
       demoAttesterPublicKey: attesterKeys.rawPublicKey,
@@ -915,18 +915,18 @@ export const feature_FIXTURE_FILENAMES = Object.freeze([
 
 /**
  * Evaluate ONE fixture against its expected.json entry contract:
- *   entry.validationMode "evaluation" ⇒ evaluateWo135 under entry.evaluationContext
- *   otherwise                         ⇒ structuralVerdictWo135 (clock-independent)
+ *   entry.validationMode "evaluation" ⇒ evaluateLivenessAssurance under entry.evaluationContext
+ *   otherwise                         ⇒ structuralVerdictLivenessAssurance (clock-independent)
  * Returns { result: "accept"|"reject", reason, receipt? } — the adapter shape
  * the runner pattern uses, so a composed v0.4 runner can dispatch
  * fixtures to this handler with no impedance mismatch.
  */
 export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
   if (expectedEntry.validationMode === "evaluation") {
-    const { result, receipt } = await evaluateWo135(fixtureJson, expectedEntry.evaluationContext || {});
+    const { result, receipt } = await evaluateLivenessAssurance(fixtureJson, expectedEntry.evaluationContext || {});
     return { result, reason: receipt.warnings?.[0]?.message || receipt.outcome, receipt };
   }
-  const verdict = await structuralVerdictWo135(fixtureJson);
+  const verdict = await structuralVerdictLivenessAssurance(fixtureJson);
   return { result: verdict.result, reason: verdict.reasons.join("; ") || "structural contract satisfied" };
 }
 
@@ -934,12 +934,12 @@ export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
  * Registration hook for a composed v0.4 conformance runner. Contract:
  *   registry.register(filename, asyncHandler(fixtureJson, expectedEntry))
  * The orchestrator wires it with exactly:
- *   import { registerWo135 } from "../manifest/liveness-assurance.mjs";
- *   registerWo135(registry);
+ *   import { registerLivenessAssurance } from "../manifest/liveness-assurance.mjs";
+ *   registerLivenessAssurance(registry);
  */
-export function registerWo135(registry) {
+export function registerLivenessAssurance(registry) {
   if (!registry || typeof registry.register !== "function") {
-    throw new Error("registerWo135: registry with a register(filename, handler) function required");
+    throw new Error("registerLivenessAssurance: registry with a register(filename, handler) function required");
   }
   for (const filename of feature_FIXTURE_FILENAMES) {
     registry.register(filename, featureFixtureHandler);

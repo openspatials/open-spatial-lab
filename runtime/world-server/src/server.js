@@ -356,15 +356,45 @@ function createServer(role, extraOpts)
         return true;
     }
 
+    // Reads a JSON request body and settles exactly once: an empty body is {}, invalid JSON
+    // or a broken stream is an error, and a body over MAX_BODY_BYTES is an error with status
+    // 413. The rest of an oversized body is discarded, not buffered; the 413 answer closes
+    // the connection (sendBodyError).
+    const MAX_BODY_BYTES = 1e6;
     function readBody(req, cb)
     {
         let data = '';
-        req.on('data', chunk => { data += chunk; if (data.length > 1e6) req.destroy(); });
-        req.on('end', () => {
-            if (!data) return cb(null, {});
-            try { cb(null, JSON.parse(data)); }
-            catch (err) { cb(err, null); }
+        let settled = false;
+        const finish = (err, value) => {
+            if (settled) return;
+            settled = true;
+            cb(err, value);
+        };
+        req.on('data', chunk => {
+            if (settled) return;
+            data += chunk;
+            if (data.length > MAX_BODY_BYTES)
+            {
+                data = '';
+                finish(Object.assign(new Error('payload_too_large'), { status : 413 }), null);
+            }
         });
+        req.on('end', () => {
+            if (!data) return finish(null, {});
+            try { finish(null, JSON.parse(data)); }
+            catch (err) { finish(err, null); }
+        });
+        req.on('error', err => finish(err, null));
+    }
+
+    function sendBodyError(res, err)
+    {
+        if (err && err.status === 413)
+        {
+            res.setHeader('Connection', 'close');
+            return sendJson(res, 413, { ok : false, error : 'payload_too_large', limit_bytes : MAX_BODY_BYTES });
+        }
+        return sendJson(res, 400, { ok : false, error : 'bad_json' });
     }
 
     const server = http.createServer((req, res) => {
@@ -434,6 +464,19 @@ function createServer(role, extraOpts)
                     return sendJson(res, 200, proj);
                 });
             return;
+        }
+
+        // DELETE /wow/user/{userId}: the spec's other user operation. runtime.deleteWowUser()
+        // answers 400 for this location's own hosted identity and 404 for an unknown user; a
+        // live presence user departs through the normal presence path.
+        if (method === 'DELETE' && path.startsWith('/wow/user/'))
+        {
+            let userId;
+            try { userId = decodeURIComponent(path.slice('/wow/user/'.length)); }
+            catch (e) { return sendJson(res, 400, { ok : false, error : 'invalid_user_value' }); }
+            const r = runtime.deleteWowUser(userId);
+            if (!r.ok) return sendJson(res, r.status, { ok : false, error : r.error, userId, reason : r.reason });
+            return sendJson(res, 200, r.value);
         }
 
         // WoW `View` resource: the PlayerView camera seat.
@@ -524,77 +567,87 @@ function createServer(role, extraOpts)
             if (method === 'POST')
             {
                 return readBody(req, (err, body) => {
-                    if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
-                    if (!Array.isArray(body))
-                        return sendJson(res, 400, { ok : false, error : 'expected_node_array' });
-                    // which schema the BODY is measured against is the
-                    // CONTRACT's requestBody for this operation — or, on the opt-in
-                    // the contract itself declares as a header parameter, the
-                    // CANONICAL Node[]. Neither schema name is written here any more.
-                    const vr = wowRequestVerdict(res, method, path, body,
-                        { nodeForm : wantsCanonicalIn ? 'canonical' : null });
-                    if (vr && !vr.valid)
-                    {
-                        // preserved under always-on validation: when the ajv
-                        // rejection is caused by the DECLARED embedded-children
-                        // divergence, answer with that named refusal + its
-                        // machine-readable remedies, not a bare schema error. The
-                        // classifier is pure and stores nothing.
-                        const structural = inspectIncomingForest(body,
-                            { flattenEmbedded : wantsCanonicalIn, basePath : '$' });
-                        if (structural)
-                            return sendJson(res, structural.status, Object.assign(
-                                { ok : false, error : structural.error, spatialID, nodeId },
-                                structural.detail || {}));
-                        return sendJson(res, 422, { ok : false, error : 'node_validation_failed', details : vr.errorsText });
-                    }
-                    const r = runtime.createSpatialNodes(spatialID, nodeId, body,
-                        { flattenEmbedded : wantsCanonicalIn });
-                    if (!r.ok)
-                        return sendJson(res, r.status, Object.assign(
-                            { ok : false, error : r.error, spatialID, nodeId }, r.detail || {}));
-                    // Tell the caller, on the wire, EXACTLY what happened to its body:
-                    // how many nodes we stored vs how many it sent, and whether we had
-                    // to flatten an embedded subtree to do it.
+                    if (err) return sendBodyError(res, err);
                     try {
-                        res.setHeader('X-OSL-WoW-Node-Form', r.flattened ? 'flattened-from-canonical' : 'osl-flat');
-                        res.setHeader('X-OSL-WoW-Nodes-Stored', String(r.stored) + '/' + String(r.requested));
-                        if (r.flattened) res.setHeader('X-OSL-WoW-Children-Flattened', String(r.flattened));
-                    } catch (e) {}
-                    return sendJson(res, 200, r.value);
+                        if (!Array.isArray(body))
+                            return sendJson(res, 400, { ok : false, error : 'expected_node_array' });
+                        // which schema the BODY is measured against is the
+                        // CONTRACT's requestBody for this operation — or, on the opt-in
+                        // the contract itself declares as a header parameter, the
+                        // CANONICAL Node[]. Neither schema name is written here any more.
+                        const vr = wowRequestVerdict(res, method, path, body,
+                            { nodeForm : wantsCanonicalIn ? 'canonical' : null });
+                        if (vr && !vr.valid)
+                        {
+                            // preserved under always-on validation: when the ajv
+                            // rejection is caused by the DECLARED embedded-children
+                            // divergence, answer with that named refusal + its
+                            // machine-readable remedies, not a bare schema error. The
+                            // classifier is pure and stores nothing.
+                            const structural = inspectIncomingForest(body,
+                                { flattenEmbedded : wantsCanonicalIn, basePath : '$' });
+                            if (structural)
+                                return sendJson(res, structural.status, Object.assign(
+                                    { ok : false, error : structural.error, spatialID, nodeId },
+                                    structural.detail || {}));
+                            return sendJson(res, 422, { ok : false, error : 'node_validation_failed', details : vr.errorsText });
+                        }
+                        const r = runtime.createSpatialNodes(spatialID, nodeId, body,
+                            { flattenEmbedded : wantsCanonicalIn });
+                        if (!r.ok)
+                            return sendJson(res, r.status, Object.assign(
+                                { ok : false, error : r.error, spatialID, nodeId }, r.detail || {}));
+                        // Tell the caller, on the wire, EXACTLY what happened to its body:
+                        // how many nodes we stored vs how many it sent, and whether we had
+                        // to flatten an embedded subtree to do it.
+                        try {
+                            res.setHeader('X-OSL-WoW-Node-Form', r.flattened ? 'flattened-from-canonical' : 'osl-flat');
+                            res.setHeader('X-OSL-WoW-Nodes-Stored', String(r.stored) + '/' + String(r.requested));
+                            if (r.flattened) res.setHeader('X-OSL-WoW-Children-Flattened', String(r.flattened));
+                        } catch (e) {}
+                        return sendJson(res, 200, r.value);
+                    } catch (e) {
+                        if (res.headersSent) return res.destroy();
+                        return sendJson(res, 400, { ok : false, error : 'node_create_rejected', message : e.message });
+                    }
                 });
             }
 
             if (method === 'PUT')
             {
                 return readBody(req, (err, body) => {
-                    if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
-                    if (!body || typeof body !== 'object' || Array.isArray(body))
-                        return sendJson(res, 400, { ok : false, error : 'expected_node_object' });
-                    // OSLFlatNode: the LABELED flat shape this server accepts.
-                    // NOTE: PUT has NO canonical opt-in — a PUT never restructures the
-                    // graph, so there is no honest way to flatten an embedded subtree
-                    // into it without guessing "replace" vs "append".
-                    const vr = wowRequestVerdict(res, method, path, body, null);
-                    if (vr && !vr.valid)
-                    {
-                        // preserved (see POST above). `allowIdRefs` because a
-                        // PUT MAY carry integer child id-refs — restructuring them is
-                        // the store's 422 (child_restructure_not_supported), not a
-                        // schema error.
-                        const structural = inspectIncomingForest([ body ],
-                            { flattenEmbedded : false, allowIdRefs : true, basePath : '$' });
-                        if (structural)
-                            return sendJson(res, structural.status, Object.assign(
-                                { ok : false, error : structural.error, spatialID, nodeId },
-                                structural.detail || {}));
-                        return sendJson(res, 422, { ok : false, error : 'node_validation_failed', details : vr.errorsText });
+                    if (err) return sendBodyError(res, err);
+                    try {
+                        if (!body || typeof body !== 'object' || Array.isArray(body))
+                            return sendJson(res, 400, { ok : false, error : 'expected_node_object' });
+                        // OSLFlatNode: the LABELED flat shape this server accepts.
+                        // NOTE: PUT has NO canonical opt-in — a PUT never restructures the
+                        // graph, so there is no honest way to flatten an embedded subtree
+                        // into it without guessing "replace" vs "append".
+                        const vr = wowRequestVerdict(res, method, path, body, null);
+                        if (vr && !vr.valid)
+                        {
+                            // preserved (see POST above). `allowIdRefs` because a
+                            // PUT MAY carry integer child id-refs — restructuring them is
+                            // the store's 422 (child_restructure_not_supported), not a
+                            // schema error.
+                            const structural = inspectIncomingForest([ body ],
+                                { flattenEmbedded : false, allowIdRefs : true, basePath : '$' });
+                            if (structural)
+                                return sendJson(res, structural.status, Object.assign(
+                                    { ok : false, error : structural.error, spatialID, nodeId },
+                                    structural.detail || {}));
+                            return sendJson(res, 422, { ok : false, error : 'node_validation_failed', details : vr.errorsText });
+                        }
+                        const r = runtime.updateSpatialNode(spatialID, nodeId, body);
+                        if (!r.ok)
+                            return sendJson(res, r.status, Object.assign(
+                                { ok : false, error : r.error, spatialID, nodeId }, r.detail || {}));
+                        return sendJson(res, 200, r.value);
+                    } catch (e) {
+                        if (res.headersSent) return res.destroy();
+                        return sendJson(res, 400, { ok : false, error : 'node_update_rejected', message : e.message });
                     }
-                    const r = runtime.updateSpatialNode(spatialID, nodeId, body);
-                    if (!r.ok)
-                        return sendJson(res, r.status, Object.assign(
-                            { ok : false, error : r.error, spatialID, nodeId }, r.detail || {}));
-                    return sendJson(res, 200, r.value);
                 });
             }
 
@@ -709,7 +762,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && path === '/demo/scene-objects/move')
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 try {
                     const obj = runtime.moveSceneObject(body && body.object_id, body && body.position);
                     return sendJson(res, 200, { ok : true, demo_extension : true, object : obj });
@@ -722,7 +775,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && path === '/demo/portal/move')
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 try {
                     const portal = runtime.movePortal(body && body.position);
                     return sendJson(res, 200, { ok : true, demo_extension : true, portal });
@@ -742,7 +795,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && path === '/demo/republish-rate')
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 try {
                     const out = runtime.setRepublishRate(body && body.republish_rate_ms);
                     return sendJson(res, 200, out);
@@ -761,7 +814,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && path === '/fabric/presence/register')
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 try {
                     return sendJson(res, 201, runtime.registerPresence(body || {}));
                 } catch (e) {
@@ -773,7 +826,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && path === '/fabric/presence/heartbeat')
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 try {
                     return sendJson(res, 200, runtime.heartbeatPresence(body || {}));
                 } catch (e) {
@@ -785,7 +838,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && path === '/fabric/presence/depart')
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 try {
                     return sendJson(res, 200, runtime.departPresence(body || {}));
                 } catch (e) {
@@ -797,7 +850,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && (path === '/portal/exit-intent' || path === '/wow/portal/exit'))
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 try {
                     const portalId = (body && body.portal_id) || (runtime.getState().portals[0] || {}).portal_id;
                     // the crossing player's presence id rides the
@@ -817,7 +870,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && (path === '/portal/arrival' || path === '/wow/portal/arrival'))
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 try {
                     const out = runtime.recordPortalArrival(body || {});
                     return sendJson(res, 201, { ok : true, applied : true, state : out });
@@ -830,7 +883,7 @@ function createServer(role, extraOpts)
         if (method === 'POST' && path === '/movement')
         {
             return readBody(req, (err, body) => {
-                if (err) return sendJson(res, 400, { ok : false, error : 'bad_json' });
+                if (err) return sendBodyError(res, err);
                 const out = runtime.applyMovement(body || {});
                 return sendJson(res, 200, { ok : true, avatar : out.avatar });
             });

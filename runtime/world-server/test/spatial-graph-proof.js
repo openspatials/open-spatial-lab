@@ -40,8 +40,8 @@ const os = require('os');
 const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const PORT_A = Number(process.env.OSL_WO014_PORT_A || 18981);
-const PORT_B = Number(process.env.OSL_WO014_PORT_B || 18982);
+const PORT_A = Number(process.env.OSL_SPATIAL_GRAPH_PORT_A || 18981);
+const PORT_B = Number(process.env.OSL_SPATIAL_GRAPH_PORT_B || 18982);
 const HOST = '127.0.0.1';
 
 // Exercise the ACTUAL wired validation path (additive; body never altered).

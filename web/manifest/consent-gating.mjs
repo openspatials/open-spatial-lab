@@ -63,7 +63,7 @@
 // FILE DISCIPLINE: this is a NEW, specific module. It imports only the
 // signing library (read-only reuse for the Verify precondition) and is
 // imported by nothing yet. Registration into the shared v0.4 conformance runner
-// is via registerWo122() (see the hook at the bottom) — one wiring block, applied
+// is via registerConsentGating() (see the hook at the bottom) — one wiring block, applied
 // by the integration step, not by this module. The shared v0.1-baseline runner
 // (web/conformance/run-um-conformance.mjs) is untouched.
 
@@ -663,13 +663,13 @@ export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
  * Registration hook for the shared v0.4 conformance runner. Contract:
  *   registry.register(filename, asyncHandler(fixtureJson, expectedEntry))
  * The integrator wires it with exactly (mirroring the block):
- *   import { registerWo122 } from "../manifest/consent-gating.mjs";
+ *   import { registerConsentGating } from "../manifest/consent-gating.mjs";
  *   const featureHandlers = new Map();
- *   const featureCount = registerWo122({ register: (f, h) => featureHandlers.set(f, h) });
+ *   const featureCount = registerConsentGating({ register: (f, h) => featureHandlers.set(f, h) });
  */
-export function registerWo122(registry) {
+export function registerConsentGating(registry) {
   if (!registry || typeof registry.register !== "function") {
-    throw new Error("registerWo122: registry with a register(filename, handler) function required");
+    throw new Error("registerConsentGating: registry with a register(filename, handler) function required");
   }
   for (const filename of feature_FIXTURE_FILENAMES) {
     registry.register(filename, featureFixtureHandler);

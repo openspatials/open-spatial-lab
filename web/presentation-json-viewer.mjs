@@ -58,7 +58,7 @@ function redactString(value) {
 }
 
 function shouldRedactKey(key, value, context) {
-  if (key.startsWith("__") && key !== "__wo116_signature_verified") return true;
+  if (key.startsWith("__") && key !== "__signature_verified") return true;
   if (SECRET_KEY_PATTERN.test(key) || PRIVATE_ID_KEY_PATTERN.test(key) || PERSONAL_KEY_PATTERN.test(key)) return true;
   if (DID_KEY_PATTERN.test(key) || TIMESTAMP_KEY_PATTERN.test(key)) return true;
   if (INTERNAL_PORT_KEY_PATTERN.test(key)) return true;

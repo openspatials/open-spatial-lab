@@ -69,7 +69,7 @@
 //
 // FILE DISCIPLINE: this is a NEW, specific module. It imports only the
 // signing library (read-only reuse) and is imported by nothing yet.
-// Registration into the shared v0.4 conformance runner is via registerWo132()
+// Registration into the shared v0.4 conformance runner is via registerJweSealedFacets()
 // (see the hook section at the bottom) — one wiring block, applied by the
 // integration step, not by this module. Browser + Node (>= 18.4),
 // WebCrypto only, zero dependencies.
@@ -638,7 +638,7 @@ export async function evaluateSealedFacets(manifest, keyring = []) {
  * LAST, so shape defects report their own reason.
  * Returns { result: "accept"|"reject", reasons: string[], checks: {...} }.
  */
-export async function structuralVerdictWo132(manifest, opts = {}) {
+export async function structuralVerdictJweSealedFacets(manifest, opts = {}) {
   const reasons = [];
   reasons.push(...envelopeErrors(manifest));
   const sealed = validateSealedFacetsStructural(manifest);
@@ -678,7 +678,7 @@ export async function structuralVerdictWo132(manifest, opts = {}) {
  * context: { now, decryptionKeys?: [{kid, privateKey}], omitProcessedAt? }
  * Returns { result: "accept"|"reject", receipt, decrypted: Map }.
  */
-export async function evaluateWo132(manifest, context = {}) {
+export async function evaluateJweSealedFacets(manifest, context = {}) {
   const nowMs = isIsoDateTime(context.now) ? Date.parse(context.now) : Date.now();
   const manifestId =
     manifest && typeof manifest === "object" && isNonEmptyString(manifest["@id"]) ? manifest["@id"] : "(unknown)";
@@ -830,7 +830,7 @@ export async function buildSealedCrossingFacets(opts = {}) {
 /**
  * The P6 receipt rows, exactly as the portaling page's receipt table shows
  * them: `facet / government ID → sealed entry / opaque`. Derived from REAL
- * facetStatuses (evaluateSealedFacets/evaluateWo132 output), never invented:
+ * facetStatuses (evaluateSealedFacets/evaluateJweSealedFacets output), never invented:
  * only facets whose status is "opaque" render as sealed entries.
  */
 export function p6ReceiptRows(facetStatuses) {
@@ -898,35 +898,35 @@ export const feature_FIXTURE_FILENAMES = Object.freeze([
 
 /**
  * Evaluate ONE fixture against its expected.json entry contract:
- *   entry.validationMode "evaluation" ⇒ evaluateWo132 under entry.evaluationContext
- *   otherwise                         ⇒ structuralVerdictWo132 (clock-independent)
+ *   entry.validationMode "evaluation" ⇒ evaluateJweSealedFacets under entry.evaluationContext
+ *   otherwise                         ⇒ structuralVerdictJweSealedFacets (clock-independent)
  * Returns { result: "accept"|"reject", reason, receipt? } — the adapter shape
  * the runner pattern uses, mirroring featureFixtureHandler exactly.
  */
 export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
   if (expectedEntry.validationMode === "evaluation") {
-    const { result, receipt } = await evaluateWo132(fixtureJson, expectedEntry.evaluationContext || {});
+    const { result, receipt } = await evaluateJweSealedFacets(fixtureJson, expectedEntry.evaluationContext || {});
     return {
       result,
       reason: receipt.warnings?.[0]?.message || receipt.outcome,
       receipt,
     };
   }
-  const verdict = await structuralVerdictWo132(fixtureJson);
+  const verdict = await structuralVerdictJweSealedFacets(fixtureJson);
   return { result: verdict.result, reason: verdict.reasons.join("; ") || "structural contract satisfied" };
 }
 
 /**
  * Registration hook for the shared v0.4 conformance runner. Contract
- * (identical to registerWo134):
+ * (identical to registerHolderBinding):
  *   registry.register(filename, asyncHandler(fixtureJson, expectedEntry))
  * The integrator wires it with exactly:
- *   import { registerWo132 } from "../manifest/jwe-sealed-facets.mjs";
- *   registerWo132(registry);
+ *   import { registerJweSealedFacets } from "../manifest/jwe-sealed-facets.mjs";
+ *   registerJweSealedFacets(registry);
  */
-export function registerWo132(registry) {
+export function registerJweSealedFacets(registry) {
   if (!registry || typeof registry.register !== "function") {
-    throw new Error("registerWo132: registry with a register(filename, handler) function required");
+    throw new Error("registerJweSealedFacets: registry with a register(filename, handler) function required");
   }
   for (const filename of feature_FIXTURE_FILENAMES) {
     registry.register(filename, featureFixtureHandler);

@@ -48,10 +48,10 @@ const { start } = require('../src/server');
 const { NODES, makeConfig, portalEdgeId, validateSharedEdgeTopology } = require('../src/config');
 const { get, post } = require('../src/http-client');
 
-const PORT_A = Number(process.env.OSL_WO289_PORT_A) || 19291;
-const PORT_B = Number(process.env.OSL_WO289_PORT_B) || 19292;
-const PORT_LOBBY = Number(process.env.OSL_WO289_PORT_LOBBY) || 19293;
-const PORT_AIRPORT = Number(process.env.OSL_WO289_PORT_AIRPORT) || 19294;
+const PORT_A = Number(process.env.OSL_SHARED_EDGE_PORT_A) || 19291;
+const PORT_B = Number(process.env.OSL_SHARED_EDGE_PORT_B) || 19292;
+const PORT_LOBBY = Number(process.env.OSL_SHARED_EDGE_PORT_LOBBY) || 19293;
+const PORT_AIRPORT = Number(process.env.OSL_SHARED_EDGE_PORT_AIRPORT) || 19294;
 const FORBIDDEN = new Set([ 8143, 18151, 18152, 18153, 18154 ]);
 for (const p of [ PORT_A, PORT_B, PORT_LOBBY, PORT_AIRPORT ])
 {

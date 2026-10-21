@@ -977,9 +977,9 @@ function createRuntime(opts)
      * migrated OFF the raw `webofworlds_extension` bag, plus the flat forward-looking
      * spatial-fabric address. The composition-graph reference (the resolvable
      * destination — the target world's canonical /wow/spatial graph) rides in
-     * `webofworlds_extension` (see wowPortalExtension). Proposed upstream (
-     * §2.B upstream note); until accepted it is an `x-osl-extension`, surfaced by
-     *and `standards_conformance` stays false.
+     * `webofworlds_extension` (see wowPortalExtension). Proposed upstream
+     * (§2.B upstream note); until accepted it is an `x-osl-extension`, surfaced by
+     * the conformance runner, and `standards_conformance` stays false.
      */
     function portalDestination(portal)
     {
@@ -2279,8 +2279,8 @@ function createRuntime(opts)
     }
 
     /**
-     * GET /wow/user/{userId} — WoW OpenAPI `User` schema shape
-     *numeric `id`, `name`, string `AvatarURI`, geoPose
+     * GET /wow/user/{userId} — WoW OpenAPI `User` schema shape:
+     * numeric `id`, `name`, string `AvatarURI`, geoPose
      * { position: { lat, lan, h }, angles: { yaw, pitch, roll } }.
      * The spec's userId is an integer (our one local user is id 1); the demo
      * aliases 'me', avatar_id and continuity_id keep resolving to the same
@@ -2420,8 +2420,34 @@ function createRuntime(opts)
     }
 
     /**
-     * GET /wow/view/{viewId} — WoW OpenAPI `View` schema shape
-     *the PlayerView camera as a WoW "view".
+     * DELETE /wow/user/{userId} — the OpenSpatialWorld spec answers 200 "User deleted" or
+     * 400 "Invalid user value"; this server adds 404 for an unknown id, as deleteNode() does.
+     * There is no user database here: a userId resolves either to this location's own hosted
+     * identity (the getWowUser aliases) or to a live presence-registry entry. Deleting the
+     * hosted identity has no safe meaning for a stateless HTTP DELETE, so it is the spec's 400.
+     * A live presence user is removed through departPresence(), the same path a player's own
+     * departure takes.
+     */
+    function deleteWowUser(userId)
+    {
+        const a = state.avatar;
+        const localAliases = [ String(WOW_LOCAL_USER_ID), a.avatar_id, a.continuity_id, 'me' ]
+            .filter((alias, index, all) => all.indexOf(alias) === index);
+        const key = String(userId == null ? '' : userId);
+        if (!key || localAliases.indexOf(key) !== -1)
+            return { ok : false, status : 400, error : 'invalid_user_value',
+                reason : 'cannot_delete_local_hosted_identity', userId };
+        const entry = livePresenceEntries(Date.now())
+            .find(e => String(e.wow_user_id) === key || e.player_id === key);
+        if (!entry)
+            return { ok : false, status : 404, error : 'user_not_found', userId };
+        const departed = departPresence({ player_id : entry.player_id, reason : 'deleted via DELETE /wow/user/' + key });
+        return { ok : true, status : 200, value : { ok : true, deleted : true, userId, ...departed } };
+    }
+
+    /**
+     * GET /wow/view/{viewId} — WoW OpenAPI `View` schema shape:
+     * the PlayerView camera as a WoW "view".
      * View 1 is the PlayerView's over-shoulder camera seat, projected
      * server-side from the live presence pose through the SAME rig constants
      * the PlayerView uses client-side (WOW_VIEW_CAMERA_RIG mirrors prototype
@@ -3622,6 +3648,8 @@ function createRuntime(opts)
         getWowPortal, getWowPortalResource, getWowUser, getWowView,
         // the signed OpenUserManifest identity (async).
         getWowUserSigned,
+        // DELETE /wow/user/{userId}.
+        deleteWowUser,
         getWowProofBoundary,
         // the documented local-tangent geoPose projection,
         // exposed so the OpenSpatialAsset surface can carry a REAL asset geoPose

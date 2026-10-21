@@ -312,9 +312,9 @@ function envelopeErrors(manifest) {
  * a clock-independent semantic check folded here exactly as folds its VP
  * size limit) → Profile A signature. Returns { result, reasons, checks }.
  * NOTE: expiry is deliberately NOT checked here (it is clock-DEPENDENT and lives
- * in evaluateWo139) — this verdict backs fixtures with no pinned evaluationContext.
+ * in evaluateDelegationRegistry) — this verdict backs fixtures with no pinned evaluationContext.
  */
-export async function structuralVerdictWo139(manifest) {
+export async function structuralVerdictDelegationRegistry(manifest) {
   const reasons = [];
   reasons.push(...envelopeErrors(manifest));
 
@@ -355,7 +355,7 @@ export async function structuralVerdictWo139(manifest) {
  * Returns { result, receipt } where receipt carries { outcome, warnings[],
  * delegations[] } — outcome ∈ accepted | accepted-with-warnings | rejected.
  */
-export async function evaluateWo139(manifest, context = {}) {
+export async function evaluateDelegationRegistry(manifest, context = {}) {
   const nowMs = isIsoDateTime(context.now) ? Date.parse(context.now) : Date.now();
   const manifestId = manifest && typeof manifest === "object" && isNonEmptyString(manifest["@id"]) ? manifest["@id"] : "(unknown)";
   const warnings = [];
@@ -472,14 +472,14 @@ export function emitAgentDelegationPointer({
  */
 export async function buildDelegationDemoSurface({ manifest, now, ai_agentLabel = "ai_agent" } = {}) {
   const nowIso = isIsoDateTime(now) ? now : new Date().toISOString();
-  const live = await evaluateWo139(manifest, { now: nowIso });
+  const live = await evaluateDelegationRegistry(manifest, { now: nowIso });
 
   // Expired toggle: re-evaluate the SAME manifest at a clock AFTER every
   // delegation's expiresAt — the honest reject path the demo shows on demand.
   const pointers = getAgentDelegationPointers(manifest);
   const latestExpiry = pointers.reduce((m, p) => Math.max(m, Date.parse(p.expiresAt) || 0), 0);
   const afterExpiry = new Date(latestExpiry + 1000).toISOString();
-  const expired = await evaluateWo139(manifest, { now: afterExpiry });
+  const expired = await evaluateDelegationRegistry(manifest, { now: afterExpiry });
 
   return {
     label: ai_agentLabel,
@@ -499,7 +499,7 @@ export async function buildDelegationDemoSurface({ manifest, now, ai_agentLabel 
 }
 
 // ===========================================================================
-// 7) CONFORMANCE-RUNNER REGISTRATION HOOK — mirrors registerWo134. The shared
+// 7) CONFORMANCE-RUNNER REGISTRATION HOOK — mirrors registerHolderBinding. The shared
 //    v0.4 runner wires this with ONE line (applied at integration, NOT here).
 // ===========================================================================
 
@@ -513,22 +513,22 @@ export const feature_FIXTURE_FILENAMES = Object.freeze([
 
 /**
  * Evaluate ONE fixture against its expected.json entry contract:
- *   entry.validationMode "evaluation" ⇒ evaluateWo139 under entry.evaluationContext
- *   otherwise                         ⇒ structuralVerdictWo139 (clock-independent)
+ *   entry.validationMode "evaluation" ⇒ evaluateDelegationRegistry under entry.evaluationContext
+ *   otherwise                         ⇒ structuralVerdictDelegationRegistry (clock-independent)
  * Returns { result: "accept"|"reject", reason, receipt? } — the same adapter
  * shape featureFixtureHandler returns, so the shared runner dispatches with no
  * impedance mismatch.
  */
 export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
   if (expectedEntry.validationMode === "evaluation") {
-    const { result, receipt } = await evaluateWo139(fixtureJson, expectedEntry.evaluationContext || {});
+    const { result, receipt } = await evaluateDelegationRegistry(fixtureJson, expectedEntry.evaluationContext || {});
     return {
       result,
       reason: receipt.warnings?.[0]?.message || receipt.outcome,
       receipt,
     };
   }
-  const verdict = await structuralVerdictWo139(fixtureJson);
+  const verdict = await structuralVerdictDelegationRegistry(fixtureJson);
   return { result: verdict.result, reason: verdict.reasons.join("; ") || "structural contract satisfied" };
 }
 
@@ -536,12 +536,12 @@ export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
  * Registration hook for the shared v0.4 conformance runner. Contract:
  *   registry.register(filename, asyncHandler(fixtureJson, expectedEntry))
  * The integrator wires it with exactly (mirrors the block):
- *   import { registerWo139 } from "../manifest/delegation-registry.mjs";
- *   registerWo139(registry);
+ *   import { registerDelegationRegistry } from "../manifest/delegation-registry.mjs";
+ *   registerDelegationRegistry(registry);
  */
-export function registerWo139(registry) {
+export function registerDelegationRegistry(registry) {
   if (!registry || typeof registry.register !== "function") {
-    throw new Error("registerWo139: registry with a register(filename, handler) function required");
+    throw new Error("registerDelegationRegistry: registry with a register(filename, handler) function required");
   }
   for (const filename of feature_FIXTURE_FILENAMES) {
     registry.register(filename, featureFixtureHandler);

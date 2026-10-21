@@ -1136,7 +1136,7 @@ export function createPanelTruthChromeController(options = {}) {
     }
     const facetNames = (manifest.facets || []).map((facet) => facet.name || facet["@type"]).join(", ") || "none";
     const pointerCount = (manifest.pointers || []).length;
-    const verified = manifest.__wo116_signature_verified ? "sig✓" : "sig?";
+    const verified = manifest.__signature_verified ? "sig✓" : "sig?";
     writeDebugText("std-um-manifest",
       `v0.4 emitted · ${verified} · facets ${facetNames} · ${pointerCount} pointers`
     );
@@ -1144,7 +1144,7 @@ export function createPanelTruthChromeController(options = {}) {
       label: "Universal Manifest · current panel manifest",
       path: "Universal Manifest live state",
       schema: "bounded local um:Manifest v0.4 projection",
-      status: manifest.__wo116_signature_verified ? "signature verified" : "signature pending",
+      status: manifest.__signature_verified ? "signature verified" : "signature pending",
       freshness: "Current accepted in-memory manifest already represented by this panel",
       state: "current",
       sourceKind: "manifest",
@@ -1205,7 +1205,7 @@ export function createPanelTruthChromeController(options = {}) {
     Promise.resolve(buildAndSignManifest(state))
       .then(async ({ manifest }) => {
         if (token !== lifecycleToken) return;
-        manifest.__wo116_signature_verified = typeof verifyManifestSignature === "function"
+        manifest.__signature_verified = typeof verifyManifestSignature === "function"
           ? await Promise.resolve(verifyManifestSignature(manifest)).catch(() => false)
           : false;
         if (token !== lifecycleToken) return;

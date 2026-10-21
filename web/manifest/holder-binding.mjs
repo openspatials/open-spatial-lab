@@ -53,7 +53,7 @@
 //
 // FILE DISCIPLINE: this is a NEW, specific module. It imports only the
 // signing library (read-only reuse) and is imported by nothing yet.
-// Registration into the shared v0.4 conformance runner is via registerWo134()
+// Registration into the shared v0.4 conformance runner is via registerHolderBinding()
 // (see the hook section at the bottom) — one wiring line, applied by the
 // integration step, not by this module.
 
@@ -311,7 +311,7 @@ export function checkClaimProofSizeLimits(manifest) {
  * Envelope members / signature / other subsystems belong to their own tasks; the
  * shared runner composes. Returns { valid, errors }.
  */
-export function validateWo134Structural(manifest) {
+export function validateHolderBindingStructural(manifest) {
   const errors = [];
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
     return { valid: false, errors: ["manifest must be an object"] };
@@ -958,10 +958,10 @@ function envelopeErrors(manifest) {
  * limits) → Profile A signature over the v0.4 signing input.
  * Returns { result: "accept"|"reject", reasons: string[] , checks: {...} }.
  */
-export async function structuralVerdictWo134(manifest) {
+export async function structuralVerdictHolderBinding(manifest) {
   const reasons = [];
   reasons.push(...envelopeErrors(manifest));
-  const runtime = validateWo134Structural(manifest);
+  const runtime = validateHolderBindingStructural(manifest);
   reasons.push(...runtime.errors);
   let sigReport = null;
   if (reasons.length === 0) {
@@ -985,7 +985,7 @@ export async function structuralVerdictWo134(manifest) {
  * asserts (outcome, signatureCheck, freshnessCheck, keyRefResolution,
  * presentationProofStatus?, holderBindingStatus?, claimStatuses?, warnings).
  */
-export async function evaluateWo134(manifest, context = {}) {
+export async function evaluateHolderBinding(manifest, context = {}) {
   const nowMs = isIsoDateTime(context.now) ? Date.parse(context.now) : Date.now();
   const manifestId = manifest && typeof manifest === "object" && isNonEmptyString(manifest["@id"]) ? manifest["@id"] : "(unknown)";
   const warnings = [];
@@ -1005,7 +1005,7 @@ export async function evaluateWo134(manifest, context = {}) {
 
   // --- Arrive/Verify: structure + shapes + signature -----------------
   const envErrors = envelopeErrors(manifest);
-  const shapeErrors = envErrors.length === 0 ? validateWo134Structural(manifest).errors : [];
+  const shapeErrors = envErrors.length === 0 ? validateHolderBindingStructural(manifest).errors : [];
   if (envErrors.length > 0 || shapeErrors.length > 0) {
     warnings.push({ code: "um:reason:structure:malformed", message: `Verify stage: ${[...envErrors, ...shapeErrors].join("; ")}` });
     return finish("rejected");
@@ -1098,12 +1098,12 @@ export async function demoPresentationExchange(signedManifest, privateKey, opts 
     verifierChallenge: challenge.verifierChallenge,
     verifierAudience: challenge.verifierAudience,
   };
-  const receiptVerified = (await evaluateWo134(presented, evalContext)).receipt;
+  const receiptVerified = (await evaluateHolderBinding(presented, evalContext)).receipt;
   // Replay toggle: the SAME presented manifest against a FRESH challenge — the
   // proof binds the old nonce, so the evaluator must reject (replay-suspect).
   const replayChallenge = issueVerifierChallenge({ audience: challenge.verifierAudience });
   const receiptReplay = (
-    await evaluateWo134(presented, { ...evalContext, verifierChallenge: replayChallenge.verifierChallenge })
+    await evaluateHolderBinding(presented, { ...evalContext, verifierChallenge: replayChallenge.verifierChallenge })
   ).receipt;
   return { challenge, presented, receiptVerified, receiptReplay };
 }
@@ -1131,22 +1131,22 @@ export const feature_FIXTURE_FILENAMES = Object.freeze([
 
 /**
  * Evaluate ONE fixture against its expected.json entry contract:
- *   entry.validationMode "evaluation" ⇒ evaluateWo134 under entry.evaluationContext
- *   otherwise                         ⇒ structuralVerdictWo134 (clock-independent)
+ *   entry.validationMode "evaluation" ⇒ evaluateHolderBinding under entry.evaluationContext
+ *   otherwise                         ⇒ structuralVerdictHolderBinding (clock-independent)
  * Returns { result: "accept"|"reject", reason, receipt? } — the adapter shape
  * the runner pattern uses (adapter.mjs), so the shared v0.4 runner can
  * dispatch fixtures to this handler with no impedance mismatch.
  */
 export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
   if (expectedEntry.validationMode === "evaluation") {
-    const { result, receipt } = await evaluateWo134(fixtureJson, expectedEntry.evaluationContext || {});
+    const { result, receipt } = await evaluateHolderBinding(fixtureJson, expectedEntry.evaluationContext || {});
     return {
       result,
       reason: receipt.warnings?.[0]?.message || receipt.outcome,
       receipt,
     };
   }
-  const verdict = await structuralVerdictWo134(fixtureJson);
+  const verdict = await structuralVerdictHolderBinding(fixtureJson);
   return { result: verdict.result, reason: verdict.reasons.join("; ") || "structural contract satisfied" };
 }
 
@@ -1154,12 +1154,12 @@ export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
  * Registration hook for the shared v0.4 conformance runner. Contract:
  *   registry.register(filename, asyncHandler(fixtureJson, expectedEntry))
  * The orchestrator wires it with exactly:
- *   import { registerWo134 } from "../manifest/holder-binding.mjs";
- *   registerWo134(registry);
+ *   import { registerHolderBinding } from "../manifest/holder-binding.mjs";
+ *   registerHolderBinding(registry);
  */
-export function registerWo134(registry) {
+export function registerHolderBinding(registry) {
   if (!registry || typeof registry.register !== "function") {
-    throw new Error("registerWo134: registry with a register(filename, handler) function required");
+    throw new Error("registerHolderBinding: registry with a register(filename, handler) function required");
   }
   for (const filename of feature_FIXTURE_FILENAMES) {
     registry.register(filename, featureFixtureHandler);

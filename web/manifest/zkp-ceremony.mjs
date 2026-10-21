@@ -443,7 +443,7 @@ export function validateCrossDidBindingClaimShape(claim) {
  * Envelope members / signature / other subsystems belong to their own tasks.
  * Returns { valid, errors, schemaDetectableErrors, evaluatorOnlyErrors, notes }.
  */
-export function validateWo136Structural(manifest) {
+export function validateZkpCeremonyStructural(manifest) {
   const schemaDetectableErrors = [];
   const evaluatorOnlyErrors = [];
   const notes = [];
@@ -588,7 +588,7 @@ export function evaluateProofDispositions(manifest, context = {}) {
     : DEFAULT_MAX_SUPPORTED_TRUST_TIER;
 
   // ---- structural gate (reference-assert parity: malformed ⇒ rejected) ------
-  const structural = validateWo136Structural(manifest);
+  const structural = validateZkpCeremonyStructural(manifest);
   if (!structural.valid) {
     return {
       engine: "runtime-zkp-ceremony",
@@ -824,7 +824,7 @@ export function buildCrossDidBindingClaim({
  * shape, every proof byte an OBVIOUS structural-only placeholder. Shapes mirror
  * the three valid conformance fixtures.
  */
-export function buildWo136SampleClaims({ subjectDid = "did:web:demo.local:user:alice" } = {}) {
+export function buildZkpCeremonySampleClaims({ subjectDid = "did:web:demo.local:user:alice" } = {}) {
   const zkLinkedSecret = buildCrossDidBindingClaim({
     id: "urn:um:claim:runtime-sample-zk-linked-secret",
     issuer: subjectDid,
@@ -887,7 +887,7 @@ export function buildProofShapesDemoSurface(options = {}) {
   const max = Number.isInteger(options.maxSupportedTrustTier)
     ? options.maxSupportedTrustTier
     : DEFAULT_MAX_SUPPORTED_TRUST_TIER;
-  const samples = buildWo136SampleClaims(options);
+  const samples = buildZkpCeremonySampleClaims(options);
   const rows = [];
   for (const [key, label, profile] of [
     ["zkLinkedSecret", "Tier-2 ZKP binding — BBS+ linked secret", "EXT-T2 §T2.1.1 (Profile 2A) — PREVIEW"],
@@ -987,10 +987,10 @@ function envelopeErrors(manifest) {
  * defects report their own reason before any crypto runs).
  * Returns { result: "accept"|"reject", reasons, notes, checks }.
  */
-export async function structuralVerdictWo136(manifest) {
+export async function structuralVerdictZkpCeremony(manifest) {
   const reasons = [];
   reasons.push(...envelopeErrors(manifest));
-  const runtime = manifest && typeof manifest === "object" ? validateWo136Structural(manifest) : { errors: [], notes: [] };
+  const runtime = manifest && typeof manifest === "object" ? validateZkpCeremonyStructural(manifest) : { errors: [], notes: [] };
   reasons.push(...runtime.errors);
   let sigReport = null;
   if (reasons.length === 0) {
@@ -1014,8 +1014,8 @@ export async function structuralVerdictWo136(manifest) {
  * Scope-labeled: this is the slice, not a whole-schema sweep (the
  * envelope members of these five fixtures are schema-clean by construction).
  */
-export function schemaVerdictWo136(manifest) {
-  const r = validateWo136Structural(manifest);
+export function schemaVerdictZkpCeremony(manifest) {
+  const r = validateZkpCeremonyStructural(manifest);
   return {
     result: r.schemaDetectableErrors.length === 0 ? "accept" : "reject",
     reasons: r.schemaDetectableErrors,
@@ -1028,7 +1028,7 @@ export function schemaVerdictWo136(manifest) {
  * All five entries are STRUCTURAL-mode (none carries
  * validationMode "evaluation"); the handler routes defensively anyway:
  *   entry.validationMode "evaluation" ⇒ evaluateProofDispositions verdict
- *   otherwise                         ⇒ structuralVerdictWo136
+ *   otherwise                         ⇒ structuralVerdictZkpCeremony
  * Returns { result: "accept"|"reject", reason, fragment? } — the adapter shape
  * the runner pattern uses, so the shared v0.4 runner can dispatch
  * fixtures to this handler with no impedance mismatch.
@@ -1042,7 +1042,7 @@ export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
       fragment,
     };
   }
-  const verdict = await structuralVerdictWo136(fixtureJson);
+  const verdict = await structuralVerdictZkpCeremony(fixtureJson);
   return {
     result: verdict.result,
     reason:
@@ -1053,14 +1053,14 @@ export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
 
 /**
  * Registration hook for the shared v0.4 conformance runner. Contract
- * identical to registerWo134: registry.register(filename, asyncHandler).
+ * identical to registerHolderBinding: registry.register(filename, asyncHandler).
  * The orchestrator wires it with exactly:
- *   import { registerWo136 } from "../manifest/zkp-ceremony.mjs";
- *   registerWo136(registry);
+ *   import { registerZkpCeremony } from "../manifest/zkp-ceremony.mjs";
+ *   registerZkpCeremony(registry);
  */
-export function registerWo136(registry) {
+export function registerZkpCeremony(registry) {
   if (!registry || typeof registry.register !== "function") {
-    throw new Error("registerWo136: registry with a register(filename, handler) function required");
+    throw new Error("registerZkpCeremony: registry with a register(filename, handler) function required");
   }
   for (const filename of feature_FIXTURE_FILENAMES) {
     registry.register(filename, featureFixtureHandler);

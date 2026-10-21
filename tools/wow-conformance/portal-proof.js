@@ -27,7 +27,7 @@
  *       derivation agrees on every documented shared field.
  *
  * Usage: node tools/wow-conformance/portal-proof.js
- *        OSL_WO018_PORT_A / OSL_WO018_PORT_B to override the isolated ports.
+ *        OSL_PORTAL_PROOF_PORT_A / OSL_PORTAL_PROOF_PORT_B to override the isolated ports.
  */
 
 const os = require('os');
@@ -39,8 +39,8 @@ const { pathToFileURL } = require('url');
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const HOST = '127.0.0.1';
 const FORBIDDEN_PORTS = new Set([ 8143, 18151, 18152, 18153, 3000 ]);
-const PORT_A = Number(process.env.OSL_WO018_PORT_A || 18985);
-const PORT_B = Number(process.env.OSL_WO018_PORT_B || 18986);
+const PORT_A = Number(process.env.OSL_PORTAL_PROOF_PORT_A || 18985);
+const PORT_B = Number(process.env.OSL_PORTAL_PROOF_PORT_B || 18986);
 
 const { createServer } = require(path.join(REPO_ROOT, 'runtime', 'world-server', 'src', 'server'));
 const { createValidator } = require(path.join(REPO_ROOT, 'wow-spec', 'validate'));

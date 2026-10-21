@@ -634,7 +634,7 @@ export function projectStageReceipt(manifest, context = {}) {
 }
 
 // ===========================================================================
-// (F) Conformance-fixture handler + registration hook (mirrors registerWo134).
+// (F) Conformance-fixture handler + registration hook (mirrors registerHolderBinding).
 // ===========================================================================
 
 /** The two v0.4 fixtures owns. */
@@ -668,14 +668,14 @@ export async function featureFixtureHandler(fixtureJson, expectedEntry = {}) {
 
 /**
  * Registration hook for the shared v0.4 conformance runner. Contract mirrors
- * registerWo134: registry.register(filename, asyncHandler(fixtureJson, expectedEntry)).
+ * registerHolderBinding: registry.register(filename, asyncHandler(fixtureJson, expectedEntry)).
  * The integrator wires it with exactly:
- *   import { registerWo123 } from "../manifest/projection.mjs";
- *   registerWo123(registry);
+ *   import { registerProjection } from "../manifest/projection.mjs";
+ *   registerProjection(registry);
  */
-export function registerWo123(registry) {
+export function registerProjection(registry) {
   if (!registry || typeof registry.register !== "function") {
-    throw new Error("registerWo123: registry with a register(filename, handler) function required");
+    throw new Error("registerProjection: registry with a register(filename, handler) function required");
   }
   for (const filename of feature_FIXTURE_FILENAMES) {
     registry.register(filename, featureFixtureHandler);

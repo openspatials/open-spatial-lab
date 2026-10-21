@@ -636,7 +636,7 @@ export function buildRenewalPathTrace() {
 // (their reasons are shape-only smoke); enforcement is the behavioral layer
 // above and is conformance-deferred per the fixture reasons.
 
-export async function structuralVerdictWo140(manifest) {
+export async function structuralVerdictPrivateData(manifest) {
   const reasons = [];
   reasons.push(...envelopeErrorsV04(manifest));
   // Q1 (isolated facets): defer JWE shape to.
@@ -674,7 +674,7 @@ export const feature_FIXTURE_FILENAMES = Object.freeze([
  * { result, reasons, behavioral? }.
  */
 export async function featureFixtureHandler(fixtureJson) {
-  const verdict = await structuralVerdictWo140(fixtureJson);
+  const verdict = await structuralVerdictPrivateData(fixtureJson);
   const out = { result: verdict.result, reasons: verdict.reasons };
   // Q6 receipt fixture also carries embedded events we can audit for teeth.
   if (verdict.receiptType === "um:Receipt" && Array.isArray(fixtureJson.events)) {
@@ -765,7 +765,7 @@ export function buildPrivateDataPanel({ now = "2026-06-01T00:02:00.000Z" } = {})
 // 10) OPTIONAL registry hook (NOT wired into the v0.1 gate runner by design)
 // ===========================================================================
 
-export function registerWo140(registry) {
+export function registerPrivateData(registry) {
   if (!registry || typeof registry.register !== "function") return;
   for (const filename of feature_FIXTURE_FILENAMES) {
     registry.register(filename, (fixtureJson) => featureFixtureHandler(fixtureJson));

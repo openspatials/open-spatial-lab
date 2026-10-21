@@ -114,7 +114,10 @@ npm run proof:acceptance      # world-server exit and arrival acceptance tests
 npm run conformance           # Web of Worlds conformance runner
 npm run conformance:fixtures  # pinned OpenSpatialWorld schema and endpoint fixtures
 npm run wow-schema-json       # rebuild wow-spec/generated/schema.json from wow-spec/schema.yaml
+npm run smoke:wowapi          # Web of Worlds API smoke test over HTTP
 ```
+
+The API smoke test starts and stops the local topology itself, so it stops a running demo. Set `OSL_FRONTEND_PORT` and `OSL_BACKEND_{A,B,LOBBY,AIRPORT}_PORT` to run it on other ports.
 
 The conformance runner exits with code 3 without running when the one-minute load average is 14 or higher. That is a deferral, not a failure.
 
