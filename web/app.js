@@ -35,7 +35,7 @@ import {
 // loads each node's real glTF `spatialAssetURI` into its group (placeholder until
 // loaded; labeled fallback on error), reusing the avatar GLTFLoader stack above.
 import { buildWowScene, mountWowSceneAssets } from "./wow-scene.mjs";
-import { mountWowInclusions, environmentAwareClone } from "./wow-inclusion-mount.mjs";
+import { mountLiveInclusions, environmentAwareClone } from "./wow-inclusion-mount.mjs";
 // optional airport content presentation mounted only when
 // a WoW fixture explicitly declares the labeled airport-terminal extension.
 import { mountAirportTerminalContent } from "./airport-terminal-scene.mjs";
@@ -3857,10 +3857,29 @@ async function mainWowRead() {
     // what remains are models, loaded below. A bundled fixture is not composed: its links are models.
     const graphHref = resolved.graph_url ? new URL(resolved.graph_url, location.href).href : null;
     const inclusionHost = resolved.source === "canonical-walk" && graphHref && /^https?:/i.test(graphHref) ? graphHref : null;
+    // Iteration 3: the inclusions stay live. Each shown world's event stream (8 at most) re-composes on
+    // a change, and the models of re-mounted content load through the same loader and cache.
+    const mountIncludedModels = (nodes) => {
+      if (!nodes.length) return;
+      void mountWowSceneAssets(nodes, THREE, {
+        loadGltf: loadGltfSceneAsset,
+        cloneScene: environmentAwareClone(cloneGltfSceneAsset),
+        cache: sceneRuntimeController.destinationAssetCache(),
+        baseUrl: resolved.base_url || resolved.graph_url || location.href,
+      });
+    };
     const modelsReady = inclusionHost
-      ? mountWowInclusions({ built, hostUrl: inclusionHost, THREE, buildWowScene, fetch: window.fetch.bind(window), document })
+      ? mountLiveInclusions({
+          built, hostUrl: inclusionHost, THREE, buildWowScene, document,
+          fetch: window.fetch.bind(window), WebSocket: window.WebSocket,
+          onModels: mountIncludedModels,
+          onUpdate: (summary, live) => {
+            window.__wowInclusions = { summary, live: live.live };
+            document.body.setAttribute("data-wow-live-updates", String(live.live.updates));
+          },
+        })
           .then((mounted) => {
-            window.__wowInclusions = { summary: mounted.summary, composition: mounted.composition };
+            window.__wowInclusions = { summary: mounted.summary, composition: mounted.composition, live: mounted.live.live };
             document.body.setAttribute("data-wow-inclusions", JSON.stringify(mounted.summary.by_status));
             logLine(`wow inclusions: ${mounted.summary.graphs_shown} graph(s) shown, ${mounted.summary.placeholders.length} placeholder(s), ${mounted.summary.cycles} cycle(s)`);
             return mounted.modelNodes;

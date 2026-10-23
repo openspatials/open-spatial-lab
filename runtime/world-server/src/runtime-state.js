@@ -26,6 +26,7 @@
 // the OSL-native Spatial Composition Graph store
 // backing GET/POST/PUT/DELETE /wow/spatial/... (canonical WoW `Node`s). Vanilla
 // Node, additive; see spatial-graph.js for the store + env-gated persistence.
+const fs = require('fs');
 const { createSpatialGraphStore, translationMatrix } = require('./spatial-graph');
 const { loadAnchors } = require('./spatial-anchor');
 const wowGeo = require('../../../web/wow-geopose.js');
@@ -629,14 +630,84 @@ function createRuntime(opts)
     // semantics, and `/runtime-state` broadcasts are untouched.
     const eventSubscribers = new Set();
 
+    // ---- iteration 3: every change has a revision, a time and the URLs it changed ----
+    //
+    // Each event is one change. Its `revision` is this world's count of changes, one higher each time,
+    // and it survives a restart (a small file beside the world's node-id file). `time` is the server's
+    // UTC time of the change (RFC 3339). `urls` lists every resource whose representation changed,
+    // relative to the world's base URL: the node and each ancestor that embeds it, or the user, and
+    // always `wow/world`, which reports the current revision. The last `event_replay_limit` events are
+    // kept, so a client that reconnects with `since=<revision>` gets what it missed, or `resync` when
+    // they are no longer kept.
+    const EVENT_REPLAY_LIMIT = Number.isInteger(cfg.event_replay_limit) && cfg.event_replay_limit >= 0 ? cfg.event_replay_limit : 1000;
+    const replayLog = [];
+    const changedAt = new Map(); // url (relative to the base) -> time of its last change
+    let revisionFile = null;
+    let wowRevision = 0;
+    let lastChangeTime = null;
+
+    function loadRevision(file)
+    {
+        revisionFile = file;
+        try {
+            const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+            if (doc && Number.isInteger(doc.revision) && doc.revision >= 0) { wowRevision = doc.revision; lastChangeTime = doc.time || null; }
+        } catch (e) { /* first start: revision 0 */ }
+    }
+
+    function saveRevision()
+    {
+        if (!revisionFile) return;
+        try {
+            const tmp = revisionFile + '.' + process.pid + '.tmp';
+            fs.writeFileSync(tmp, JSON.stringify({ osl_world_revision : true, world_id : WORLD_ID, revision : wowRevision, time : lastChangeTime }) + '\n', 'utf8');
+            fs.renameSync(tmp, revisionFile);
+        } catch (e) {
+            console.warn('[world-revision] save failed (' + WORLD_ID + '): ' + e.message);
+        }
+    }
+
     function emitWowEvent(evt)
     {
-        if (!eventSubscribers.size) return; // no /events client -> no-op
+        wowRevision += 1;
+        lastChangeTime = new Date().toISOString();
+        evt.revision = wowRevision;
+        evt.time = lastChangeTime;
+        evt.ts = lastChangeTime;
+        evt.urls = Array.from(new Set((evt.urls || []).concat([ 'wow/world' ])));
+        for (const url of evt.urls) changedAt.set(url, lastChangeTime);
+        saveRevision();
+        replayLog.push(evt);
+        if (replayLog.length > EVENT_REPLAY_LIMIT) replayLog.splice(0, replayLog.length - EVENT_REPLAY_LIMIT);
         for (const subscriber of eventSubscribers)
         {
             try { subscriber(evt); }
             catch (err) { console.error('runtime-state event subscriber failed: ' + err.message); }
         }
+    }
+
+    /**
+     * What a client that reconnects with `since` needs: the events after that revision, or `resync`
+     * when they are no longer all kept (or `since` is not a revision this world has reached).
+     */
+    function eventsSince(since)
+    {
+        if (!Number.isInteger(since) || since < 0 || since > wowRevision) return { resync : true, revision : wowRevision };
+        if (since === wowRevision) return { events : [] };
+        const first = replayLog.length ? replayLog[0].revision : wowRevision + 1;
+        if (since + 1 < first) return { resync : true, revision : wowRevision };
+        return { events : replayLog.filter(e => e.revision > since) };
+    }
+
+    function currentRevision()
+    {
+        return { revision : wowRevision, time : lastChangeTime };
+    }
+
+    /** When the resource at `url` (relative to the base) last changed, or null if not since this start. */
+    function lastChangeOf(url)
+    {
+        return changedAt.get(url) || null;
     }
 
     /** Subscribe to the granular WS /events stream. Returns an unsubscribe fn. */
@@ -654,7 +725,7 @@ function createRuntime(opts)
     /** Build a user_joined/user_left envelope from a presence registry entry. */
     function wowUserEvent(type, entry)
     {
-        return {
+        const evt = {
             type : type,
             ts : new Date().toISOString(),
             // canonical-shaped user ref (integer id) + labeled presence detail
@@ -665,27 +736,33 @@ function createRuntime(opts)
                 avatar_id : entry.avatar_id,
             },
             location_id : LOCATION_ID,
+            urls : [ 'wow/user/' + entry.wow_user_id, 'wow/world' ],
             // co-presence is LOCAL (same-origin multi-tab), never networked —
             // do not read this as multi-machine presence.
             presence_scope : 'server-side-ttl-registry (local occupancy truth)',
             proof_boundary : getWowProofBoundary(),
         };
+        // simpleWorlds' user_left carries userId.
+        if (type === 'user_left') evt.userId = entry.wow_user_id;
+        return evt;
     }
 
     /** Build a node_created/updated/deleted envelope for a composition-graph node. */
-    function wowNodeEvent(type, spatialID, node)
+    function wowNodeEvent(type, spatialID, node, urls)
     {
         const n = node && typeof node === 'object' ? node : {};
-        return {
+        const evt = {
             type : type,
             ts : new Date().toISOString(),
-            node : (n.label != null)
-                ? { id : n.id, label : n.label }
-                : { id : n.id },
+            // As simpleWorlds sends them: node_created and node_updated carry the whole node, node_deleted its nodeId.
+            node : type === 'node_deleted' ? { id : n.id } : clone(n),
             spatialID : spatialID,
+            urls : urls || [],
             location_id : LOCATION_ID,
             proof_boundary : getWowProofBoundary(),
         };
+        if (type === 'node_deleted') evt.nodeId = n.id;
+        return evt;
     }
 
     /**
@@ -725,6 +802,8 @@ function createRuntime(opts)
             users : liveWowPresenceUsers(),
             convention : 'WS /events (labeled non-canonical; wow-spec/OSL-WOW-CONTRACT.md §6)',
             event_types : [ 'user_joined', 'user_left', 'node_created', 'node_updated', 'node_deleted' ],
+            revision : wowRevision,
+            time : lastChangeTime,
             presence_scope : 'server-side-ttl-registry (local occupancy truth; not networked)',
             proof_boundary : getWowProofBoundary(),
         };
@@ -796,6 +875,9 @@ function createRuntime(opts)
             geoPose : clone(WORLD_ANCHOR),
             // The ids of the world's graphs, the default graph first (proposed World.spatials).
             spatials : spatialGraphIds(),
+            // This world's current revision, and its services, relative to its base URL (iteration 3).
+            revision : wowRevision,
+            services : { events : 'events' },
             presence : {
                 avatar : 'vrm-glb-avatar (client-rendered)',
                 navigation : 'walk-wasd-jump',
@@ -814,7 +896,9 @@ function createRuntime(opts)
             },
             users : {
                 // live truth: WS /runtime-state subscribers now, one known user resource
-                active_user_count : subscriberCount(),
+                // Users are the live presence entries. Reading, conditional reading and
+                // subscribing to events create no user.
+                active_user_count : livePresenceEntries(Date.now()).length,
                 total_user_count : 1,
             },
             views : {
@@ -2624,6 +2708,15 @@ function createRuntime(opts)
             }),
         }));
     const graphStores = [ spatialStore ].concat(extraStores);
+    loadRevision(spatialStore.ids.file.replace(/\.ids\.json$/, '.revision.json'));
+
+    /** Every node of every graph, as { graphId, node } with the node in the flat form. */
+    function listSpatialNodes()
+    {
+        const out = [];
+        for (const store of graphStores) for (const node of store.listNodes()) out.push({ graphId : store.graphId, node : node });
+        return out;
+    }
 
     /** The ids of this world's graphs, the default graph first (World.spatials). */
     function spatialGraphIds()
@@ -2698,7 +2791,7 @@ function createRuntime(opts)
         {
             state.debug.last_input_source = 'wow-spatial-node-create'; bumpRevision(); notifySubscribers();
             // one node_created per created node on /events.
-            for (const node of (r.value || [])) emitWowEvent(wowNodeEvent('node_created', store.spatialId, node));
+            for (const node of (r.value || [])) emitWowEvent(wowNodeEvent('node_created', store.spatialId, node, nodeUrls(store, node.id)));
         }
         return r;
     }
@@ -2708,12 +2801,16 @@ function createRuntime(opts)
     {
         const store = spatialResolve(spatialID);
         if (!store) return { ok : false, status : 404, error : 'spatial_graph_not_found', spatialID : spatialID };
+        const before = store.getNode(nodeId, { form : 'flat' });
+        const ancestorsBefore = before ? nodeUrls(store, before.id) : [];
         const r = store.updateNode(nodeId, node, opts);
         if (r.ok)
         {
+            // A write that leaves the node as it was is no change: no revision and no event.
+            if (JSON.stringify(before) === JSON.stringify(store.getNode(nodeId, { form : 'flat' }))) return Object.assign(r, { unchanged : true });
             state.debug.last_input_source = 'wow-spatial-node-update'; bumpRevision(); notifySubscribers();
-            // node_updated on /events.
-            emitWowEvent(wowNodeEvent('node_updated', store.spatialId, r.value));
+            // node_updated on /events, naming the node and every ancestor that embeds it, before and after a move.
+            emitWowEvent(wowNodeEvent('node_updated', store.spatialId, r.value, ancestorsBefore.concat(nodeUrls(store, r.value.id))));
         }
         return r;
     }
@@ -2723,14 +2820,85 @@ function createRuntime(opts)
     {
         const store = spatialResolve(spatialID);
         if (!store) return { ok : false, status : 404, error : 'spatial_graph_not_found', spatialID : spatialID };
+        const existing = store.getNode(nodeId, { form : 'flat' });
+        const above = existing && Number.isInteger(existing.parent) ? nodeUrls(store, existing.parent) : [];
         const r = store.deleteNode(nodeId);
         if (r.ok)
         {
             state.debug.last_input_source = 'wow-spatial-node-delete'; bumpRevision(); notifySubscribers();
             // one node_deleted per removed id (whole subtree).
-            for (const id of ((r.value && r.value.deleted) || [])) emitWowEvent(wowNodeEvent('node_deleted', store.spatialId, { id : id }));
+            for (const id of ((r.value && r.value.deleted) || []))
+                emitWowEvent(wowNodeEvent('node_deleted', store.spatialId, { id : id }, [ 'wow/spatial/' + store.graphId + '/node/' + id ].concat(above)));
         }
         return r;
+    }
+
+    /** The URLs (relative to the base) of a node and of every ancestor that embeds it. */
+    function nodeUrls(store, nodeId)
+    {
+        const urls = [];
+        let cursor = store.getNode(nodeId, { form : 'flat' });
+        for (let steps = 0; cursor && steps < 10000; steps += 1)
+        {
+            urls.push('wow/spatial/' + store.graphId + '/node/' + cursor.id);
+            cursor = Number.isInteger(cursor.parent) ? store.getNode(cursor.parent, { form : 'flat' }) : null;
+        }
+        return urls;
+    }
+
+    // ---- a server-side simulator (iteration 3) ----------------------------------
+    //
+    // Changes one node of graph 1 on a timer, with nobody present: its localTransform (a turn about +Y
+    // and a small sway) and properties.temperature. Each tick is one write through the same path as a
+    // client's PUT, so it is one revision and one event. The log is the reference the proof compares
+    // observers against.
+    let simulator = null;
+
+    function startSimulator(spec)
+    {
+        stopSimulator();
+        const opts = Object.assign({ interval_ms : 1000, count : 120, graph : 1 }, spec || {});
+        const log = [];
+        let tick = 0;
+        let resolveDone;
+        const done = new Promise(resolve => { resolveDone = resolve; });
+        const find = () => {
+            const store = spatialResolve(String(opts.graph));
+            if (!store) return null;
+            if (Number.isInteger(opts.node_id)) return store.getNode(opts.node_id, { form : 'flat' }) ? opts.node_id : null;
+            const hit = store.listNodes().find(n => n.label === opts.node_label);
+            return hit ? hit.id : null;
+        };
+        const step = () => {
+            const id = find();
+            if (id === null) return;
+            tick += 1;
+            const angle = (tick * 15 * Math.PI) / 180;
+            const c = Math.cos(angle);
+            const sn = Math.sin(angle);
+            const x = Number((0.5 * Math.sin(tick / 4)).toFixed(6));
+            const temperature = Number((20 + 5 * Math.sin(tick / 10)).toFixed(2));
+            const current = spatialResolve(String(opts.graph)).getNode(id, { form : 'flat' });
+            const properties = Object.assign({}, current.properties || {}, { temperature : temperature });
+            const body = { localTransform : [ c, 0, -sn, 0, 0, 1, 0, 0, sn, 0, c, 0, x, 0, 0, 1 ], properties : properties };
+            const r = updateSpatialNode(String(opts.graph), id, body, { form : 'flat' });
+            log.push({ tick : tick, node_id : id, revision : wowRevision, time : lastChangeTime, temperature : temperature,
+                localTransform : body.localTransform, changed : !!(r.ok && !r.unchanged) });
+            if (tick >= opts.count) { stopSimulator(); resolveDone(log); }
+        };
+        simulator = { timer : setInterval(step, opts.interval_ms), log : log, done : done, opts : opts };
+        return simulator;
+    }
+
+    function stopSimulator()
+    {
+        if (simulator && simulator.timer) clearInterval(simulator.timer);
+        if (simulator) simulator.timer = null;
+    }
+
+    function getSimulatorLog()
+    {
+        return simulator ? simulator.log.slice() : [];
     }
 
     // ---- OMB fabric-manifest projection -------------------
@@ -3655,6 +3823,7 @@ function createRuntime(opts)
         }, demoExtensionBoundary()));
     }
 
+    if (cfg.simulator && typeof cfg.simulator === 'object') startSimulator(cfg.simulator);
     startRepublishTimer();
 
     return {
@@ -3663,6 +3832,9 @@ function createRuntime(opts)
         // granular WS /events realtime stream +
         // the initial hello snapshot for a newly-connected /events client.
         subscribeEvents, eventSubscriberCount, getWowEventsHello,
+        // iteration 3: revisions, replay and change times; the server-side simulator.
+        eventsSince, currentRevision, lastChangeOf,
+        startSimulator, stopSimulator, getSimulatorLog, listSpatialNodes,
         getWowWorld, getWowLocation, getWowGraph,
         getWowPortal, getWowPortalResource, getWowUser, getWowView,
         // the signed OpenUserManifest identity (async).

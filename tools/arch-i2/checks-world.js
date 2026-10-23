@@ -69,7 +69,7 @@ async function mountModule(edits) {
     source = source.replace(from, () => to);
   }
   fs.writeFileSync(path.join(dir, 'wow-inclusion.mjs'), source);
-  for (const sibling of ['wow-inclusion-mount.mjs', 'wow-geopose.mjs', 'wow-geopose.js']) fs.copyFileSync(path.join(ROOT, 'web', sibling), path.join(dir, sibling));
+  for (const sibling of ['wow-inclusion-mount.mjs', 'wow-geopose.mjs', 'wow-geopose.js', 'wow-observe.mjs']) fs.copyFileSync(path.join(ROOT, 'web', sibling), path.join(dir, sibling));
   return import(pathToFileURL(path.join(dir, 'wow-inclusion-mount.mjs')).href);
 }
 

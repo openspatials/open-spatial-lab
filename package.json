@@ -25,6 +25,7 @@
     "proof:acceptance": "node runtime/world-server/test/acceptance.test.js",
     "arch-i1-proof": "node tools/arch-i1/proof.js",
     "arch-i2-proof": "node tools/arch-i2/proof.js",
+    "arch-i3-proof": "node tools/arch-i3/proof.js",
     "check:identity": "node tools/run-checks.mjs identity",
     "check:client": "node tools/run-checks.mjs client",
     "check:browser": "node tools/run-checks.mjs browser",

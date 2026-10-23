@@ -75,7 +75,8 @@ function iteration2Text(doc) {
   const canon = (n) => JSON.parse(JSON.stringify(up.withoutLabels(n), (k, v) => (k === 'description' && typeof v === 'string' ? up.squash(v) : v)));
   const op = (p, m) => (doc.paths[p] || {})[m] || {};
   const refs = (list) => (list || []).filter((x) => x && x.$ref).map((x) => x.$ref).sort();
-  const desc = up.squash((doc.info || {}).description || '');
+  // A paragraph ends at a blank line, so paragraphs a later iteration adds after these are not part of them.
+  const paragraphs = String((doc.info || {}).description || '').split(/\n\s*\n/).map(up.squash);
   return {
     spatials: canon(doc.components.schemas.World.properties.spatials),
     spatialAssetURI: canon(doc.components.schemas.Node.properties.spatialAssetURI),
@@ -96,13 +97,7 @@ function iteration2Text(doc) {
       const o = op(p, m);
       return [m + ' ' + p, refs(o.parameters), ((o.responses || {})['412'] || {}).$ref || null];
     }),
-    paragraphs: PARAGRAPHS.map((start) => {
-      const at = desc.indexOf(start);
-      if (at === -1) return null;
-      const rest = desc.slice(at);
-      const next = PARAGRAPHS.map((p) => rest.indexOf(p, 1)).filter((i) => i > 0);
-      return rest.slice(0, next.length ? Math.min(...next) : rest.length).trim();
-    }),
+    paragraphs: PARAGRAPHS.map((start) => paragraphs.find((p) => p.startsWith(start)) || null),
   };
 }
 

@@ -36,12 +36,13 @@ async function world(role, port, options) {
   options = options || {};
   const config = Object.assign({}, options.config || {});
   if (options.base) config.base_path = options.base;
-  const server = await boot(role, port, { edits: options.edits, config });
+  const server = await boot(role, port, { edits: options.edits, config, dir: options.dir });
   const base = 'http://127.0.0.1:' + port + (options.base || '');
   const prefix = options.base || '';
   const api = {
     port,
     base,
+    prefix,
     server,
     spatialUrl: (id) => base + '/wow/spatial/' + (id === undefined ? 1 : id),
     worldUrl: () => base + '/wow/world',
@@ -138,7 +139,7 @@ async function modelHost(port) {
 // ---- The client -------------------------------------------------------------------------------------
 
 const CLIENT = 'web/wow-inclusion.mjs';
-const CLIENT_SIBLINGS = ['wow-geopose.mjs', 'wow-geopose.js'];
+const CLIENT_SIBLINGS = ['wow-geopose.mjs', 'wow-geopose.js', 'wow-observe.mjs'];
 
 /** The real client module, or one with exact string edits (a planted fault). */
 async function client(edits) {

@@ -1,0 +1,16 @@
+--- a/specification/OpenSpatialWorld/README.md
++++ b/specification/OpenSpatialWorld/README.md
+@@ -10,10 +10,12 @@
+ | --- | --- | --- | 
+ | Join world | URL, URL#join, URL#join=aspect.id | join the world as new or existing user on a given device and UA |
+ | Follow world | URL#follow, URL#follow=aspect.id | follow the world as new or existing user |
+-| Preview world | URL#preview, #preview=aspect.id | experence world without |
++| Preview world | URL#preview, #preview=aspect.id | experience the world without joining it: no additional user created, but user-based authorization needed |
+ | Persist world | store or bookmark URL |
+ | Share world | send URL to second user |
+ 
++Reading, conditional reading and subscribing to a world's events create no user.
++
+ ## Optional Feature
+ 
+ Additional information provided in separate data package

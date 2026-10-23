@@ -30,6 +30,7 @@
 // proof (npm run arch-i2-proof) and in the browser for the `?wow=` player.
 
 import { frameFromGeoPose, ecefToLocal, directionInFrame, readGeoPose } from "./wow-geopose.mjs";
+import { worldBaseOf, openWorldStream } from "./wow-observe.mjs";
 
 export const WOW_MEDIA_TYPE = "application/wow+json";
 // What an inclusion request accepts: the Web of Worlds type first, then the glTF model types.
@@ -50,6 +51,12 @@ export const INCLUSION_STATUS = Object.freeze({
 
 export const DEFAULT_NESTING_LIMIT = 3;
 export const DEFAULT_BUDGET = 16;
+// Iteration 3: a live host follows each world it shows through that world's event stream, and holds
+// at most this many streams, its own included, handed out in tree order.
+export const DEFAULT_STREAM_BUDGET = 8;
+// The type that marks an included node as its world's environment, through the JSON-LD context that
+// types node `properties`. Provisional, as the context's terms are.
+export const ENVIRONMENT_IRI = "urn:webofworlds:term:Environment";
 
 const IDENTITY = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
@@ -176,7 +183,7 @@ export function createWowReader(opts = {}) {
     const type = response.headers.get("content-type") || "";
     const etag = response.headers.get("etag") || null;
     let body = null;
-    if (response.ok && (isWowMediaType(type) || mediaTypeOf(type) === "application/json")) {
+    if (response.ok && /^application\/(json|[\w.-]+\+json)$/.test(mediaTypeOf(type))) {
       try { body = await response.json(); } catch { body = null; }
     } else {
       // A model or an error: its bytes are the model loader's business, not the composer's.
@@ -251,6 +258,7 @@ export async function composeInclusions(hostUrl, opts = {}) {
   const nestingLimit = Number.isInteger(opts.nestingLimit) ? opts.nestingLimit : DEFAULT_NESTING_LIMIT;
   const budget = Number.isInteger(opts.budget) ? opts.budget : DEFAULT_BUDGET;
   const revalidate = !!opts.revalidate;
+  const streamBudget = Number.isInteger(opts.streamBudget) ? opts.streamBudget : Infinity;
 
   const out = {
     host: hostUrl,
@@ -263,6 +271,10 @@ export async function composeInclusions(hostUrl, opts = {}) {
     assets: [],
     cycles: [],
     graphsUsed: 0,
+    // Iteration 3: the worlds whose event streams a live host holds, in tree order, and the included
+    // nodes left out as their world's environment.
+    streams: [],
+    environment: [],
     stats: reader.stats,
   };
 
@@ -275,6 +287,7 @@ export async function composeInclusions(hostUrl, opts = {}) {
   const hostRoot = await read(hostRootUrl);
   if (!hostRoot.body || !isWowMediaType(hostRoot.type)) throw new Error(`host root ${hostRootUrl} did not answer as ${WOW_MEDIA_TYPE}`);
   const hostGraph = addGraph({ url: hostUrl, rootUrl: hostRootUrl, depth: 0, placement: IDENTITY.slice(), anchor: host.body.geoPose || null, host: true });
+  takeStream(worldBaseOf(hostUrl));
   await walk(hostRoot.body, hostRootUrl, IDENTITY.slice(), IDENTITY.slice(), { depth: 0, path: [hostUrl], graph: hostGraph }, null);
   return out;
 
@@ -286,6 +299,12 @@ export async function composeInclusions(hostUrl, opts = {}) {
   }
 
   async function walk(node, url, parentWorld, parentGraphLocal, ctx, parentUrl) {
+    // The included world's environment does not apply to the host: an included node typed as
+    // environment (through its properties' JSON-LD context) is left out, with its subtree.
+    if (ctx.depth > 0 && node.properties && node.properties["@type"] !== undefined && (await isEnvironment(node.properties, url))) {
+      out.environment.push(url);
+      return;
+    }
     const local = localTransformOf(node);
     const record = {
       url,
@@ -369,6 +388,8 @@ export async function composeInclusions(hostUrl, opts = {}) {
 
     const kind = resourceKind(answer.body);
     inclusion.kind = kind;
+    // Its world needs an event stream; past the stream budget its content is "over budget".
+    if (!takeStream(worldBaseOf(target))) return refuse(inclusion, INCLUSION_STATUS.OVER_BUDGET, depth);
     out.inclusions.push(inclusion);
     const path = ctx.path.concat([target]);
 
@@ -447,6 +468,43 @@ export async function composeInclusions(hostUrl, opts = {}) {
         : inclusion.overBudget ? INCLUSION_STATUS.OVER_BUDGET
           : rootProblem || INCLUSION_STATUS.NOT_FOUND;
     }
+  }
+
+  function takeStream(base) {
+    if (out.streams.includes(base)) return true;
+    if (out.streams.length >= streamBudget) return false;
+    out.streams.push(base);
+    return true;
+  }
+
+  /** True when a `properties` object's @type expands, through its JSON-LD context, to ENVIRONMENT_IRI. */
+  async function isEnvironment(properties, baseUrl) {
+    const terms = {};
+    for (const ctx of [].concat(properties["@context"] || [])) {
+      let doc = ctx;
+      if (typeof ctx === "string") {
+        const url = resolveReference(ctx, baseUrl);
+        const answer = url ? await read(url) : null;
+        doc = answer && answer.body ? answer.body["@context"] : null;
+      }
+      if (doc && typeof doc === "object") Object.assign(terms, doc);
+    }
+    const expand = (value, depth) => {
+      if (typeof value !== "string" || depth > 8) return null;
+      if (Object.prototype.hasOwnProperty.call(terms, value)) {
+        const def = terms[value];
+        return expand(typeof def === "string" ? def : def && def["@id"], depth + 1);
+      }
+      const colon = value.indexOf(":");
+      if (colon > 0) {
+        const prefix = value.slice(0, colon);
+        const def = terms[prefix];
+        const iri = typeof def === "string" ? def : def && def["@id"];
+        return iri ? iri + value.slice(colon + 1) : value;
+      }
+      return null;
+    };
+    return [].concat(properties["@type"]).some((t) => expand(t, 0) === ENVIRONMENT_IRI);
   }
 
   function refuse(inclusion, status, depth) {
@@ -569,4 +627,69 @@ export function bundleOfGraph(composition, graph) {
     if (n.parent && idOf.has(n.parent)) nodes[idOf.get(n.parent)].children.push(idOf.get(n.url));
   }
   return { spatialID: graph.url, root: idOf.get(graph.rootUrl), nodes, idOf };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Live inclusion (iteration 3).
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Compose world A and keep the composition current. A holds one event stream for each world it shows,
+ * within the stream budget; an event that names a resource the composition read starts a new
+ * composition with conditional reads, so only what changed is read again. No polling.
+ *
+ * @param {string} hostUrl
+ * @param {object} opts   composeInclusions' options, plus WebSocket, token, streamBudget and
+ *                        onUpdate(composition, event)
+ */
+export async function observeComposition(hostUrl, opts = {}) {
+  const reader = createWowReader({ fetch: opts.fetch });
+  const streamBudget = Number.isInteger(opts.streamBudget) ? opts.streamBudget : DEFAULT_STREAM_BUDGET;
+  const options = { ...opts, reader, streamBudget };
+  let composition = await composeInclusions(hostUrl, options);
+  const streams = new Map();
+  let running = Promise.resolve();
+  let closed = false;
+  const live = { updates: 0, events: 0 };
+
+  function recompose(evt) {
+    running = running.then(async () => {
+      if (closed) return;
+      composition = await composeInclusions(hostUrl, { ...options, revalidate: true });
+      live.updates += 1;
+      sync();
+      if (opts.onUpdate) opts.onUpdate(composition, evt);
+    }).catch(() => {});
+    return running;
+  }
+
+  function sync() {
+    for (const base of composition.streams) {
+      if (streams.has(base)) continue;
+      streams.set(base, openWorldStream(base, {
+        fetch: opts.fetch,
+        WebSocket: opts.WebSocket,
+        token: typeof opts.token === "function" ? opts.token(base) : opts.token,
+        onEvent: (evt) => {
+          live.events += 1;
+          const named = (evt.urls || []).map((u) => new URL(u, base).href);
+          if (named.some((u) => reader.cache.has(u))) return recompose(evt);
+          return undefined;
+        },
+        onResync: (evt) => recompose(evt),
+      }));
+    }
+    for (const [base, stream] of streams) {
+      if (!composition.streams.includes(base)) { stream.close(); streams.delete(base); }
+    }
+  }
+
+  sync();
+  return {
+    get composition() { return composition; },
+    streams,
+    live,
+    idle: () => running,
+    close() { closed = true; for (const stream of streams.values()) stream.close(); },
+  };
 }

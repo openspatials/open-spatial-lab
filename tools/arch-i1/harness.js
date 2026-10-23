@@ -14,7 +14,7 @@ const { ROOT, loadMutant, makeTempDir } = require('./lib');
 const SRC = path.join('runtime', 'world-server', 'src');
 const abs = (name) => path.join(ROOT, SRC, name);
 
-/** The server module for a set of edits: { store, anchor, runtime, server } are arrays of [from, to]. */
+/** The server module for a set of edits: { store, anchor, runtime, server, mirrors } are arrays of [from, to]. */
 function loadServerModule(edits) {
   edits = edits || {};
   const store = edits.store ? loadMutant(path.join(SRC, 'spatial-graph.js'), edits.store) : require(abs('spatial-graph.js'));
@@ -23,8 +23,9 @@ function loadServerModule(edits) {
   const runtime = changedRuntime
     ? loadMutant(path.join(SRC, 'runtime-state.js'), edits.runtime || [], { './spatial-graph': store, './spatial-anchor': anchor })
     : require(abs('runtime-state.js'));
-  if (!changedRuntime && !edits.server) return require(abs('server.js'));
-  return loadMutant(path.join(SRC, 'server.js'), edits.server || [], { './spatial-graph': store, './runtime-state': runtime });
+  const mirrors = edits.mirrors ? loadMutant(path.join(SRC, 'mirrors.js'), edits.mirrors) : require(abs('mirrors.js'));
+  if (!changedRuntime && !edits.server && !edits.mirrors) return require(abs('server.js'));
+  return loadMutant(path.join(SRC, 'server.js'), edits.server || [], { './spatial-graph': store, './runtime-state': runtime, './mirrors': mirrors });
 }
 
 function tempDir(label) {

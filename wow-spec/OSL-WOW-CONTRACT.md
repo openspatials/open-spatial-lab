@@ -252,6 +252,29 @@ a placeholder naming each failure, and the included world's environment kept out
 behaviour, checked by I5 to I8b and I12. A world may sit at a path prefix (`base_path`); a world's read
 policy (`read_policy`) may refuse a node with 403, a labeled OSL extension.
 
+### D11 — the iteration 3 overlay: live state, observed without users
+
+Each item is a proposed upstream edit (`wow-spec/overlays/iteration-3/`), proven by `npm run arch-i3-proof`:
+
+1. **Events with revision, time and urls** on `WS /events`, listed as `World.services.events`; `World.revision`
+   is the current revision and survives restarts (checks O1, O4b). `since=<revision>` replays; past what the
+   world keeps, it answers `resync` (O4, O4b). Beside the lab's own fields, events carry simpleWorlds' payload:
+   `user` on `user_joined`, `userId` on `user_left`, the whole `node` on `node_created` and `node_updated`, and
+   `nodeId` on `node_deleted`.
+2. **No-op writes** create no revision and no event, so mirroring worlds settle (O6b).
+3. **Observing creates no user:** `users.active_user_count` counts live presence entries only (O2, O2b).
+4. **Stream authentication:** with `event_auth` set, the first message must be the JSON text
+   `{"type": "auth", "token": "<access token>"}`, and a stream without a valid token is closed; a stream from an origin the policy does not allow is refused (O11).
+5. **`Node.properties`**, typed by the JSON-LD context served at `/wow/context.jsonld`
+   (`wow-spec/context/wow.context.jsonld`). The `wow:` terms are the provisional proposal; `osl:mirror` is a
+   labeled OSL extension.
+
+OSL additions around them: a server-side simulator (`startSimulator`, or `simulator` in the config); mirroring
+by observation (`properties.mirror`, `runtime/world-server/src/mirrors.js`, O6); the observer library
+(`web/wow-observe.mjs`); live inclusion with a stream budget of 8 (`observeComposition`, O7, O9); the
+environment of an included world typed through the context (O10); and the data-point dashboard
+(`web/wow-dashboard.html`, O8).
+
 ## 10. Provenance — corrected 2026-07-11
 
 The previous version of this note and of `schema.yaml` claimed the contract was

@@ -1,0 +1,47 @@
+--- a/specification/OpenSpatialWorld/API.yaml
++++ b/specification/OpenSpatialWorld/API.yaml
+@@ -6,7 +6,10 @@
+     Frames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\n\
+     Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\n\
+     Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).\n\n\
+-    Cross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match."
++    Cross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match.\n\n\
++    Events. A world's event stream is listed in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event adds revision (this world's count of its changes, one higher for each; it survives restarts, and the World resource reports the current one), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision). A write that leaves a representation unchanged creates no revision and no event. A client resumes with since=<revision>; a world that can no longer replay from there sends resync with its current revision, and the client re-reads.\n\n\
++    Stream authentication. A world that requires authorization for its stream expects as the stream's first message the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}, and closes a stream without a valid token within 5 seconds. It refuses a stream from an origin its policy does not allow. Tokens never go in URLs.\n\n\
++    Data points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user."
+   version: '0.0.1'
+ 
+ servers:
+@@ -457,6 +460,16 @@
+           description: The ids of the world's graphs (Spatial resources), the default graph first.
+           items:
+             type: integer
++        revision:
++          type: integer
++          description: This world's current revision, the count of its changes; each event carries the revision it made.
++        services:
++          type: object
++          description: The world's services, as URI references relative to its base URL.
++          properties:
++            events:
++              type: string
++              description: The event stream (WebSocket).
+         presence:
+           type: object
+           properties:
+@@ -591,6 +604,15 @@
+             graph, and its other anchored graphs where their GeoPoses put them. The included world's
+             environment does not apply to the host. The host sets a nesting limit and a budget, detects
+             cycles by URL, and shows a placeholder on failure.
++        properties:
++          type: object
++          description: >-
++            Data on the node, as a JSON-LD node object: its "@context" names a context document by URL or gives a
++            context inline, and its "@type", expanded through that context, types the node. The context published
++            beside the world schema (schema/context.jsonld) defines the terms used here; its terms are provisional.
++            A node whose type is wow:Environment belongs, with its subtree, to its world's environment, which does
++            not apply when another world includes it. A property whose value is a URL names data held elsewhere. A
++            data point names one value with a JSON Pointer fragment on the node's URL.
+         appearanceURI:
+           type: string
+                 

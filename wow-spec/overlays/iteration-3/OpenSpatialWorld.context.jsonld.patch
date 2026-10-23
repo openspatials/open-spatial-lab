@@ -1,0 +1,13 @@
+--- /dev/null
++++ b/specification/OpenSpatialWorld/schema/context.jsonld
+@@ -0,0 +1,10 @@
++{
++  "@context": {
++    "@version": 1.1,
++    "wow": "urn:webofworlds:term:",
++    "Environment": "wow:Environment",
++    "temperature": {
++      "@id": "wow:temperature"
++    }
++  }
++}

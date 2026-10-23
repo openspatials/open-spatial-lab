@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web of Worlds data points</title>
+  <style>
+    :root { --bg: #0b1020; --panel: #121a30; --line: #263250; --text: #e6ecff; --muted: #9aa8c8; --accent: #6fd3ff; --warn: #ff9a6b; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 1120px; margin: 0 auto; padding: 32px 16px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p.lead { color: var(--muted); margin: 0 0 24px; }
+    .points { display: grid; gap: 16px; }
+    .point { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+    .point .world { color: var(--accent); font-weight: 600; }
+    .point .url { color: var(--muted); font: 12px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; margin-top: 2px; }
+    .point .value { font-size: 40px; font-weight: 700; margin: 10px 0 6px; font-variant-numeric: tabular-nums; }
+    .point .meta { display: flex; gap: 24px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .point .meta b { color: var(--text); font-weight: 600; }
+    .point.gone .value, .point.unreachable .value { color: var(--warn); }
+    footer { color: var(--muted); margin-top: 24px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Web of Worlds data points</h1>
+    <p class="lead">Each value is read from its own world and followed through that world's event stream. Watching creates no user in either world.</p>
+    <section class="points" id="points" aria-live="polite"></section>
+    <footer>A data point is a resource URL plus a JSON Pointer. Age is the time since the change that set the value, from the event's <code>time</code>.</footer>
+  </main>
+  <script type="module" src="./wow-dashboard.mjs"></script>
+</body>
+</html>

@@ -12,6 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const vm = require('vm');
+const Module = require('module');
 const { pathToFileURL } = require('url');
 const http = require('http');
 const { spawnSync } = require('child_process');
@@ -104,16 +105,26 @@ function loadMutant(relativeFile, edits, overrides) {
     if (count !== 1) throw new Error('mutant edit matches ' + count + ' times in ' + relativeFile + ': ' + from.slice(0, 70));
     source = source.replace(from, () => to);
   }
-  const fn = vm.runInThisContext('(function (exports, require, module, __filename, __dirname) {' + source + '\n})', { filename: relativeFile + '#mutant' });
   const dir = path.dirname(file);
-  const mod = { exports: {} };
   // `overrides` swaps what a relative require returns, so a mutant of one module can be wired into the modules above it.
   const localRequire = (id) => (overrides && Object.prototype.hasOwnProperty.call(overrides, id) ? overrides[id] : id.startsWith('.') ? require(path.resolve(dir, id)) : require(id));
   // A UMD module also publishes itself on globalThis (Osl*). A mutant must not replace the real one.
   const globals = Object.keys(globalThis).filter((key) => key.startsWith('Osl'));
   const saved = new Map(globals.map((key) => [key, globalThis[key]]));
+  let mod = { exports: {} };
   try {
-    fn.call(mod.exports, mod.exports, localRequire, mod, file, dir);
+    if (source.includes('import(')) {
+      // A vm script cannot run import(), so a module that has one is compiled by Node's CommonJS loader,
+      // under its real file name and outside the require cache.
+      mod = new Module(file, module);
+      mod.filename = file;
+      mod.paths = Module._nodeModulePaths(dir);
+      mod.require = localRequire;
+      mod._compile(source, file);
+    } else {
+      const fn = vm.runInThisContext('(function (exports, require, module, __filename, __dirname) {' + source + '\n})', { filename: relativeFile + '#mutant' });
+      fn.call(mod.exports, mod.exports, localRequire, mod, file, dir);
+    }
   } finally {
     for (const key of Object.keys(globalThis).filter((k) => k.startsWith('Osl'))) {
       if (saved.has(key)) globalThis[key] = saved.get(key);

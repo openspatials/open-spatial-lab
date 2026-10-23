@@ -435,6 +435,8 @@ function createSpatialGraphStore(opts)
             : translationMatrix([ 0, 0, 0 ]);
         if (r.spatialAssetURI != null) node.spatialAssetURI = String(r.spatialAssetURI);
         if (r.appearanceURI != null) node.appearanceURI = String(r.appearanceURI);
+        // Data on the node (iteration 3): an object, typed by a JSON-LD context.
+        if (r.properties && typeof r.properties === 'object' && !Array.isArray(r.properties)) node.properties = clone(r.properties);
         // preserve a LABELED, NON-CANONICAL webofworlds_extension
         // bag when a node carries one (e.g. a PORTAL node's resolvable destination /
         // composition-graph reference). Additive: a node with no extension (every
@@ -806,6 +808,8 @@ function createSpatialGraphStore(opts)
             existing.localTransform = r.localTransform.map(n => Number(n) || 0);
         if ('spatialAssetURI' in r) existing.spatialAssetURI = r.spatialAssetURI == null ? undefined : String(r.spatialAssetURI);
         if ('appearanceURI' in r) existing.appearanceURI = r.appearanceURI == null ? undefined : String(r.appearanceURI);
+        if ('properties' in r)
+            existing.properties = r.properties && typeof r.properties === 'object' && !Array.isArray(r.properties) ? clone(r.properties) : undefined;
         if (move.to !== null)
         {
             const oldParent = nodes.get(existing.parent);

@@ -113,6 +113,7 @@ npm run proof:presence        # WebSocket events and presence
 npm run proof:acceptance      # world-server exit and arrival acceptance tests
 npm run arch-i1-proof        # frames, GeoPose anchors, transforms and the node tree, with a mutant for every check
 npm run arch-i2-proof        # one world including another world's graph, node or whole world, with planted faults for every check
+npm run arch-i3-proof        # worlds that change with nobody present, observed without users, live inclusion; about 4 minutes
 npm run check:identity       # Universal Manifest, RP1 and trust attack-vector tests, and the signing test vectors
 npm run check:client         # checks of the browser client's controllers and scene code, run in Node
 npm run check:browser        # browser checks that drive Chrome

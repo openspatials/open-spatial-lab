@@ -62,6 +62,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const { createRuntime } = require('./runtime-state');
+const { createMirrors } = require('./mirrors');
 const { makeConfig } = require('./config');
 // the RENDERABLE authored scene that closes the publish
 // loop. getFabricManifest()'s live world-root (spawn+portal+trigger) VERIFIES
@@ -98,6 +99,8 @@ function createServer(role, extraOpts)
 {
     const cfg = makeConfig(role, extraOpts);
     const runtime = createRuntime(cfg);
+    // Nodes that mirror another world's data point are kept up to date by observing it (iteration 3).
+    const mirrors = cfg.mirrors === false ? null : createMirrors(runtime, { token : cfg.mirror_token });
 
     /*
      * WHERE the node binds vs WHAT the fixture declares.
@@ -192,6 +195,7 @@ function createServer(role, extraOpts)
     // exposes ETag, which a browser page could not read otherwise. A preflight allows Authorization,
     // If-None-Match and If-Match.
     const WOW_MEDIA_TYPE = 'application/wow+json';
+    const WOW_CONTEXT = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '..', 'wow-spec', 'context', 'wow.context.jsonld'), 'utf8');
     const WOW_OFFERS = [ WOW_MEDIA_TYPE, 'application/json' ];
     const CORS_POLICY = cfg.cors_allowed_origins === undefined ? '*' : cfg.cors_allowed_origins;
     // A world may sit at a path prefix (cfg.base_path, such as '/w/b'); its resource URLs are then the
@@ -211,16 +215,29 @@ function createServer(role, extraOpts)
         return wowAsset.etagOf(type + '\n' + body);
     }
 
-    // Last-Modified: when this server first served the representation that now has this tag.
-    const firstServed = new Map();
-    function lastModifiedOf(key, etag)
+    // Last-Modified: the time of the last event whose `urls` named this resource, or, when nothing has
+    // changed it since this server started, the start time.
+    const STARTED_AT = new Date().toUTCString();
+    function lastModifiedOf(path)
     {
-        const seen = firstServed.get(key);
-        if (seen && seen.etag === etag) return seen.date;
-        const date = new Date().toUTCString();
-        firstServed.set(key, { etag, date });
-        return date;
+        const m = /^\/wow\/spatial\/([^/]+)(\/node\/(-?\d+))?$/.exec(path);
+        let key = path.replace(/^\//, '');
+        if (m) key = 'wow/spatial/' + graphIdOf(decodeURIComponent(m[1])) + (m[2] ? '/node/' + m[3] : '');
+        const changed = runtime.lastChangeOf(key);
+        return changed ? new Date(changed).toUTCString() : STARTED_AT;
     }
+
+    // Who may open the event stream from a browser: the same policy as cross-origin reads.
+    function originAllowed(origin)
+    {
+        if (!origin || CORS_POLICY === '*') return true;
+        return Array.isArray(CORS_POLICY) && CORS_POLICY.indexOf(origin) !== -1;
+    }
+    // A world that requires authorization for its stream (cfg.event_auth.tokens) expects the access token
+    // as the stream's first message, and closes a stream without a valid one within 5 seconds (it waits
+    // 4, so the close arrives inside the 5).
+    const EVENT_AUTH = cfg.event_auth && Array.isArray(cfg.event_auth.tokens) ? cfg.event_auth : null;
+    const EVENT_AUTH_TIMEOUT_MS = 4000;
 
     /**
      * Send a Web of Worlds resource. opts.tagged adds ETag and Last-Modified; on a GET that also
@@ -242,7 +259,7 @@ function createServer(role, extraOpts)
         {
             const etag = wowEtag(type, body);
             headers.ETag = etag;
-            headers['Last-Modified'] = lastModifiedOf(req.url + '|' + type, etag);
+            headers['Last-Modified'] = lastModifiedOf(res.__oslWowRequest ? res.__oslWowRequest.path : '');
             if (code === 200 && req.method !== 'PUT' && wowAsset.ifNoneMatchHits(req.headers['if-none-match'], etag))
             {
                 res.writeHead(304, { ETag : etag, 'Last-Modified' : headers['Last-Modified'], Vary : headers.Vary });
@@ -594,6 +611,15 @@ function createServer(role, extraOpts)
 
         if (method === 'GET' && path === '/wow/world')
             return sendWow(req, res, 200, runtime.getWowWorld(), { tagged : true });
+
+        // The JSON-LD context that types node `properties` (iteration 3). Its terms are provisional.
+        if ((method === 'GET' || req.method === 'HEAD') && path === '/wow/context.jsonld')
+        {
+            const body = WOW_CONTEXT;
+            res.writeHead(200, { 'Content-Type' : 'application/ld+json', 'Content-Length' : Buffer.byteLength(body),
+                ETag : wowEtag('application/ld+json', body) });
+            return res.end(req.method === 'HEAD' ? undefined : body);
+        }
 
         if (method === 'GET' && path === '/wow/location')
             return sendJson(res, 200, runtime.getWowLocation());
@@ -1097,9 +1123,21 @@ function createServer(role, extraOpts)
     // `/events` branch is purely additive and shares the frame encoder.
     server.on('upgrade', (req, socket) => {
         const url = new URL(req.url, 'http://127.0.0.1:' + cfg.http_port);
-        const wsPath = url.pathname;
+        let wsPath = url.pathname;
+        if (BASE_PATH)
+        {
+            if (!wsPath.startsWith(BASE_PATH + '/')) { socket.destroy(); return; }
+            wsPath = wsPath.slice(BASE_PATH.length);
+        }
         if (wsPath !== '/runtime-state' && wsPath !== '/events')
         {
+            socket.destroy();
+            return;
+        }
+        // A stream from an origin this world does not allow is refused before the handshake.
+        if (wsPath === '/events' && !originAllowed(req.headers.origin))
+        {
+            socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
             socket.destroy();
             return;
         }
@@ -1146,7 +1184,17 @@ function createServer(role, extraOpts)
             catch (e) { /* socket gone */ }
         }
 
-        let unsubscribe;
+        function closeStream(code, reason)
+        {
+            const why = Buffer.from(String(reason || ''), 'utf8');
+            const body = Buffer.concat([ Buffer.from([ (code >> 8) & 0xff, code & 0xff ]), why ]);
+            try { socket.write(Buffer.concat([ Buffer.from([ 0x88, body.length ]), body ])); } catch (e) {}
+            try { socket.end(); } catch (e) {}
+            setTimeout(() => { try { socket.destroy(); } catch (e) {} }, 200);
+        }
+
+        let unsubscribe = () => {};
+        let onMessage = null;
         if (wsPath === '/events')
         {
             // Additive realtime channel: an initial hello snapshot (current live
@@ -1154,8 +1202,34 @@ function createServer(role, extraOpts)
             // granular delta events on every presence / node-CRUD change. No
             // per-connection Guest is minted — presence stays OSL's ghost-free
             // TTL registry (register/heartbeat/depart + expiry), never per-socket.
-            sendFrame(runtime.getWowEventsHello());
-            unsubscribe = runtime.subscribeEvents(evt => sendFrame(evt));
+            // Iteration 3: `since=<revision>` replays what the client missed, or sends `resync` with the
+            // current revision when that is no longer kept; live events follow either way.
+            const sinceRaw = url.searchParams.get('since');
+            const since = sinceRaw === null || sinceRaw === '' ? null : Number(sinceRaw);
+            const begin = () => {
+                sendFrame(runtime.getWowEventsHello());
+                if (since !== null)
+                {
+                    const missed = runtime.eventsSince(since);
+                    if (missed.resync) sendFrame({ type : 'resync', revision : missed.revision, time : runtime.currentRevision().time });
+                    else for (const evt of missed.events) sendFrame(evt);
+                }
+                unsubscribe = runtime.subscribeEvents(evt => sendFrame(evt));
+            };
+            if (EVENT_AUTH)
+            {
+                const timer = setTimeout(() => closeStream(1008, 'no access token'), EVENT_AUTH_TIMEOUT_MS);
+                onMessage = (text) => {
+                    onMessage = null;
+                    clearTimeout(timer);
+                    let message = null;
+                    try { message = JSON.parse(text); } catch (e) { /* not JSON */ }
+                    if (message && message.type === 'auth' && EVENT_AUTH.tokens.indexOf(message.token) !== -1) begin();
+                    else closeStream(1008, 'invalid access token');
+                };
+                socket.on('close', () => clearTimeout(timer));
+            }
+            else begin();
         }
         else
         {
@@ -1163,7 +1237,29 @@ function createServer(role, extraOpts)
             unsubscribe = runtime.subscribe(snapshot => sendFrame({ type : 'state', state : snapshot }));
         }
 
-        socket.on('data', () => { /* accept but ignore inbound frames for this prototype */ });
+        // Inbound frames (client frames are masked, RFC 6455 §5.3): the first text message may carry the
+        // access token; a close frame closes. Everything else is ignored, as before.
+        let inbound = Buffer.alloc(0);
+        socket.on('data', (chunk) => {
+            inbound = Buffer.concat([ inbound, chunk ]);
+            while (inbound.length >= 2)
+            {
+                const opcode = inbound[0] & 0x0f;
+                const masked = (inbound[1] & 0x80) !== 0;
+                let len = inbound[1] & 0x7f;
+                let at = 2;
+                if (len === 126) { if (inbound.length < 4) return; len = inbound.readUInt16BE(2); at = 4; }
+                else if (len === 127) { if (inbound.length < 10) return; len = Number(inbound.readBigUInt64BE(2)); at = 10; }
+                const maskAt = at;
+                if (masked) at += 4;
+                if (inbound.length < at + len) return;
+                const payload = Buffer.from(inbound.subarray(at, at + len));
+                if (masked) for (let i = 0; i < payload.length; i += 1) payload[i] ^= inbound[maskAt + (i % 4)];
+                inbound = inbound.subarray(at + len);
+                if (opcode === 0x8) { closeStream(1000, ''); return; }
+                if (opcode === 0x1 && onMessage) onMessage(payload.toString('utf8'));
+            }
+        });
         openSockets.add(socket);
         socket.on('close', () => { unsubscribe(); openSockets.delete(socket); });
         socket.on('error', () => { unsubscribe(); openSockets.delete(socket); });
@@ -1183,6 +1279,8 @@ function createServer(role, extraOpts)
             try { if (typeof runtime.stopRepublishTimer === 'function') runtime.stopRepublishTimer(); } catch (e) {}
             // same rule for the presence expiry sweeper.
             try { if (typeof runtime.stopPresenceSweeper === 'function') runtime.stopPresenceSweeper(); } catch (e) {}
+            try { if (typeof runtime.stopSimulator === 'function') runtime.stopSimulator(); } catch (e) {}
+            try { if (mirrors) mirrors.stop(); } catch (e) {}
             for (const s of openSockets) { try { s.destroy(); } catch (e) {} }
             openSockets.clear();
             // also tear down the OpenUserManifest origin (safe
@@ -1191,7 +1289,7 @@ function createServer(role, extraOpts)
         });
     }
 
-    return { server, runtime, cfg, closeAll, getAssetRegistry };
+    return { server, runtime, cfg, closeAll, getAssetRegistry, mirrors };
 }
 
 function start(role, extraOpts) {
