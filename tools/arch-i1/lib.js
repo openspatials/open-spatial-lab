@@ -31,23 +31,63 @@ function line(text) { process.stdout.write(text + '\n'); }
  * @param {Array<{name:string, impl:object, why?:string}>} mutants   implementations that must fail
  */
 async function run(id, title, fn, impl, mutants) {
-  const entry = { id, title, ok: true, detail: null, mutants: [] };
+  const entry = { id, title, ok: true, detail: null, warnings: [], mutants: [] };
   let real;
-  try { real = await fn(impl); } catch (error) { real = { ok: false, detail: 'threw: ' + (error && error.stack || error) }; }
+  entry.warnings = await withWarnings(async () => {
+    try { real = await fn(impl); } catch (error) { real = { ok: false, detail: 'threw: ' + (error && error.stack || error) }; }
+  });
   entry.detail = real.detail || null;
+  // A check that could not run here (the machine-load gate) is a deferral: never a pass, never a failure.
+  if (real.deferred) {
+    entry.deferred = true;
+    results.push(entry);
+    line('  DEFER ' + id + '  ' + title);
+    line('          ' + entry.detail);
+    return entry;
+  }
   if (!real.ok) entry.ok = false;
+  // The real implementation must serve only what its own contract accepts. A validator line from the
+  // real run is a defect, not noise; deliberate bad input belongs to a mutant or to a refused request.
+  const invalid = entry.warnings.filter((warning) => warning.startsWith('[wow-validate]'));
+  if (invalid.length) {
+    entry.ok = false;
+    entry.detail = (entry.detail ? entry.detail + '; ' : '') + 'the real implementation served ' + invalid.length + ' response(s) its contract refuses';
+  }
   for (const mutant of mutants || []) {
     let verdict;
-    try { verdict = await fn(mutant.impl); } catch (error) { verdict = { ok: false, detail: 'threw: ' + (error && error.message || error) }; }
+    const warnings = await withWarnings(async () => {
+      try { verdict = await fn(mutant.impl); } catch (error) { verdict = { ok: false, detail: 'threw: ' + (error && error.message || error) }; }
+    });
     const red = !verdict.ok;
-    entry.mutants.push({ name: mutant.name, red, detail: verdict.detail || null });
+    entry.mutants.push({ name: mutant.name, red, detail: verdict.detail || null, warnings });
     if (!red) entry.ok = false;
   }
   results.push(entry);
   line((entry.ok ? '  PASS  ' : '  FAIL  ') + id + '  ' + title);
   if (real.detail) line('          ' + real.detail);
-  for (const m of entry.mutants) line('          mutant ' + (m.red ? 'red   ' : 'GREEN ') + m.name + (m.red ? '' : '  <- the check does not notice this break'));
+  for (const warning of entry.warnings) line('          real run warns: ' + warning);
+  for (const m of entry.mutants) {
+    line('          mutant ' + (m.red ? 'red   ' : 'GREEN ') + m.name + (m.red ? '' : '  <- the check does not notice this break'));
+    for (const warning of m.warnings) line('            it warns: ' + warning);
+  }
   return entry;
+}
+
+/**
+ * Run fn and return the world servers' warnings it caused ([wow-validate], [spatial-anchor]), so each
+ * one is printed under the run that caused it: the real implementation or a named mutant. The servers
+ * run in this process, so a warning raised while fn is awaited belongs to fn.
+ */
+async function withWarnings(fn) {
+  const caught = [];
+  const original = console.warn;
+  console.warn = (...args) => {
+    const text = args.map(String).join(' ');
+    if (/^\[(wow-validate|spatial-anchor)\]/.test(text)) caught.push(text.length > 220 ? text.slice(0, 217) + '...' : text);
+    else original.apply(console, args);
+  };
+  try { await fn(); } finally { console.warn = original; }
+  return caught;
 }
 
 /** A pure run of one assertion with no mutant (used where the negative cases are part of the check). */
@@ -157,19 +197,25 @@ function httpReq(method, port, requestPath, body, extraHeaders) {
   });
 }
 
-function finish(outputName) {
+function finish(outputName, label) {
+  label = label || 'iteration 1 proof';
   const failed = results.filter((r) => !r.ok);
+  const deferred = results.filter((r) => r.deferred);
   const mutants = results.reduce((n, r) => n + r.mutants.length, 0);
   line('');
-  line((results.length - failed.length) + '/' + results.length + ' checks pass; ' + mutants + ' mutants, all red where the check holds');
+  line((results.length - failed.length - deferred.length) + '/' + results.length + ' checks pass; ' + mutants + ' mutants, all red where the check holds'
+    + (deferred.length ? '; deferred: ' + deferred.map((r) => r.id).join(', ') : ''));
   if (failed.length) line('FAILED: ' + failed.map((r) => r.id).join(', '));
   try {
     const dir = path.join(ROOT, 'diagnostics');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, outputName), JSON.stringify({ generated_at: new Date().toISOString(), results }, null, 2) + '\n');
   } catch (error) { /* diagnostics are best effort */ }
-  line(failed.length ? 'FAIL: iteration 1 proof' : 'PASS: iteration 1 proof');
-  process.exitCode = failed.length ? 1 : 0;
+  if (failed.length) line('FAIL: ' + label);
+  else if (deferred.length) line('DEFERRED: ' + label + ' (' + deferred.map((r) => r.id).join(', ') + ' not run; every other check passes)');
+  else line('PASS: ' + label);
+  // 3, as the conformance runner uses it: nothing failed, but not everything ran.
+  process.exitCode = failed.length ? 1 : deferred.length ? 3 : 0;
 }
 
 module.exports = { ROOT, results, line, run, runPlain, makeTempDir, loadMutant, loadEsmMutant, python, mulberry32, httpReq, finish };

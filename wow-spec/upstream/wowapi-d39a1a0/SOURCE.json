@@ -2,10 +2,11 @@
   "source": "https://github.com/WebOfWorlds/WoWAPI",
   "commit": "d39a1a009aa4ef8fb6d14aa66d588cffb74c33de",
   "license": "Apache-2.0",
-  "note": "Unmodified copies of the upstream API descriptions. The iteration 1 edits are patches in wow-spec/overlays/iteration-1/ and never touch these files.",
+  "note": "Unmodified copies of the upstream API descriptions and the World README. The iteration 1 and 2 edits are patches in wow-spec/overlays/ and never touch these files.",
   "files": {
     "specification/OpenSpatialWorld/API.yaml": "c3ee4ea40cea793a86cc543f2a0f0178ac3c2b2f9122b0f065fb76381163e23b",
     "specification/OpenSpatialAsset/API.yaml": "6308cb25f4cb923f8c99667ddfd8a218551bd1f400e4bbdb3c53a1f257f91464",
-    "specification/OpenUserManifest/API.yaml": "c63dc207b69fb6a6f36f9e607fd03bf37c4b834fb7e8e3976661a924a6c3e9cf"
+    "specification/OpenUserManifest/API.yaml": "c63dc207b69fb6a6f36f9e607fd03bf37c4b834fb7e8e3976661a924a6c3e9cf",
+    "specification/OpenSpatialWorld/README.md": "03e520879c904588297112396ba4134ccd27fe798d2cff23eeee4ae5aeb57119"
   }
 }

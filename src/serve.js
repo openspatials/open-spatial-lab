@@ -150,10 +150,12 @@ function createFrontendServer(port = 8143, options = {}) {
     }
 
     if (request.method === 'OPTIONS' && (urlPath.startsWith('/api/') || urlPath.startsWith('/wow'))) {
+      // The same preflight answer the world servers give for Web of Worlds reads and conditional writes.
       response.writeHead(204, {
-        'Access-Control-Allow-Headers': 'Content-Type,Accept',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept, If-None-Match, If-Match, X-OSL-WoW-Node-Form, X-OSL-WoW-Spatial-Form',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Origin': '*',
+        'Access-Control-Max-Age': '600',
       });
       response.end();
       return;

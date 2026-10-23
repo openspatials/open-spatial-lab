@@ -1,0 +1,259 @@
+--- a/specification/OpenSpatialWorld/API.yaml
++++ b/specification/OpenSpatialWorld/API.yaml
+@@ -3,7 +3,10 @@
+   title: OpenSpatialWorld API
+   description: "The solution allows you to use a web app to enter the associated spatial experience and read and modify aspects of the world. 
+     The endpoint provides a single discrete world with some aspects of spatial data management. The main purpose is to join, connect and share the spatial world.\n\n\
+-    Frames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent."
++    Frames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\n\
++    Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\n\
++    Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).\n\n\
++    Cross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match."
+   version: '0.0.1'
+ 
+ servers:
+@@ -36,13 +39,25 @@
+         - world
+       summary: Returns a World status as a single data state 
+       operationId: getWorldStatus
++      parameters:
++        - $ref: '#/components/parameters/IfNoneMatch'
+       responses:
+         "200": # status code
+           description: "world summary"
++          headers:
++            ETag:
++              $ref: '#/components/headers/ETag'
++            Last-Modified:
++              $ref: '#/components/headers/LastModified'
+           content:
++            application/wow+json:
++              schema:
++                $ref: "#/components/schemas/World"
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/World"    
++        "304":
++          $ref: '#/components/responses/NotModified'
+ 
+ #--- User ---
+   /wow/user/{userId}:
+@@ -62,6 +77,9 @@
+         "200": # status code
+           description: "world summary"
+           content:
++            application/wow+json:
++              schema:
++                $ref: "#/components/schemas/User"
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/User"
+@@ -103,6 +121,9 @@
+         "200": # status code
+           description: "world summary"
+           content:
++            application/wow+json:
++              schema:
++                $ref: "#/components/schemas/View"
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/View"
+@@ -125,6 +146,9 @@
+         "200": # status code
+           description: "world summary"
+           content:
++            application/wow+json:
++              schema:
++                $ref: "#/components/schemas/Portal"
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/Portal"        
+@@ -145,13 +169,24 @@
+           required: true
+           schema:
+             type: integer
++        - $ref: '#/components/parameters/IfNoneMatch'
+       responses:
+         "200": # status code
+           description: "world summary"
++          headers:
++            ETag:
++              $ref: '#/components/headers/ETag'
++            Last-Modified:
++              $ref: '#/components/headers/LastModified'
+           content:
++            application/wow+json:
++              schema:
++                $ref: "#/components/schemas/Spatial"
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/Spatial"    
++        "304":
++          $ref: '#/components/responses/NotModified'
+   
+ 
+   /wow/spatial/{spatialID}/node/{nodeId}:
+@@ -177,6 +212,11 @@
+       requestBody:
+         description: Created and add single node
+         content:
++          application/wow+json:
++            schema:
++              type: array
++              items:
++                $ref: "#/components/schemas/Node"
+           application/json:
+             schema:
+               type: array
+@@ -186,6 +226,11 @@
+         '200':
+           description: successful operation
+           content:
++            application/wow+json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/Node'
+             application/json:
+               schema:
+                 type: array
+@@ -211,13 +256,24 @@
+           required: true
+           schema:
+             type: integer
++        - $ref: '#/components/parameters/IfNoneMatch'
+       responses:
+         "200": # status code
+           description: "world summary"
++          headers:
++            ETag:
++              $ref: '#/components/headers/ETag'
++            Last-Modified:
++              $ref: '#/components/headers/LastModified'
+           content:
++            application/wow+json:
++              schema:
++                $ref: "#/components/schemas/Node"
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/Node"    
++        "304":
++          $ref: '#/components/responses/NotModified'
+     put:
+       tags:
+         - Spatial Composition Graph
+@@ -236,9 +292,13 @@
+           required: true
+           schema:
+             type: integer
++        - $ref: '#/components/parameters/IfMatch'
+       requestBody:
+         description: Update an existent node 
+         content:
++          application/wow+json:
++            schema:
++                $ref: "#/components/schemas/Node"
+           application/json:
+             schema:
+                 $ref: "#/components/schemas/Node"    
+@@ -246,7 +306,13 @@
+       responses:
+         '200':
+           description: Successful operation
++          headers:
++            ETag:
++              $ref: '#/components/headers/ETag'
+           content:
++            application/wow+json:
++              schema:
++                $ref: "#/components/schemas/Node"
+             application/json:
+               schema:
+                 $ref: "#/components/schemas/Node"    
+@@ -254,6 +320,8 @@
+           description: Invalid ID supplied
+         '404':
+           description: node not found
++        '412':
++          $ref: '#/components/responses/PreconditionFailed'
+         '422':
+           description: Validation exception
+         default:
+@@ -276,11 +344,14 @@
+           required: true
+           schema:
+             type: integer
++        - $ref: '#/components/parameters/IfMatch'
+       responses:
+         '200':
+           description: node deleted
+         '400':
+           description: Invalid node value
++        '412':
++          $ref: '#/components/responses/PreconditionFailed'
+         default:
+           description: Unexpected error
+ 
+@@ -289,6 +360,35 @@
+ #------------------
+ 
+ components:
++  parameters:
++    IfNoneMatch:
++      name: If-None-Match
++      in: header
++      description: Entity tags the client holds; a match answers 304 with no body.
++      required: false
++      schema:
++        type: string
++    IfMatch:
++      name: If-Match
++      in: header
++      description: The entity tag the change is based on; no match answers 412 and changes nothing.
++      required: false
++      schema:
++        type: string
++  headers:
++    ETag:
++      description: Entity tag of this representation.
++      schema:
++        type: string
++    LastModified:
++      description: When this representation last changed (HTTP-date).
++      schema:
++        type: string
++  responses:
++    NotModified:
++      description: Not modified; the client's copy is current.
++    PreconditionFailed:
++      description: If-Match does not match the node's current entity tag; read the node again and retry.
+   schemas:
+     GeoPose:
+       description: >-
+@@ -352,6 +452,11 @@
+             positioned by it.
+           allOf:
+             - $ref: '#/components/schemas/GeoPose'
++        spatials:
++          type: array
++          description: The ids of the world's graphs (Spatial resources), the default graph first.
++          items:
++            type: integer
+         presence:
+           type: object
+           properties:
+@@ -478,6 +583,14 @@
+             type: number 
+         spatialAssetURI:
+           type: string
++          description: >-
++            The address of this node's content: a model, or the Spatial, Node or wow/world resource of
++            any world, which is then shown at this node. A client tells them apart by the media type of
++            the answer, never by the address: application/wow+json is another world's content. The
++            including node stands in for the included node's parent. A whole world shows its default
++            graph, and its other anchored graphs where their GeoPoses put them. The included world's
++            environment does not apply to the host. The host sets a nesting limit and a budget, detects
++            cycles by URL, and shows a placeholder on failure.
+         appearanceURI:
+           type: string
+                 

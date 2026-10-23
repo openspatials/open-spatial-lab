@@ -9,6 +9,9 @@
  *   { "graphs": [ { "id": 1, "geoPose": { "position": { "lat": 47.7, "lon": -122.3, "h": 11.5 },
  *                                          "angles": { "yaw": 0, "pitch": 0, "roll": 0 } } } ] }
  *
+ * Graph 1 is the world's default graph. A graph other than graph 1 may leave out its
+ * geoPose: it then has no anchor.
+ *
  * Every anchor is read through the one GeoPose reader (web/wow-geopose.js), the same code the
  * browser uses on `Spatial.geoPose`. A fixture the reader refuses stops the server from starting,
  * with the reader's named error, rather than serving a placement nobody checked.
@@ -29,7 +32,7 @@ class AnchorFixtureError extends Error {
 
 /**
  * @param {string|object} source   a path to a fixture file, or the fixture object itself
- * @returns {Map<number, object>}  graph id -> GeoPose (`lon` spelling, as read)
+ * @returns {Map<number, object|null>}  graph id -> GeoPose (`lon` spelling, as read), or null for no anchor
  */
 function loadAnchors(source)
 {
@@ -48,6 +51,14 @@ function loadAnchors(source)
             throw new AnchorFixtureError('ANCHOR_FIXTURE_GRAPH_ID', at + '.id', 'a graph id is an integer from 1');
         if (anchors.has(graph.id))
             throw new AnchorFixtureError('ANCHOR_FIXTURE_GRAPH_ID', at + '.id', 'graph id ' + graph.id + ' appears twice');
+        // A world's other graphs may have no anchor: they are not placed on Earth, and a host that
+        // includes the whole world does not show them. Graph 1 always has one, because it is where the
+        // world itself is found.
+        if (graph.id !== 1 && (graph.geoPose === null || graph.geoPose === undefined))
+        {
+            anchors.set(graph.id, null);
+            return;
+        }
         const read = geo.readGeoPose(graph.geoPose);
         if (!read.ok)
             throw new AnchorFixtureError(read.error.code, at + '.geoPose' + (read.error.path ? '.' + read.error.path : ''), read.error.message);

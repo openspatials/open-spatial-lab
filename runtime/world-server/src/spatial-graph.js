@@ -278,6 +278,59 @@ function isEnvOn(name)
  * @param {boolean} [opts.persist]      - persist to disk (default: env-gated).
  * @param {string}  [opts.persistDir]   - persistence dir.
  */
+/**
+ * The node ids of one world. Every graph of the world issues its ids here, so an id is unique within
+ * the world, across all its graphs, and never reused. The highest id ever issued is kept in a small
+ * file, written whether or not the graphs themselves are persisted, so a deleted id, a reset or a
+ * restart can never hand the same id to a different node.
+ *
+ * @param {{persistDir:string, fileStem:string}} opts
+ */
+function createIdSpace(opts)
+{
+    const persistDir = String(opts.persistDir);
+    const fileStem = String(opts.fileStem);
+    const file = path.join(persistDir, fileStem + '.ids.json');
+    let highWater = load();
+
+    function load()
+    {
+        try {
+            const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+            return doc && Number.isInteger(doc.high_water) && doc.high_water >= ROOT_ID ? doc.high_water : ROOT_ID;
+        } catch (e) {
+            return ROOT_ID;
+        }
+    }
+
+    function save()
+    {
+        try {
+            if (!fs.existsSync(persistDir)) fs.mkdirSync(persistDir, { recursive: true });
+            const tmp = file + '.' + process.pid + '.tmp';
+            fs.writeFileSync(tmp, JSON.stringify({ osl_spatial_ids: true, spatial_id: fileStem, high_water: highWater }) + '\n', 'utf8');
+            fs.renameSync(tmp, file);
+        } catch (e) {
+            // Best effort: ids stay unique within this process even if the file cannot be written.
+            console.warn('[spatial-graph] id high-water save failed (' + fileStem + '): ' + e.message);
+        }
+    }
+
+    return {
+        file,
+        highWater() { return highWater; },
+        /** Ids up to `id` are taken (an authored seed owns them). */
+        reserve(id) { if (id > highWater) { highWater = id; save(); } },
+        /** The next id: above every id this world has issued, and at least `floor`. */
+        issue(floor) {
+            const id = Math.max(highWater + 1, Number.isInteger(floor) ? floor : 0);
+            highWater = id;
+            save();
+            return id;
+        },
+    };
+}
+
 function createSpatialGraphStore(opts)
 {
     opts = opts || {};
@@ -295,53 +348,29 @@ function createSpatialGraphStore(opts)
         || path.join(__dirname, '..', '..', '..', '.runtime', 'spatial-store'));
     const fileStem = spatialId.replace(/[^A-Za-z0-9._-]/g, '_');
     const persistFile = path.join(persistDir, fileStem + '.json');
-    // Node ids are unique within a world and never reused. The highest id ever issued is kept in
-    // its own small file, written whether or not the whole store is persisted, so a deleted id, a
-    // reset or a restart can never hand the same id to a different node.
-    const idFile = path.join(persistDir, fileStem + '.ids.json');
+    // Node ids are unique within a world and never reused. A world with several graphs passes the one
+    // id space they share; a store on its own makes its own (see createIdSpace).
+    const ids = opts.ids || createIdSpace({ persistDir, fileStem });
+    // The world's first graph is rooted at ROOT_ID; another graph of the same world is rooted at an id
+    // issued from the shared id space, so no two nodes of the world share an id.
+    const rootId = Number.isInteger(opts.rootId) ? opts.rootId : ROOT_ID;
 
-    // id -> Node (canonical shape). rootId is always ROOT_ID.
+    // id -> Node (canonical shape).
     let nodes = new Map();
-    let nextId = ROOT_ID + 1;
-    let highWater = loadHighWater();
-
-    function loadHighWater()
-    {
-        try {
-            const doc = JSON.parse(fs.readFileSync(idFile, 'utf8'));
-            return doc && Number.isInteger(doc.high_water) && doc.high_water >= ROOT_ID ? doc.high_water : ROOT_ID;
-        } catch (e) {
-            return ROOT_ID;
-        }
-    }
-
-    function saveHighWater()
-    {
-        try {
-            if (!fs.existsSync(persistDir)) fs.mkdirSync(persistDir, { recursive: true });
-            const tmp = idFile + '.' + process.pid + '.tmp';
-            fs.writeFileSync(tmp, JSON.stringify({ osl_spatial_ids: true, spatial_id: spatialId, high_water: highWater }) + '\n', 'utf8');
-            fs.renameSync(tmp, idFile);
-        } catch (e) {
-            // Best effort: ids stay unique within this process even if the file cannot be written.
-            console.warn('[spatial-graph] id high-water save failed (' + spatialId + '): ' + e.message);
-        }
-    }
+    let nextId = rootId + 1;
 
     /** The next node id: above every id this world has ever issued. */
     function issueId()
     {
-        const id = Math.max(nextId, highWater + 1);
+        const id = ids.issue(nextId);
         nextId = id + 1;
-        highWater = id;
-        saveHighWater();
         return id;
     }
 
     function rootNode()
     {
         return {
-            id: ROOT_ID,
+            id: rootId,
             label: 'Root',
             names: [ spatialId ],
             children: [],
@@ -354,26 +383,26 @@ function createSpatialGraphStore(opts)
     {
         const seed = seedBuilder() || {};
         nodes = new Map();
-        const root = normalizeNode(seed.root || rootNode(), ROOT_ID);
-        root.id = ROOT_ID;
+        const root = normalizeNode(seed.root || rootNode(), rootId);
+        root.id = rootId;
         root.children = [];
-        nodes.set(ROOT_ID, root);
-        let seedId = ROOT_ID;
+        nodes.set(rootId, root);
+        let seedId = rootId;
         const children = Array.isArray(seed.nodes) ? seed.nodes : [];
         for (const raw of children)
         {
             const id = ++seedId;
             const node = normalizeNode(raw, id);
             node.id = id;
-            node.parent = ROOT_ID;
+            node.parent = rootId;
             node.children = Array.isArray(node.children) ? node.children : [];
             nodes.set(id, node);
             root.children.push(id);
         }
         // The authored seed owns ids 1..n whenever it is built, so a reset restores it under the same
         // ids. Nodes that clients created are gone after a reset, and their ids are never issued again.
-        if (seedId > highWater) { highWater = seedId; saveHighWater(); }
-        nextId = highWater + 1;
+        ids.reserve(seedId);
+        nextId = ids.highWater() + 1;
     }
 
     /**
@@ -428,7 +457,7 @@ function createSpatialGraphStore(opts)
                 spatial_id: spatialId,
                 accepted_ids: acceptedIds.slice(),
                 saved_at: new Date().toISOString(),
-                root_id: ROOT_ID,
+                root_id: rootId,
                 next_id: nextId,
                 nodes: snapshotNodes(),
             };
@@ -454,8 +483,8 @@ function createSpatialGraphStore(opts)
                 const node = normalizeNode(raw, raw && raw.id);
                 nodes.set(node.id, node);
             }
-            if (!nodes.has(ROOT_ID)) { loadSeed(); return true; }
-            nextId = Math.max(Number.isInteger(doc.next_id) ? doc.next_id : computeNextId(), highWater + 1);
+            if (!nodes.has(rootId)) { loadSeed(); return true; }
+            nextId = Math.max(Number.isInteger(doc.next_id) ? doc.next_id : computeNextId(), ids.highWater() + 1);
             return true;
         } catch (e) {
             console.warn('[spatial-graph] persist load failed (' + spatialId + '): ' + e.message);
@@ -465,7 +494,7 @@ function createSpatialGraphStore(opts)
 
     function computeNextId()
     {
-        let max = ROOT_ID;
+        let max = rootId;
         for (const id of nodes.keys()) if (id > max) max = id;
         return max + 1;
     }
@@ -500,7 +529,7 @@ function createSpatialGraphStore(opts)
     /** opts.form is 'flat' for the OSLFlatNode (children are ids); anything else is the canonical Node. */
     function getRoot(opts)
     {
-        return getNode(ROOT_ID, opts);
+        return getNode(rootId, opts);
     }
 
     function getNode(nodeId, opts)
@@ -647,11 +676,11 @@ function createSpatialGraphStore(opts)
      */
     function planMove(id, node, requested)
     {
-        if (id === ROOT_ID && (requested === null || requested === undefined)) return { ok : true, to : null };
+        if (id === rootId && (requested === null || requested === undefined)) return { ok : true, to : null };
         if (!Number.isInteger(requested))
             return { ok : false, status : 422, error : 'invalid_parent',
                 detail : { message : 'parent must be the integer id of a node in this graph', requested_parent : requested } };
-        if (id === ROOT_ID)
+        if (id === rootId)
             return { ok : false, status : 422, error : 'cannot_move_root',
                 detail : { message : 'the root has no parent and cannot be moved' } };
         if (requested === node.parent) return { ok : true, to : null };
@@ -797,7 +826,7 @@ function createSpatialGraphStore(opts)
     {
         const id = Number(nodeId);
         if (!Number.isInteger(id)) return { ok: false, status: 400, error: 'invalid_node_id' };
-        if (id === ROOT_ID) return { ok: false, status: 400, error: 'cannot_delete_root' };
+        if (id === rootId) return { ok: false, status: 400, error: 'cannot_delete_root' };
         const node = nodes.get(id);
         if (!node) return { ok: false, status: 404, error: 'node_not_found' };
 
@@ -847,6 +876,8 @@ function createSpatialGraphStore(opts)
         persist,
         persistFile,
         ROOT_ID,
+        rootId,
+        ids,
         matches,
         getRoot,
         getNode,
@@ -860,6 +891,7 @@ function createSpatialGraphStore(opts)
 
 module.exports = {
     createSpatialGraphStore,
+    createIdSpace,
     translationMatrix,
     ROOT_ID,
     // exported so the proof harnesses can assert the

@@ -35,6 +35,7 @@ import {
 // loads each node's real glTF `spatialAssetURI` into its group (placeholder until
 // loaded; labeled fallback on error), reusing the avatar GLTFLoader stack above.
 import { buildWowScene, mountWowSceneAssets } from "./wow-scene.mjs";
+import { mountWowInclusions, environmentAwareClone } from "./wow-inclusion-mount.mjs";
 // optional airport content presentation mounted only when
 // a WoW fixture explicitly declares the labeled airport-terminal extension.
 import { mountAirportTerminalContent } from "./airport-terminal-scene.mjs";
@@ -3851,11 +3852,31 @@ async function mainWowRead() {
     // REUSES the avatar GLTFLoader stack (loadGltfSceneAsset) — no second loader.
     const assetNodes = built.asset_nodes || [];
     document.body.setAttribute("data-wow-asset-nodes", String(assetNodes.length));
-    if (assetNodes.length) {
+    // Iteration 2: a live graph's node may link another world's Spatial, Node or World through its
+    // spatialAssetURI. Those are composed first (web/wow-inclusion.mjs) and mounted under their nodes;
+    // what remains are models, loaded below. A bundled fixture is not composed: its links are models.
+    const graphHref = resolved.graph_url ? new URL(resolved.graph_url, location.href).href : null;
+    const inclusionHost = resolved.source === "canonical-walk" && graphHref && /^https?:/i.test(graphHref) ? graphHref : null;
+    const modelsReady = inclusionHost
+      ? mountWowInclusions({ built, hostUrl: inclusionHost, THREE, buildWowScene, fetch: window.fetch.bind(window), document })
+          .then((mounted) => {
+            window.__wowInclusions = { summary: mounted.summary, composition: mounted.composition };
+            document.body.setAttribute("data-wow-inclusions", JSON.stringify(mounted.summary.by_status));
+            logLine(`wow inclusions: ${mounted.summary.graphs_shown} graph(s) shown, ${mounted.summary.placeholders.length} placeholder(s), ${mounted.summary.cycles} cycle(s)`);
+            return mounted.modelNodes;
+          })
+          .catch((e) => {
+            logLine(`wow inclusions ERROR: ${(e && e.message) || e}`);
+            return assetNodes;
+          })
+      : Promise.resolve(assetNodes);
+    void modelsReady.then((modelNodes) => {
+    document.body.setAttribute("data-wow-inclusions-ready", "1");
+    if (modelNodes.length) {
       const assetBaseUrl = resolved.base_url || resolved.graph_url || location.href;
-      mountWowSceneAssets(assetNodes, THREE, {
+      mountWowSceneAssets(modelNodes, THREE, {
         loadGltf: loadGltfSceneAsset,
-        cloneScene: cloneGltfSceneAsset,
+        cloneScene: environmentAwareClone(cloneGltfSceneAsset),
         cache: sceneRuntimeController.destinationAssetCache(),
         baseUrl: assetBaseUrl,
         onAsset: (a, model, assetRecord) => {
@@ -3880,6 +3901,7 @@ async function mainWowRead() {
       Object.assign(renderState.asset_load, { status: "settled", loaded: 0, failed: 0, note: "no spatialAssetURI nodes in this graph" });
       document.body.setAttribute("data-wow-assets-loaded", "0");
     }
+    });
   } catch (e) {
     renderState.error = (e && e.message) || String(e);
     logLine(`M2 wow RENDER ERROR: ${renderState.error}`);

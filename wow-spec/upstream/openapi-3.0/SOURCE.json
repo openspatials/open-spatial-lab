@@ -1,0 +1,9 @@
+{
+  "source": "https://spec.openapis.org/oas/3.0/schema/2021-09-28",
+  "publisher": "OpenAPI Initiative",
+  "license": "Apache-2.0",
+  "note": "The JSON Schema for OpenAPI 3.0.x documents, unmodified. The iteration 2 proof validates the patched Web of Worlds API descriptions against it.",
+  "files": {
+    "schema-2021-09-28.json": "7a0db7311a69d8b7f2505f59c5d4cbb58539a0961df0c05724a07538014822cf"
+  }
+}

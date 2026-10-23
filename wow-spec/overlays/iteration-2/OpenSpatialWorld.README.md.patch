@@ -1,0 +1,19 @@
+--- a/specification/OpenSpatialWorld/README.md
++++ b/specification/OpenSpatialWorld/README.md
+@@ -18,13 +18,15 @@
+ 
+ Additional information provided in separate data package
+ 
++A world may sit at a path prefix. Its base URL is then that prefix, and its resource URLs are the base plus wow/... (for example https://host.example/w/b/wow/world).
++
+ - Read world status including live aspects as a standardized container (e.g JSON-LD)
+   - URL/wow/world
+ 
+ - Read and write aspects of the world to enable links to sub-elements of the world (e.g user avatar)
+   - URL/wow/user/4182
+ 
+-- Expose parts of scene to be linked in external world 		
++- Any readable Spatial or Node may be included by another world: a node's spatialAssetURI links it, and the world that serves it stays its owner
+   - URL/wow/scene/
+ 
+ - Read and write the structure of scene nodes if this is exposed 

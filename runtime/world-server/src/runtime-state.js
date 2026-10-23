@@ -794,6 +794,8 @@ function createRuntime(opts)
             },
             // The world's location for discovery, not a placement: the anchor of its graph.
             geoPose : clone(WORLD_ANCHOR),
+            // The ids of the world's graphs, the default graph first (proposed World.spatials).
+            spatials : spatialGraphIds(),
             presence : {
                 avatar : 'vrm-glb-avatar (client-rendered)',
                 navigation : 'walk-wasd-jump',
@@ -2604,10 +2606,35 @@ function createRuntime(opts)
         seedBuilder : buildSpatialSeedNodes,
     });
 
-    /** Resolve a spatialID to THIS node's graph store, or null (-> 404). */
+    // The world's other graphs, from the anchor fixture: each starts as a bare root that clients build
+    // on through the node API. They share graph 1's id space, so a node id names one node in the whole
+    // world, and each root is an id issued there (a fresh one at each start, never a reused one).
+    const extraStores = Array.from(SPATIAL_ANCHORS.keys())
+        .filter(id => id !== SPATIAL_GRAPH_ID)
+        .sort((x, y) => x - y)
+        .map(id => createSpatialGraphStore({
+            spatialId : SPATIAL_ID + '.graph-' + id,
+            graphId : id,
+            acceptedIds : [],
+            ids : spatialStore.ids,
+            rootId : spatialStore.ids.issue(),
+            seedBuilder : () => ({
+                root : { label : TITLE + ' - graph ' + id, names : [ WORLD_ID + '.graph-' + id ], localTransform : translationMatrix([ 0, 0, 0 ]) },
+                nodes : [],
+            }),
+        }));
+    const graphStores = [ spatialStore ].concat(extraStores);
+
+    /** The ids of this world's graphs, the default graph first (World.spatials). */
+    function spatialGraphIds()
+    {
+        return graphStores.map(store => store.graphId);
+    }
+
+    /** Resolve a spatialID to one of this world's graph stores, or null (-> 404). */
     function spatialResolve(spatialID)
     {
-        return spatialStore.matches(spatialID) ? spatialStore : null;
+        return graphStores.find(store => store.matches(spatialID)) || null;
     }
 
     /** The composition graph's root node, as the canonical Node, or as the OSLFlatNode with opts.form 'flat'. */
@@ -2627,11 +2654,13 @@ function createRuntime(opts)
         const store = spatialResolve(spatialID);
         if (!store) return null;
         const root = store.getRoot({ form : 'flat' });
-        const rootNodeID = root ? root.id : 0;
+        const rootNodeID = root ? root.id : store.rootId;
+        const anchor = SPATIAL_ANCHORS.get(store.graphId);
         return {
             id : store.graphId,
             rootNodeID : rootNodeID,
-            geoPose : clone(WORLD_ANCHOR), // the graph's anchor, as read from the fixture
+            // the graph's anchor, as read from the fixture; a graph with no anchor has no geoPose
+            ...(anchor ? { geoPose : clone(anchor) } : {}),
             // LABELED, NON-CANONICAL additive members.
             webofworlds_extension : {
                 x_osl_extension : true,
@@ -3460,7 +3489,7 @@ function createRuntime(opts)
         demoBumpAttachPoint('reset');
         // rebuild the Spatial Composition Graph from the
         // just-restored scene data so /wow/spatial returns to its seed too.
-        spatialStore.resetToSeed();
+        for (const store of graphStores) store.resetToSeed();
         // reset restores the application default and
         // replaces the prior ambient-drift timer with exactly one 100 ms timer.
         // startRepublishTimer is a hoisted declaration below and clears any

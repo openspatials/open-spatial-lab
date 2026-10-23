@@ -174,6 +174,136 @@ function createServer(role, extraOpts)
         return raw === 'flat' ? 'flat' : 'canonical';
     }
 
+    // ---- Web of Worlds resources over HTTP (iteration 2) -------------------------------------------
+    //
+    // MEDIA TYPE. A World, User, View, Portal, Spatial or Node is served as `application/wow+json`, so a
+    // client that finds the address in a node's `spatialAssetURI` can tell another world's content from
+    // a model by the answer's Content-Type alone. `application/json` stays available: a request that
+    // prefers it (Accept: application/json) gets it. The name is a working name, provisional until the
+    // Web of Worlds group decides it. Error bodies stay `application/json`: they are not resources.
+    //
+    // ENTITY TAGS. GET /wow/world, GET /wow/spatial/{id} and the node GET carry ETag and Last-Modified
+    // and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it
+    // does not match the node's current representation (RFC 9110 §13.1). A tag is a hash of the bytes
+    // served with their media type, so each representation of a resource has its own tag.
+    //
+    // CROSS-ORIGIN READS. Every /wow/ response carries Access-Control-Allow-Origin as the world's
+    // policy (cfg.cors_allowed_origins: '*' by default, a list of origins, or [] for none) allows, and
+    // exposes ETag, which a browser page could not read otherwise. A preflight allows Authorization,
+    // If-None-Match and If-Match.
+    const WOW_MEDIA_TYPE = 'application/wow+json';
+    const WOW_OFFERS = [ WOW_MEDIA_TYPE, 'application/json' ];
+    const CORS_POLICY = cfg.cors_allowed_origins === undefined ? '*' : cfg.cors_allowed_origins;
+    // A world may sit at a path prefix (cfg.base_path, such as '/w/b'); its resource URLs are then the
+    // base plus wow/... . Requests outside the prefix are not this world's.
+    const BASE_PATH = cfg.base_path ? String(cfg.base_path).replace(/\/+$/, '') : '';
+    // Which nodes a reader may not see (cfg.read_policy.refusesNode(graphId, nodeId) -> true). A refused
+    // node answers 403, and the canonical form of its parent leaves it out.
+    const READ_POLICY = cfg.read_policy && typeof cfg.read_policy.refusesNode === 'function' ? cfg.read_policy : null;
+
+    function wowTypeFor(req)
+    {
+        return wowMediaTypes.negotiate(req.headers.accept, WOW_OFFERS).mediaType || WOW_MEDIA_TYPE;
+    }
+
+    function wowEtag(type, body)
+    {
+        return wowAsset.etagOf(type + '\n' + body);
+    }
+
+    // Last-Modified: when this server first served the representation that now has this tag.
+    const firstServed = new Map();
+    function lastModifiedOf(key, etag)
+    {
+        const seen = firstServed.get(key);
+        if (seen && seen.etag === etag) return seen.date;
+        const date = new Date().toUTCString();
+        firstServed.set(key, { etag, date });
+        return date;
+    }
+
+    /**
+     * Send a Web of Worlds resource. opts.tagged adds ETag and Last-Modified; on a GET that also
+     * answers If-None-Match with 304 when the tag matches.
+     */
+    function sendWow(req, res, code, obj, opts)
+    {
+        opts = opts || {};
+        wowAnnotateResponse(res, code, obj);
+        const type = wowTypeFor(req);
+        const body = JSON.stringify(obj, null, 2);
+        const headers = {
+            'Content-Type' : type,
+            'Content-Length' : Buffer.byteLength(body),
+            'Vary' : CORS_POLICY === '*' ? 'Accept' : 'Accept, Origin',
+            'X-MSF-validation-Boundary' : 'application-level-handoff; native-teleport=false; conformance=false',
+        };
+        if (opts.tagged)
+        {
+            const etag = wowEtag(type, body);
+            headers.ETag = etag;
+            headers['Last-Modified'] = lastModifiedOf(req.url + '|' + type, etag);
+            if (code === 200 && req.method !== 'PUT' && wowAsset.ifNoneMatchHits(req.headers['if-none-match'], etag))
+            {
+                res.writeHead(304, { ETag : etag, 'Last-Modified' : headers['Last-Modified'], Vary : headers.Vary });
+                res.end();
+                return;
+            }
+        }
+        res.writeHead(code, headers);
+        res.end(body);
+    }
+
+    /**
+     * True when the request's If-Match does not match the current representation (`current`, as the
+     * same request would GET it): the write must then be refused with 412. No If-Match: false.
+     * Comparison is strong, so a weak tag never matches (RFC 9110 §13.1.1).
+     */
+    function ifMatchFails(req, current)
+    {
+        const raw = req.headers['if-match'];
+        if (raw === undefined || String(raw).trim() === '') return false;
+        if (String(raw).trim() === '*') return current === null || current === undefined;
+        if (current === null || current === undefined) return true;
+        const etag = wowEtag(wowTypeFor(req), JSON.stringify(current, null, 2));
+        return !String(raw).split(',').map(tag => tag.trim()).some(tag => tag === etag);
+    }
+
+    /** The integer id of the graph a spatialID names, or null. */
+    function graphIdOf(spatialID)
+    {
+        const spatial = runtime.getSpatialDescriptor(spatialID);
+        return spatial ? spatial.id : null;
+    }
+
+    function refusesRead(graphId, nodeId)
+    {
+        return !!(READ_POLICY && READ_POLICY.refusesNode(graphId, nodeId));
+    }
+
+    /** A node as this reader may see it: refused children (and their subtrees) are left out. */
+    function readableNode(graphId, node)
+    {
+        if (!READ_POLICY || !node || !Array.isArray(node.children)) return node;
+        node.children = node.children
+            .filter(child => !refusesRead(graphId, child && typeof child === 'object' ? child.id : child))
+            .map(child => (child && typeof child === 'object' ? readableNode(graphId, child) : child));
+        return node;
+    }
+
+    /** Cross-origin headers for a /wow/ response, as the world's policy allows. */
+    function applyCors(req, res)
+    {
+        const origin = req.headers.origin;
+        let allow = null;
+        if (CORS_POLICY === '*') allow = '*';
+        else if (Array.isArray(CORS_POLICY) && origin && CORS_POLICY.indexOf(origin) !== -1) allow = origin;
+        if (!allow) return false;
+        res.setHeader('Access-Control-Allow-Origin', allow);
+        res.setHeader('Access-Control-Expose-Headers', 'ETag, Last-Modified, X-OSL-WoW-Validation');
+        return true;
+    }
+
     // Called by sendJson for EVERY JSON response. Non-/wow paths are untouched.
     function wowAnnotateResponse(res, code, obj)
     {
@@ -409,8 +539,39 @@ function createServer(role, extraOpts)
 
     const server = http.createServer((req, res) => {
         const url = new URL(req.url, 'http://127.0.0.1:' + cfg.http_port);
-        const path = url.pathname;
-        const method = req.method;
+        let path = url.pathname;
+        if (BASE_PATH)
+        {
+            if (path !== BASE_PATH && !path.startsWith(BASE_PATH + '/'))
+            {
+                res.writeHead(404, { 'Content-Type' : 'application/json' });
+                res.end(JSON.stringify({ ok : false, error : 'outside_world_base_path', base_path : BASE_PATH, path }));
+                return;
+            }
+            path = path.slice(BASE_PATH.length) || '/';
+        }
+        // HEAD on a Web of Worlds resource is answered as GET; Node sends the same header fields and no
+        // body (RFC 9110 §9.3.2). The asset routes keep their own HEAD handling.
+        const wowResourcePath = path === '/wow/world' || /^\/wow\/(spatial|portal|user|view)\//.test(path);
+        const method = req.method === 'HEAD' && wowResourcePath ? 'GET' : req.method;
+
+        if (path.startsWith('/wow/'))
+        {
+            const allowed = applyCors(req, res);
+            if (method === 'OPTIONS')
+            {
+                if (allowed)
+                {
+                    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, DELETE, OPTIONS');
+                    res.setHeader('Access-Control-Allow-Headers',
+                        'Authorization, Content-Type, Accept, If-None-Match, If-Match, X-OSL-WoW-Node-Form, X-OSL-WoW-Spatial-Form');
+                    res.setHeader('Access-Control-Max-Age', '600');
+                }
+                res.writeHead(204);
+                res.end();
+                return;
+            }
+        }
 
         // the ONE place the request identity is
         // recorded, so sendJson() can ask the contract what this exchange was
@@ -432,7 +593,7 @@ function createServer(role, extraOpts)
             });
 
         if (method === 'GET' && path === '/wow/world')
-            return sendJson(res, 200, runtime.getWowWorld());
+            return sendWow(req, res, 200, runtime.getWowWorld(), { tagged : true });
 
         if (method === 'GET' && path === '/wow/location')
             return sendJson(res, 200, runtime.getWowLocation());
@@ -450,7 +611,7 @@ function createServer(role, extraOpts)
             const portalId = decodeURIComponent(path.slice('/wow/portal/'.length));
             const proj = runtime.getWowPortal(portalId);
             if (!proj) return sendJson(res, 404, { ok : false, error : 'portal_not_found', portalId });
-            return sendJson(res, 200, proj);
+            return sendWow(req, res, 200, proj);
         }
 
         if (method === 'GET' && path.startsWith('/wow/user/'))
@@ -466,12 +627,12 @@ function createServer(role, extraOpts)
                 .then(() => runtime.getWowUserSigned(userId))
                 .then((proj) => {
                     if (!proj) return sendJson(res, 404, { ok : false, error : 'user_not_found', userId });
-                    return sendJson(res, 200, proj);
+                    return sendWow(req, res, 200, proj);
                 })
                 .catch(() => {
                     const proj = runtime.getWowUser(userId);
                     if (!proj) return sendJson(res, 404, { ok : false, error : 'user_not_found', userId });
-                    return sendJson(res, 200, proj);
+                    return sendWow(req, res, 200, proj);
                 });
             return;
         }
@@ -495,7 +656,7 @@ function createServer(role, extraOpts)
             const viewId = decodeURIComponent(path.slice('/wow/view/'.length));
             const proj = runtime.getWowView(viewId);
             if (!proj) return sendJson(res, 404, { ok : false, error : 'view_not_found', viewId });
-            return sendJson(res, 200, proj);
+            return sendWow(req, res, 200, proj);
         }
 
         // OpenSpatialAsset — the third WoW pillar. HEAD/GET at
@@ -540,12 +701,12 @@ function createServer(role, extraOpts)
                     const root = runtime.getSpatialGraphRoot(spatialID, { form : nodeForm });
                     if (!root) return sendJson(res, 404, { ok : false, error : 'spatial_graph_not_found', spatialID });
                     try { res.setHeader('X-OSL-WoW-Spatial-Form', 'node'); res.setHeader('X-OSL-WoW-Node-Form', nodeForm); } catch (e) {}
-                    return sendJson(res, 200, root);
+                    return sendWow(req, res, 200, readableNode(graphIdOf(spatialID), root), { tagged : true });
                 }
                 const spatial = runtime.getSpatialDescriptor(spatialID);
                 if (!spatial) return sendJson(res, 404, { ok : false, error : 'spatial_graph_not_found', spatialID });
                 try { res.setHeader('X-OSL-WoW-Spatial-Form', 'descriptor'); } catch (e) {}
-                return sendJson(res, 200, spatial);
+                return sendWow(req, res, 200, spatial, { tagged : true });
             }
 
             // ---- a node: /wow/spatial/{spatialID}/node/{nodeId} ----
@@ -559,8 +720,10 @@ function createServer(role, extraOpts)
             {
                 const node = runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm });
                 if (!node) return sendJson(res, 404, { ok : false, error : 'node_not_found', spatialID, nodeId });
+                if (refusesRead(graphIdOf(spatialID), nodeId))
+                    return sendJson(res, 403, { ok : false, error : 'node_read_refused', spatialID, nodeId });
                 try { res.setHeader('X-OSL-WoW-Node-Form', nodeForm); } catch (e) {}
-                return sendJson(res, 200, node);
+                return sendWow(req, res, 200, readableNode(graphIdOf(spatialID), node), { tagged : true });
             }
 
             if (method === 'POST')
@@ -605,7 +768,7 @@ function createServer(role, extraOpts)
                         // Flat: every node stored, parents first.
                         const value = flat ? r.value
                             : r.top_level.map(id => runtime.getSpatialNode(spatialID, id, { form : 'canonical' }));
-                        return sendJson(res, 200, value);
+                        return sendWow(req, res, 200, value);
                     } catch (e) {
                         if (res.headersSent) return res.destroy();
                         return sendJson(res, 400, { ok : false, error : 'node_create_rejected', message : e.message });
@@ -620,6 +783,11 @@ function createServer(role, extraOpts)
                     try {
                         if (!body || typeof body !== 'object' || Array.isArray(body))
                             return sendJson(res, 400, { ok : false, error : 'expected_node_object' });
+                        // A stale If-Match is a lost update: refuse it before anything is checked or stored.
+                        const current = runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm });
+                        if (ifMatchFails(req, current ? readableNode(graphIdOf(spatialID), current) : null))
+                            return sendJson(res, 412, { ok : false, error : 'precondition_failed', spatialID, nodeId,
+                                message : 'If-Match does not match the node\'s current entity tag; read the node again and retry' });
                         const badTransform = inspectIncomingTransforms(body, { arraysOnly : true, single : true });
                         if (badTransform)
                             return sendJson(res, badTransform.status, Object.assign(
@@ -642,7 +810,8 @@ function createServer(role, extraOpts)
                             return sendJson(res, r.status, Object.assign(
                                 { ok : false, error : r.error, spatialID, nodeId }, r.detail || {}));
                         try { res.setHeader('X-OSL-WoW-Node-Form', nodeForm); } catch (e) {}
-                        return sendJson(res, 200, flat ? r.value : runtime.getSpatialNode(spatialID, nodeId, { form : 'canonical' }));
+                        return sendWow(req, res, 200,
+                            readableNode(graphIdOf(spatialID), runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm })), { tagged : true });
                     } catch (e) {
                         if (res.headersSent) return res.destroy();
                         return sendJson(res, 400, { ok : false, error : 'node_update_rejected', message : e.message });
@@ -652,6 +821,10 @@ function createServer(role, extraOpts)
 
             if (method === 'DELETE')
             {
+                const current = runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm });
+                if (ifMatchFails(req, current ? readableNode(graphIdOf(spatialID), current) : null))
+                    return sendJson(res, 412, { ok : false, error : 'precondition_failed', spatialID, nodeId,
+                        message : 'If-Match does not match the node\'s current entity tag; read the node again and retry' });
                 const r = runtime.deleteSpatialNode(spatialID, nodeId);
                 if (!r.ok) return sendJson(res, r.status, { ok : false, error : r.error, spatialID, nodeId });
                 return sendJson(res, 200, Object.assign({ ok : true }, r.value));

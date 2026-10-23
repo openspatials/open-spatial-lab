@@ -62,6 +62,12 @@ info:
 
     Frames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.
 
+    Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.
+
+    Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).
+
+    Cross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match.
+
 servers:
   - url: http://127.0.0.1:18151
     description: OSL local world-server node A (labeled local validation; not public)
@@ -85,14 +91,27 @@ paths:
     get:
       operationId: world.getWorld
       tags: [canonical]
+      x-osl-overlay: iteration-2
       summary: Returns a World status as a single data state.
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: world summary (canonical World + labeled OSL extensions)
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Last-Modified:
+              $ref: '#/components/headers/LastModified'
           content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/OSLWorldResponse'
             application/json:
               schema:
                 $ref: '#/components/schemas/OSLWorldResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
 
   # --- User (canonical) ---
   /wow/user/{userId}:
@@ -111,6 +130,9 @@ paths:
         '200':
           description: user (canonical User + labeled OSL extensions)
           content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/OSLUserResponse'
             application/json:
               schema:
                 $ref: '#/components/schemas/OSLUserResponse'
@@ -150,6 +172,9 @@ paths:
         '200':
           description: view (canonical View + labeled OSL extensions)
           content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/OSLViewResponse'
             application/json:
               schema:
                 $ref: '#/components/schemas/OSLViewResponse'
@@ -173,6 +198,9 @@ paths:
         '200':
           description: portal (canonical Portal + labeled OSL extensions)
           content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/OSLPortalResponse'
             application/json:
               schema:
                 $ref: '#/components/schemas/OSLPortalResponse'
@@ -199,7 +227,7 @@ paths:
     get:
       operationId: spatial.getSpatial
       tags: [canonical]
-      x-osl-overlay: iteration-1
+      x-osl-overlay: iteration-1 and iteration-2
       summary: Returns a Spatial (the graph id, the root node id and the GeoPose anchor of the graph).
       parameters:
         - name: spatialID
@@ -241,6 +269,7 @@ paths:
           schema:
             type: string
             enum: [canonical, flat]
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: >-
@@ -253,10 +282,19 @@ paths:
               schema:
                 type: string
                 enum: [node, descriptor]
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Last-Modified:
+              $ref: '#/components/headers/LastModified'
           content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/Spatial'
             application/json:
               schema:
                 $ref: '#/components/schemas/Spatial'
+        '304':
+          $ref: '#/components/responses/NotModified'
         '404':
           description: spatial graph not found
 
@@ -264,7 +302,7 @@ paths:
     get:
       operationId: spatial.getNode
       tags: [canonical]
-      x-osl-overlay: iteration-1
+      x-osl-overlay: iteration-1 and iteration-2
       summary: Returns a node of the spatial composition graph, with its whole subtree embedded.
       parameters:
         - name: spatialID
@@ -288,6 +326,7 @@ paths:
           schema:
             type: string
             enum: [canonical, flat]
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: The node as the canonical `Node`; the `OSLFlatNode` when the node form is `flat`.
@@ -298,16 +337,30 @@ paths:
               schema:
                 type: string
                 enum: [canonical, flat]
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Last-Modified:
+              $ref: '#/components/headers/LastModified'
           content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/Node'
             application/json:
               schema:
                 $ref: '#/components/schemas/Node'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '403':
+          x-osl-extension: true
+          description: >-
+            OSL EXTENSION. The world's read policy refuses this node to this reader
+            (`node_read_refused`); the canonical form of its parent leaves it out.
         '404':
           description: node not found
     post:
       operationId: spatial.createNodes
       tags: [canonical]
-      x-osl-overlay: iteration-1
+      x-osl-overlay: iteration-1 and iteration-2
       summary: Create and add new child nodes under the given parent node.
       parameters:
         - name: spatialID
@@ -338,6 +391,11 @@ paths:
         description: Array of new nodes to add as children of the parent. Canonical `Node[]` by default.
         required: true
         content:
+          application/wow+json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/Node'
           application/json:
             schema:
               type: array
@@ -356,6 +414,11 @@ paths:
                 type: string
                 enum: [canonical, flat]
           content:
+            application/wow+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Node'
             application/json:
               schema:
                 type: array
@@ -378,7 +441,7 @@ paths:
     put:
       operationId: spatial.updateNode
       tags: [canonical]
-      x-osl-overlay: iteration-1
+      x-osl-overlay: iteration-1 and iteration-2
       summary: Update an existing node's content, or move it by setting `parent`.
       parameters:
         - name: spatialID
@@ -400,6 +463,7 @@ paths:
           schema:
             type: string
             enum: [canonical, flat]
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         description: >-
           The updated node. `children` is derived from the tree: a PUT may leave it out or repeat it
@@ -407,6 +471,9 @@ paths:
           `parent` moves the node, with its subtree, under another node of the same graph.
         required: true
         content:
+          application/wow+json:
+            schema:
+              $ref: '#/components/schemas/Node'
           application/json:
             schema:
               $ref: '#/components/schemas/Node'
@@ -420,7 +487,12 @@ paths:
               schema:
                 type: string
                 enum: [canonical, flat]
+            ETag:
+              $ref: '#/components/headers/ETag'
           content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/Node'
             application/json:
               schema:
                 $ref: '#/components/schemas/Node'
@@ -428,6 +500,8 @@ paths:
           description: Invalid ID supplied
         '404':
           description: node not found
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
         '422':
           description: >-
             Validation exception. `child_restructure_not_supported` (the `children` sent differ from
@@ -438,7 +512,7 @@ paths:
     delete:
       operationId: spatial.deleteNode
       tags: [canonical]
-      x-osl-overlay: iteration-1
+      x-osl-overlay: iteration-1 and iteration-2
       summary: Deletes a node and its subtree. Its ids are never issued again within the world.
       parameters:
         - name: spatialID
@@ -452,6 +526,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: '#/components/parameters/IfMatch'
       responses:
         '200':
           description: node deleted
@@ -459,6 +534,8 @@ paths:
           description: Invalid node value, or the root, which cannot be deleted.
         '404':
           description: node not found
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
         default:
           description: Unexpected error
 
@@ -466,6 +543,36 @@ paths:
 # Components
 # ------------------------------------------------------------------
 components:
+  # OVERLAY (iteration 2, proposed upstream edit): conditional requests (wow-spec/overlays/iteration-2/).
+  parameters:
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      description: Entity tags the client holds; a match answers 304 with no body.
+      required: false
+      schema:
+        type: string
+    IfMatch:
+      name: If-Match
+      in: header
+      description: The entity tag the change is based on; no match answers 412 and changes nothing.
+      required: false
+      schema:
+        type: string
+  headers:
+    ETag:
+      description: Entity tag of this representation.
+      schema:
+        type: string
+    LastModified:
+      description: When this representation last changed (HTTP-date).
+      schema:
+        type: string
+  responses:
+    NotModified:
+      description: Not modified; the client's copy is current.
+    PreconditionFailed:
+      description: If-Match does not match the node's current entity tag; read the node again and retry.
   schemas:
 
     # ============================================================
@@ -549,6 +656,12 @@ components:
             positioned by it.
           allOf:
             - $ref: '#/components/schemas/GeoPose'
+        spatials:
+          x-osl-overlay: iteration-2
+          type: array
+          description: The ids of the world's graphs (Spatial resources), the default graph first.
+          items:
+            type: integer
         presence:
           type: object
           properties:
@@ -664,7 +777,16 @@ components:
           items:
             type: number
         spatialAssetURI:
+          x-osl-overlay: iteration-2
           type: string
+          description: >-
+            The address of this node's content: a model, or the Spatial, Node or wow/world resource of
+            any world, which is then shown at this node. A client tells them apart by the media type of
+            the answer, never by the address: application/wow+json is another world's content. The
+            including node stands in for the included node's parent. A whole world shows its default
+            graph, and its other anchored graphs where their GeoPoses put them. The included world's
+            environment does not apply to the host. The host sets a nesting limit and a budget, detects
+            cycles by URL, and shows a placeholder on failure.
         appearanceURI:
           type: string
 

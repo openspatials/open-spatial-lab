@@ -7,7 +7,7 @@
     "x-osl-source-of-truth": true,
     "x-osl-canonical-basis": "Canonical schemas (World/User/View/Portal/Node/Spatial) and the /wow/world, /wow/user, /wow/view, /wow/portal and /wow/spatial paths are transcribed from the OPEN OpenSpatialWorld API (github.com/WebOfWorlds/WoWAPI, specification/OpenSpatialWorld/API.yaml, openapi 3.0.4, info.version 0.0.1), pinned to upstream commit d39a1a0 (\"fixed node children type\", 2026-05-21).",
     "x-osl-provenance-correction": "CORRECTION (2026-07-11, runtime; supersedes the previous claim here that this file was \"NOT copied from the UNLICENSED simpleWorlds reference implementation\"). That sentence was NOT supportable and is withdrawn. Two things in the first transcription match the STALE spec copy vendored in the simpleWorlds reference implementation rather than the open spec: (1) `Node.children` was typed `integer`, where the open spec says `$ref: Node` (simpleWorlds packages/wow-spec/src/schema.yaml:425-428 types it `integer`; upstream has ONE commit, so NO published upstream state has ever said `integer`); and (2) the dotted operationIds (world.getWorld, user.getUser, user.deleteUser, view.getView, portal.getPortal) match simpleWorlds 5-for-5, where upstream uses getWorldStatus / getUserById / deleteUserById / getViewById / getPortalById. Sourcing was MIXED, not wholesale: the /wow/spatial/{spatialID}/node/{nodeId} path is the OPEN SPEC's, and OSL deliberately REJECTED simpleWorlds' /wow/scene/node divergence (PROP §9). `Node` is now restored VERBATIM from the open spec. What OSL served then (id-ref children) was the LABELED, non-canonical `OSLFlatNode` divergence — declared, never presented as the standard. Since iteration 1 OSL serves the canonical `Node` by default and the flat form only on explicit request. NO simpleWorlds SOURCE CODE is vendored in this repository; the schema typing and operationId NAMING above are the extent of the overlap, and the typing is corrected. LICENSING NOTE: simpleWorlds' license state is self-contradictory — the repo ships an Apache-2.0 LICENSE file while its package.json (root and packages/wow-spec) declares \"license\": \"UNLICENSED\". Because that is unresolved, OSL treats simpleWorlds as DO-NOT-COPY and single-sources the open spec.",
-    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n\nFrames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n"
+    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n\nFrames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\nMedia type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\nEntity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).\n\nCross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match.\n"
   },
   "servers": [
     {
@@ -36,17 +36,39 @@
         "tags": [
           "canonical"
         ],
+        "x-osl-overlay": "iteration-2",
         "summary": "Returns a World status as a single data state.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          }
+        ],
         "responses": {
           "200": {
             "description": "world summary (canonical World + labeled OSL extensions)",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Last-Modified": {
+                "$ref": "#/components/headers/LastModified"
+              }
+            },
             "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSLWorldResponse"
+                }
+              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OSLWorldResponse"
                 }
               }
             }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
           }
         }
       }
@@ -73,6 +95,11 @@
           "200": {
             "description": "user (canonical User + labeled OSL extensions)",
             "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSLUserResponse"
+                }
+              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OSLUserResponse"
@@ -135,6 +162,11 @@
           "200": {
             "description": "view (canonical View + labeled OSL extensions)",
             "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSLViewResponse"
+                }
+              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OSLViewResponse"
@@ -170,6 +202,11 @@
           "200": {
             "description": "portal (canonical Portal + labeled OSL extensions)",
             "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSLPortalResponse"
+                }
+              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OSLPortalResponse"
@@ -189,7 +226,7 @@
         "tags": [
           "canonical"
         ],
-        "x-osl-overlay": "iteration-1",
+        "x-osl-overlay": "iteration-1 and iteration-2",
         "summary": "Returns a Spatial (the graph id, the root node id and the GeoPose anchor of the graph).",
         "parameters": [
           {
@@ -245,6 +282,9 @@
                 "flat"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
           }
         ],
         "responses": {
@@ -261,15 +301,29 @@
                     "descriptor"
                   ]
                 }
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Last-Modified": {
+                "$ref": "#/components/headers/LastModified"
               }
             },
             "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Spatial"
+                }
+              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Spatial"
                 }
               }
             }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
           },
           "404": {
             "description": "spatial graph not found"
@@ -283,7 +337,7 @@
         "tags": [
           "canonical"
         ],
-        "x-osl-overlay": "iteration-1",
+        "x-osl-overlay": "iteration-1 and iteration-2",
         "summary": "Returns a node of the spatial composition graph, with its whole subtree embedded.",
         "parameters": [
           {
@@ -316,6 +370,9 @@
                 "flat"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
           }
         ],
         "responses": {
@@ -332,15 +389,33 @@
                     "flat"
                   ]
                 }
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Last-Modified": {
+                "$ref": "#/components/headers/LastModified"
               }
             },
             "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Node"
                 }
               }
             }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "403": {
+            "x-osl-extension": true,
+            "description": "OSL EXTENSION. The world's read policy refuses this node to this reader (`node_read_refused`); the canonical form of its parent leaves it out."
           },
           "404": {
             "description": "node not found"
@@ -352,7 +427,7 @@
         "tags": [
           "canonical"
         ],
-        "x-osl-overlay": "iteration-1",
+        "x-osl-overlay": "iteration-1 and iteration-2",
         "summary": "Create and add new child nodes under the given parent node.",
         "parameters": [
           {
@@ -392,6 +467,14 @@
           "description": "Array of new nodes to add as children of the parent. Canonical `Node[]` by default.",
           "required": true,
           "content": {
+            "application/wow+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            },
             "application/json": {
               "schema": {
                 "type": "array",
@@ -419,6 +502,14 @@
               }
             },
             "content": {
+              "application/wow+json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Node"
+                  }
+                }
+              },
               "application/json": {
                 "schema": {
                   "type": "array",
@@ -448,7 +539,7 @@
         "tags": [
           "canonical"
         ],
-        "x-osl-overlay": "iteration-1",
+        "x-osl-overlay": "iteration-1 and iteration-2",
         "summary": "Update an existing node's content, or move it by setting `parent`.",
         "parameters": [
           {
@@ -481,12 +572,20 @@
                 "flat"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
           }
         ],
         "requestBody": {
           "description": "The updated node. `children` is derived from the tree: a PUT may leave it out or repeat it unchanged, and a PUT whose `children` differ from the stored ones is refused. A PUT of `parent` moves the node, with its subtree, under another node of the same graph.",
           "required": true,
           "content": {
+            "application/wow+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Node"
+              }
+            },
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Node"
@@ -508,9 +607,17 @@
                     "flat"
                   ]
                 }
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
               }
             },
             "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Node"
@@ -523,6 +630,9 @@
           },
           "404": {
             "description": "node not found"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
           },
           "422": {
             "description": "Validation exception. `child_restructure_not_supported` (the `children` sent differ from the stored ones), `invalid_local_transform`, or a refused move: `parent_not_found`, `parent_would_create_cycle`, `cannot_move_root`, `invalid_parent`, `node_tree_too_deep`."
@@ -537,7 +647,7 @@
         "tags": [
           "canonical"
         ],
-        "x-osl-overlay": "iteration-1",
+        "x-osl-overlay": "iteration-1 and iteration-2",
         "summary": "Deletes a node and its subtree. Its ids are never issued again within the world.",
         "parameters": [
           {
@@ -556,6 +666,9 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
           }
         ],
         "responses": {
@@ -568,6 +681,9 @@
           "404": {
             "description": "node not found"
           },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
           "default": {
             "description": "Unexpected error"
           }
@@ -576,6 +692,48 @@
     }
   },
   "components": {
+    "parameters": {
+      "IfNoneMatch": {
+        "name": "If-None-Match",
+        "in": "header",
+        "description": "Entity tags the client holds; a match answers 304 with no body.",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "description": "The entity tag the change is based on; no match answers 412 and changes nothing.",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "headers": {
+      "ETag": {
+        "description": "Entity tag of this representation.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "LastModified": {
+        "description": "When this representation last changed (HTTP-date).",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "NotModified": {
+        "description": "Not modified; the client's copy is current."
+      },
+      "PreconditionFailed": {
+        "description": "If-Match does not match the node's current entity tag; read the node again and retry."
+      }
+    },
     "schemas": {
       "GeoPose": {
         "x-osl-overlay": "iteration-1",
@@ -668,6 +826,14 @@
                 "$ref": "#/components/schemas/GeoPose"
               }
             ]
+          },
+          "spatials": {
+            "x-osl-overlay": "iteration-2",
+            "type": "array",
+            "description": "The ids of the world's graphs (Spatial resources), the default graph first.",
+            "items": {
+              "type": "integer"
+            }
           },
           "presence": {
             "type": "object",
@@ -804,7 +970,9 @@
             }
           },
           "spatialAssetURI": {
-            "type": "string"
+            "x-osl-overlay": "iteration-2",
+            "type": "string",
+            "description": "The address of this node's content: a model, or the Spatial, Node or wow/world resource of any world, which is then shown at this node. A client tells them apart by the media type of the answer, never by the address: application/wow+json is another world's content. The including node stands in for the included node's parent. A whole world shows its default graph, and its other anchored graphs where their GeoPoses put them. The included world's environment does not apply to the host. The host sets a nesting limit and a budget, detects cycles by URL, and shows a placeholder on failure."
           },
           "appearanceURI": {
             "type": "string"

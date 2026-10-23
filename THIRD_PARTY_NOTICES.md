@@ -19,7 +19,8 @@ The bundled WOFF2 files are local Latin web subsets. The font copyright notices 
 
 ## API descriptions and schemas
 
-- The Web of Worlds API descriptions from [WebOfWorlds/WoWAPI](https://github.com/WebOfWorlds/WoWAPI), commit `d39a1a0`, Apache-2.0. Unmodified copies are in `wow-spec/upstream/wowapi-d39a1a0/`, with the upstream `LICENSE`. The Open Spatial Lab contract in `wow-spec/` is derived from them. The proposed edits are patches in `wow-spec/overlays/iteration-1/`.
+- The Web of Worlds API descriptions from [WebOfWorlds/WoWAPI](https://github.com/WebOfWorlds/WoWAPI), commit `d39a1a0`, Apache-2.0. Unmodified copies are in `wow-spec/upstream/wowapi-d39a1a0/`, with the upstream `LICENSE`. The Open Spatial Lab contract in `wow-spec/` is derived from them. The proposed edits are patches in `wow-spec/overlays/iteration-1/` and `wow-spec/overlays/iteration-2/`; the World README is vendored too, for iteration 2's README edit.
+- The JSON Schema for OpenAPI 3.0 documents (2021-09-28) from the [OpenAPI Initiative](https://spec.openapis.org/oas/3.0/schema/2021-09-28), Apache-2.0. An unmodified copy is in `wow-spec/upstream/openapi-3.0/`; the iteration 2 proof validates the patched World API against it.
 - The OGC GeoPose Basic-YPR schema from [opengeospatial/GeoPose](https://github.com/opengeospatial/GeoPose), Apache-2.0, in `wow-spec/upstream/geopose/`. One rename is recorded in its `README.md`. The Apache-2.0 text is in `LICENSE`.
 
 ## World models

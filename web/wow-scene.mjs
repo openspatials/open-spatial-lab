@@ -260,6 +260,9 @@ export function buildWowScene(graph, THREE, opts = {}) {
   const root = new THREE.Group();
   root.name = "wow-composition-root";
   scene.add(root);
+  // `bare`: the graph alone, with no floor, grid or lights. Content included from another world is
+  // built this way and mounted under the including node; the host's stage stays the host's.
+  const bare = !!opts.bare;
 
   // ---- floor + reference grid (ground the graph for a standalone M2 view) ----
   const floor = new THREE.Mesh(
@@ -268,22 +271,24 @@ export function buildWowScene(graph, THREE, opts = {}) {
   );
   floor.rotation.x = -Math.PI / 2;
   floor.name = "wow-floor";
-  root.add(floor);
   const grid = new THREE.GridHelper(24, 24, 0x4f7fc4, 0x263250);
   if (grid.material) {
     grid.material.transparent = true;
     grid.material.opacity = 0.4;
   }
-  root.add(grid);
+  if (!bare) {
+    root.add(floor);
+    root.add(grid);
 
-  // ---- lights (so placeholders are lit even without loaded materials) ----
-  root.add(new THREE.AmbientLight(0xffffff, 0.6));
-  const key = new THREE.DirectionalLight(0xffffff, 0.85);
-  key.position.set(5, 9, 6);
-  root.add(key);
-  const rim = new THREE.DirectionalLight(0x88aaff, 0.4);
-  rim.position.set(-6, 5, -7);
-  root.add(rim);
+    // ---- lights (so placeholders are lit even without loaded materials) ----
+    root.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff, 0.85);
+    key.position.set(5, 9, 6);
+    root.add(key);
+    const rim = new THREE.DirectionalLight(0x88aaff, 0.4);
+    rim.position.set(-6, 5, -7);
+    root.add(rim);
+  }
 
   const counts = {
     graph_nodes: nodes.size,
@@ -807,7 +812,8 @@ export async function mountWowSceneAssets(assetNodes, THREE, opts = {}) {
 
         // Clone so one fetched template serves many placements — three's default
         // clone shares geometry/materials (one GPU upload) with independent nodes.
-        const model = cloneScene(template);
+        // The record goes along, so a clone can treat models inside included content differently.
+        const model = cloneScene(template, rec);
         mountedModel = model;
         model.name = `wow-asset:${rec.label}`;
         entry.mesh_count = countObject3DMeshes(model);

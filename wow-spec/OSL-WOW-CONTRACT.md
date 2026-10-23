@@ -227,6 +227,31 @@ The rotation sense and order of GeoPose angles (positive yaw turns east toward n
 pitch, then roll) are an assumption until the GeoPose working group answers. They live in one place,
 `ROTATION_CONVENTION` in `web/wow-geopose.js`.
 
+### D10 — the iteration 2 overlay: one world includes another
+
+Each item is a proposed upstream edit (`wow-spec/overlays/iteration-2/`), proven by
+`npm run arch-i2-proof`, where every check has planted faults that must turn it red:
+
+1. **The content link.** `Node.spatialAssetURI` may name a model, or the `Spatial`, `Node` or `wow/world`
+   resource of any world, which is then shown at that node (decision 4, 2026-10-22). The client decides by
+   the answer's media type, never by the address (check I1). The including node stands in for the
+   included node's parent (I2); included nodes keep their URLs at their owner (I3). The client is
+   `web/wow-inclusion.mjs`; the `?wow=` player mounts its result (`web/wow-inclusion-mount.mjs`).
+2. **`World.spatials`.** The ids of a world's graphs, the default graph first. A whole world shows its
+   default graph and its other anchored graphs where their GeoPoses put them; a graph with no anchor is
+   not shown; node ids are unique across a world's graphs (I9, I10).
+3. **`application/wow+json`**, a provisional working name, on every resource response;
+   `application/json` stays available by negotiation (I1, O2).
+4. **Entity tags.** ETag and Last-Modified on the World, the Spatial and the node; 304 on
+   `If-None-Match`; 412 on a stale `If-Match` (I4, I4b).
+5. **Cross-origin reads** as the world's policy allows (`cors_allowed_origins`), with ETag exposed and a
+   preflight that allows Authorization, If-None-Match and If-Match (I11, a load-gated browser check).
+
+The host's rules (a nesting limit of 3, a budget of 16 graphs handed out in tree order, cycles found by URL,
+a placeholder naming each failure, and the included world's environment kept out of the host) are client
+behaviour, checked by I5 to I8b and I12. A world may sit at a path prefix (`base_path`); a world's read
+policy (`read_policy`) may refuse a node with 403, a labeled OSL extension.
+
 ## 10. Provenance — corrected 2026-07-11
 
 The previous version of this note and of `schema.yaml` claimed the contract was
