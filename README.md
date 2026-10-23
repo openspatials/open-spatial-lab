@@ -11,7 +11,7 @@ This repository is where Open Spatial Lab is developed. Issues and pull requests
 - Denver Skyport access through the lobby's Portal C path
 - Local world servers and a one-command launcher
 - A generated player avatar with selectable equipment
-- Included models, textures, procedural animation, and runtime assets
+- Included models, textures, motion-capture animation, and runtime assets
 - Portal navigation and player-state continuity
 - Web of Worlds protocol proofs, a conformance runner, and browser verification
 
@@ -112,6 +112,9 @@ npm run proof:contract        # contract-driven request and response validation
 npm run proof:presence        # WebSocket events and presence
 npm run proof:acceptance      # world-server exit and arrival acceptance tests
 npm run arch-i1-proof        # frames, GeoPose anchors, transforms and the node tree, with a mutant for every check
+npm run check:identity       # Universal Manifest, RP1 and trust attack-vector tests, and the signing test vectors
+npm run check:client         # checks of the browser client's controllers and scene code, run in Node
+npm run check:browser        # browser checks that drive Chrome
 npm run conformance           # Web of Worlds conformance runner
 npm run conformance:fixtures  # pinned OpenSpatialWorld schema and endpoint fixtures
 npm run wow-schema-json       # rebuild wow-spec/generated/schema.json from wow-spec/schema.yaml

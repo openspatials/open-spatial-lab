@@ -41,7 +41,7 @@ The complete redistribution terms are included in `licenses/`, together with eac
 
 The bundled dwarf avatar and equipment models are original CC0-1.0 assets. The selectable VRM files under `web/assets/avatars/vrm/` declare CC0 in their embedded metadata and originate from Open Source Avatars and Polygonal Mind collections. Attribution is not required by CC0 and is included here as a courtesy.
 
-Five unmodified Ready Player Me avatar models are included for the Denver Skyport actors under CC BY-NC-SA 4.0. They are third-party works, are not covered by the project's Apache-2.0 license, and may be reused only under their own attribution, non-commercial, and ShareAlike terms:
+Five unmodified Ready Player Me avatar models are included under CC BY-NC-SA 4.0. They are the player avatars, and they dress the Denver Skyport actors. They are third-party works, are not covered by the project's Apache-2.0 license, and may be reused only under their own attribution, non-commercial, and ShareAlike terms:
 
 - Readyplayerme Cyberpunk — [source](https://sketchfab.com/3d-models/readyplayerme-cyberpunk-5881c7e4431d44058325b4be4d8d30dc).
 - Cyberpunk female full-body character — [source](https://sketchfab.com/3d-models/cyberpunk-female-full-body-character-25db1f1e45f948ec9a74b30356766908).
@@ -51,6 +51,8 @@ Five unmodified Ready Player Me avatar models are included for the Denver Skypor
 
 Ready Player Me is the credited creator for each model. No changes were made to the model files. The complete [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) legal text is included in `licenses/CC-BY-NC-SA-4.0.txt`.
 
-No redistribution-prohibited avatar or raw third-party animation source file is included. Locomotion clips are generated procedurally by the application.
+The airport interface images in `web/assets/hud/` (round profile images) were generated for this project from its own prompts. They picture the lab's fictional travelers and storefronts.
+
+No redistribution-prohibited avatar or raw third-party animation source file is included. The idle, walk and run animation is motion capture from the [100STYLE dataset](https://zenodo.org/records/8127870) by Ian Mason, Sebastian Starke and Taku Komura, licensed CC BY 4.0. `web/assets/mocap/locomotion-mocap.json` holds one cycle each of its Neutral idle, Rushed walk and BigSteps run, cut and resampled by `tools/mocap/bake-locomotion.mjs`; the file carries the same credit. The CC BY 4.0 text is in `licenses/CC-BY-4.0.txt`. The jump is authored by the application.
 
 Full CC0, CC BY 4.0, CC BY-NC-SA 4.0, SIL OFL 1.1, MIT, and SCEA license texts are included in `licenses/`.

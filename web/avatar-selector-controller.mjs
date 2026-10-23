@@ -94,16 +94,16 @@ export function createAvatarSelectorController({
     return key && variants[key] ? key : variantKeys[0];
   }
 
-  // The character choices the selector ENUMERATES: the generated avatar only. It is built in
-  // the browser, so it ships no model file and carries no third-party licence. The Ready Player
-  // Me GLB variants stay in `variants` for the airport travelers and for direct programmatic
-  // paths (inventoryDriver.pickAvatar, saved-state recovery), but their licence
-  // (CC BY-NC-SA 4.0) keeps them out of the player roster and the random starting pick. If a
-  // table carries no generated avatar at all, fall back to the full set rather than render an
-  // empty selector.
+  // the character choices the selector ENUMERATES. The roster is GLB-only,
+  // so the selector shows the eligible GLB avatars and withholds the VRM entries (and
+  // the generated 'parametric' engineering avatar) from its UI. Those variants are NOT deleted:
+  // they remain in `variants`, so runtime, saved-state recovery, regressions and direct
+  // programmatic paths (inventoryDriver.pickAvatar, apply of an already-worn VRM) keep working
+  // — they are simply not offered as selector chips. If a catalog carries no selectable GLB at
+  // all, fall back to the full set rather than render an empty selector.
   function enumerableVariantKeys() {
-    const generated = variantKeys.filter((key) => variants[key] && variants[key].type === "parametric");
-    return generated.length ? generated : variantKeys.slice();
+    const glb = variantKeys.filter((key) => variants[key] && variants[key].type === "glb");
+    return glb.length ? glb : variantKeys.slice();
   }
 
   // the randomized-starting-avatar feature's storage + resolution.
@@ -150,7 +150,7 @@ export function createAvatarSelectorController({
   // "on each new user session... randomly pick one every time
   // you start" instead of always DEFAULT_AVATAR_VARIANT, while a returning user who already
   // has a pick (an explicit Apply, or an earlier random roll from THIS SAME session) keeps
-  // it. The random POOL is exactly `enumerableVariantKeys()` — the same roster the
+  // it. The random POOL is exactly `enumerableVariantKeys()` — the same GLB roster the
   // selector itself shows — so a freshly-rolled avatar is always one the player could have
   // picked by hand. `?avatar_variant=<key>` pins a specific starting avatar and takes
   // precedence over both — the same kind of explicit query-param override this app already

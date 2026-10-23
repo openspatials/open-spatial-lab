@@ -40,7 +40,7 @@
 
 import * as THREE from "../vendor/scene-core/vendor/three/three.module.js";
 import { VRMHumanoid } from "../vendor-vrm/three-vrm.module.js";
-import { MIXAMO_TO_VRM, measureAnatomicalFrame } from "../procedural-animation.js";
+import { MIXAMO_TO_VRM, measureAnatomicalFrame } from "../humanoid-rig.js";
 
 /**
  * Mixamo BASE bone name (lowercased, no `mixamorig` prefix, no exporter suffix)

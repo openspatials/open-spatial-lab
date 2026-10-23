@@ -1,0 +1,28 @@
+{
+  "@context": "https://universalmanifest.net/ns/universal-manifest/v0.2/schema.jsonld",
+  "@id": "urn:uuid:11111111-1111-4111-8111-111111111111",
+  "@type": "um:Manifest",
+  "manifestVersion": "0.2",
+  "subject": "did:example:alice",
+  "issuedAt": "2026-02-17T00:00:00.000Z",
+  "expiresAt": "2026-02-18T00:00:00.000Z",
+  "facets": [
+    {
+      "@type": "um:Facet",
+      "name": "publicProfile",
+      "entity": {
+        "@id": "did:example:alice",
+        "@type": "schema:Person",
+        "name": "Alice Example"
+      }
+    }
+  ],
+  "signature": {
+    "algorithm": "Ed25519",
+    "canonicalization": "JCS-RFC8785",
+    "keyRef": "did:example:alice#key-1",
+    "created": "2026-02-17T00:00:00.000Z",
+    "publicKeySpkiB64": "MCowBQYDK2VwAyEAvWsBD/ov/5zQwtkxvssqOFz/Ejca8C0NfnAJ9z0iBZY=",
+    "value": "HeV5_V0Z7rjtRNAAHaBN4MnwTXWh959EyR_b41e8qsXBZYuzJeK3tcefBpC5JMx2kIz5jhWDrwYYoT2dzI1-CQ"
+  }
+}

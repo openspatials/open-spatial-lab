@@ -2,7 +2,7 @@ import * as THREE from "./vendor/scene-core/vendor/three/three.module.js";
 import { GLTFLoader } from "./vendor-three-examples/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "./vendor-three-examples/utils/SkeletonUtils.js";
 import { VRMLoaderPlugin } from "./vendor-vrm/three-vrm.module.js";
-import { createRetargetedLocomotionClips } from "./procedural-animation.js";
+import { createRetargetedLocomotionClips } from "./mocap-locomotion.js";
 import { fetchAndParseGltf } from "./gltf-fetch-loader.mjs";
 // BEGIN (parametric avatar engine — H-Anim skeleton + params-generated body)
 import { createParametricAvatar, DEFAULT_AVATAR_PARAMS } from "./avatar/parametric-avatar.mjs";
@@ -12,6 +12,7 @@ import { createParametricAvatar, DEFAULT_AVATAR_PARAMS } from "./avatar/parametr
 // same VRMHumanoid surface the VRM avatars expose, so the mocap retarget, the
 // locomotion mixer, and normalized-bone equipment attachment all work on GLBs with
 // NO changes to any of those systems.)
+import { createGlbHumanoidAvatar } from "./avatar/glb-humanoid.mjs";
 // END
 // every avatar/mocap asset URL below is a root-absolute same-origin path.
 // Route each through the ONE base-path helper so it resolves beneath the public prefix in subpath
@@ -31,17 +32,13 @@ const ATTACHMENT_PRESETS = {
 // real blended mocap locomotion (grafted).
 //
 // MOCAP SOURCE — LICENCE, stated correctly.
-// The comment that used to sit here called this asset "free/redistributable". That was
-// FALSE and it was the second-worst kind of false: a licence claim nobody had checked.
-// The clips are Adobe Mixamo's. Mixamo grants royalty-free use (commercial, non-commercial
-// and non-profit) and requires NO credit — but its terms say, verbatim: "Really the only
-// thing you can't do is distribute the raw character and animation files." OSL used to
-// serve the raw `Xbot.glb` right here, putting the raw character one Network-tab click away.
-// What is served now is a DERIVED bake: character mesh, skin and materials removed, only the
-// idle/walk/run joint curves kept (see tools/mocap/bake-locomotion-source.mjs, which proves
-// the derivation is value-identical to the source). The raw file is not in the repo and is
-// not served.
-const MOCAP_URLS = {};
+// The idle, walk and run clips are motion capture from the 100STYLE dataset (Ian Mason,
+// Sebastian Starke, Taku Komura), licensed CC BY 4.0, which allows public redistribution with
+// credit. The credit is in THIRD_PARTY_NOTICES.md and inside the clip file itself.
+// tools/mocap/bake-locomotion.mjs cuts one cycle of each from the dataset. The lab
+// used Adobe Mixamo clips before; Mixamo forbids distributing its animation files, so those
+// are not in this repository.
+const MOCAP_URLS = { locomotion: withBase("/assets/mocap/locomotion-mocap.json") };
 
 // step 5: the runtime-switchable avatar set. A switch REPLACES the one
 // avatar model inside the rig (never adds a second), re-retargets the mocap set onto the
@@ -93,12 +90,40 @@ export const AVATAR_VARIANTS = Object.freeze({
   // The Ready Player Me characters below are Mixamo-topology rigs driven through the
   // gltf-humanoid-facade, so they share the locomotion retarget and the normalized-bone
   // equipment attachment with no per-avatar code. rotation_y stays 0: a Mixamo glTF rig
-  // already faces the mocap source's forward. They dress the airport travelers; the player
-  // selector offers only the generated avatar above (web/avatar-selector-controller.mjs).
+  // already faces the mocap source's forward. They are the player roster (each new session
+  // starts as one of them, at random) and they also dress the airport travelers.
   //
   // LICENCE (all three): CC-BY-NC-SA-4.0, author "Ready Player Me", via Sketchfab (read from
   // each file's own asset.extras). NON-COMMERCIAL + ShareAlike + ATTRIBUTION REQUIRED.
   // Attribution ships in THIRD_PARTY_NOTICES.md.
+  "readyplayerme-cyberpunk": {
+    key: "readyplayerme-cyberpunk",
+    label: "Joe",
+    type: "glb",
+    url: withBase("/assets/avatars/glb/readyplayerme_cyberpunk.glb"),
+    scale: 1,
+    rotation_y: 0,
+    load_mode: "gltf-humanoid-facade",
+    mocap_retarget: "supported",
+    equipment_attachment: "glb-humanoid-normalized-bones",
+    licence: "CC-BY-NC-SA-4.0",
+    licence_holder: "Ready Player Me (via Sketchfab)",
+    structured_unsupported: [],
+  },
+  "cyberpunk-female-full-body": {
+    key: "cyberpunk-female-full-body",
+    label: "Jane",
+    type: "glb",
+    url: withBase("/assets/avatars/glb/cyberpunk_female_full-body_character.glb"),
+    scale: 1,
+    rotation_y: 0,
+    load_mode: "gltf-humanoid-facade",
+    mocap_retarget: "supported",
+    equipment_attachment: "glb-humanoid-normalized-bones",
+    licence: "CC-BY-NC-SA-4.0",
+    licence_holder: "Ready Player Me (via Sketchfab)",
+    structured_unsupported: [],
+  },
   "rpm-female-cyberpunk": {
     key: "rpm-female-cyberpunk",
     label: "Rose",
@@ -142,10 +167,11 @@ export const AVATAR_VARIANTS = Object.freeze({
     structured_unsupported: [],
   },
 });
-// The default and only player avatar is the generated one. It is built in the browser from
-// AvatarParams, so it ships no model file and carries no third-party licence. The Ready Player
-// Me variants above (CC-BY-NC-SA-4.0) dress the airport travelers only.
-export const DEFAULT_AVATAR_VARIANT = "parametric";
+// The default player avatar is a Ready Player Me character (CC-BY-NC-SA-4.0, credited in
+// THIRD_PARTY_NOTICES.md). A new session starts as one of the roster at random; this is the
+// one used when no pick exists. The generated avatar stays available through
+// `?avatar_variant=parametric`.
+export const DEFAULT_AVATAR_VARIANT = "readyplayerme-cyberpunk";
 
 /**
  * PREFERRED HEIGHT (the Universal Manifest shape, deliberately NOT UM-wired).
@@ -196,6 +222,13 @@ const RUN_CONTACT_WINDOWS_S = Object.freeze({
   right: Object.freeze({ start: 0.570999990275928, end: 0.7804999867081642 }),
 });
 const RUN_CONTACT_RELEASE_S = 0.11;
+// The walk and run pace come with the clips (measured from the recording and scaled to the
+// avatar). These are the fallbacks while no clip is loaded.
+const DEFAULT_GAIT = Object.freeze({
+  walkNaturalSpeed: WALK_NATURAL_SPEED_MPS,
+  runCycleDistance: RUN_CYCLE_DISTANCE_M,
+  runContactWindows: RUN_CONTACT_WINDOWS_S,
+});
 const LOCOMOTION_CROSSFADE_S = 0.22;
 const JUMP_PLAYBACK_FAULT = "hidden-clock-repeat";
 
@@ -683,7 +716,7 @@ export class AvatarEquipmentLayer {
       walk_animation_asset_uri: MOCAP_URLS.locomotion,
       run_animation_asset_uri: MOCAP_URLS.locomotion,
       retargeter:
-        "self-authored procedural animation on the normalized humanoid rig",
+        "motion capture (100STYLE, CC BY 4.0) retargeted onto the normalized humanoid rig",
       retargeted_walk_loaded: false,
       retargeted_run_loaded: false,
       retargeted_track_count: 0,
@@ -900,6 +933,19 @@ export class AvatarEquipmentLayer {
     // Wrapping the GLB's Mixamo skeleton in a real three-vrm VRMHumanoid gives it the
     // humanoid facade it was missing, and every downstream system then treats it exactly
     // like a VRM. Nothing below this line needed to change.
+    if (!vrm && variant.type === "glb") {
+      const { avatar: glbAvatar, report } = createGlbHumanoidAvatar(model);
+      this.status.glb_humanoid_report = {
+        rigged: report.ok,
+        mapped_bone_count: report.mappedBoneCount,
+        skinned_mesh_count: report.skinnedMeshCount,
+        missing_required_bones: report.missingRequiredBones,
+        reason: report.reason,
+      };
+      if (glbAvatar) return withRigMetrics(glbAvatar, model);
+      // Not a drivable humanoid — fall back to the static path and SAY WHY.
+      this.status.errors.push(`GLB humanoid facade unavailable: ${report.reason}`);
+    }
     return withRigMetrics(vrm, model);
   }
 
@@ -1204,13 +1250,18 @@ export class AvatarEquipmentLayer {
       }
       // World-speed playback match (treadmill fix): scale the walk cycle so its
       // stride speed equals the adapter's real world translation speed.
-      this.actions.walk.setEffectiveTimeScale(WORLD_MOVE_SPEED_MPS / WALK_NATURAL_SPEED_MPS);
+      this._gait = {
+        walkNaturalSpeed: clips.walk.userData?.natural_speed_mps || DEFAULT_GAIT.walkNaturalSpeed,
+        runCycleDistance: clips.run?.userData?.cycle_distance_m || DEFAULT_GAIT.runCycleDistance,
+        runContactWindows: clips.run?.userData?.contact_windows_s || DEFAULT_GAIT.runContactWindows,
+      };
+      this.actions.walk.setEffectiveTimeScale(WORLD_MOVE_SPEED_MPS / this._gait.walkNaturalSpeed);
       this._animState = "idle";
 
       this.status.retargeted_walk_loaded = true;
       this.status.retargeted_run_loaded = Boolean(clips.run && clips.run.tracks.length);
       this.status.retarget_source_animation =
-        "self-authored procedural idle, walk, run, and jump clips";
+        "motion-capture idle, walk and run (100STYLE, CC BY 4.0) and an authored jump";
       this.status.retargeted_track_count = clips.walk.tracks.length;
       this.status.retargeted_track_names = clips.walk.tracks.map((track) => track.name).slice(0, 40);
       this.status.retargeted_non_identity_quaternion_samples = countNonIdentityQuaternionSamples(clips.walk);
@@ -1242,7 +1293,7 @@ export class AvatarEquipmentLayer {
     if (!Number.isFinite(translationSpeed) || translationSpeed <= 0) {
       throw new RangeError("run translation speed must be a positive finite value");
     }
-    const runCycleDistance = RUN_CYCLE_DISTANCE_M;
+    const runCycleDistance = (this._gait || DEFAULT_GAIT).runCycleDistance;
     const runCycleSpeed = translationSpeed / runCycleDistance;
     const playbackRate = runCycleSpeed * clipDuration;
     this.status.run_calibration = {
@@ -1319,7 +1370,7 @@ export class AvatarEquipmentLayer {
       const clipDuration = Number(this.actions[desired].getClip().duration) || 0;
       const playbackRate = desired === "run" && Number.isFinite(runCycleSpeed) && runCycleSpeed > 0
         ? runCycleSpeed * clipDuration
-        : speedMps / WALK_NATURAL_SPEED_MPS;
+        : speedMps / (this._gait || DEFAULT_GAIT).walkNaturalSpeed;
       this.actions[desired].setEffectiveTimeScale(playbackRate);
       this.status.locomotion_playback_rate = Number(playbackRate.toFixed(3));
     }
@@ -1355,7 +1406,7 @@ export class AvatarEquipmentLayer {
     }
     const runCycleSpeed = playbackRate / duration;
     const translationSpeed = Number(locomotion.run_translation_speed_mps) || Number(locomotion.speed_mps) || 0;
-    const runCycleDistance = Number(locomotion.run_cycle_distance) || RUN_CYCLE_DISTANCE_M;
+    const runCycleDistance = Number(locomotion.run_cycle_distance) || (this._gait || DEFAULT_GAIT).runCycleDistance;
     this.status.run_calibration = {
       ...this.status.run_calibration,
       supported: true,
@@ -1452,7 +1503,8 @@ export class AvatarEquipmentLayer {
     }
     lock.previousPhase = phase;
 
-    const activeSides = Object.entries(RUN_CONTACT_WINDOWS_S)
+    const contactWindows = (this._gait || DEFAULT_GAIT).runContactWindows;
+    const activeSides = Object.entries(contactWindows)
       .filter(([, window]) => window.end <= duration
         ? phase >= window.start && phase <= window.end
         : phase >= window.start || phase <= window.end - duration)
@@ -1550,7 +1602,7 @@ export class AvatarEquipmentLayer {
       status.active = true;
       status.active_side = side;
       status.phase_seconds = Number(phase.toFixed(6));
-      status.plant_window = { ...RUN_CONTACT_WINDOWS_S[side] };
+      status.plant_window = { ...contactWindows[side] };
       status.anchor_world_xz = [Number(lock.anchor.x.toFixed(6)), Number(lock.anchor.z.toFixed(6))];
       status.horizontal_error_mm = Number((horizontalError * 1000).toFixed(3));
       status.max_horizontal_error_mm = Math.max(status.max_horizontal_error_mm, status.horizontal_error_mm);

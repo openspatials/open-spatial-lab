@@ -1,7 +1,52 @@
 {
   "schema_version": 1,
-  "default_avatar": "parametric",
+  "default_avatar": "readyplayerme-cyberpunk",
   "avatars": [
+    {
+      "key": "readyplayerme-cyberpunk",
+      "label": "Joe",
+      "type": "glb",
+      "url": "/assets/avatars/glb/readyplayerme_cyberpunk.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "CC-BY-NC-SA-4.0"
+    },
+    {
+      "key": "cyberpunk-female-full-body",
+      "label": "Jane",
+      "type": "glb",
+      "url": "/assets/avatars/glb/cyberpunk_female_full-body_character.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "CC-BY-NC-SA-4.0"
+    },
+    {
+      "key": "rpm-female-cyberpunk",
+      "label": "Rose",
+      "type": "glb",
+      "url": "/assets/avatars/glb/rpm_female_cyberpunk.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "CC-BY-NC-SA-4.0"
+    },
+    {
+      "key": "rpm-female-ninja",
+      "label": "Helium",
+      "type": "glb",
+      "url": "/assets/avatars/glb/rpm_female_ninja.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "CC-BY-NC-SA-4.0"
+    },
+    {
+      "key": "rpm-female-character",
+      "label": "Nea",
+      "type": "glb",
+      "url": "/assets/avatars/glb/rpm_female_character.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "CC-BY-NC-SA-4.0"
+    },
     {
       "key": "parametric",
       "label": "Parametric H-Anim avatar",

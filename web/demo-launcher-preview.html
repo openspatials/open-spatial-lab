@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Open Spatial Labs - Technology Showcase Preview</title>
+  <link rel="stylesheet" href="./demo-launcher.css" />
+</head>
+<body class="demo-launcher-preview-body">
+  <div id="demo-launcher-preview"></div>
+  <p id="demo-launcher-preview-output" class="demo-launcher-preview-output" role="status" aria-live="polite"></p>
+
+  <noscript>
+    <main class="demo-launcher-noscript">
+      <p>Welcome to the</p>
+      <h1>Open Spatial Lab</h1>
+      <p>JavaScript is off, so the interactive technology showcase is unavailable. These canonical demo routes still work:</p>
+      <h2>Player</h2>
+      <ul>
+        <li><a href="./index.html?role=player">Enter as Player</a></li>
+      </ul>
+      <h2>Destinations</h2>
+      <ul>
+        <li><a href="./index.html?role=player&amp;active=source">Start in Location A</a></li>
+        <li><a href="./index.html?role=player&amp;active=target">Start in Location B</a></li>
+      </ul>
+      <h2>Servers</h2>
+      <ul>
+        <li><a href="./index.html?role=source">Observe Server A</a></li>
+        <li><a href="./index.html?role=target">Observe Server B</a></li>
+      </ul>
+      <p>Denver Skyport opens from the lobby, through Portal C.</p>
+    </main>
+  </noscript>
+
+  <script type="module">
+    import { createDemoLauncherCatalog } from "./demo-launcher-catalog.mjs";
+    import { mountDemoLauncher } from "./demo-launcher.mjs";
+
+    const query = new URLSearchParams(window.location.search);
+    const simulatedAvailability = query.get("preview_airport") === "1";
+    const output = document.getElementById("demo-launcher-preview-output");
+    const catalog = createDemoLauncherCatalog({ airportAvailable: simulatedAvailability });
+
+    mountDemoLauncher(document.getElementById("demo-launcher-preview"), {
+      catalog,
+      previewMode: true,
+      simulatedAvailability,
+      navigate(target, mission) {
+        output.textContent = `Preview only: ${mission.label} would open ${target}`;
+      },
+      launchPortalC(mission) {
+        output.textContent = `Simulated preview only: ${mission.label} would hand off through the integrated Portal C hook.`;
+      },
+      onDismiss() {
+        output.textContent = "Preview only: the launcher stays open, because this page has no scene to return to.";
+      },
+    });
+  </script>
+</body>
+</html>

@@ -8,7 +8,7 @@ import { withBase } from "./base-path.mjs";
 
 const CARD_LIMIT = 6;
 const CARD_DISTANCE_M = 21;
-const MOCAP_URLS = Object.freeze({ locomotion: withBase("/assets/mocap/locomotion-mocap.derived.glb") });
+const MOCAP_URLS = Object.freeze({ locomotion: withBase("/assets/mocap/locomotion-mocap.json") });
 
 function roundedRect(context, x, y, width, height, radius) {
   const r = Math.min(radius, width / 2, height / 2);
@@ -188,7 +188,7 @@ export function createAirportEntityRuntime(graph, built, THREE, opts = {}) {
     if (actors.has(record.card.node_id)) return true;
     const [{ createGlbHumanoidAvatar }, { createRetargetedLocomotionClips }] = await Promise.all([
       import("./avatar/glb-humanoid.mjs"),
-      import("./procedural-animation.js"),
+      import("./mocap-locomotion.js"),
     ]);
     if (disposed) return false;
     const builtAvatar = createGlbHumanoidAvatar(model, { assetId: record.node.webofworlds_extension?.npc_asset?.catalog_id });

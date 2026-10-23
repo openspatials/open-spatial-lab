@@ -1,0 +1,211 @@
+{
+  "source": "RFC 8785 (https://www.rfc-editor.org/rfc/rfc8785.txt), transcribed 2026-07-05",
+  "composite": {
+    "citation": "RFC 8785 Sections 3.2.2 (input), 3.2.3 (canonical form), 3.2.4 (UTF-8 bytes)",
+    "inputJsonText": "{\n  \"numbers\": [333333333.33333329, 1E30, 4.50,\n              2e-3, 0.000000000000000000000000001],\n  \"string\": \"\\u20ac$\\u000F\\u000aA'\\u0042\\u0022\\u005c\\\\\\\"\\/\",\n  \"literals\": [null, true, false]\n}",
+    "expectedUtf8Hex": "7b226c69746572616c73223a5b6e756c6c2c747275652c66616c73655d2c226e756d62657273223a5b3333333333333333332e333333333333332c31652b33302c342e352c302e3030322c31652d32375d2c22737472696e67223a22e282ac245c75303030665c6e4127425c225c5c5c5c5c222f227d"
+  },
+  "sorting": {
+    "citation": "RFC 8785 Section 3.2.3 (sorting test data + expected argument order)",
+    "inputJsonText": "{\n  \"\\u20ac\": \"Euro Sign\",\n  \"\\r\": \"Carriage Return\",\n  \"\\ufb33\": \"Hebrew Letter Dalet With Dagesh\",\n  \"1\": \"One\",\n  \"\\ud83d\\ude00\": \"Emoji: Grinning Face\",\n  \"\\u0080\": \"Control\",\n  \"\\u00f6\": \"Latin Small Letter O With Diaeresis\"\n}",
+    "expectedValueOrder": [
+      "Carriage Return",
+      "One",
+      "Control",
+      "Latin Small Letter O With Diaeresis",
+      "Euro Sign",
+      "Emoji: Grinning Face",
+      "Hebrew Letter Dalet With Dagesh"
+    ]
+  },
+  "numbersAppendixB": {
+    "citation": "RFC 8785 Appendix B, Table 1 (expected='error' rows MUST throw)",
+    "rows": [
+      {
+        "ieee754Hex": "0000000000000000",
+        "expected": "0",
+        "comment": "Zero"
+      },
+      {
+        "ieee754Hex": "8000000000000000",
+        "expected": "0",
+        "comment": "Minus zero"
+      },
+      {
+        "ieee754Hex": "0000000000000001",
+        "expected": "5e-324",
+        "comment": "Min pos number"
+      },
+      {
+        "ieee754Hex": "8000000000000001",
+        "expected": "-5e-324",
+        "comment": "Min neg number"
+      },
+      {
+        "ieee754Hex": "7fefffffffffffff",
+        "expected": "1.7976931348623157e+308",
+        "comment": "Max pos number"
+      },
+      {
+        "ieee754Hex": "ffefffffffffffff",
+        "expected": "-1.7976931348623157e+308",
+        "comment": "Max neg number"
+      },
+      {
+        "ieee754Hex": "4340000000000000",
+        "expected": "9007199254740992",
+        "comment": "Max pos int (1)"
+      },
+      {
+        "ieee754Hex": "c340000000000000",
+        "expected": "-9007199254740992",
+        "comment": "Max neg int (1)"
+      },
+      {
+        "ieee754Hex": "4430000000000000",
+        "expected": "295147905179352830000",
+        "comment": "~2**68 (2)"
+      },
+      {
+        "ieee754Hex": "7fffffffffffffff",
+        "expected": "error",
+        "comment": "NaN (3) - MUST error"
+      },
+      {
+        "ieee754Hex": "7ff0000000000000",
+        "expected": "error",
+        "comment": "Infinity (3) - MUST error"
+      },
+      {
+        "ieee754Hex": "44b52d02c7e14af5",
+        "expected": "9.999999999999997e+22",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "44b52d02c7e14af6",
+        "expected": "1e+23",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "44b52d02c7e14af7",
+        "expected": "1.0000000000000001e+23",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "444b1ae4d6e2ef4e",
+        "expected": "999999999999999700000",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "444b1ae4d6e2ef4f",
+        "expected": "999999999999999900000",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "444b1ae4d6e2ef50",
+        "expected": "1e+21",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "3eb0c6f7a0b5ed8c",
+        "expected": "9.999999999999997e-7",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "3eb0c6f7a0b5ed8d",
+        "expected": "0.000001",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "41b3de4355555553",
+        "expected": "333333333.3333332",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "41b3de4355555554",
+        "expected": "333333333.33333325",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "41b3de4355555555",
+        "expected": "333333333.3333333",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "41b3de4355555556",
+        "expected": "333333333.3333334",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "41b3de4355555557",
+        "expected": "333333333.33333343",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "becbf647612f3696",
+        "expected": "-0.0000033333333333333333",
+        "comment": ""
+      },
+      {
+        "ieee754Hex": "43143ff3c1cb0959",
+        "expected": "1424953923781206.2",
+        "comment": "Round to even (4)"
+      }
+    ]
+  },
+  "stringRules": {
+    "citation": "RFC 8785 Section 3.2.2.2 (rule-derived probes)",
+    "cases": [
+      {
+        "input": "\b\t\n\f\r",
+        "expected": "\"\\b\\t\\n\\f\\r\"",
+        "note": "predefined short escapes U+0008/09/0A/0C/0D"
+      },
+      {
+        "input": "\u000f",
+        "expected": "\"\\u000f\"",
+        "note": "control char -> lowercase \\u00xx"
+      },
+      {
+        "input": "\u0000",
+        "expected": "\"\\u0000\"",
+        "note": "NUL -> \\u0000"
+      },
+      {
+        "input": "\u001f",
+        "expected": "\"\\u001f\"",
+        "note": "last control char -> \\u001f"
+      },
+      {
+        "input": "\"",
+        "expected": "\"\\\"\"",
+        "note": "quote escaped"
+      },
+      {
+        "input": "\\",
+        "expected": "\"\\\\\"",
+        "note": "backslash escaped"
+      },
+      {
+        "input": "€",
+        "expected": "\"€\"",
+        "note": "non-ASCII emitted as-is (no \\uXXXX)"
+      },
+      {
+        "input": "😀",
+        "expected": "\"😀\"",
+        "note": "astral char (surrogate pair) as-is"
+      },
+      {
+        "input": "/",
+        "expected": "\"/\"",
+        "note": "forward slash NOT escaped"
+      },
+      {
+        "input": "",
+        "expected": "\"\"",
+        "note": "empty string"
+      }
+    ]
+  }
+}

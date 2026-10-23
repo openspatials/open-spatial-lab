@@ -340,18 +340,18 @@ async function main() {
     await lobby.evaluate(async () => {
       const selector = window.__assembly.avatarSelector;
       selector.open();
-      selector.pickAvatar("parametric");
+      selector.pickAvatar("readyplayerme-cyberpunk");
       await selector.apply();
     });
     await lobby.waitForFunction(
-      () => window.__assembly.debugState().avatar?.avatar_variant === "parametric",
+      () => window.__assembly.debugState().avatar?.avatar_variant === "readyplayerme-cyberpunk",
       { timeout: 30000 },
     );
     await assertStandingPose(lobby);
     await lobby.evaluate(async () => {
       const selector = window.__assembly.avatarSelector;
       selector.open();
-      selector.pickAvatar("parametric");
+      selector.pickAvatar("readyplayerme-cyberpunk");
       selector.pickSlotItem("head", "equip-hat");
       selector.pickSlotItem("rightHand", "equip-hammer");
       await selector.apply();
@@ -359,7 +359,7 @@ async function main() {
     await lobby.waitForFunction(() => {
       const state = window.__assembly.debugState();
       const itemIds = state.avatar?.equippedItems?.map((item) => item.itemId) || [];
-      return state.avatar?.avatar_variant === "parametric" && itemIds.includes("equip-hat") && itemIds.includes("equip-hammer");
+      return state.avatar?.avatar_variant === "readyplayerme-cyberpunk" && itemIds.includes("equip-hat") && itemIds.includes("equip-hammer");
     }, { timeout: 30000 });
     await portalDrive(lobby, "lobby-portal-c", "location-airport", { browserDriven: true });
     await lobby.waitForFunction(() => (

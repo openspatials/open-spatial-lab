@@ -1,0 +1,61 @@
+{
+    "note": "FROZEN Profile A vector. Signing key = RFC 8032 Section 7.1 TEST 1 (PUBLISHED TEST KEY - never use outside tests). Ed25519 is deterministic, so expectedSignatureB64u is byte-reproducible by any correct implementation.",
+    "signingSeedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "substitutionPublicKeyHex": "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+    "created": "2026-07-05T00:00:00.000Z",
+    "signerDidKey": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+    "unsignedManifest": {
+        "@context": "https://universalmanifest.net/ns/universal-manifest/v0.2/schema.jsonld",
+        "@id": "urn:uuid:8f7f118e-0118-4b6e-8c11-b0d1180118aa",
+        "@type": "um:Manifest",
+        "manifestVersion": "0.2",
+        "subject": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+        "issuedAt": "2026-07-05T00:00:00.000Z",
+        "expiresAt": "2030-01-01T00:00:00.000Z",
+        "facets": [
+            {
+                "@type": "um:Facet",
+                "name": "publicProfile",
+                "entity": {
+                    "@id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+                    "@type": "schema:Person",
+                    "name": "OSL Test Signer — ünïcode ✓",
+                    "displayHeightM": 1.75
+                }
+            }
+        ]
+    },
+    "expectedSigningInput": "{\"@context\":\"https://universalmanifest.net/ns/universal-manifest/v0.2/schema.jsonld\",\"@id\":\"urn:uuid:8f7f118e-0118-4b6e-8c11-b0d1180118aa\",\"@type\":\"um:Manifest\",\"expiresAt\":\"2030-01-01T00:00:00.000Z\",\"facets\":[{\"@type\":\"um:Facet\",\"entity\":{\"@id\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\",\"@type\":\"schema:Person\",\"displayHeightM\":1.75,\"name\":\"OSL Test Signer — ünïcode ✓\"},\"name\":\"publicProfile\"}],\"issuedAt\":\"2026-07-05T00:00:00.000Z\",\"manifestVersion\":\"0.2\",\"subject\":\"did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw\"}",
+    "expectedSignatureB64u": "SWBmVPcOS_GI1pViQkrP-MntCkP5HQ84tB7wGNDrx4GnbSAoPGQGMM4orXu7oJX2-hbGlAKevyaQiYkiTZeBAg",
+    "expectedPublicKeySpkiB64": "MCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=",
+    "expectedKeyRef": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+    "signedManifest": {
+        "@context": "https://universalmanifest.net/ns/universal-manifest/v0.2/schema.jsonld",
+        "@id": "urn:uuid:8f7f118e-0118-4b6e-8c11-b0d1180118aa",
+        "@type": "um:Manifest",
+        "manifestVersion": "0.2",
+        "subject": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+        "issuedAt": "2026-07-05T00:00:00.000Z",
+        "expiresAt": "2030-01-01T00:00:00.000Z",
+        "facets": [
+            {
+                "@type": "um:Facet",
+                "name": "publicProfile",
+                "entity": {
+                    "@id": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+                    "@type": "schema:Person",
+                    "name": "OSL Test Signer — ünïcode ✓",
+                    "displayHeightM": 1.75
+                }
+            }
+        ],
+        "signature": {
+            "algorithm": "Ed25519",
+            "canonicalization": "JCS-RFC8785",
+            "keyRef": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw#z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+            "created": "2026-07-05T00:00:00.000Z",
+            "publicKeySpkiB64": "MCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=",
+            "value": "SWBmVPcOS_GI1pViQkrP-MntCkP5HQ84tB7wGNDrx4GnbSAoPGQGMM4orXu7oJX2-hbGlAKevyaQiYkiTZeBAg"
+        }
+    }
+}
