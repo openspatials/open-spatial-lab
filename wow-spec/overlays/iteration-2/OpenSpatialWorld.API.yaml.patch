@@ -4,8 +4,8 @@
    title: OpenSpatialWorld API
    description: "The solution allows you to use a web app to enter the associated spatial experience and read and modify aspects of the world. 
      The endpoint provides a single discrete world with some aspects of spatial data management. The main purpose is to join, connect and share the spatial world.\n\n\
--    Frames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent."
-+    Frames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\n\
+-    Frames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent."
++    Frames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\n\
 +    Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\n\
 +    Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).\n\n\
 +    Cross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match."
@@ -230,7 +230,7 @@
    schemas:
      GeoPose:
        description: >-
-@@ -352,6 +452,11 @@
+@@ -357,6 +457,11 @@
              positioned by it.
            allOf:
              - $ref: '#/components/schemas/GeoPose'
@@ -242,7 +242,7 @@
          presence:
            type: object
            properties:
-@@ -478,6 +583,14 @@
+@@ -483,6 +588,14 @@
              type: number 
          spatialAssetURI:
            type: string

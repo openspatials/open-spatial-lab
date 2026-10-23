@@ -16,7 +16,7 @@ const { UPSTREAM, read, sha256, loadPatched, pathParameterProblems, refProblems,
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-const FRAMES = 'Frames. All coordinates are in metres, right-handed, +Y up. A Spatial\'s GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.';
+const FRAMES = 'Frames. All coordinates are in meters, right-handed, +Y up. A Spatial\'s GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.';
 const NODE_PATH = '/wow/spatial/{spatialID}/node/{nodeId}';
 
 /** A schema with OSL's labels removed and every description's whitespace collapsed, so a line wrap is not a difference. */
@@ -39,7 +39,8 @@ async function upstreamChecks() {
   // ---- U1. The patches apply, and the result is a consistent API description ---------------------------
   const lacksOneSpatialId = { world: (p) => p.replace(SPATIAL_PARAM, '') };
   const keepsNodeid = { world: (p) => p.replace('+        - name: nodeId\n           in: path\n           description: node id to delete', '+        - name: nodeid\n           in: path\n           description: node id to delete') };
-  const spellsLan = { world: (p) => p.replace('+            lon:\n', '+            lan:\n') };
+  const dropsLon = { world: (p) => p.replace('+            lon:\n+              type: number\n+              minimum: -180\n+              maximum: 180\n', '') };
+  const onlyLan = { world: (p) => p.replace('+            - required: [lon]\n', '') };
   const noItemLimits = { world: (p) => p.replace('+          minItems: 16\n+          maxItems: 16\n', '') };
   const assetKeepsInline = { asset: (p) => p.replace('+          allOf:\n+            - $ref: \'#/components/schemas/GeoPose\'\n', '+          type: object\n') };
   await run('U1', 'the overlay patches apply to the vendored upstream files; the patched World API has every path parameter declared, every $ref resolving, one GeoPose, and the transform limits', async (impl) => {
@@ -61,11 +62,16 @@ async function upstreamChecks() {
       if (bad.length) failures.push(name + ' API: ' + bad[0]);
     }
 
-    // One GeoPose, spelled lon, used by every geoPose.
+    // One GeoPose, used by every geoPose. Longitude is lon; lan, the earlier spelling, stays valid and deprecated.
     const schemas = world.doc.components.schemas;
     const position = (schemas.GeoPose && schemas.GeoPose.properties && schemas.GeoPose.properties.position) || {};
-    if (!position.properties || !position.properties.lon || (position.required || []).includes('lan')) failures.push('GeoPose.position does not spell longitude lon');
-    if (!position.properties || !position.properties.lan || position.properties.lan.deprecated !== true) failures.push('GeoPose.position does not carry lan as deprecated');
+    const props = position.properties || {};
+    const required = position.required || [];
+    const alternatives = (position.anyOf || []).map((x) => JSON.stringify(x.required || []));
+    if (!props.lon || props.lon.minimum !== -180 || props.lon.maximum !== 180) failures.push('GeoPose.position does not spell longitude lon, from -180 to 180');
+    if (!required.includes('lat') || !required.includes('h') || required.includes('lon') || required.includes('lan')) failures.push('GeoPose.position does not require lat and h, with longitude left to anyOf');
+    if (!alternatives.includes('["lon"]') || !alternatives.includes('["lan"]')) failures.push('GeoPose.position does not accept either lon or lan');
+    if (!props.lan || props.lan.deprecated !== true || props.lan.minimum !== -180 || props.lan.maximum !== 180) failures.push('GeoPose.position does not carry lan as deprecated, with the range of lon');
     const usesGeoPose = (schema) => schema && (schema.$ref === '#/components/schemas/GeoPose' || (schema.allOf || []).some((x) => x.$ref === '#/components/schemas/GeoPose'));
     for (const name of ['World', 'User', 'View', 'Portal', 'Spatial']) {
       if (!usesGeoPose(schemas[name].properties.geoPose)) failures.push(name + '.geoPose is not the shared GeoPose');
@@ -82,7 +88,8 @@ async function upstreamChecks() {
   }, { edits: null }, [
     { name: 'a patch that leaves one operation without spatialID', impl: { edits: lacksOneSpatialId } },
     { name: 'a patch that keeps the misspelt nodeid', impl: { edits: keepsNodeid } },
-    { name: 'a patch whose GeoPose spells longitude lan', impl: { edits: spellsLan } },
+    { name: 'a patch whose GeoPose drops lon', impl: { edits: dropsLon } },
+    { name: 'a patch whose GeoPose accepts only lan', impl: { edits: onlyLan } },
     { name: 'a patch with no limit on localTransform', impl: { edits: noItemLimits } },
     { name: 'a patch that leaves the Asset geoPose without the shared definition', impl: { edits: assetKeepsInline } },
   ]);

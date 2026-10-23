@@ -16,7 +16,7 @@ World API:
 2. **Transform.** `Node.localTransform` is 16 items, with a description of the column-major 4×4 matrix.
 3. **Tree.** `Node.id`, `Node.parent` and `Node.children` say that an id is unique within the world and
    never reused, that a node has one parent, that `children` is derived, and that a PUT of `parent` moves a node.
-4. **Frames.** `info.description` states the frame: metres, right-handed, +Y up, anchored by the Spatial's GeoPose.
+4. **Frames.** `info.description` states the frame: meters, right-handed, +Y up, anchored by the Spatial's GeoPose.
 5. **Errata.** `spatialID` is declared on the four node operations, and the DELETE parameter `nodeid` is
    renamed `nodeId`. An OpenAPI linter reports no undeclared path parameter afterwards.
 6. **Spatial ids.** `Spatial.id` and `Spatial.rootNodeID` are integers, as the `spatialID` path parameter is.

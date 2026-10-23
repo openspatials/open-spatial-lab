@@ -1,7 +1,7 @@
 --- a/specification/OpenSpatialWorld/API.yaml
 +++ b/specification/OpenSpatialWorld/API.yaml
 @@ -6,7 +6,10 @@
-     Frames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\n\
+     Frames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\n\
      Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\n\
      Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).\n\n\
 -    Cross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match."
@@ -12,7 +12,7 @@
    version: '0.0.1'
  
  servers:
-@@ -457,6 +460,16 @@
+@@ -462,6 +465,16 @@
            description: The ids of the world's graphs (Spatial resources), the default graph first.
            items:
              type: integer
@@ -29,7 +29,7 @@
          presence:
            type: object
            properties:
-@@ -591,6 +604,15 @@
+@@ -596,6 +609,15 @@
              graph, and its other anchored graphs where their GeoPoses put them. The included world's
              environment does not apply to the host. The host sets a nesting limit and a budget, detects
              cycles by URL, and shows a placeholder on failure.

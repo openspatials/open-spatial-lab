@@ -332,7 +332,7 @@ const DECLARED_DIVERGENCES = [
         standard: 'spells longitude `lan`; types `localTransform` as an array of numbers of any length; says nothing '
             + 'about whether `children` can be written, how a node moves, or whether a node id can be reused',
         osl: 'spells longitude `lon` (`lan` is read as deprecated and never emitted); refuses a `localTransform` that is not '
-            + '16 numbers with a last row of 0,0,0,1, or that has shear or zero scale; derives `children` from the tree '
+            + '16 numbers with a last row of 0,0,0,1, or that has shear; derives `children` from the tree '
             + '(a PUT that changes them is 422); moves a node by a PUT of `parent`; never reuses a node id within a world',
         schema: 'GeoPose',
         status: 'DECLARED OVERLAY — each item is a proposed upstream edit, proven by `npm run arch-i1-proof`; '

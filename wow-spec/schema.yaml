@@ -60,7 +60,7 @@ info:
       * `WS /events` is a LABELED non-canonical realtime convention,
         documented in the contract note, NOT in this HTTP contract.
 
-    Frames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.
+    Frames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.
 
     Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.
 
@@ -440,7 +440,7 @@ paths:
           description: >-
             Validation exception. A body that is not a valid `Node[]` (`node_validation_failed`), a
             `localTransform` that is not a placement (`invalid_local_transform`: wrong length, a last
-            row other than 0,0,0,1, a number that overflows, shear or zero scale), or a graph that would
+            row other than 0,0,0,1, a number that overflows, or shear), or a graph that would
             be too deep (`node_tree_too_deep`). Nothing is stored.
         default:
           description: Unexpected error
@@ -594,7 +594,7 @@ components:
       # OVERLAY (iteration 1, proposed upstream edit): OGC GeoPose 1.0 Basic-YPR, one definition
       # for every `geoPose` in the API. The standard at d39a1a0 inlines five copies and spells
       # longitude `lan`; the OGC schema and the GeoPose examples spell it `lon`.
-      #   - position: latitude and longitude in degrees, `h` in metres above the WGS-84 ellipsoid.
+      #   - position: latitude and longitude in degrees, `h` in meters above the WGS-84 ellipsoid.
       #   - angles: degrees, yaw about up, then pitch, then roll (the sense and order are an
       #     assumption until the GeoPose working group confirms them).
       #   - `lan` is read as `lon` and is deprecated; a server never emits it.
@@ -602,16 +602,19 @@ components:
       #     it anchors the graph's origin: at zero angles +X is east, +Y up and +Z south.
       x-osl-overlay: iteration-1
       description: >-
-        OGC GeoPose 1.0 Basic-YPR. `position` is latitude and longitude in degrees, and `h` in metres
+        OGC GeoPose 1.0 Basic-YPR. `position` is latitude and longitude in degrees, and `h` in meters
         above the WGS-84 ellipsoid. `angles` are `yaw`, `pitch` and `roll` in degrees, applied about the
-        local axes z, y and x in that order. `lan` is a deprecated spelling of `lon`: a reader accepts it
-        and a writer sends `lon`.
+        local axes z, y and x in that order. A writer sends `lon`. A reader also accepts `lan`, the earlier
+        spelling, and refuses a position whose `lon` and `lan` differ.
       type: object
       required: [position, angles]
       properties:
         position:
           type: object
-          required: [lat, lon, h]
+          required: [lat, h]
+          anyOf:
+            - required: [lon]
+            - required: [lan]
           properties:
             lat:
               type: number
@@ -623,8 +626,10 @@ components:
               maximum: 180
             lan:
               type: number
+              minimum: -180
+              maximum: 180
               deprecated: true
-              description: Deprecated spelling of `lon` (the World API at d39a1a0).
+              description: Earlier spelling of `lon`.
             h:
               type: number
         angles:
@@ -756,7 +761,7 @@ components:
       #   - parent: one parent per node, except the graph's root. A PUT of `parent` moves the node,
       #     with its subtree, within its graph.
       #   - children: the child nodes, embedded. Derived from the tree: a PUT never changes them.
-      #   - localTransform: 16 numbers, column-major, in metres.
+      #   - localTransform: 16 numbers, column-major, in meters.
       # OSL serves this shape by default. The LABELED `OSLFlatNode` (children are integer ids) is
       # served only when a request asks for the node form `flat`.
       x-osl-overlay: iteration-1
@@ -789,9 +794,9 @@ components:
           minItems: 16
           maxItems: 16
           description: >-
-            Column-major 4×4 matrix mapping this node's frame into its parent's frame, in metres. It
-            decomposes into translation, rotation and non-zero scale, with no shear, as glTF 2.0
-            §3.5.3 requires of `node.matrix`.
+            Column-major 4×4 matrix mapping this node's frame into its parent's frame, in meters. It
+            decomposes into translation, rotation and scale, as glTF 2.0 §3.5.3 requires of
+            `node.matrix`, so it has no shear.
           items:
             type: number
         spatialAssetURI:

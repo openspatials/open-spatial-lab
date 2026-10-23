@@ -3,10 +3,10 @@
 /*
  * What a node's `localTransform` may be.
  *
- * It is a column-major 4x4 matrix in metres that maps the node's frame into its parent's frame. It
- * must decompose into translation, rotation and a non-zero scale, with no shear, which is what
- * glTF 2.0 section 3.5.3 requires of `node.matrix`. That keeps every matrix meaning one thing to
- * every reader: a node is a place, an orientation and a size.
+ * It is a column-major 4x4 matrix in meters that maps the node's frame into its parent's frame. It
+ * must decompose into translation, rotation and scale, as glTF 2.0 section 3.5.3 requires of
+ * `node.matrix`, so it has no shear. Scale may be zero: glTF uses it to hide a node. That keeps
+ * every matrix meaning one thing to every reader: a node is a place, an orientation and a size.
  *
  * checkLocalTransform() returns null for a valid matrix, or { reason, message } for the first
  * thing wrong with it. The reasons are stable names a client can act on.
@@ -16,6 +16,7 @@
 const LAST_ROW_TOLERANCE = 1e-9;
 // Cosine of the angle between two basis columns beyond which the matrix is sheared. About 0.0006 degrees.
 const SHEAR_TOLERANCE = 1e-5;
+// A basis column shorter than this has zero scale; it has no direction, so it cannot shear.
 const ZERO_SCALE = 1e-12;
 
 const REASONS = Object.freeze({
@@ -23,7 +24,6 @@ const REASONS = Object.freeze({
     WRONG_LENGTH : 'wrong_length',
     NOT_FINITE : 'not_a_finite_number',
     LAST_ROW : 'last_row_not_0001',
-    ZERO_SCALE : 'zero_scale',
     SHEAR : 'shear',
 });
 
@@ -50,13 +50,9 @@ function checkLocalTransform(m)
     const columns = [ [ m[0], m[1], m[2] ], [ m[4], m[5], m[6] ], [ m[8], m[9], m[10] ] ];
     const lengths = columns.map(c => Math.hypot(c[0], c[1], c[2]));
     const axis = [ 'x', 'y', 'z' ];
-    for (let i = 0; i < 3; i += 1)
-    {
-        if (lengths[i] < ZERO_SCALE)
-            return refusal(REASONS.ZERO_SCALE, 'the scale along ' + axis[i] + ' is zero, so the matrix does not decompose into translation, rotation and scale');
-    }
     for (const [ i, j ] of [ [ 0, 1 ], [ 0, 2 ], [ 1, 2 ] ])
     {
+        if (lengths[i] < ZERO_SCALE || lengths[j] < ZERO_SCALE) continue;
         const cosine = (columns[i][0] * columns[j][0] + columns[i][1] * columns[j][1] + columns[i][2] * columns[j][2])
             / (lengths[i] * lengths[j]);
         if (Math.abs(cosine) > SHEAR_TOLERANCE)

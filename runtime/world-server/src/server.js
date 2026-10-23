@@ -760,7 +760,7 @@ function createServer(role, extraOpts)
                         if (!Array.isArray(body))
                             return sendJson(res, 400, { ok : false, error : 'expected_node_array' });
                         // A transform that is an array but cannot be a node's placement (wrong length,
-                        // last row, overflow, zero scale, shear) is refused with a named reason before
+                        // last row, overflow, shear) is refused with a named reason before
                         // the contract's own verdict. A transform that is not an array is the contract's.
                         const badTransform = inspectIncomingTransforms(body, { arraysOnly : true });
                         if (badTransform)

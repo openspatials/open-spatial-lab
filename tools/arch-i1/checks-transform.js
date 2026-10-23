@@ -57,6 +57,7 @@ async function transformChecks(ports) {
   const lastRowSlanted = IDENTITY.slice(); lastRowSlanted[3] = 0.1;
   const sheared = [1, 0, 0, 0, 0.5, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   const zeroScale = [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  const zeroScaleSheared = [0, 0, 0, 0, 0, 1, 0, 0, 0, 0.5, 1, 0, 0, 0, 0, 1]; // x scale 0, y and z still sheared
   const body = (m) => [{ label: 't2', localTransform: m }];
   const rawBody = (m) => '[{"label":"t2","localTransform":[' + m + ']}]';
   const turned = [0, 0, -2, 0, 0, 2, 0, 0, 2, 0, 0, 0, 5, 6, 7, 1]; // scale 2, rotate 90 degrees about Y: valid
@@ -67,13 +68,12 @@ async function transformChecks(ports) {
     { name: 'last row slanted', send: (api) => api.create(0, body(lastRowSlanted)), status: 422, reason: 'last_row_not_0001' },
     { name: 'overflowing literal 1e999', send: (api) => api.create(0, rawBody('1,0,0,0,0,1,0,0,0,0,1,0,1e999,0,0,1')), status: 422, reason: 'not_a_finite_number' },
     { name: 'shear', send: (api) => api.create(0, body(sheared)), status: 422, reason: 'shear' },
-    { name: 'zero scale', send: (api) => api.create(0, body(zeroScale)), status: 422, reason: 'zero_scale' },
+    { name: 'zero x scale with y-z shear', send: (api) => api.create(0, body(zeroScaleSheared)), status: 422, reason: 'shear' },
     { name: 'NaN literal (not JSON)', send: (api) => api.create(0, rawBody('1,0,0,0,0,1,0,0,0,0,1,0,NaN,0,0,1')), status: 400, reason: null },
     { name: 'PUT with shear', send: async (api, target) => api.update(target, { localTransform: sheared }), status: 422, reason: 'shear' },
     { name: 'PUT with length 15', send: async (api, target) => api.update(target, { localTransform: IDENTITY.slice(0, 15) }), status: 422, reason: 'wrong_length' },
-    { name: 'PUT with zero scale', send: async (api, target) => api.update(target, { localTransform: zeroScale }), status: 422, reason: 'zero_scale' },
   ];
-  await run('T2', 'a matrix that is not 16 numbers, has a last row other than (0,0,0,1), overflows, has shear or has zero scale is refused with 422 and a reason; NaN is 400', async (impl) => {
+  await run('T2', 'a matrix that is not 16 numbers, has a last row other than (0,0,0,1), overflows or has shear is refused with 422 and a reason; NaN is 400; zero scale, which glTF allows, is accepted', async (impl) => {
     const s = await boot('a', ports.next(), { edits: impl.edits });
     try {
       const api = graphApi(s.port, GRAPH_IDS.a);
@@ -90,14 +90,23 @@ async function transformChecks(ports) {
       const unchanged = (await api.node(target)).json.localTransform.every((v, i) => v === translation(1, 1, 1)[i]);
       const after = (await api.walk(0)).nodes.size;
       const okTurn = await api.create(0, body(turned));
+      const okZero = await api.create(0, body(zeroScale));
+      const zeroTarget = await api.make(0, 't2-zero-target', translation(1, 1, 1));
+      const okZeroPut = await api.update(zeroTarget, { localTransform: zeroScale });
       if (!unchanged) failures.push('a refused PUT changed the node');
       if (after !== before) failures.push('a refused POST stored a node');
       if (okTurn.status !== 200) failures.push('a valid rotation with scale 2 was refused: ' + okTurn.status + ' ' + okTurn.body.slice(0, 100));
-      return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : `${cases.length} refusals with their reasons; nothing stored; a rotation with scale 2 is accepted` };
+      if (okZero.status !== 200) failures.push('zero scale was refused on POST: ' + okZero.status + ' ' + okZero.body.slice(0, 100));
+      if (okZeroPut.status !== 200) failures.push('zero scale was refused on PUT: ' + okZeroPut.status + ' ' + okZeroPut.body.slice(0, 100));
+      else if (!(await api.node(zeroTarget)).json.localTransform.every((v, i) => v === zeroScale[i])) failures.push('zero scale was not stored as sent');
+      return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : `${cases.length} refusals with their reasons; nothing stored; a rotation with scale 2 and zero scale (POST and PUT) are accepted` };
     } finally { await s.close(); }
   }, { edits: null }, [{
     name: 'transform checks removed',
     impl: { edits: { store: [['    let refusal = null;\n    function visit(raw, at, depth)', '    return null;\n    let refusal = null;\n    function visit(raw, at, depth)']] } },
+  }, {
+    name: 'a server that still refuses zero scale',
+    impl: { edits: { store: [['            const bad = checkLocalTransform(raw.localTransform);', '            const bad = checkLocalTransform(raw.localTransform) || (Array.isArray(raw.localTransform) && [0, 4, 8].some((k) => Math.hypot(raw.localTransform[k], raw.localTransform[k + 1], raw.localTransform[k + 2]) < 1e-12) ? { reason : \'zero_scale\', message : \'zero scale\' } : null);']] } },
   }]);
 }
 

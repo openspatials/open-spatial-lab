@@ -7,7 +7,7 @@
     "x-osl-source-of-truth": true,
     "x-osl-canonical-basis": "Canonical schemas (World/User/View/Portal/Node/Spatial) and the /wow/world, /wow/user, /wow/view, /wow/portal and /wow/spatial paths are transcribed from the OPEN OpenSpatialWorld API (github.com/WebOfWorlds/WoWAPI, specification/OpenSpatialWorld/API.yaml, openapi 3.0.4, info.version 0.0.1), pinned to upstream commit d39a1a0 (\"fixed node children type\", 2026-05-21).",
     "x-osl-provenance-correction": "CORRECTION (2026-07-11, runtime; supersedes the previous claim here that this file was \"NOT copied from the UNLICENSED simpleWorlds reference implementation\"). That sentence was NOT supportable and is withdrawn. Two things in the first transcription match the STALE spec copy vendored in the simpleWorlds reference implementation rather than the open spec: (1) `Node.children` was typed `integer`, where the open spec says `$ref: Node` (simpleWorlds packages/wow-spec/src/schema.yaml:425-428 types it `integer`; upstream has ONE commit, so NO published upstream state has ever said `integer`); and (2) the dotted operationIds (world.getWorld, user.getUser, user.deleteUser, view.getView, portal.getPortal) match simpleWorlds 5-for-5, where upstream uses getWorldStatus / getUserById / deleteUserById / getViewById / getPortalById. Sourcing was MIXED, not wholesale: the /wow/spatial/{spatialID}/node/{nodeId} path is the OPEN SPEC's, and OSL deliberately REJECTED simpleWorlds' /wow/scene/node divergence (PROP §9). `Node` is now restored VERBATIM from the open spec. What OSL served then (id-ref children) was the LABELED, non-canonical `OSLFlatNode` divergence — declared, never presented as the standard. Since iteration 1 OSL serves the canonical `Node` by default and the flat form only on explicit request. NO simpleWorlds SOURCE CODE is vendored in this repository; the schema typing and operationId NAMING above are the extent of the overlap, and the typing is corrected. LICENSING NOTE: simpleWorlds' license state is self-contradictory — the repo ships an Apache-2.0 LICENSE file while its package.json (root and packages/wow-spec) declares \"license\": \"UNLICENSED\". Because that is unresolved, OSL treats simpleWorlds as DO-NOT-COPY and single-sources the open spec.",
-    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n\nFrames. All coordinates are in metres, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\nMedia type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\nEntity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).\n\nCross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match.\n\nEvents. A world's event stream is listed in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event adds revision (this world's count of its changes, one higher for each; it survives restarts, and the World resource reports the current one), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision). A write that leaves a representation unchanged creates no revision and no event. A client resumes with since=<revision>; a world that can no longer replay from there sends resync with its current revision, and the client re-reads.\n\nStream authentication. A world that requires authorization for its stream expects as the stream's first message the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}, and closes a stream without a valid token within 5 seconds. It refuses a stream from an origin its policy does not allow. Tokens never go in URLs.\n\nData points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user.\n"
+    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n\nFrames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\nMedia type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\nEntity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).\n\nCross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match.\n\nEvents. A world's event stream is listed in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event adds revision (this world's count of its changes, one higher for each; it survives restarts, and the World resource reports the current one), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision). A write that leaves a representation unchanged creates no revision and no event. A client resumes with since=<revision>; a world that can no longer replay from there sends resync with its current revision, and the client re-reads.\n\nStream authentication. A world that requires authorization for its stream expects as the stream's first message the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}, and closes a stream without a valid token within 5 seconds. It refuses a stream from an origin its policy does not allow. Tokens never go in URLs.\n\nData points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user.\n"
   },
   "servers": [
     {
@@ -527,7 +527,7 @@
             "description": "parent node not found"
           },
           "422": {
-            "description": "Validation exception. A body that is not a valid `Node[]` (`node_validation_failed`), a `localTransform` that is not a placement (`invalid_local_transform`: wrong length, a last row other than 0,0,0,1, a number that overflows, shear or zero scale), or a graph that would be too deep (`node_tree_too_deep`). Nothing is stored."
+            "description": "Validation exception. A body that is not a valid `Node[]` (`node_validation_failed`), a `localTransform` that is not a placement (`invalid_local_transform`: wrong length, a last row other than 0,0,0,1, a number that overflows, or shear), or a graph that would be too deep (`node_tree_too_deep`). Nothing is stored."
           },
           "default": {
             "description": "Unexpected error"
@@ -737,7 +737,7 @@
     "schemas": {
       "GeoPose": {
         "x-osl-overlay": "iteration-1",
-        "description": "OGC GeoPose 1.0 Basic-YPR. `position` is latitude and longitude in degrees, and `h` in metres above the WGS-84 ellipsoid. `angles` are `yaw`, `pitch` and `roll` in degrees, applied about the local axes z, y and x in that order. `lan` is a deprecated spelling of `lon`: a reader accepts it and a writer sends `lon`.",
+        "description": "OGC GeoPose 1.0 Basic-YPR. `position` is latitude and longitude in degrees, and `h` in meters above the WGS-84 ellipsoid. `angles` are `yaw`, `pitch` and `roll` in degrees, applied about the local axes z, y and x in that order. A writer sends `lon`. A reader also accepts `lan`, the earlier spelling, and refuses a position whose `lon` and `lan` differ.",
         "type": "object",
         "required": [
           "position",
@@ -748,8 +748,19 @@
             "type": "object",
             "required": [
               "lat",
-              "lon",
               "h"
+            ],
+            "anyOf": [
+              {
+                "required": [
+                  "lon"
+                ]
+              },
+              {
+                "required": [
+                  "lan"
+                ]
+              }
             ],
             "properties": {
               "lat": {
@@ -764,8 +775,10 @@
               },
               "lan": {
                 "type": "number",
+                "minimum": -180,
+                "maximum": 180,
                 "deprecated": true,
-                "description": "Deprecated spelling of `lon` (the World API at d39a1a0)."
+                "description": "Earlier spelling of `lon`."
               },
               "h": {
                 "type": "number"
@@ -980,7 +993,7 @@
             "type": "array",
             "minItems": 16,
             "maxItems": 16,
-            "description": "Column-major 4×4 matrix mapping this node's frame into its parent's frame, in metres. It decomposes into translation, rotation and non-zero scale, with no shear, as glTF 2.0 §3.5.3 requires of `node.matrix`.",
+            "description": "Column-major 4×4 matrix mapping this node's frame into its parent's frame, in meters. It decomposes into translation, rotation and scale, as glTF 2.0 §3.5.3 requires of `node.matrix`, so it has no shear.",
             "items": {
               "type": "number"
             }
