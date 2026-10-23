@@ -14,28 +14,30 @@ World API:
 
 1. **Inclusion.** `Node.spatialAssetURI` gains a description. It may name a model, or the `Spatial`, `Node` or
    `wow/world` resource of any world, which is then shown at this node. A client tells them apart by the media type
-   of the answer, never by the address. The including node stands in for the included node's parent. A whole
-   world shows its default graph, and its other anchored graphs where their GeoPoses put them. The included
-   world's environment does not apply to the host. The host sets a nesting limit and a budget, detects cycles by
-   URL, and shows a placeholder on failure. This is decision 4 (2026-10-22): the existing field carries the link,
-   so no separate reference field is proposed.
+   of the answer, never by the address or the content: `application/wow+json` marks a Web of Worlds resource. The
+   including node stands in for the included node's parent. A whole world shows its default graph, and its other
+   anchored graphs where their GeoPoses put them. The included world's environment does not apply to the host. The
+   host sets a nesting limit and a budget of included graphs, which it hands out in tree order (depth first,
+   children in order); it detects cycles by URL and shows a placeholder on failure. This is decision 4
+   (2026-10-22): the existing field carries the link, so no separate reference field is proposed.
 2. **Graphs.** `World.spatials` lists the ids of the world's graphs, the default graph first.
 3. **Media type.** Resources are served as `application/wow+json`, a working name that stays provisional until
-   the group decides it. It replaces `application/json` on the eight responses that return a resource (world,
-   user, view, portal, spatial, and the node POST, GET and PUT). `application/json` stays available by content
+   the group decides it. It is listed first, beside `application/json`, on the eight responses that return a
+   resource (world, user, view, portal, spatial, and the node POST, GET and PUT). `application/json` stays available by content
    negotiation, and the node write bodies accept both. Its fragment identifiers are JSON Pointers (RFC 6901 §6).
 4. **Entity tags.** `GET /wow/world`, `GET /wow/spatial/{spatialID}` and the node GET return `ETag` and
-   `Last-Modified` and answer `If-None-Match` with 304. The node PUT and DELETE honour `If-Match` and answer 412
-   on a mismatch (RFC 9110).
-5. **Cross-origin reads.** Responses carry `Access-Control-Allow-Origin` as the world's policy allows, and
-   `Access-Control-Expose-Headers: ETag`. Preflight responses allow `Authorization`, `If-None-Match` and
-   `If-Match`.
+   `Last-Modified` and answer `If-None-Match` with 304, and a 304 carries the `ETag`. The node PUT and DELETE honor
+   `If-Match` and answer 412 on a mismatch. A successful PUT sends no `ETag`, because the stored node is not the
+   body as sent (RFC 9110 §9.3.4).
+5. **Cross-origin access.** Responses carry `Access-Control-Allow-Origin` as the world's policy allows, and
+   `Access-Control-Expose-Headers: ETag`. Preflight responses allow the methods GET, HEAD, POST, PUT and DELETE,
+   and the request headers `Authorization`, `Content-Type`, `If-None-Match` and `If-Match`.
 
 README:
 
 - "Expose parts of scene to be linked in external world" becomes: any readable `Spatial` or `Node` may be
-  included by another world. The `URL/wow/scene/` line under it is left to the path decision of the paper's
-  §5.3.4.
+  included by another world. The `URL/wow/scene/` line under it stays as it is; the path a Spatial is served at
+  is decided later.
 - The base-URL rule: a world may sit at a path prefix, and its resource URLs are the base plus `wow/...`.
 
 ## Apply

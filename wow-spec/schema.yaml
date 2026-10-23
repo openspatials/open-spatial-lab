@@ -64,9 +64,9 @@ info:
 
     Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.
 
-    Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).
+    Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honor If-Match and answer 412 when it does not match (RFC 9110).
 
-    Cross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match.
+    Cross-origin access. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match.
 
     Events. A world's event stream is listed in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event adds revision (this world's count of its changes, one higher for each; it survives restarts, and the World resource reports the current one), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision). A write that leaves a representation unchanged creates no revision and no event. A client resumes with since=<revision>; a world that can no longer replay from there sends resync with its current revision, and the client re-reads.
 
@@ -493,8 +493,6 @@ paths:
               schema:
                 type: string
                 enum: [canonical, flat]
-            ETag:
-              $ref: '#/components/headers/ETag'
           content:
             application/wow+json:
               schema:
@@ -577,6 +575,9 @@ components:
   responses:
     NotModified:
       description: Not modified; the client's copy is current.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
     PreconditionFailed:
       description: If-Match does not match the node's current entity tag; read the node again and retry.
   schemas:
@@ -805,11 +806,12 @@ components:
           description: >-
             The address of this node's content: a model, or the Spatial, Node or wow/world resource of
             any world, which is then shown at this node. A client tells them apart by the media type of
-            the answer, never by the address: application/wow+json is another world's content. The
-            including node stands in for the included node's parent. A whole world shows its default
-            graph, and its other anchored graphs where their GeoPoses put them. The included world's
-            environment does not apply to the host. The host sets a nesting limit and a budget, detects
-            cycles by URL, and shows a placeholder on failure.
+            the answer, never by the address or the content: application/wow+json marks a Web of Worlds
+            resource. The including node stands in for the included node's parent. A whole world shows
+            its default graph, and its other anchored graphs where their GeoPoses put them. The included
+            world's environment does not apply to the host. The host sets a nesting limit and a budget of
+            included graphs, which it hands out in tree order (depth first, children in order); it
+            detects cycles by URL and shows a placeholder on failure.
         appearanceURI:
           type: string
         properties:

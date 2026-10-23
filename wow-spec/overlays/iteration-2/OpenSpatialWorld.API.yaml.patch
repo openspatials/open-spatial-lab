@@ -7,8 +7,8 @@
 -    Frames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent."
 +    Frames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\n\
 +    Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\n\
-+    Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it does not match (RFC 9110).\n\n\
-+    Cross-origin reads. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow Authorization, If-None-Match and If-Match."
++    Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honor If-Match and answer 412 when it does not match (RFC 9110).\n\n\
++    Cross-origin access. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match."
    version: '0.0.1'
  
  servers:
@@ -156,13 +156,9 @@
            application/json:
              schema:
                  $ref: "#/components/schemas/Node"    
-@@ -246,7 +306,13 @@
-       responses:
+@@ -247,6 +307,9 @@
          '200':
            description: Successful operation
-+          headers:
-+            ETag:
-+              $ref: '#/components/headers/ETag'
            content:
 +            application/wow+json:
 +              schema:
@@ -170,7 +166,7 @@
              application/json:
                schema:
                  $ref: "#/components/schemas/Node"    
-@@ -254,6 +320,8 @@
+@@ -254,6 +317,8 @@
            description: Invalid ID supplied
          '404':
            description: node not found
@@ -179,7 +175,7 @@
          '422':
            description: Validation exception
          default:
-@@ -276,11 +344,14 @@
+@@ -276,11 +341,14 @@
            required: true
            schema:
              type: integer
@@ -194,7 +190,7 @@
          default:
            description: Unexpected error
  
-@@ -289,6 +360,35 @@
+@@ -289,6 +357,38 @@
  #------------------
  
  components:
@@ -225,6 +221,9 @@
 +  responses:
 +    NotModified:
 +      description: Not modified; the client's copy is current.
++      headers:
++        ETag:
++          $ref: '#/components/headers/ETag'
 +    PreconditionFailed:
 +      description: If-Match does not match the node's current entity tag; read the node again and retry.
    schemas:
@@ -242,18 +241,19 @@
          presence:
            type: object
            properties:
-@@ -483,6 +588,14 @@
+@@ -483,6 +588,15 @@
              type: number 
          spatialAssetURI:
            type: string
 +          description: >-
 +            The address of this node's content: a model, or the Spatial, Node or wow/world resource of
 +            any world, which is then shown at this node. A client tells them apart by the media type of
-+            the answer, never by the address: application/wow+json is another world's content. The
-+            including node stands in for the included node's parent. A whole world shows its default
-+            graph, and its other anchored graphs where their GeoPoses put them. The included world's
-+            environment does not apply to the host. The host sets a nesting limit and a budget, detects
-+            cycles by URL, and shows a placeholder on failure.
++            the answer, never by the address or the content: application/wow+json marks a Web of Worlds
++            resource. The including node stands in for the included node's parent. A whole world shows
++            its default graph, and its other anchored graphs where their GeoPoses put them. The included
++            world's environment does not apply to the host. The host sets a nesting limit and a budget of
++            included graphs, which it hands out in tree order (depth first, children in order); it
++            detects cycles by URL and shows a placeholder on failure.
          appearanceURI:
            type: string
                  

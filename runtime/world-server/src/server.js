@@ -186,7 +186,7 @@ function createServer(role, extraOpts)
     // Web of Worlds group decides it. Error bodies stay `application/json`: they are not resources.
     //
     // ENTITY TAGS. GET /wow/world, GET /wow/spatial/{id} and the node GET carry ETag and Last-Modified
-    // and answer If-None-Match with 304. The node PUT and DELETE honour If-Match and answer 412 when it
+    // and answer If-None-Match with 304. The node PUT and DELETE honor If-Match and answer 412 when it
     // does not match the node's current representation (RFC 9110 §13.1). A tag is a hash of the bytes
     // served with their media type, so each representation of a resource has its own tag.
     //
@@ -810,8 +810,9 @@ function createServer(role, extraOpts)
                         if (!body || typeof body !== 'object' || Array.isArray(body))
                             return sendJson(res, 400, { ok : false, error : 'expected_node_object' });
                         // A stale If-Match is a lost update: refuse it before anything is checked or stored.
+                        // A node that does not exist answers 404, whatever the precondition (RFC 9110 §13.2.1).
                         const current = runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm });
-                        if (ifMatchFails(req, current ? readableNode(graphIdOf(spatialID), current) : null))
+                        if (current && ifMatchFails(req, readableNode(graphIdOf(spatialID), current)))
                             return sendJson(res, 412, { ok : false, error : 'precondition_failed', spatialID, nodeId,
                                 message : 'If-Match does not match the node\'s current entity tag; read the node again and retry' });
                         const badTransform = inspectIncomingTransforms(body, { arraysOnly : true, single : true });
@@ -837,7 +838,7 @@ function createServer(role, extraOpts)
                                 { ok : false, error : r.error, spatialID, nodeId }, r.detail || {}));
                         try { res.setHeader('X-OSL-WoW-Node-Form', nodeForm); } catch (e) {}
                         return sendWow(req, res, 200,
-                            readableNode(graphIdOf(spatialID), runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm })), { tagged : true });
+                            readableNode(graphIdOf(spatialID), runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm })));
                     } catch (e) {
                         if (res.headersSent) return res.destroy();
                         return sendJson(res, 400, { ok : false, error : 'node_update_rejected', message : e.message });
@@ -848,7 +849,7 @@ function createServer(role, extraOpts)
             if (method === 'DELETE')
             {
                 const current = runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm });
-                if (ifMatchFails(req, current ? readableNode(graphIdOf(spatialID), current) : null))
+                if (current && ifMatchFails(req, readableNode(graphIdOf(spatialID), current)))
                     return sendJson(res, 412, { ok : false, error : 'precondition_failed', spatialID, nodeId,
                         message : 'If-Match does not match the node\'s current entity tag; read the node again and retry' });
                 const r = runtime.deleteSpatialNode(spatialID, nodeId);

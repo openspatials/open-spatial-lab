@@ -9,7 +9,7 @@
  *        second write succeeds without undoing the other writer's change
  */
 
-const { run } = require('../arch-i1/lib');
+const { run, httpReq } = require('../arch-i1/lib');
 const w = require('./worlds');
 const { baseScene, placementsVia } = require('./scenario');
 
@@ -64,11 +64,23 @@ async function readChecks(ports) {
 
   // ---- I4b --------------------------------------------------------------------------------------------
   const ignoresIfMatch = { serverEdits: { server: [[
+    '                        if (current && ifMatchFails(req, readableNode(graphIdOf(spatialID), current)))',
+    '                        if (false && current && ifMatchFails(req, readableNode(graphIdOf(spatialID), current)))',
+  ]] } };
+  const tagsPut = { serverEdits: { server: [[
+    'readableNode(graphIdOf(spatialID), runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm })));',
+    'readableNode(graphIdOf(spatialID), runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm })), { tagged : true });',
+  ]] } };
+  const putPreconditionFirst = { serverEdits: { server: [[
+    '                        if (current && ifMatchFails(req, readableNode(graphIdOf(spatialID), current)))',
     '                        if (ifMatchFails(req, current ? readableNode(graphIdOf(spatialID), current) : null))',
-    '                        if (false && ifMatchFails(req, current ? readableNode(graphIdOf(spatialID), current) : null))',
+  ]] } };
+  const preconditionBeforeExistence = { serverEdits: { server: [[
+    '\n                const current = runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm });\n                if (current && ifMatchFails(req, readableNode(graphIdOf(spatialID), current)))',
+    '\n                const current = runtime.getSpatialNode(spatialID, nodeId, { form : nodeForm });\n                if (ifMatchFails(req, current ? readableNode(graphIdOf(spatialID), current) : null))',
   ]] } };
   const retriesWithStaleTag = { clientEdits: [['    node = null; // read again: someone else changed it\n    etag = null;\n', '']] };
-  await run('I4b', 'a PUT to node n with a stale If-Match gets 412; the client reads n again and retries, the second write succeeds, and the other writer\'s change is kept', async (impl) => {
+  await run('I4b', 'a PUT to node n with a stale If-Match gets 412; the client reads n again and retries, the second write succeeds, and the other writer\'s change is kept; a successful PUT carries no ETag; If-Match on a node that does not exist answers 404, not 412', async (impl) => {
     const s = await baseScene(impl, ports);
     try {
       const failures = [];
@@ -87,11 +99,25 @@ async function readChecks(ports) {
       const final = (await s.B.node(1, s.ids.n)).json;
       if (!final || final.label !== 'node n (renamed)') failures.push('writer 1\'s change is missing');
       if (!final || final.localTransform[12] !== 4) failures.push('writer 2\'s move was lost (x = ' + (final && final.localTransform[12]) + ')');
-      return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : `stale If-Match: 412; client retry: ${writer1.statuses.join(', ')}; both changes kept` };
+      // RFC 9110 §9.3.4: the stored node is not the body as sent, so a successful PUT sends no validator.
+      const current = await s.B.node(1, s.ids.n);
+      const ok = await s.B.put(1, s.ids.n, Object.assign(withoutChildren(current.json), { label: 'node n (tagged?)' }), { 'If-Match': current.headers.etag });
+      if (ok.status !== 200) failures.push('a PUT with the current If-Match answered ' + ok.status);
+      else if (ok.headers.etag || ok.headers['last-modified']) failures.push('a successful PUT carried ' + (ok.headers.etag ? 'ETag' : 'Last-Modified'));
+      // RFC 9110 §13.2.1: a request that would be 404 without its precondition ignores it.
+      const missing = 987654;
+      const putMissing = await s.B.put(1, missing, { label: 'nobody' }, { 'If-Match': current.headers.etag });
+      const delMissing = await httpReq('DELETE', s.B.port, s.B.prefix + '/wow/spatial/1/node/' + missing, null, { Accept: w.WOW, 'If-Match': current.headers.etag });
+      if (putMissing.status !== 404) failures.push('PUT with If-Match to a missing node answered ' + putMissing.status);
+      if (delMissing.status !== 404) failures.push('DELETE with If-Match of a missing node answered ' + delMissing.status);
+      return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : `stale If-Match: 412; client retry: ${writer1.statuses.join(', ')}; both changes kept; a successful PUT has no ETag; If-Match on a missing node: PUT 404, DELETE 404` };
     } finally { await s.close(); }
   }, {}, [
     { name: 'a B that ignores If-Match on PUT', impl: ignoresIfMatch },
     { name: 'a client that retries with the stale tag instead of reading again', impl: retriesWithStaleTag },
+    { name: 'a B that tags a successful PUT', impl: tagsPut },
+    { name: 'a B whose PUT answers 412 before 404', impl: putPreconditionFirst },
+    { name: 'a B whose DELETE answers 412 before 404', impl: preconditionBeforeExistence },
   ]);
 }
 

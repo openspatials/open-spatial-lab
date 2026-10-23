@@ -52,7 +52,7 @@ function iteration3Text(doc) {
 
 async function overlayChecks(ports) {
   // ---- W1 ---------------------------------------------------------------------------------------------
-  const staleContext = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('Preflight responses allow Authorization, If-None-Match and If-Match."\n', 'Preflight responses allow If-Match."\n') } };
+  const staleContext = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('the request headers Authorization, Content-Type, If-None-Match and If-Match."\n', 'the request headers If-Match."\n') } };
   const badType = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('+        properties:\n+          type: object\n', '+        properties:\n+          type: dictionary\n') } };
   await run('W1', 'the iteration 3 patches apply to the Web of Worlds files at main after iterations 1 and 2; the patched World API passes the OpenAPI 3.0 schema with every path parameter declared and every $ref resolving; the README completes the preview line and says observing creates no user; context.jsonld is new and names the provisional terms', async (impl) => {
     const failures = [];

@@ -68,7 +68,7 @@ const NODE_PATH = '/wow/spatial/{spatialID}/node/{nodeId}';
 const OPS = [['/wow/world', 'get'], ['/wow/user/{userId}', 'get'], ['/wow/view/{viewId}', 'get'], ['/wow/portal/{portalId}', 'get'], ['/wow/spatial/{spatialID}', 'get'], [NODE_PATH, 'get'], [NODE_PATH, 'post'], [NODE_PATH, 'put']];
 const CONDITIONAL_GETS = [['/wow/world', 'get'], ['/wow/spatial/{spatialID}', 'get'], [NODE_PATH, 'get']];
 const GUARDED_WRITES = [[NODE_PATH, 'put'], [NODE_PATH, 'delete']];
-const PARAGRAPHS = ['Media type.', 'Entity tags.', 'Cross-origin reads.'];
+const PARAGRAPHS = ['Media type.', 'Entity tags.', 'Cross-origin access.'];
 
 /** What iteration 2 says, read from one API description, so the offered and the served text can be compared. */
 function iteration2Text(doc) {

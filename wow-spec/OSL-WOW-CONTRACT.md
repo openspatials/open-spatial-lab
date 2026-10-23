@@ -243,9 +243,11 @@ Each item is a proposed upstream edit (`wow-spec/overlays/iteration-2/`), proven
 3. **`application/wow+json`**, a provisional working name, on every resource response;
    `application/json` stays available by negotiation (I1, O2).
 4. **Entity tags.** ETag and Last-Modified on the World, the Spatial and the node; 304 on
-   `If-None-Match`; 412 on a stale `If-Match` (I4, I4b).
-5. **Cross-origin reads** as the world's policy allows (`cors_allowed_origins`), with ETag exposed and a
-   preflight that allows Authorization, If-None-Match and If-Match (I11, a load-gated browser check).
+   `If-None-Match`, carrying the ETag; 412 on a stale `If-Match`, and 404 first for a node that does not
+   exist; no ETag on a successful PUT, because the stored node is not the body as sent (I4, I4b).
+5. **Cross-origin access** as the world's policy allows (`cors_allowed_origins`), with ETag exposed and a
+   preflight that allows the methods GET, HEAD, POST, PUT and DELETE and the request headers Authorization,
+   Content-Type, If-None-Match and If-Match (I11, a load-gated browser check).
 
 The host's rules (a nesting limit of 3, a budget of 16 graphs handed out in tree order, cycles found by URL,
 a placeholder naming each failure, and the included world's environment kept out of the host) are client
