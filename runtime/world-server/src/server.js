@@ -554,7 +554,20 @@ function createServer(role, extraOpts)
         return sendJson(res, 400, { ok : false, error : 'bad_json' });
     }
 
+    // A request target the handler cannot read is answered 400 and must never stop the process, so a throw from
+    // the handler is caught here.
     const server = http.createServer((req, res) => {
+        try { return handleRequest(req, res); }
+        catch (err) { return rejectUnreadableRequest(res, err); }
+    });
+    function rejectUnreadableRequest(res, err)
+    {
+        if (res.headersSent) { res.destroy(); return; }
+        const unreadable = err instanceof URIError || (err && err.code === 'ERR_INVALID_URL');
+        return sendJson(res, unreadable ? 400 : 500, { ok : false, error : unreadable ? 'bad_request_target' : 'internal_error' });
+    }
+    function handleRequest(req, res)
+    {
         const url = new URL(req.url, 'http://127.0.0.1:' + cfg.http_port);
         let path = url.pathname;
         if (BASE_PATH)
@@ -1111,7 +1124,7 @@ function createServer(role, extraOpts)
         }
 
         return sendJson(res, 404, { ok : false, error : 'not_found', path });
-    });
+    }
 
     // ---- minimal RFC6455 WebSocket: /runtime-state (full-state) + /events -----
     //
@@ -1123,7 +1136,9 @@ function createServer(role, extraOpts)
     // BYTE-FOR-BYTE (same handshake, same `{type:'state',state}` frames); the
     // `/events` branch is purely additive and shares the frame encoder.
     server.on('upgrade', (req, socket) => {
-        const url = new URL(req.url, 'http://127.0.0.1:' + cfg.http_port);
+        let url;
+        try { url = new URL(req.url, 'http://127.0.0.1:' + cfg.http_port); }
+        catch (err) { socket.destroy(); return; }
         let wsPath = url.pathname;
         if (BASE_PATH)
         {

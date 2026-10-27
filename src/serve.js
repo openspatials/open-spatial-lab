@@ -96,7 +96,11 @@ function proxyHttp(key, request, response, backendPorts) {
 }
 
 function proxyWebSocket(request, clientSocket, head, backendPorts) {
-  const parsed = new URL(request.url, 'http://127.0.0.1');
+  let parsed;
+  try { parsed = new URL(request.url, 'http://127.0.0.1'); } catch (error) {
+    clientSocket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+    return;
+  }
   const match = parsed.pathname.match(/^\/api\/(a|b|lobby|airport)\/(runtime-state|events)$/);
   if (!match) {
     clientSocket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
@@ -133,7 +137,15 @@ function proxyWebSocket(request, clientSocket, head, backendPorts) {
 
 function createFrontendServer(port = 8143, options = {}) {
   const backendPorts = { ...DEFAULT_BACKEND_PORTS, ...(options.backendPorts || {}) };
-  const server = http.createServer(async (request, response) => {
+  // A request target the handler cannot read is answered 400 and must never stop the process.
+  const server = http.createServer((request, response) => {
+    handleRequest(request, response).catch((error) => {
+      if (response.headersSent) { response.destroy(); return; }
+      const unreadable = error instanceof URIError || (error && error.code === 'ERR_INVALID_URL');
+      sendJson(response, unreadable ? 400 : 500, { ok: false, error: unreadable ? 'bad_request_target' : 'internal_error' });
+    });
+  });
+  async function handleRequest(request, response) {
     const parsed = new URL(request.url, 'http://127.0.0.1');
     let urlPath = parsed.pathname;
     let worldKey = 'a';
@@ -205,7 +217,7 @@ function createFrontendServer(port = 8143, options = {}) {
     } else {
       serveFile(response, file);
     }
-  });
+  }
 
   server.on('upgrade', (request, socket, head) => proxyWebSocket(request, socket, head, backendPorts));
   return new Promise((resolve, reject) => {

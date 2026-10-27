@@ -33,7 +33,8 @@
     "conformance": "node tools/wow-conformance/run.js",
     "conformance:fixtures": "node wow-spec/conformance-fixtures/run.mjs",
     "wow-schema-json": "node wow-spec/build-schema-json.js",
-    "smoke:wowapi": "node tools/verify-wowapi-smoke.mjs"
+    "smoke:wowapi": "node tools/verify-wowapi-smoke.mjs",
+    "check:request-target": "node tools/check-request-target.js"
   },
   "dependencies": {
     "@pixiv/three-vrm": "3.3.3",
