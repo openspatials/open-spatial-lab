@@ -23,15 +23,13 @@
 //   - `delegatedBy` MUST equal the manifest `subject` (delegator binding) or the
 //     whole delegation is rejected — an agent cannot be handed authority the
 //     signer never held.
-//   - `livenessEndpoint` is carried verbatim if present but this change claims NO
+//   - `livenessEndpoint` is carried verbatim if present but this module claims NO
 //     liveness semantics for it (that vocabulary is). Grade-2 carry-only.
 //   - No `um_conformance` flag is flipped by this module (see feature_CONFORMANCE).
 
 import { verifyManifestProfileA } from "../signing/um-signature-profile-a.mjs";
 
-// ===========================================================================
 // 0) Constants — the schema enum + the O7 registered scope set + warning codes
-// ===========================================================================
 
 export const AGENT_DELEGATION_TYPE = "um:agentDelegation";
 
@@ -90,9 +88,7 @@ export const feature_CONFORMANCE = Object.freeze({
     "semantics claimed — runtime). No conformance flag is flipped.",
 });
 
-// ===========================================================================
 // 1) Small helpers (browser-safe; mirror the helper style)
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -135,10 +131,8 @@ export function getAgentDelegationPointers(manifest) {
   return pointers.filter((p) => p && typeof p === "object" && p["@type"] === AGENT_DELEGATION_TYPE);
 }
 
-// ===========================================================================
 // 2) Structural shape validation — mirrors schema.json $defs.agentDelegationPointer
 //    (the "schema-detectable" layer; clock-independent, subject-independent)
-// ===========================================================================
 
 /**
  * Validate ONE agentDelegation pointer's shape against the schema conditional.
@@ -172,9 +166,7 @@ export function validateAgentDelegationShape(pointer) {
   return { valid: errors.length === 0, errors };
 }
 
-// ===========================================================================
 // 3) The delegation evaluator — delegator binding + expiry + fail-closed O7 defaults
-// ===========================================================================
 
 /**
  * Evaluate ONE agentDelegation pointer against the manifest subject at a pinned
@@ -283,9 +275,7 @@ export function evaluateDelegation(pointer, { subject, nowMs } = {}) {
   return { reject: false, rejectReason: null, warnings, delegation };
 }
 
-// ===========================================================================
 // 4) Envelope basics + structural + evaluation verdicts (mirror shape)
-// ===========================================================================
 
 function envelopeErrors(manifest) {
   const errors = [];
@@ -373,7 +363,6 @@ export async function evaluateDelegationRegistry(manifest, context = {}) {
     return { result: outcome === "rejected" ? "reject" : "accept", receipt };
   };
 
-  // --- Verify: structure ----------------------------------------------------
   const envErrors = envelopeErrors(manifest);
   if (envErrors.length > 0) {
     warnings.push({ code: "um:reason:structure:malformed", message: `Verify stage: ${envErrors.join("; ")}` });
@@ -388,7 +377,6 @@ export async function evaluateDelegationRegistry(manifest, context = {}) {
     }
   }
 
-  // --- Verify: signature --------------------------
   const sig = manifest.signature;
   if (!sig || typeof sig !== "object") {
     receipt.signatureCheck = "missing";
@@ -406,7 +394,6 @@ export async function evaluateDelegationRegistry(manifest, context = {}) {
   }
   receipt.signatureCheck = "valid";
 
-  // --- Compose: per-pointer delegation evaluation (binding → expiry → defaults)
   let anyReject = false;
   for (const pointer of pointers) {
     const out = evaluateDelegation(pointer, { subject: manifest.subject, nowMs });
@@ -415,15 +402,12 @@ export async function evaluateDelegationRegistry(manifest, context = {}) {
     if (out.reject) anyReject = true;
   }
 
-  // --- Outcome --------------------------------------------------------------
   if (anyReject) return finish("rejected");
   if (warnings.length > 0) return finish("accepted-with-warnings");
   return finish("accepted");
 }
 
-// ===========================================================================
 // 5) EMIT — a demo agentDelegation pointer (task deliverable #1)
-// ===========================================================================
 
 /**
  * Build a well-formed `um:agentDelegation` pointer delegating from `delegatedBy`
@@ -459,11 +443,9 @@ export function emitAgentDelegationPointer({
   return pointer;
 }
 
-// ===========================================================================
 // 6) DEMO SURFACE — the ai_agent inspect panel (delegator DID, scopes, expiry)
 //    + the expired-delegation toggle showing the reject path. Pure functions;
 //    the UI wiring into live-adapter.js is the a serialized edit.
-// ===========================================================================
 
 /**
  * Produce the inspect-panel view-model for the scene's ai_agent avatar plus a
@@ -498,10 +480,8 @@ export async function buildDelegationDemoSurface({ manifest, now, ai_agentLabel 
   };
 }
 
-// ===========================================================================
 // 7) CONFORMANCE-RUNNER REGISTRATION HOOK — mirrors registerHolderBinding. The shared
 //    v0.4 runner wires this with ONE line (applied at integration, NOT here).
-// ===========================================================================
 
 /** The 4 fixture files owns (task §1 / expected.json). */
 export const feature_FIXTURE_FILENAMES = Object.freeze([

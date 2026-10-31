@@ -35,7 +35,6 @@ const HUMANOID_MAP = {
   RightHip: "rightUpperLeg", RightKnee: "rightLowerLeg", RightAnkle: "rightFoot", RightToe: "rightToes",
 };
 
-// ---- quaternions as [x, y, z, w] ----
 const qmul = (a, b) => [
   a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
   a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],

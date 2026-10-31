@@ -1,5 +1,5 @@
 /*
- * Standard portals in the main demo (iteration 4). Everything here comes from the worlds' Web of Worlds data:
+ * Standard portals in the main demo. Everything here comes from the worlds' Web of Worlds data:
  *
  *   - a portal is its resource (GET {base}wow/portal/{id}: `destination`, `node`), and it stands where its placing
  *     node says. The browser holds no copy of any portal.

@@ -82,9 +82,7 @@ function check(label, cond) {
   return !!cond;
 }
 
-// ---------------------------------------------------------------------------
 // PART A — SOURCE PINS (keep the fake faithful and tie the proof to shipped code)
-// ---------------------------------------------------------------------------
 
 // A1. Variant identity constants used by the harness, pinned to the real module.
 const DEFAULT_VARIANT = "readyplayerme-cyberpunk";
@@ -141,12 +139,10 @@ const KNOWN_VARIANTS = new Set(
 pin("known variant set includes the default", KNOWN_VARIANTS.has(DEFAULT_VARIANT));
 pin("known variant set includes the non-default test variant", KNOWN_VARIANTS.has(NON_DEFAULT_VARIANT));
 
-// ---------------------------------------------------------------------------
 // PART B — FAITHFUL FAKE of the AvatarEquipmentLayer observable state machine.
 //   Every branch below is the behavior pinned in PART A. Async model loads are
 //   modeled as an explicit queue the harness drains ONE at a time, so we can
 //   sample the (visible, active-variant) render state between loads.
-// ---------------------------------------------------------------------------
 
 class FakeAvatarEquipmentLayer {
   constructor() {
@@ -249,9 +245,7 @@ async function runLifecycle(wire) {
   return { frames, layer, peerAvatar };
 }
 
-// ---------------------------------------------------------------------------
 // PART C — THE TWO REVEAL POLICIES.
-// ---------------------------------------------------------------------------
 
 // C1. FIXED — the shipped app.js syncPeerAvatars order (pinned A6): rig stays
 // hidden until the peer's own variant is the active model, then reveal.
@@ -281,9 +275,7 @@ function wirePreFix(layer, peerAvatar) {
   });
 }
 
-// ---------------------------------------------------------------------------
 // PART D — RUN + ASSERT.
-// ---------------------------------------------------------------------------
 
 const fixed = await runLifecycle(wireFixed);
 const prefix = await runLifecycle(wirePreFix);
@@ -322,9 +314,7 @@ check(
   prefix.frames.at(-1)?.variant === NON_DEFAULT_VARIANT,
 );
 
-// ---------------------------------------------------------------------------
 // REPORT
-// ---------------------------------------------------------------------------
 
 const ok = failures.length === 0;
 const manifest = {

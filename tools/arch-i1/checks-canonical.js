@@ -47,7 +47,6 @@ async function clientReader(impl) {
 async function canonicalChecks(ports) {
   const server = (impl) => boot('a', ports.next(), { edits: impl && impl.edits ? impl.edits : null });
 
-  // ---- N4. One canonical form ---------------------------------------------------------------------------
   const flatByDefault = { server: [["return raw === 'flat' ? 'flat' : 'canonical';", "return raw === 'canonical' ? 'canonical' : 'flat';"]] };
   const refusesEmbedded = { server: [['{ flattenEmbedded : !flat });', '{ flattenEmbedded : false });']] };
   const ignoresFlatRequest = { server: [["return raw === 'flat' ? 'flat' : 'canonical';", "return 'canonical';"]] };
@@ -134,7 +133,6 @@ async function canonicalChecks(ports) {
     { name: 'a client that does not flatten embedded children', impl: { clientEdits: clientIgnoresEmbedded } },
   ]);
 
-  // ---- N6. The Spatial resource -------------------------------------------------------------------------
   const idAsString = { runtime: [['            id : store.graphId,', '            id : String(store.graphId),']] };
   const returnsRootNode = { server: [["                if (spatialForm === 'node')\n                {", "                if (true)\n                {"]] };
   const wrongRoot = { runtime: [['            rootNodeID : rootNodeID,', '            rootNodeID : rootNodeID + 1,']] };

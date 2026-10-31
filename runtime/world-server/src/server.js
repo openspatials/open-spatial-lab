@@ -96,7 +96,7 @@ function createServer(role, extraOpts)
 {
     const cfg = makeConfig(role, extraOpts);
     const runtime = createRuntime(cfg);
-    // Nodes that mirror another world's data point are kept up to date by observing it (iteration 3).
+    // Nodes that mirror another world's data point are kept up to date by observing it.
     const mirrors = cfg.mirrors === false ? null : createMirrors(runtime, { token : cfg.mirror_token });
 
     /*
@@ -110,12 +110,10 @@ function createServer(role, extraOpts)
      * test/proof harnesses can listen on ISOLATED ports and never squat the
      * local demo (8143 / 18151-18153), without touching the fixture
      * contract they are proving. Unset (every production caller) => bind_port ===
-     * http_port and behaviour is byte-identical to before.
+     * http_port.
      */
     const bindPort = Number(cfg.bind_port) || cfg.http_port;
 
-    // ---- ALWAYS-ON, CONTRACT-DRIVEN validation --
-    //
     // Supersedes the env-gated layer. Two things changed here and
     // nothing else:
     //
@@ -174,8 +172,6 @@ function createServer(role, extraOpts)
         return raw === 'flat' ? 'flat' : 'canonical';
     }
 
-    // ---- Web of Worlds resources over HTTP (iteration 2) -------------------------------------------
-    //
     // MEDIA TYPE. A World, User, View, Portal, Spatial or Node is served as `application/wow+json`, so a
     // client that finds the address in a node's `spatialAssetURI` can tell another world's content from
     // a model by the answer's Content-Type alone. `application/json` stays available: a request that
@@ -407,8 +403,6 @@ function createServer(role, extraOpts)
         return vr;
     }
 
-    // ---- OpenSpatialAsset (the third WoW pillar) ---------
-    //
     // Content negotiation across the spec's model/* media types + ETag /
     // conditional-GET / 304, over THIS world's REAL assets (files on disk + the
     // live hosted primitives). Full spec transcription and the labelled
@@ -437,8 +431,6 @@ function createServer(role, extraOpts)
         return null;
     }
 
-    // ---- OpenUserManifest ORIGIN (HEAD/ETag/302/403/404) --
-    //
     // A genuinely SEPARATE web origin (its own port -> RFC 6454 scheme+host+PORT),
     // where a world DEREFERENCES a portable manifest rather than reading it inlined.
     // REUSES the UM Signature Profile A identity already produced by the runtime
@@ -652,7 +644,6 @@ function createServer(role, extraOpts)
         // sendJson, which is why enforcement cannot be forgotten at a call site.
         res.__oslWowRequest = { method, path };
 
-        // ---- read-only GET routes ----
         if (method === 'GET' && path === '/healthz')
             // report the port actually LISTENED on (== cfg.http_port unless a
             // harness passed bind_port), never a port we are not on.
@@ -668,7 +659,7 @@ function createServer(role, extraOpts)
         if (method === 'GET' && path === '/wow/world')
             return sendWow(req, res, 200, runtime.getWowWorld(), { tagged : true });
 
-        // The preview this world declares (iteration 4): a Node tree rooted at the arrival node, holding
+        // The preview this world declares: a Node tree rooted at the arrival node, holding
         // only the nodes of its graph within the radius, each relative to the arrival node, and only the
         // nodes this reader may read. Reading it creates no user.
         if ((method === 'GET' || req.method === 'HEAD') && path === '/wow/preview')
@@ -704,7 +695,7 @@ function createServer(role, extraOpts)
             return sendWow(req, res, 200, root);
         }
 
-        // The JSON-LD context that types node `properties` (iteration 3). Its terms are provisional.
+        // The JSON-LD context that types node `properties`. Its terms are provisional.
         if ((method === 'GET' || req.method === 'HEAD') && path === '/wow/context.jsonld')
         {
             const body = WOW_CONTEXT;
@@ -842,7 +833,6 @@ function createServer(role, extraOpts)
 
             const nodeForm = requestedNodeForm(req, url);
 
-            // ---- the graph: /wow/spatial/{spatialID} ----
             if (nodeIdRaw === null)
             {
                 if (method !== 'GET')
@@ -862,7 +852,6 @@ function createServer(role, extraOpts)
                 return sendWow(req, res, 200, spatial, { tagged : true });
             }
 
-            // ---- a node: /wow/spatial/{spatialID}/node/{nodeId} ----
             // The spec's nodeId path param is an integer; a non-integer is a 400.
             if (!/^-?\d+$/.test(nodeIdRaw))
                 return sendJson(res, 400, { ok : false, error : 'invalid_node_id', nodeId : nodeIdRaw });
@@ -992,7 +981,6 @@ function createServer(role, extraOpts)
 
         // OMB fabric manifest: the world description this
         // node serves, projected live. Plain JSON, unsigned, labeled as such.
-        // (Left byte-identical: /fabric.json keeps trust.signed:false + no CORS.)
         if (method === 'GET' && path === '/fabric.json')
             return sendJson(res, 200, runtime.getFabricManifest());
 
@@ -1131,7 +1119,6 @@ function createServer(role, extraOpts)
             });
         }
 
-        // ---- mutating POST routes ----
 
         // explicit player presence session actions against
         // THIS location's registry. POST-only mutations — the GET
@@ -1240,13 +1227,11 @@ function createServer(role, extraOpts)
         return sendJson(res, 404, { ok : false, error : 'not_found', path });
     }
 
-    // ---- minimal RFC6455 WebSocket: /runtime-state (full-state) + /events -----
-    //
     // a SECOND WS path `/events` carries TYPED,
     // GRANULAR WoW realtime envelopes (user_joined/left, node_created/updated/
     // deleted) — the LABELED NON-CANONICAL reference-impl convention
     // (wow-spec/OSL-WOW-CONTRACT.md §6), intentionally OUT of the OpenAPI HTTP
-    // contract. The pre-015 `/runtime-state` full-state broadcast is preserved
+    // contract. The `/runtime-state` full-state broadcast is kept
     // BYTE-FOR-BYTE (same handshake, same `{type:'state',state}` frames); the
     // `/events` branch is purely additive and shares the frame encoder.
     server.on('upgrade', (req, socket) => {
@@ -1332,7 +1317,7 @@ function createServer(role, extraOpts)
             // granular delta events on every presence / node-CRUD change. No
             // per-connection Guest is minted — presence stays OSL's ghost-free
             // TTL registry (register/heartbeat/depart + expiry), never per-socket.
-            // Iteration 3: `since=<revision>` replays what the client missed, or sends `resync` with the
+            // `since=<revision>` replays what the client missed, or sends `resync` with the
             // current revision when that is no longer kept; live events follow either way.
             const sinceRaw = url.searchParams.get('since');
             const since = sinceRaw === null || sinceRaw === '' ? null : Number(sinceRaw);
@@ -1363,7 +1348,7 @@ function createServer(role, extraOpts)
         }
         else
         {
-            // /runtime-state: the pre-015 full-state broadcast, byte-for-byte.
+            // /runtime-state: the full-state broadcast.
             unsubscribe = runtime.subscribe(snapshot => sendFrame({ type : 'state', state : snapshot }));
         }
 

@@ -146,7 +146,6 @@ async function main()
     let ev;
     try
     {
-        // --- 1. WS /events upgrades + hello snapshot -------------------------
         ev = await connectEvents(PORT, '/events');
         await check('WS1', 'WS /events upgrades (labeled non-canonical convention now served)', async () => {
             const hello = await ev.waitFor(f => f.type === 'hello', 3000, 'hello');
@@ -156,7 +155,6 @@ async function main()
             assertBoundary(hello, 'hello');
         });
 
-        // --- 2. register -> user_joined + /wow/user reflects occupancy -------
         let p1UserId = null;
         await check('PJ1', 'presence register -> user_joined on /events', async () => {
             const r = await post(BASE + '/fabric/presence/register', { player_id : 'validation-player-1', display_name : 'Ada', avatar_id : 'ada-vrm' });
@@ -192,7 +190,6 @@ async function main()
             assert.strictEqual(hit.player_id, 'validation-player-1', 'listed by player_id');
         });
 
-        // --- 3. hosted-avatar user 1 unchanged (pre-015 projection intact) ---
         await check('PU3', 'GET /wow/user/1 still returns the hosted avatar (unchanged)', async () => {
             const r = await get(BASE + '/wow/user/1');
             assert.strictEqual(r.status, 200, '/wow/user/1 200');
@@ -200,7 +197,6 @@ async function main()
             assert.strictEqual(r.json.webofworlds_extension.avatar_id, 'avatar-local-001', 'hosted avatar identity intact');
         });
 
-        // --- 4. node CRUD -> node_created / node_updated / node_deleted ------
         let createdIds = [];
         await check('NC1', 'POST node -> node_created on /events (ids match HTTP response)', async () => {
             const body = [
@@ -236,7 +232,6 @@ async function main()
             assertBoundary(evt, 'node_deleted');
         });
 
-        // --- 5. explicit depart -> user_left + ghost-free /wow/user 404 ------
         await check('PL1', 'presence depart -> user_left + /wow/user/{id} now 404 (ghost-free)', async () => {
             const r = await post(BASE + '/fabric/presence/depart', { player_id : 'validation-player-1' });
             assert.strictEqual(r.status, 200, 'depart 200');
@@ -246,7 +241,6 @@ async function main()
             assert.strictEqual(u.status, 404, 'departed player no longer resolvable (no ghost)');
         });
 
-        // --- 6. TTL expiry -> user_left + 404 (no ghost survives its TTL) ----
         await check('PT1', 'TTL expiry -> user_left + /wow/user/{id} 404 (ghost-free TTL)', async () => {
             const r = await post(BASE + '/fabric/presence/register', { player_id : 'validation-ttl', display_name : 'Grace', requested_ttl_ms : 1000 });
             assert.strictEqual(r.status, 201, 'short-ttl register 201');
@@ -259,7 +253,6 @@ async function main()
             assert.strictEqual(u.status, 404, 'TTL-expired player is not a ghost');
         });
 
-        // --- 7. two players -> exactly two live users, no self-duplication ---
         await check('PD1', 'two players -> exactly two live users, no duplication', async () => {
             await post(BASE + '/fabric/presence/register', { player_id : 'dup-a', display_name : 'A' });
             await post(BASE + '/fabric/presence/register', { player_id : 'dup-b', display_name : 'B' });
@@ -278,7 +271,6 @@ async function main()
             assert.strictEqual(new Set(ids).size, 2, 'no duplicated user ids');
         });
 
-        // --- 8. every emitted envelope is a known type + carries a ts --------
         await check('EV1', 'every /events delta envelope is a known convention type with a ts', async () => {
             const deltas = ev.frames.filter(f => f.type !== 'hello');
             assert.ok(deltas.length > 0, 'delta events were emitted');

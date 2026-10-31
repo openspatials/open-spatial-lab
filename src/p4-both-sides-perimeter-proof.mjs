@@ -233,7 +233,6 @@ async function main() {
     const lobby = await fetchWorldProjection(baseLobby, "player");
     const a = await fetchWorldProjection(baseA, "player");
 
-    // ================= SECTION 1 — the REAL prefetch controller ============
     // Injected clock + captured intervals + counted fetches; everything else
     // is the shipping controller against the shipping 041 responses.
     let nowMsValue = 1_000_000;
@@ -446,7 +445,6 @@ async function main() {
         "canonical loading/rendering should remain eligible without invented region content");
     });
 
-    // ================= SECTION 2 — the REAL preview manager ================
     // Warm the machine again (walk back inside) and feed the controller's own
     // projection into the real manager with a stub GL renderer.
     tick(radius - 0.5);

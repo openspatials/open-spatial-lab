@@ -60,9 +60,7 @@
 //     "not-evaluated" (a Verify-stage structural failure — the reference rejects it
 //     inside assertUniversalManifestV04 before any signature/freshness math).
 //
-// ---------------------------------------------------------------------------
 // SCOPE / HONESTY (read before touching the labels)
-// ---------------------------------------------------------------------------
 // IMPLEMENTED FOR REAL here: raise-only floor validation, capability check with the
 // no-downgrade invariant, Tier-0 capping with absent/failed binding statuses,
 // effectiveTrustTier computation, bilateral negotiated-floor math. All fail CLOSED.
@@ -85,9 +83,7 @@
 // Zero dependencies; plain ESM (.mjs) — imports cleanly in Node and the browser,
 // like the sibling modules.
 
-// ===========================================================================
 // Tier constants (spec/v0.4/schema.json $defs.trustTier: integer 0..3, default 0).
-// ===========================================================================
 export const TRUST_TIER_MIN = 0;
 export const TRUST_TIER_MAX = 3;
 
@@ -124,9 +120,7 @@ function tierOrDefault(v) {
   return isTrustTier(v) ? v : TRUST_TIER_DEFAULT;
 }
 
-// ===========================================================================
 // (1) RAISE-ONLY floor math + validation (Base §6.4.5; CONFORMANCE §2.12, §6.3).
-// ===========================================================================
 
 /**
  * The raise-only floor merge: the tier that governs an item is the manifest floor
@@ -198,9 +192,7 @@ export function checkFloors(manifest) {
   return { ok: violations.length === 0, manifestTier, violations };
 }
 
-// ===========================================================================
 // (2)+(3) capTier — the single-claim tier decision (capability + Tier-0 cap).
-// ===========================================================================
 
 /**
  * capTier — decide the tier disposition of ONE claim. Pure function; the exact
@@ -249,9 +241,7 @@ export function defaultHolderBindingStatusOf(claim /*, manifest */) {
   return present ? BINDING_PRESENT_UNVERIFIED : BINDING_ABSENT;
 }
 
-// ===========================================================================
 // (4) evaluateTrustTiers — the full tier pass over a manifest.
-// ===========================================================================
 
 /**
  * Run the complete v0.4 trust-tier enforcement pass over a manifest and return a
@@ -317,7 +307,6 @@ export function evaluateTrustTiers(manifest, context = {}) {
     deferredFacetIds: [],
   };
 
-  // ---- (1) RAISE-ONLY floor validation — a violation rejects the manifest -------
   // (structural class: in the composed evaluator this fails the Verify stage before
   // signature/freshness math → signatureCheck "not-evaluated", per the reference).
   const floors = checkFloors(m);
@@ -334,7 +323,6 @@ export function evaluateTrustTiers(manifest, context = {}) {
 
   const manifestTier = floors.manifestTier;
 
-  // ---- (2) MANIFEST-LEVEL capability check — unsupported at the manifest level ---
   // rejects (§6.4.5: "rejected if the unsupported tier applies at the manifest
   // level"). Every projected facet is recorded trustTierUnsupported. This branch is
   // also v0.3-backcompat unsatisfiable-floor path (Tier-1+ floor, max=0).
@@ -355,7 +343,6 @@ export function evaluateTrustTiers(manifest, context = {}) {
     return fragment;
   }
 
-  // ---- (2)+(3) per-CLAIM capability + Tier-0 cap (fixture-pinned order) ----------
   const claims = Array.isArray(m.claims) ? m.claims : [];
   let capBindingStatus;
   const verifiedContributions = [];
@@ -452,7 +439,6 @@ export function evaluateTrustTiers(manifest, context = {}) {
     fragment.deferredClaims.push({ claimRef, tier: claimTier, bindingStatus });
   }
 
-  // ---- (2) per-FACET capability check --------------------------------------------
   for (const facet of facets) {
     const f = facet && typeof facet === "object" ? facet : {};
     const facetTier = effectiveFloor(manifestTier, f.requiredTrustTier);
@@ -468,7 +454,6 @@ export function evaluateTrustTiers(manifest, context = {}) {
     }
   }
 
-  // ---- (4) receipt fields (Base §3.3.1.1) ------------------------------------------
   // effectiveTrustTier = highest tier ACTUALLY VERIFIED among relied-on claims. The
   // Tier-0 cap DEFINES it at 0; verified contributions raise it
   // — but never above maxSupportedTrustTier. When nothing defines it, it is OMITTED
@@ -481,7 +466,6 @@ export function evaluateTrustTiers(manifest, context = {}) {
     fragment.effectiveTrustTier = Math.max(...verifiedContributions);
   }
 
-  // ---- outcome contribution (§6.4.5 / reference Stage-5 mapping) -------------------
   const hasUnsupported =
     fragment.claimStatuses.some((s) => s.status === "trustTierUnsupported") ||
     fragment.facetStatuses.some((s) => s.status === "trustTierUnsupported");
@@ -553,9 +537,7 @@ function hasOnlyEmptyBindingMaterial(claim) {
   return sawPresent;
 }
 
-// ===========================================================================
 // (5) Bilateral negotiated floor (Base §6.4.6; CONFORMANCE §1/§4) — seam.
-// ===========================================================================
 
 /**
  * The interaction tier floor of a bilateral exchange: the MAX of both parties'
@@ -567,9 +549,7 @@ export function negotiateBilateralFloor(tierA, tierB) {
   return Math.max(tierOrDefault(tierA), tierOrDefault(tierB));
 }
 
-// ===========================================================================
 // Demo surface (Bucket-2 invented, honest) — the crossing UI's tier panel.
-// ===========================================================================
 
 /**
  * buildTierDemoSurface — display-ready data for the crossing UI (task deliverable #5):
@@ -636,9 +616,7 @@ export function buildTierDemoSurface(options = {}) {
   };
 }
 
-// ===========================================================================
 // Machine-readable scope descriptor (house pattern: UM_MANIFEST_EMISSION et al).
-// ===========================================================================
 export const TRUST_TIER_ENGINE = Object.freeze({
   wo: "runtime",
   standard: "Universal Manifest v0.4 (Base §6.4.2/§6.4.5; EXT-T1 §T1.0/T1.1; CONFORMANCE §2.9/§2.12/§2.15/§6.1/§6.3)",

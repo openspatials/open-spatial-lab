@@ -147,7 +147,6 @@ async function main() {
   } = preview;
 
   try {
-    // ================= SECTION 1 — the pure legibility rule ================
     await check("L0", "imageLayerFlipForViewerSide is exported and defaults null/unknown side to the FRONT identity (pre-P5 preserved)", () => {
       assertOk(typeof imageLayerFlipForViewerSide === "function", "helper not exported");
       for (const side of [null, undefined, "sideways", {}, { side: "unknown" }]) {
@@ -194,7 +193,6 @@ async function main() {
       }
     });
 
-    // ================= SECTION 2 — both-sides legibility vs REAL geometry ===
     // The app's standing-oval aperture: THREE.CircleGeometry(0.92, 72), material
     // THREE.DoubleSide (web/app.js buildDirectionalPortal). Read the real buffer.
     let uvIncreasesWithPlusX = false;
@@ -260,7 +258,6 @@ async function main() {
       };
     });
 
-    // ================= SECTION 3 — tie to P4's perimeter gate + manager ======
     // A realistic warm machine with a real prefetch zone; flip zone.inside to
     // model walking outside the circle.
     const radius = 6;
@@ -393,7 +390,6 @@ async function main() {
       };
     });
 
-    // ================= SECTION 4 — source wiring =============================
     // The still-image rung is not drawn for any portal of the lab's worlds (the live window owns every aperture),
     // so this wiring is read from the source: update it when this code moves.
     await check("L7", "source wiring: app.js flips ONLY the 2D-rung textures keyed on viewer side (primary + additional), sets the page-truth attributes, and never flips the spatial/child rungs", async () => {

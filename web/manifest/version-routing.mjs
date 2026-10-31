@@ -33,9 +33,7 @@
 //      module exposes each half separately (v04StructuralSchemaVerdict = the
 //      schema-sweep half; evaluateV03Backcompat = the evaluator half).
 //
-// ---------------------------------------------------------------------------
 // HONESTY CEILING (read before touching the forced statuses)
-// ---------------------------------------------------------------------------
 // The T1.6.4 forced statuses are NON-OVERRIDABLE. A v0.3-routed manifest carries
 // holderBindingStatus/presentationProofStatus "absent", freshnessClass "unknown",
 // and effectiveTrustTier 0 UNCONDITIONALLY — set from FORCED_BACKCOMPAT_STATUS,
@@ -51,7 +49,6 @@
 // v0.4 pin. This module recognizes the v0.3 namespace as legitimate-for-backcompat;
 // it does not fight the pin.
 //
-// ---------------------------------------------------------------------------
 // FILE DISCIPLINE: NEW, specific module. It CONSUMES (tier floor /
 // capability decision — depends_on) and the signing library (read-only
 // reuse); it reimplements neither. Registration into the shared v0.4 runner is via
@@ -61,9 +58,7 @@
 import { verifyManifestProfileA } from "../signing/um-signature-profile-a.mjs";
 import { evaluateTrustTiers } from "./trust-tier.mjs";
 
-// ===========================================================================
 // Constants — versioned namespaces + the FORCED backcompat status set.
-// ===========================================================================
 
 export const UM_NS_V04 = "https://universalmanifest.net/ns/v0.4";
 export const UM_NS_V03 = "https://universalmanifest.net/ns/v0.3";
@@ -135,9 +130,7 @@ export const feature_FIXTURE_FILENAMES = Object.freeze([
   "invalid/manifest-version-mismatch.jsonld", // manifestVersion "0.5" — no processing path
 ]);
 
-// ===========================================================================
 // Small helpers (browser-safe; no Buffer).
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -155,9 +148,7 @@ function contextStrings(ctx) {
   return [];
 }
 
-// ===========================================================================
 // (1) ARRIVE-STAGE ROUTER — Base §1.3.1 (version support before processing).
-// ===========================================================================
 
 /**
  * Decide the processing path from the manifest's declared version + context.
@@ -204,9 +195,7 @@ export function routeByVersion(manifest) {
   };
 }
 
-// ===========================================================================
 // (4a) v0.4 STRUCTURAL SCHEMA HALF — the schema-sweep verdict (the inversion).
-// ===========================================================================
 
 /**
  * The v0.4 structural-schema verdict for the schema-sweep stage.
@@ -234,9 +223,7 @@ export function v04StructuralSchemaVerdict(manifest) {
   return { result: reasons.length === 0 ? "accept" : "reject", reasons };
 }
 
-// ===========================================================================
 // (2) v0.3 ENVELOPE CONTRACT — the fallback rung's own structural check.
-// ===========================================================================
 
 /**
  * Validate a manifest against the v0.3 envelope contract (spec/v0.3/schema.json
@@ -266,9 +253,7 @@ export function validateV03Envelope(manifest) {
   return { valid: errors.length === 0, errors };
 }
 
-// ===========================================================================
 // (2)+(3) BACKCOMPAT EVALUATOR — the EXT-T1 §T1.6.4 path.
-// ===========================================================================
 
 /**
  * Apply the NON-OVERRIDABLE T1.6.4 forced statuses to a receipt in place, plus the
@@ -291,7 +276,7 @@ function applyForcedBackcompatStatuses(receipt) {
 
 /**
  * Evaluate a v0.3 manifest through the EXT-T1 §T1.6.4 backwards-compatibility path.
- * Six-stage sequence (the slice this change owns): v0.3 envelope contract → Profile-A
+ * Six-stage sequence (the slice this module owns): v0.3 envelope contract → Profile-A
  * signature → TTL freshness at the PINNED clock →
  * forced T1.6.4 statuses → declared-floor decision (capability check at the
  * Tier-0 cap). NEVER reads binding material off the manifest to raise a status.
@@ -319,14 +304,12 @@ export async function evaluateV03Backcompat(manifest, context = {}) {
     return { result: outcome === "rejected" ? "reject" : "accept", receipt };
   };
 
-  // --- Arrive/Verify: v0.3 envelope contract --------------------------------
   const env = validateV03Envelope(manifest);
   if (!env.valid) {
     warnings.push({ code: WARN_STRUCTURE_MALFORMED, message: `Verify stage: ${env.errors.join("; ")}` });
     return finish("rejected");
   }
 
-  // --- Verify: Profile-A signature over the v0.3 signing input ------
   // computeSigningInput is version-aware: for v0.3 the input is manifest − signature
   // (no presentationProof exclusion — that is v0.4-only). REAL Ed25519 verification.
   const sigReport = await verifyManifestProfileA(manifest);
@@ -340,7 +323,6 @@ export async function evaluateV03Backcompat(manifest, context = {}) {
   }
   receipt.signatureCheck = "valid";
 
-  // --- Verify: freshness at the PINNED clock (Section 3.1.2; 60s skew) -------
   const SKEW_MS = 60_000;
   const issuedMs = Date.parse(manifest.issuedAt);
   const expiresMs = Date.parse(manifest.expiresAt);
@@ -356,10 +338,8 @@ export async function evaluateV03Backcompat(manifest, context = {}) {
   }
   receipt.freshnessCheck = "fresh";
 
-  // --- Force the NON-OVERRIDABLE T1.6.4 statuses (steps 2-5 + unbound warn) --
   applyForcedBackcompatStatuses(receipt);
 
-  // --- Declared-floor interaction (Base §6.4.5) at the Tier-0 cap -
   // CONSUME (depends_on): pin maxSupportedTrustTier to the backcompat cap.
   // A manifest-level requiredTrustTier ≥ 1 exceeds the cap ⇒ returns
   // verdict "rejected" (rejectedBy "manifest-tier-unsupported") — the DECLARED FLOOR
@@ -383,9 +363,7 @@ export async function evaluateV03Backcompat(manifest, context = {}) {
   return finish("accepted-with-warnings");
 }
 
-// ===========================================================================
 // TOP-LEVEL: route + dispatch (the single entry point the runner/demo call).
-// ===========================================================================
 
 /**
  * Route a manifest by version, then dispatch. The three outcomes:
@@ -423,9 +401,7 @@ export async function evaluateVersionRouted(manifest, context = {}) {
   };
 }
 
-// ===========================================================================
 // DEMO SURFACE (Bucket-2 invented, honest) — the "legacy visitor" crossing.
-// ===========================================================================
 
 /**
  * buildLegacyVisitorDemo — display-ready data for the crossing UI's legacy-visitor
@@ -465,10 +441,8 @@ export async function buildLegacyVisitorDemo(v03Manifest, context = {}) {
   };
 }
 
-// ===========================================================================
 // CONFORMANCE-RUNNER REGISTRATION HOOK (the shared v0.4 runner wires this with
 // TWO lines — applied at integration, NOT by this module).
-// ===========================================================================
 
 /**
  * Evaluate ONE fixture against its expected.json entry contract:

@@ -410,7 +410,6 @@ export function computeSkeletonLayout(params) {
   const f = {};
   for (const [name, v] of Object.entries(REST_FRACTIONS)) f[name] = v.slice();
 
-  // --- proportions on the unit-fraction table (world-anchored, then rebuilt) ---
   // legs: scale thigh+shin about the fixed ankle height; pelvis + torso ride up/down.
   const ankleY = f.l_ankle[1];
   const shin = (f.l_knee[1] - f.l_ankle[1]) * P.legLength;
@@ -453,7 +452,6 @@ export function computeSkeletonLayout(params) {
   f.l_ankle[0] = f.l_hip[0];
   f.l_metatarsal[0] = f.l_hip[0];
 
-  // --- assemble full joint world table (fractions), fingers off the wrist ---
   const world = new Map();
   const setV = (name, arr) => world.set(name, new THREE.Vector3(arr[0], arr[1], arr[2]));
   for (const [name, v] of Object.entries(f)) setV(name, v);
@@ -487,7 +485,6 @@ export function computeSkeletonLayout(params) {
   }
   addFingers("r", -1); // exact finger anchors for the right hand (overwrites mirror)
 
-  // --- boneScales: scale each joint's offset from its parent, then re-derive
   //     descendants (children keep their own parent-relative offsets) ---
   const scaleEntries = Object.entries(params.boneScales || {});
   if (scaleEntries.length) {
@@ -507,7 +504,6 @@ export function computeSkeletonLayout(params) {
     }
   }
 
-  // --- stature renormalization: crown == heightM exactly ---
   const headH = HEAD_HEIGHT_FRACTION * params.build.headSize;
   const crown = world.get("skullbase").y + headH;
   const s = params.heightM / crown;
@@ -710,7 +706,6 @@ export function buildParametricBodyGeometry(layout, params, boneIndexOf) {
   const J = (name) => layout.world.get(name);
   const bi = (name) => boneIndexOf(name);
 
-  // ---- torso: horizontal elliptical rings up the spine (hips → shoulders) ----
   const X = new THREE.Vector3(1, 0, 0);
   const Z = new THREE.Vector3(0, 0, 1);
   const hipHalfX = Math.max(J("l_hip").x + 0.036 * H * B.hipGirth, 0.07 * H * B.hipGirth);
@@ -754,7 +749,6 @@ export function buildParametricBodyGeometry(layout, params, boneIndexOf) {
     true
   );
 
-  // ---- neck ----
   addLimb(acc, {
     from: J("vc4").clone(),
     to: J("skullbase").clone().add(new THREE.Vector3(0, 0.012 * H, 0)),
@@ -768,7 +762,6 @@ export function buildParametricBodyGeometry(layout, params, boneIndexOf) {
     steps: 3,
   });
 
-  // ---- head: ellipsoid sized so its crown hits exactly heightM ----
   const headH = layout.headHeightM; // skullbase → crown
   const headCenter = J("skullbase").clone().add(new THREE.Vector3(0, headH * 0.52, 0.006 * H));
   const headGeo = new THREE.SphereGeometry(1, 18, 14);
@@ -777,7 +770,6 @@ export function buildParametricBodyGeometry(layout, params, boneIndexOf) {
   acc.mergeGeometry(headGeo, skinC, [[bi("skullbase"), 1]]);
   headGeo.dispose();
 
-  // ---- arms ----
   for (const side of ["l", "r"]) {
     addLimb(acc, {
       from: J(`${side}_shoulder`).clone(),
@@ -830,7 +822,6 @@ export function buildParametricBodyGeometry(layout, params, boneIndexOf) {
     acc.addTube(rings, 10, true, true);
   }
 
-  // ---- legs + feet ----
   for (const side of ["l", "r"]) {
     addLimb(acc, {
       from: J(`${side}_hip`).clone(),

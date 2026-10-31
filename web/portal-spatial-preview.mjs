@@ -24,12 +24,12 @@ import {
  * portal frame pair with the PROPER PORTAL ISOMETRY: a 180° rotation about
  * the portal's up axis (source-frame local (x, y, z) -> target-frame local
  * (-x, y, -z), the look direction's lateral AND forward components flip).
- * fixed the pre-012 glue, which carried the lateral offset over
+ * Carrying the lateral offset over
  * UN-negated — an improper reflection (det -1) that no camera pose can
  * realize, so the screen-space window sampled the destination MIRRORED
  * about the camera axis: off-axis viewing displaced the through-ring
- * content and head movement produced inverted parallax (the
- * screenshot). With the proper rotation the window identity holds exactly:
+ * content and head movement produced inverted parallax).
+ * With the proper rotation the window identity holds exactly:
  * a point on the source portal plane and its mapped destination-plane point
  * project to the SAME NDC in their respective cameras, so the destination
  * ring lands pixel-on-pixel on the ring being looked through at EVERY
@@ -618,7 +618,7 @@ export function portalPerimeterLiveGate(machine) {
  * horizontally MIRRORED (text backwards — the screenshot). A single flat
  * texture on one plane CANNOT read correctly from both faces at once (the faces
  * are mirror images), so the legible orientation is chosen PER FACE from P4's
- * viewer side: identity on the front (byte-identical pre-P5), a horizontal
+ * viewer side: identity on the front, a horizontal
  * texture flip (u -> 1 - u) on the back so the DoubleSide back-face mirror
  * cancels to legible. Only the horizontal axis is transformed; the vertical
  * orientation and the canvas content are untouched, and the spatial rung's own
@@ -1782,7 +1782,7 @@ export class SpatialPortalPreviewManager {
   /** P4 (#2): aim the destination clip plane at the half-space the
    *  viewer's side of the window looks into. Front viewers (glued camera
    *  BEHIND the destination plane) see the destination's front half-space —
-   *  the byte-identical pre-P4 clip; back viewers (glued camera IN FRONT of
+   *  the front-viewer clip; back viewers (glued camera IN FRONT of
    *  the destination plane, looking back) see the destination's back
    *  half-space. The ±0.1 m setback keeps the destination ring visible from
    *  both faces. Mutates the ONE shared Plane instance in place. */

@@ -243,7 +243,6 @@ async function main() {
     const b = await fetchWorldProjection(baseB, "source");
     const lobby = await fetchWorldProjection(baseLobby, "player");
 
-    // ---- E1: the client projection sees the P1 topology ------------------
     await check("E1a", "A and B project as 2-portal worlds (A<->B edge + their lobby-return edge)", () => {
       assertOk(a.world.portals.length === 2, `A projects ${a.world.portals.length} portals`);
       assertOk(b.world.portals.length === 2, `B projects ${b.world.portals.length} portals`);
@@ -267,7 +266,6 @@ async function main() {
       }
     });
 
-    // ---- E2: shared-edge identity verified at the CLIENT seam ------------
     const hostedEntries = [];
     for (const [label, proj] of [["a", a], ["b", b], ["lobby", lobby]]) {
       for (const entry of proj.world.portals) {
@@ -317,7 +315,6 @@ async function main() {
       );
     });
 
-    // ---- E4: exit-distance parity on the A->B edge ------------
     const entryAB = a.world.portals.find((p) => p.string_portal_id === "location-a-portal");
     const regionAB = await regionForEntry(entryAB);
     const tfAB = adoptedTargetFrame(entryAB, regionAB.portal);
@@ -366,7 +363,6 @@ async function main() {
       assertOk(parity.supported === false && parity.reason === "applied_exit_not_front_side", JSON.stringify(parity));
     });
 
-    // ---- E5: the return lands in front of the ENTERED portal --
     await check("E5", "A -> lobby return: parity landing sits IN FRONT of lobby-portal-a itself", async () => {
       const returnEntry = a.world.portals.find((p) => p.string_portal_id === "location-a-portal-lobby");
       const region = await regionForEntry(returnEntry);
@@ -395,7 +391,6 @@ async function main() {
       );
     });
 
-    // ---- E6: the per-world world.arrival fallback is RETIRED client-side --
     await check("E6", "no crossing path consumes world.arrival: parity output is frame-anchored; tripwire predicate has teeth", async () => {
       // The projection still EMITS world.arrival (untouched file — documented
       // residue for the live-adapter lane); P3 retires it as a landing: the
@@ -419,7 +414,6 @@ async function main() {
       }
     });
 
-    // ---- E7: parity landing is INSIDE the trigger; the rearm gate is the
     // documented no-bounce protection (plan) --------------------------
     await check("E7", "parity landing declares inside_trigger_volume_after (rearm-gate reliance is explicit)", () => {
       const run = crossingParityFor(preview, entryAB, tfAB, 0.033, 0);

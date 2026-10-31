@@ -53,9 +53,7 @@ import { attachSignatureProfileA } from "../signing/um-signature-profile-a.mjs";
 import { generateKeyPair } from "../signing/ed25519.mjs";
 import { base64UrlToBytes, bytesToBase64Url, utf8Encode, utf8Decode } from "../signing/codecs.mjs";
 
-// ---------------------------------------------------------------------------
 // scoreboard
-// ---------------------------------------------------------------------------
 const resistedList = [];
 const findings = []; // { id, title, severity, repro }
 const notes = [];
@@ -77,9 +75,7 @@ function note(id, title, detail) {
   console.log(`      NOTE: ${detail}`);
 }
 
-// ---------------------------------------------------------------------------
 // helpers
-// ---------------------------------------------------------------------------
 function baseManifest(overrides = {}) {
   const issuedAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 3600_000).toISOString();
@@ -110,7 +106,6 @@ function encodeProtected(obj) {
   return bytesToBase64Url(utf8Encode(JSON.stringify(obj)));
 }
 
-// ===========================================================================
 async function run() {
   console.log("runtime ADVERSARIAL attack-vector harness — JWE sealed facets");
   console.log("============================================================");
@@ -132,10 +127,8 @@ async function run() {
     );
   }
 
-  // =========================================================================
   // (a) AAD / PROTECTED-HEADER TAMPER  — A256GCM AAD = ASCII(protected b64u)
   //     Mutating the protected header after encryption MUST invalidate the tag.
-  // =========================================================================
   console.log("-- (a) AAD / protected-header tamper -----------------------------------");
 
   // AV-a1: inject an extra header claim, KEEP alg/enc baseline so the alg gate
@@ -214,9 +207,7 @@ async function run() {
     }
   }
 
-  // =========================================================================
   // (b) AUTH-TAG FORGERY / TRUNCATION / CIPHERTEXT BIT-FLIP
-  // =========================================================================
   console.log("\n-- (b) authentication-tag forgery / truncation / ciphertext tamper -----");
 
   // AV-b1: single-bit ciphertext flip ⇒ GCM tag mismatch.
@@ -306,9 +297,7 @@ async function run() {
           `status=${ev.facetStatuses[0]?.status} decrypted=${ev.decrypted.size} — plaintext exposed`);
   }
 
-  // =========================================================================
   // (c) WRONG-KEY / CROSS-FACET ISOLATION
-  // =========================================================================
   console.log("\n-- (c) wrong-key / cross-facet isolation -------------------------------");
 
   // AV-c1: right kid, WRONG private key ⇒ KDF derives wrong KEK ⇒ AES-KW unwrap
@@ -416,9 +405,7 @@ async function run() {
           `WebCrypto rejected the point on import / derived a wrong Z ⇒ no plaintext (err: ${r.error.slice(0, 48)})`);
   }
 
-  // =========================================================================
   // (d) MALFORMED JWE ACCEPTED / DECRYPTS TO ATTACKER PLAINTEXT
-  // =========================================================================
   console.log("\n-- (d) malformed-JWE acceptance / structural fail-closed ---------------");
 
   // AV-d1: each of the five required members deleted ⇒ structural reject AND
@@ -515,9 +502,7 @@ async function run() {
         `Structural laxity inherited from the schema, no crypto exposure.`);
   }
 
-  // =========================================================================
   // (e) IV / NONCE REUSE  — A256GCM nonce reuse under one key is catastrophic
-  // =========================================================================
   console.log("\n-- (e) IV / nonce reuse in the emit path -------------------------------");
 
   // AV-e1: encrypt the SAME plaintext to the SAME recipient twice ⇒ distinct iv,
@@ -559,9 +544,7 @@ async function run() {
       : vulnerable("AV-e3", "demo gov/birth facets — distinct IVs", "critical", "the two demo facets reuse an IV");
   }
 
-  // =========================================================================
   // HONESTY NOTE — Q1 isolation is DECLARED Grade-1 structural PREVIEW.
-  // =========================================================================
   {
     const iso = checkIsolationShape({ facets });
     note("AV-Q1", "Q1 per-facet isolation is Grade-1 structural (labeled scope, NOT a finding)",
@@ -570,7 +553,6 @@ async function run() {
         `property outside the structural suite. Structural-only here is this suite's honest ceiling, not a vuln.`);
   }
 
-  // =========================================================================
   console.log("\n============================================================");
   const hard = resistedList.length;
   console.log(`RESISTED (hard vectors): ${hard}   NOTES (documented scope): ${notes.length}   FINDINGS: ${findings.length}`);

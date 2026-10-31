@@ -174,7 +174,6 @@ function assertSpecTranscriptionIsFaithful(specYamlPath)
     return { count : ours.length, spec_count : found.length, missing, extra, source : p };
 }
 
-// ---------------------------------------------------------------------------
 // RFC 7231 §5.3.2 (RFC 2616 §14.1) — Accept parsing + proactive negotiation.
 //
 // The spec's Multi-format Core Requirement is literally "Single- und Multi-format
@@ -183,7 +182,6 @@ function assertSpecTranscriptionIsFaithful(specYamlPath)
 //   - WITH:    a real Accept header -> q-weighted, specificity-ordered selection,
 //              `type/*` and `*/*` wildcards, explicit `q=0` refusal, and 406 when
 //              nothing on offer is acceptable.
-// ---------------------------------------------------------------------------
 
 /** Parse an Accept header into ranges, most-preferred first. */
 function parseAccept(headerValue)

@@ -1,4 +1,4 @@
-// web/wow-dashboard.mjs — the data-point dashboard (iteration 3).
+// web/wow-dashboard.mjs — the data-point dashboard.
 //
 // Usage: wow-dashboard.html?point=<data-point URL>&point=<data-point URL>
 // Each point shows its value, its source world (the World resource's label and base URL), the revision

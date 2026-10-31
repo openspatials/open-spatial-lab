@@ -29,11 +29,9 @@ const fx = require('./fixtures');
 // The first graph of every world server. A graph id is an integer, as the API types it.
 const GRAPH_ID = 1;
 
-// --------------------------------------------------------------------------
 // Endpoint catalog — the WoW surface under conformance test. `live:true` are
 // served by 041 today; `contractOnly:true` are in the contract but not
 // yet served (honest 404 / no-upgrade) — land them.
-// --------------------------------------------------------------------------
 const ENDPOINTS = [
     { id: 'world',  method: 'GET', path: '/wow/world',    kind: 'world',
         responseSchema: 'OSLWorldResponse',  canonicalSchema: 'World',  live: true,
@@ -86,10 +84,8 @@ const EXT_FIELD_SCHEMA = {
     session: '(labeled OSL composite member)',
 };
 
-// --------------------------------------------------------------------------
 // Schema-derived key sets (canonical vs labeled extension), so the harness
 // diffs canonical-vs-actual from the CONTRACT, not a hardcoded list.
-// --------------------------------------------------------------------------
 function propKeys(doc, schemaName)
 {
     const s = doc.components && doc.components.schemas && doc.components.schemas[schemaName];
@@ -129,9 +125,7 @@ function extensionSchemaRegistry(doc)
     return out;
 }
 
-// --------------------------------------------------------------------------
 // Surface labeled extensions present in a payload (honest conformance-vs-ext).
-// --------------------------------------------------------------------------
 function surfaceExtensions(doc, kind, payload, canonicalSchema, responseSchema)
 {
     const canonSet = propKeys(doc, canonicalSchema);
@@ -176,11 +170,9 @@ function surfaceExtensions(doc, kind, payload, canonicalSchema, responseSchema)
     return { canonicalFieldsPresent, extensionsInUse, undeclaredFields, wowExt };
 }
 
-// --------------------------------------------------------------------------
 // Spec-drift guard — the known reference-impl catches (task §2/§5). Returns a
 // list of { level: 'drift'|'note', msg }. `drift` entries are honest signals
 // (surfaced); on a LIVE-served payload a drift becomes a hard problem.
-// --------------------------------------------------------------------------
 function driftCheck(kind, payload)
 {
     const out = [];
@@ -357,9 +349,7 @@ function honestyCheck(kind, payload)
     return { ok: problems.length === 0, problems };
 }
 
-// --------------------------------------------------------------------------
 // HTTP / WS drivers
-// --------------------------------------------------------------------------
 function httpRequestJson(baseUrl, method, p, body)
 {
     return new Promise((resolve) => {
@@ -419,9 +409,7 @@ function checkEventEnvelope(msg)
     return { ok: problems.length === 0, problems };
 }
 
-// --------------------------------------------------------------------------
 // The gate.
-// --------------------------------------------------------------------------
 async function runWowConformance(opts)
 {
     opts = opts || {};
@@ -465,7 +453,6 @@ async function runWowConformance(opts)
             return rec.drift;
         }
 
-        // ---- fixture pass (always; contract-first) ----
         const fixtureData = ep.fixture ? ep.fixture() : null;
         if (ep.kind === 'events') {
             const per = (fixtureData || []).map(checkEventEnvelope);
@@ -504,7 +491,6 @@ async function runWowConformance(opts)
             applyChecks(r, ep.kind, fixtureData);
         }
 
-        // ---- live pass (when a server is provided) ----
         if (baseUrl) {
             if (ep.method === 'WS') {
                 const probe = await probeWs(baseUrl, ep.path, 2500);
@@ -610,7 +596,6 @@ async function runWowConformance(opts)
         endpoints.push(r);
     }
 
-    // ---- LIVE composition-graph portal-node conformance ----
     // LIVE-only (a fixtures-only run skips this whole block). Walk the real graph the way a client
     // does: read the Spatial resource of graph 1, read the root node it points at, walk the embedded
     // children, fetch every node by its own URL, and validate each portal node (found by
@@ -755,7 +740,6 @@ async function runWowConformance(opts)
         }
     }
 
-    // ---- negative self-tests: prove the guards are REAL (not cosmetic) ----
     const selfChecks = [];
     function selfCheck(name, caught, detail) {
         selfChecks.push({ name, caught: !!caught, detail: detail || null });
@@ -834,16 +818,7 @@ async function runWowConformance(opts)
     // `live_driven` is derived from the live records we ACTUALLY produced, never
     // from the caller's INTENT (`baseUrl`): if a "live" pass somehow drove zero
     // endpoints, this block still tells the truth instead of inheriting the lie.
-    // ---- THIS BLOCK OVER-CLAIMED ITSELF -----------------
-    // `endpoints_live_validated` counted every endpoint that had a `live` RECORD —
-    // including the three whose live record is an HTTP 404 and whose response was
-    // therefore never validated at all. On top of that it printed `not_covered: []`
-    // and "FULL COVERAGE: fixtures AND live server responses were both validated."
-    // So the file said 11/11 live-validated while 3 of the 11 were 404s.
-    // That is the SAME defect as the D2/D3 under-claim above, pointing the other
-    // way: the claim surface and the observations drifted apart and nothing caught
-    // it. The count is now what was ACTUALLY VALIDATED, every shortfall is
-    // enumerated WITH ITS REASON, and `complete` means what a reader thinks it does.
+    // The count is what was ACTUALLY VALIDATED, every shortfall is enumerated WITH ITS REASON, and `complete` means what a reader thinks it does.
     // Guarded by src/wow-claim-drift-proof.mjs, which RECOMPUTES these numbers
     // from this file's own `endpoints` array and goes RED on any disagreement.
     // An endpoint is LIVE-VALIDATED iff a live RESPONSE BODY was actually validated
@@ -851,7 +826,7 @@ async function runWowConformance(opts)
     // `response_valid`; the /wow/spatial node records record it as `served_valid`
     // (validated against the LABELED OSLFlatNode — a declared divergence, but a real
     // validation). Having a `live` record is NOT the same thing, and that conflation
-    // is exactly what produced the 11/11 over-claim.
+    // would over-claim (a 404 has a live record and no validated body).
     const wasLiveValidated = (e) => !!e.live && (e.live.response_valid === true || e.live.served_valid === true);
     const liveAttempted = endpoints.filter(e => e.live && e.live.attempted);
     const liveValidated = endpoints.filter(wasLiveValidated).length;

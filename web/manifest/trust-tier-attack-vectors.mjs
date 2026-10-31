@@ -38,12 +38,10 @@ import {
   negotiateBilateralFloor,
 } from "./trust-tier.mjs";
 
-// ---- local mirror of the engine's tier coercion (for computing EXPECTED bounds) ----
 // (Not imported — we recompute independently so an assertion never trusts the engine
 // under test to grade itself.)
 const effTier = (v) => (Number.isInteger(v) && v >= 0 && v <= 3 ? v : 0);
 
-// ---- report plumbing -------------------------------------------------------
 let RESISTED = 0;
 let VULNERABLE = 0;
 const findings = [];
@@ -89,9 +87,7 @@ console.log(
     "violate raise-only. Each vector prints RESISTED or ⚠️VULNERABLE.\n"
 );
 
-// ===========================================================================
 // CLASS (a)/(e) — NO-DOWNGRADE / RAISE-ONLY floor bypass attempts
-// ===========================================================================
 console.log("--- CLASS (a)/(e): raise-only floor + no-downgrade bypass ---");
 
 // AV-01 — TOCTOU getter: claim.requiredTrustTier reads HIGH during the floor check
@@ -210,9 +206,7 @@ console.log("--- CLASS (a)/(e): raise-only floor + no-downgrade bypass ---");
   );
 }
 
-// ===========================================================================
 // CLASS (b) — CAP BYPASS / re-elevation
-// ===========================================================================
 console.log("\n--- CLASS (b): Tier-0 cap bypass / re-elevation ---");
 
 // AV-04 — avoid the Tier-0 CAP RECORD by attaching EMPTY (bogus) binding material so the
@@ -293,9 +287,7 @@ console.log("\n--- CLASS (b): Tier-0 cap bypass / re-elevation ---");
   );
 }
 
-// ===========================================================================
 // CLASS (c) — TIER-0 STICKINESS in a merge / multi-claim compose
-// ===========================================================================
 console.log("\n--- CLASS (c): Tier-0 stickiness in compose ---");
 
 // AV-06 — a Tier-0-capped claim MUST NOT ride a sibling verified claim's tier. Compose a
@@ -350,9 +342,7 @@ console.log("\n--- CLASS (c): Tier-0 stickiness in compose ---");
   );
 }
 
-// ===========================================================================
 // CLASS (d) — HOSTILE PROVIDER-OUTPUT injection
-// ===========================================================================
 console.log("\n--- CLASS (d): hostile provider-output injection ---");
 
 // AV-08 — a battery of MALFORMED provider outputs (out-of-vocabulary strings, wrong
@@ -433,9 +423,7 @@ function describe(v) {
   note("N3 applied: holder-binding provider faults are caught in evaluateTrustTiers and fail closed (absent / Tier-0 cap); the engine no longer propagates and never crashes the composing pipeline.");
 }
 
-// ===========================================================================
 // CROSS-CUTTING — elevation invariants under fuzzing
-// ===========================================================================
 console.log("\n--- CROSS-CUTTING: elevation invariants (fuzz) ---");
 
 // AV-10 — with the DEFAULT (presence-based) provider — i.e. a pure MANIFEST-ONLY
@@ -571,9 +559,7 @@ console.log("\n--- CROSS-CUTTING: elevation invariants (fuzz) ---");
   );
 }
 
-// ===========================================================================
 // SUMMARY
-// ===========================================================================
 console.log(`\n=== ATTACK SUMMARY: ${RESISTED} RESISTED, ${VULNERABLE} ⚠️VULNERABLE ===`);
 if (VULNERABLE === 0) {
   console.log(

@@ -45,10 +45,8 @@
 //     two policies are honestly distinguished, not conflated.
 //   - No `um_conformance` flag is flipped by this module (see feature_CONFORMANCE).
 
-// ===========================================================================
 // 0) Vocabulary — the O2.2 closed enum, the receipt revocationStatus set, and
 //    the reason codes (spec/reference codes vs demo-local markers are labeled).
-// ===========================================================================
 
 /** schema.json $defs.statusRefResponse.status — the CLOSED O2.2 enum. */
 export const STATUS_REF_STATUSES = Object.freeze(["active", "revoked", "suspended"]);
@@ -81,11 +79,9 @@ export const REASON_ACTIVE_REQUIRED_DENIED = "um:reason:status:active-required-d
 /** The demo status-endpoint URI convention (labeled demo-local, not a real host). */
 export const DEMO_STATUS_ORIGIN = "https://status.demo.local/manifests/";
 
-// ===========================================================================
 // 1) §O2.2 response-schema validation — mirrors the reference
 //    assertStatusRefResponseV04 EXACTLY (manifestId non-empty string; status in
 //    the closed enum; updatedAt an RFC 3339 date-time). Plus a non-throwing form.
-// ===========================================================================
 
 // Same RFC 3339 date-time shape the reference validator uses (dist assertIsoDateTime).
 const RFC3339_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -142,12 +138,10 @@ export function buildStatusEndpointResponse({ manifestId, status, updatedAt, rea
   return body;
 }
 
-// ===========================================================================
 // 2) Cursor monotonicity (§5.2 #2 / §O2.1 "revocationCursor is the issuance-time
 //    floor"). Cursors are OPAQUE in the spec; the demo uses ONE deterministic
 //    order so the stale-status floor can be demonstrated: compare a trailing
 //    integer if BOTH carry one (e.g. "v3" ⇒ 3), else compare lexicographically.
-// ===========================================================================
 
 function cursorRank(cursor) {
   if (typeof cursor !== "string" || cursor.length === 0) return null;
@@ -166,7 +160,6 @@ export function compareCursor(a, b) {
   return sa < sb ? -1 : sa > sb ? 1 : 0;
 }
 
-// ===========================================================================
 // 3) Resolution client — §O2.1 procedure + §O2.4 error handling. Maps a status
 //    endpoint outcome to a UmRevocationStatus ('active'|'revoked'|'suspended'|
 //    'unchecked') and a reason. "Unresolvable" (unreachable / offline / malformed
@@ -176,7 +169,6 @@ export function compareCursor(a, b) {
 //    The endpoint is modeled as a transport result { httpStatus, body } (or a
 //    thrown/absent transport ⇒ network failure), so the same logic serves the
 //    in-memory demo authority AND, if wired, a real fetch().
-// ===========================================================================
 
 /**
  * @param {object} args
@@ -250,7 +242,6 @@ export function resolveStatus({ statusRef, manifestId, revocationCursor, lastSee
   return { revocationStatus: body.status, reason: null, httpStatus, response: body };
 }
 
-// ===========================================================================
 // 4) Policy hook — maps a resolution to a disposition. TWO honest modes:
 //
 //    'spec-default'  — mirrors §O2.3 / the reference resolveRevocation path:
@@ -264,7 +255,6 @@ export function resolveStatus({ statusRef, manifestId, revocationCursor, lastSee
 //       active status" + §O2.6 default `deny` disposition). THE DEMO DEFAULT:
 //       active    ⇒ accept
 //       anything not confirmed active (suspended / revoked / unchecked) ⇒ DENY.
-// ===========================================================================
 
 /**
  * @param {{revocationStatus:string, reason:(string|null)}} resolution
@@ -332,13 +322,11 @@ export function makeResolveRevocation({ transport, manifestId, lastSeenCursor } 
   };
 }
 
-// ===========================================================================
 // 5) Demo-local status authority (LABELED). An in-memory, synchronous mock of a
 //    conformant status endpoint (§O2.5): it serves §O2.2-schema-valid responses
 //    keyed by manifestId and exposes controls to flip a manifest active→revoked
 //    (or suspended) mid-session — the demo's fixture-local status authority.
 //    NOT a live external service (honesty ceiling).
-// ===========================================================================
 
 function manifestIdFromRef(ref) {
   if (typeof ref !== "string") return null;
@@ -421,12 +409,10 @@ export function makeDemoStatusAuthority({ now } = {}) {
   return api;
 }
 
-// ===========================================================================
 // 6) Demo journey surface — revoke the visitor's manifest mid-session ⇒ the next
 //    evaluation rejects with revocationStatus "revoked" and the receipt shows it;
 //    a non-resolving mode continues to report "unchecked" (the honest §2.18
 //    permitted answer). Pure data (no rendering) so the UI + the driver share it.
-// ===========================================================================
 
 /**
  * @param {object} args
@@ -466,9 +452,7 @@ export function buildStatusRefDemoSurface({ manifestId, statusRef, revocationCur
   };
 }
 
-// ===========================================================================
 // 7) Honest capability descriptor — mirrors feature_CONFORMANCE. Flips nothing.
-// ===========================================================================
 
 export const feature_CONFORMANCE = Object.freeze({
   wo: "runtime",

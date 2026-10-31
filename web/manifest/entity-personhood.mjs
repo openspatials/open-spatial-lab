@@ -26,7 +26,6 @@
 //     show ai_agent, the scripted greeter at the entrance may show npc. Each claim
 //     is signed; each is verifiable.").
 //
-// ---------------------------------------------------------------------------
 // HONESTY CEILING — real vs FORWARD/fail-closed (machine descriptor:
 // feature_CONFORMANCE below; every `real:true` is exercised by verify.mjs):
 //   REAL    entity-type claims        — issuer-signed VC (Ed25519 over JCS bytes)
@@ -60,7 +59,6 @@
 //                                       attestations; one-person-one-account is a
 //                                       future profile (README FORWARD).
 // This module flips NO um_conformance flag. Grade-2 surfaces are carry-only.
-// ---------------------------------------------------------------------------
 //
 // FILE DISCIPLINE: NEW, specific module. Imports the signing
 // library, tier engine, holder-binding subsystem, sealed
@@ -88,9 +86,7 @@ import {
 } from "./holder-binding.mjs";
 import { buildSealedCrossingFacets, evaluateSealedFacets, p6ReceiptRows } from "./jwe-sealed-facets.mjs";
 
-// ===========================================================================
 // Constants — entity types, claim types, honesty labels
-// ===========================================================================
 
 /** The P4 entity-type vocabulary (portaling page Compose §05). */
 export const ENTITY_TYPES = Object.freeze(["human", "ai_agent", "npc"]);
@@ -165,9 +161,7 @@ export const feature_CONFORMANCE = Object.freeze({
     "uniqueness is not claimed. No um_conformance flag is flipped.",
 });
 
-// ===========================================================================
 // Small helpers
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -200,9 +194,7 @@ function credentialSubjectDisclosesBirthMaterial(credentialSubject) {
   return Object.keys(credentialSubject).some((k) => BIRTH_MATERIAL_RE.test(k));
 }
 
-// ===========================================================================
 // 1) ISSUER-SIGNED VC — the real crypto core (demo VC profile "vc-jcs-ed25519")
-// ===========================================================================
 //
 // Profile: proofValue = base64url( Ed25519-sign( JCS(credential − proof) ) ),
 // signed by the ISSUER key; proof.verificationMethod is the issuer's did:key,
@@ -302,9 +294,7 @@ export async function verifyVcJcsEd25519(vc, opts = {}) {
   }
 }
 
-// ===========================================================================
 // 2) HOLDER SIDE — claim builders (issuer-signed, optionally holder-bound)
-// ===========================================================================
 
 /**
  * Build a SIGNED entity-type claim (P4): `identity.entityType`, issuer-signed VC
@@ -414,9 +404,7 @@ export async function buildAgeOverClaim(opts = {}) {
   };
 }
 
-// ===========================================================================
 // 3) EVALUATOR — tier gate → binding verify → VC verify (here)
-// ===========================================================================
 
 /**
  * Compute per-claim holder-binding statuses through REAL verifier and
@@ -488,7 +476,6 @@ export async function evaluateEntityPersonhood(manifest, context = {}) {
     },
   };
 
-  // ---- 1. Envelope signature (fail closed: no signature ⇒ nothing verifies) ----
   const sigReport = await verifyManifestProfileA(manifest);
   if (!sigReport.ok) {
     fragment.signatureCheck = "invalid";
@@ -500,14 +487,12 @@ export async function evaluateEntityPersonhood(manifest, context = {}) {
   }
   fragment.signatureCheck = "valid";
 
-  // ---- 2. VP size limits ----------------------
   const sizes = checkClaimProofSizeLimits(manifest);
   if (!sizes.valid) {
     fragment.warnings.push(...sizes.errors.map((e) => ({ code: "um:reason:limits:claim-validation-oversize", message: e })));
     return fragment; // rejected
   }
 
-  // ---- 3. Tier gate: binding verification injected into ----------
   const bindingMap = await computeBindingStatuses(manifest);
   const tierFragment = evaluateTrustTiers(manifest, {
     maxSupportedTrustTier: maxTier,
@@ -526,7 +511,6 @@ export async function evaluateEntityPersonhood(manifest, context = {}) {
   const cappedRefs = new Set(tierFragment.claimStatuses.map((s) => s.claimRef));
   const deferred = new Map(tierFragment.deferredClaims.map((d) => [d.claimRef, d]));
 
-  // ---- 4. claim-family verification (deferred claims only) --------------
   const claims = Array.isArray(manifest?.claims) ? manifest.claims : [];
   const byType = (t) => claims.filter((c) => c && typeof c === "object" && c["@type"] === t);
 
@@ -636,7 +620,6 @@ export async function evaluateEntityPersonhood(manifest, context = {}) {
     });
   }
 
-  // ---- outcome ------------------------------------------------------------------
   const anyNegative = fragment.claimStatuses.some((s) => s.status !== STATUS_VERIFIED && s.status !== "bound");
   fragment.outcome = anyNegative ? "accepted-partial" : "accepted";
   return fragment;
@@ -790,9 +773,7 @@ export async function verifyAgeOverClaim(claim, opts = {}) {
   };
 }
 
-// ===========================================================================
 // 4) P4 INDICATOR — display-ready entity-type indicator rows (verifiable UI)
-// ===========================================================================
 
 /**
  * entityTypeIndicator — the per-avatar indicator the multi-avatar scene renders
@@ -857,9 +838,7 @@ export function entityTypeIndicator(fragment) {
   };
 }
 
-// ===========================================================================
 // 5) DEMO SURFACE — the P4 multi-avatar scene + P5 verify-panel data
-// ===========================================================================
 
 /** Fictional demo identity-service issuers (per-purpose keys; no real providers). */
 const DEMO_ISSUERS = Object.freeze([

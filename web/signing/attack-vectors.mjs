@@ -47,9 +47,7 @@ import {
   base64ToBytes,
 } from "./index.mjs";
 
-// --------------------------------------------------------------------------
 // Tiny result harness.
-// --------------------------------------------------------------------------
 let PASS = 0;
 let VULN = 0;
 let BOUND = 0;
@@ -113,9 +111,7 @@ async function main() {
     }
   }
 
-  // ======================================================================
   banner("GROUP 1 — Canonicalization collisions & ambiguities");
-  // ======================================================================
 
   // 1.1 Key ordering: reordering object keys MUST NOT change canonical bytes
   //     (that is the whole point — one signature is stable under key order).
@@ -265,9 +261,7 @@ async function main() {
     else vulnerable("whitespace sensitivity", `${a} vs ${b}`);
   }
 
-  // ======================================================================
   banner("GROUP 2 — Signing-input exclusion abuse");
-  // ======================================================================
 
   // 2.1 Mutating an EXCLUDED field after signing STILL verifies — CORRECT for
   //     v0.4 {signature, presentationProof, postQuantumSignature} (they are added
@@ -338,9 +332,7 @@ async function main() {
     }
   }
 
-  // ======================================================================
   banner("GROUP 3 — Tamper detection (must FAIL closed)");
-  // ======================================================================
 
   // 3.1 Flip a byte in a signed, non-excluded field -> MUST fail.
   {
@@ -391,9 +383,7 @@ async function main() {
     else vulnerable("garbage signature accepted", "");
   }
 
-  // ======================================================================
   banner("GROUP 4 — Key substitution & algorithm confusion");
-  // ======================================================================
 
   // 4.1 Wrong key: verify A's signature under B's public key -> MUST fail.
   {
@@ -489,9 +479,7 @@ async function main() {
     else vulnerable("cross-curve confusion", "an X25519 did:key was accepted for Ed25519 verification");
   }
 
-  // ======================================================================
   banner("GROUP 5 — Low-level Ed25519 / point probes");
-  // ======================================================================
 
   // 5.1 All-zero signature over a real payload with A's key -> MUST be false.
   {
@@ -529,9 +517,7 @@ async function main() {
     else vulnerable("corrupted SPKI accepted", "");
   }
 
-  // ======================================================================
   banner("GROUP 6 — Live emitter path cross-check (runtime, best-effort)");
-  // ======================================================================
   // Guarded import: another worker may be editing the emitter; never crash.
   try {
     const emitter = await import("../manifest/um-manifest-emitter.mjs");
@@ -556,9 +542,7 @@ async function main() {
     console.log(`  SKIPPED    emitter cross-check (import failed: ${(e && e.message) || e})`);
   }
 
-  // ======================================================================
   banner("VERDICT");
-  // ======================================================================
   console.log(`\nchecks passed (RESISTED/EXPECTED): ${PASS}`);
   console.log(`hardening boundaries (input-discipline gaps, non-breaking): ${BOUND}`);
   console.log(`REAL vulnerabilities (⚠️ VULNERABLE): ${VULN}`);

@@ -1,8 +1,6 @@
 // DID <-> Ed25519 verification-key binding (did:key / did:web / did:pkh).
 //
-// ---------------------------------------------------------------------------
 // SCOPE — set by the UM conformance suite, read before extending this file.
-// ---------------------------------------------------------------------------
 // The UM v0.4 suite states: "DID key resolution is deliberately out of scope.
 // The suite performs no DID-document dereferencing. Every fixture that verifies a
 // signature embeds its verifying public key directly (signature.publicKeySpkiB64)
@@ -58,9 +56,7 @@ export class KeyNotDerivableError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
 // did:key (FIRST-CLASS — offline)
-// ---------------------------------------------------------------------------
 
 /** 32-byte raw Ed25519 public key -> "did:key:z6Mk..." (multibase base58btc, multicodec 0xed01). */
 export function publicKeyToDidKey(publicKeyInput) {
@@ -97,9 +93,7 @@ export function resolveDidKey(didUrl) {
   };
 }
 
-// ---------------------------------------------------------------------------
 // did:pkh (SUPPORTED OFFLINE — solana derivable, others parse-only)
-// ---------------------------------------------------------------------------
 
 /** Parse a CAIP-10-based did:pkh into { did, namespace, chainRef, address, fragment }. */
 export function parseDidPkh(didUrl) {
@@ -146,9 +140,7 @@ export function publicKeyToDidPkhSolana(publicKeyInput, chainRef) {
   return `did:pkh:solana:${chainRef}:${base58btcEncode(raw)}`;
 }
 
-// ---------------------------------------------------------------------------
 // did:web (OUT-OF-SCOPE STUB — pure URL rule + injected-loader extraction only)
-// ---------------------------------------------------------------------------
 
 /**
  * did:web -> DID-document URL (did:web method spec §3.2 "Read"):
@@ -254,9 +246,7 @@ export function extractEd25519PublicKey(vm) {
   throw new Error("Verification method carries no supported Ed25519 key encoding");
 }
 
-// ---------------------------------------------------------------------------
 // keyRef resolution ladder (what the Profile A verifier uses)
-// ---------------------------------------------------------------------------
 
 /**
  * Offline keyRef resolution ladder. Returns

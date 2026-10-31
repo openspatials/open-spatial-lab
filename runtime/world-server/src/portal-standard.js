@@ -2,7 +2,7 @@
 
 /*
  * What a world publishes so that any Web of Worlds client, the main demo included, can show its portals and
- * previews from its data alone (iteration 4):
+ * previews from its data alone:
  *
  *   - an arrival node for each portal it hosts: where a visitor who comes through that portal stands. A portal
  *     leading here names it in its destination (`{base}#join=node.{n}`).

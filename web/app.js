@@ -48,7 +48,7 @@ import { IWPS_CONFORMANCE } from "./iwps-query-teleport.mjs";
 // conformance runner). Single source of truth = web/conformance/um-conformance.mjs, backed
 // by the re-runnable gate web/conformance/run-um-conformance.mjs.
 import { UM_CONFORMANCE } from "./conformance/um-conformance.mjs";
-// BEGIN — v0.4 UM manifest emitter (new web/manifest/ module). Emitting a
+// v0.4 UM manifest emitter. Emitting a
 // schema-valid, signed v0.4 manifest at crossing time for the UM panel. This flips NO
 // um_conformance flag (schema-valid ≠ evaluator-conformant; that is /117b) and does
 // not touch the existing um_shaped_envelope. Import is best-effort; a failure here must
@@ -58,7 +58,7 @@ import {
   verifyManifestSignature as umVerifyManifestSignature,
 } from "./manifest/um-manifest-emitter.mjs";
 import { makeAvatarDefinition as umMakeAvatarDefinition, makeLoadingPointer as umMakeLoadingPointer } from "./manifest/interfaces.mjs";
-// BEGIN — loading-content THROUGH the portal (portaling bar P11;
+// loading-content THROUGH the portal (portaling bar P11;
 // interface requirement; demonstration-only). The destination's branded loading experience
 // renders in the SOURCE while the crossing's real background steps check-mark
 // (Scene 3b). Content = the destination server's metaverse.portal.* pointers
@@ -71,8 +71,6 @@ import {
   extractPortalLoadingContent as featureExtractPortalLoadingContent,
   portalLoadingDriverApi as featurePortalLoadingDriverApi,
 } from "./portal-loading.mjs";
-// END
-// END
 // inventory slot catalog + the schema/resolve helpers
 // the slot-swap path reuses (same module instance live-adapter.js imports).
 import {
@@ -206,8 +204,7 @@ const noEquipParam = params.get("noequip") !== "0" && params.get("noequip") !== 
 // record — the e2e's fresh loads (type "navigate", empty sessionStorage) never
 // restore, so they boot `active=source` → world A exactly as before, and the
 // seamless crossing (no reload, in-memory marker intact) is untouched.
-// The Phase 1 map mentioned replaceState, but that planning language is stale:
-// the accepted contract is sessionStorage-only and performs no URL/history write.
+// The contract is sessionStorage-only and performs no URL/history write.
 const playerSessionController = createPlayerSessionController({
   getStorage: () => (typeof sessionStorage !== "undefined" ? sessionStorage : null),
   readNavigationEntries: () =>
@@ -309,9 +306,8 @@ let connectionPresentation = {
   detail: "Connecting to the live world…",
 };
 let playerOrientationDismissed = false;
-// the crossing is a CONTINUOUS walk-through — the old
-// portal_centering/portal_spin/portal_disappear beats are deleted; the single
-// remaining transition phase marks the commit-in-flight frames.
+// the crossing is a CONTINUOUS walk-through — the single
+// transition phase marks the commit-in-flight frames.
 const PORTAL_TRANSITION_PHASES = Object.freeze({
   WALKTHROUGH: "portal_walkthrough",
 });
@@ -588,12 +584,9 @@ function buildChildFabricGroup(manifest, opts = {}) {
  * evaluation but have no user-facing geometry. Remove stale helpers here so
  * a scene composed by older code cannot retain or resurrect the cage.
  *
- * the blue floor "spawn disc" (the cyan cylinder pad
- * that used to mark navigator.root_spawn_node) is REMOVED. The player already
- * spawns at the root fabric's own primary.camera pose — a specific defined room
- * position (see live-adapter _initWorldNavigator / applyRestoredPose) — not on a
- * disc, so no floor marker is drawn. The `root_spawn_node` DATA still rides in
- * the navigator debug for provenance; only its visual pad is gone.
+ * No floor marker is drawn for the root spawn: the player spawns at the root fabric's own primary.camera pose
+ * (see live-adapter _initWorldNavigator / applyRestoredPose). The `root_spawn_node` DATA still rides in
+ * the navigator debug for provenance.
  */
 function buildRootFabricNodeVisuals(impl, navigatorDebug) {
   if (!impl || !impl.scene || !navigatorDebug) return null;
@@ -626,10 +619,8 @@ function logLine(msg) {
 }
 
 // transient auto-dismissing toasts for the "Crossing"/
-// "Departed" and "Arrival received" EVENT notices, in place of the former
-// persistent state-card use for those two phases (all three views). Wording
-// is unchanged — only the presentation (temporary toast vs. persistent card)
-// and dismiss timing are new. Steady-state overlay text (idle/portal-active/
+// "Departed" and "Arrival received" EVENT notices.
+// Steady-state overlay text (idle/portal-active/
 // centering/holding-pose/waiting) is untouched and keeps using
 // #state-overlay/.state-card.
 function escapeHtml(value) {
@@ -868,7 +859,7 @@ function alignPortalVisualToTrigger(sceneInstance, world) {
     impl.scene.add(impl.directionalPortalGroup);
   }
   // the direction ArrowHelper ("portal-forward-debug-arrow")
-  // is REMOVED after review — direction is now expressed by the portal
+  // is not used — direction is expressed by the portal
   // data itself (traversal rule) and, for one-way portals, by the opaque
   // blocked side below. A stale arrow from a pre-removal scene graph is
   // dropped defensively so recomposed scenes can never resurrect it.
@@ -936,8 +927,8 @@ function alignPortalVisualToTrigger(sceneInstance, world) {
     Math.abs(visualCenter[1] - Number(center[1] || 0)) <= 0.002 &&
     Math.abs(visualCenter[2] - Number(center[2] || 0)) <= 0.002;
   // ADDITIONAL portals (N>1 worlds — the lobby). The
-  // PRIMARY portal above keeps its exact pre-004 node names and impl
-  // singletons (single-portal worlds are byte-identical); every additional
+  // PRIMARY portal above keeps its node names and impl
+  // singletons; every additional
   // portal gets its own standing-oval group — same ring/aperture/blocked-side
   // recipe, node names suffixed with the portal key, tinted by DESTINATION
   // (A = cyan, B = amber). Stale groups are pruned when the world changes.
@@ -1361,7 +1352,7 @@ function ensureFabricPrefetchZoneRing(dbg) {
 
 // one zone ring PER NON-FOCUS machine (the focus machine
 // owns the legacy-named ring above — single-portal worlds draw exactly one
-// ring, byte-identical to pre-004). Ring color still tells the machine state.
+// ring). Ring color still tells the machine state.
 function ensureAdditionalFabricPrefetchZoneRings(impl, dbg) {
   if (!impl.additionalFabricZoneRings) impl.additionalFabricZoneRings = {};
   const fp = dbg ? dbg.fabric_prefetch : null;
@@ -1415,17 +1406,6 @@ function ensureAdditionalFabricPrefetchZoneRings(impl, dbg) {
   }
 }
 
-// the floating "CHILD FABRIC ATTACHED — LIVE RENDER" DOM
-// overlay box (formerly built here via ensurePortalPreviewDomOverlay /
-// updatePortalPreviewDomOverlay) has been removed. Its status — child fabric
-// attached, live-render-texture, freshness ms, read-only-before-crossing — is
-// already carried in the always-visible debug console state: "child fabric"
-// (n-child) and "child render" (n-child-render) in the World Navigator card,
-// and "source type" / "read-only" / "target" / "freshness" (pr-source,
-// pr-readonly, pr-target, pr-freshness) in the Portal preview card — see
-// updateNavigatorDebugCard / updatePreviewDebugCard below. The in-scene 3D
-// aperture render-to-texture surface (bundle.aperture below) is unrelated and
-// stays — it is the actual portal-preview render, not this DOM box.
 
 function drawLabeledPortalPreview(canvas, preview) {
   const ctx = canvas.getContext("2d");
@@ -1486,7 +1466,7 @@ function drawLabeledPortalPreview(canvas, preview) {
 }
 
 // the preview surface pass now covers EVERY portal — the
-// primary keeps the exact pre-004 ladder (child-fabric live RTT when attached,
+// primary keeps the ladder (child-fabric live RTT when attached,
 // else prefetched-region snapshot when warm, else static labeled placeholder);
 // each ADDITIONAL portal gets its own canvas on its own aperture running the
 // same labeled rungs fed by its own keyed prefetch machine + per-portal
@@ -1507,7 +1487,7 @@ function previewCameraWorldPosition(impl) {
  *  viewer looks at. The aperture material is DoubleSide, so the back face
  *  mirrors the CanvasTexture; imageLayerFlipForViewerSide maps P4's viewer side
  *  to the horizontal texture transform that cancels that mirror — identity on
- *  the front (byte-identical pre-P5), a u -> 1 - u flip on the back. Applied to
+ *  the front, a u -> 1 - u flip on the back. Applied to
  *  the ONE texture each 2D rung samples (repeat.x/offset.x only; matrixAutoUpdate
  *  refreshes the uv-transform without re-uploading the canvas). u' = 1 - u stays
  *  in [0,1], so the default ClampToEdge wrap needs no change. The spatial rung
@@ -2303,7 +2283,7 @@ const PHASE_LABEL = {
   [HANDOFF_PHASES.WAITING]: { text: "waiting for arrival", cls: "waiting" },
   [HANDOFF_PHASES.ARRIVED]: { text: "arrived (avatar visible)", cls: "arrived" },
   // single continuous walk-through beat (no centering/
-  // holding/disappearing labels — those phases no longer exist).
+  // holding/disappearing labels).
   [PORTAL_TRANSITION_PHASES.WALKTHROUGH]: { text: "walking through portal", cls: "" },
 };
 
@@ -2391,22 +2371,7 @@ function renderOverlay(phase, dbg) {
     }
     return;
   }
-  // the observer START-STATE modal cards — the idle
-  // "Location A"/"Location B" card and the "Waiting for arrival at …" card
-  // that used to cover the server views until the avatar crossed — are
-  // REMOVED entirely (no .state-card exists in those phases). The location
-  // identity/phase stay visible in the header (#loc-title/#phase-pill) and
-  // the debug rail; the transient crossing toasts are unchanged.
-  //
-  // the LAST remaining center-screen card — the
-  // "Portal active" line — is now a one-shot toast below (interface requirement:
-  // nothing in the middle of the screen, ever). #state-overlay therefore
-  // renders NO card in any phase; the full notification-center/detail-window
-  // conversion remains (retargeted as).
-  //
-  // the crossing is instant/seamless (no shrink, no dwell) —
-  // the transient "Entering portal"/"Holding pose"/"Disappearing" center-screen
-  // cards were already dropped; phases still feed #phase-pill via PHASE_LABEL.
+  // #state-overlay renders NO card in any phase (nothing mid-screen, ever). The location identity and phase stay in the header (#loc-title/#phase-pill) and the debug rail; phases feed #phase-pill via PHASE_LABEL.
   overlay.innerHTML = "";
 
   // "Portal active", "Crossing"/"Departed" and "Arrival received" are transient
@@ -2446,8 +2411,8 @@ function renderOverlay(phase, dbg) {
           ? "fabric prefetched"
           : "cold crossing"
         : null;
-      // the destination branding that used to headline the
-      // removed center-screen loading card now rides this toast. At
+      // the destination branding rides this toast.
+      // At
       // ARRIVED the active endpoint IS the destination, so its cached
       // metaverse.portal.* branding (destination-server-served, never
       // hardcoded) is read directly; markup-significant chars stripped because
@@ -2867,7 +2832,7 @@ function adapterVisualDebugState() {
       : null;
 }
 
-// BEGIN — one scene, one depth buffer.
+// one scene, one depth buffer.
 // Every scene-mount avatar layer (the local player's AND each peer's) is parented
 // into the WORLD's own scene so all avatars and all world geometry share ONE depth
 // buffer. Before this, each layer owned a stacked transparent canvas and CSS DOM
@@ -3062,7 +3027,6 @@ boardingJourneyController = createAirportBoardingJourneyController({
 function avatarLayerHost() {
   return sceneRuntimeController.avatarHost();
 }
-// END
 const PEER_AVATAR_MIN_PLAYER_VIEW_SEPARATION_M = 0.72;
 const PEER_AVATAR_OVERLAP_DISTANCE_M = 0.48;
 
@@ -3353,7 +3317,7 @@ function canonicalDebugState(raw) {
       target_arrival_accepted:
         (dbg.phase === HANDOFF_PHASES.ARRIVED && !!dbg.handoff_id) ||
         !!(dbg.crossing && dbg.crossing.server_notifications?.arrival?.accepted === true),
-      // REAL value from the crossing record (was hardcoded false).
+      // REAL value from the crossing record.
       active_endpoint_switched: !!(dbg.crossing && dbg.crossing.active_endpoint_switched === true),
       mapped_target_pose: controls.mapped_exit_transform || null,
     },
@@ -3382,7 +3346,7 @@ function canonicalDebugState(raw) {
       // the (now proven) scoped-true. Single source of truth = UM_CONFORMANCE.
       um_conformance: { ...UM_CONFORMANCE },
       // HONEST FALSE — IWPS-SHAPED, NOT IWPS-CONFORMANT. The
-      // "scoped true" shipped was an overclaim and is removed.
+      // "scoped true" would be an overclaim.
       iwps_conformance: { ...IWPS_CONFORMANCE },
       web_of_worlds_conformance: false,
       spatial_fabric_conformance: false,
@@ -3729,7 +3693,6 @@ async function mainWowRead() {
     logLine(`M2 wow: LOAD ERROR: ${loadErr}`);
   }
 
-  // --- render the composition graph into #scene-mount (shared idiom w/ msf-read) ---
   const mount = $("scene-mount");
   const width = (mount && mount.clientWidth) || 1100;
   const height = (mount && mount.clientHeight) || 660;
@@ -3780,13 +3743,13 @@ async function mainWowRead() {
     // REUSES the avatar GLTFLoader stack (loadGltfSceneAsset) — no second loader.
     const assetNodes = built.asset_nodes || [];
     document.body.setAttribute("data-wow-asset-nodes", String(assetNodes.length));
-    // Iteration 2: a live graph's node may link another world's Spatial, Node or World through its
+    // A live graph's node may link another world's Spatial, Node or World through its
     // spatialAssetURI. Those are composed first (web/wow-inclusion.mjs) and mounted under their nodes;
     // what remains are models, loaded below. A bundled fixture is not composed: its links are models.
     const graphHref = resolved.graph_url ? new URL(resolved.graph_url, location.href).href : null;
     const inclusionHost = resolved.source === "canonical-walk" && graphHref && /^https?:/i.test(graphHref) ? graphHref : null;
     const fixtureOnThisOrigin = !inclusionHost && !!graphHref && (() => { try { return new URL(graphHref).origin === location.origin; } catch { return false; } })();
-    // Iteration 3: the inclusions stay live. Each shown world's event stream (8 at most) re-composes on
+    // The inclusions stay live. Each shown world's event stream (8 at most) re-composes on
     // a change, and the models of re-mounted content load through the same loader and cache.
     const mountIncludedModels = (nodes) => {
       if (!nodes.length) return;
@@ -3864,7 +3827,6 @@ async function mainWowRead() {
     logLine(`M2 wow RENDER ERROR: ${renderState.error}`);
   }
 
-  // --- CONSUMER-POV AVATAR WALK on the WoW-rendered world ---
   // REUSE, don't rebuild. The player's VRM avatar, WASD movement, and the
   // consumer orbit-follow camera are the EXACT modules the live world uses —
   // imported and CALLED here, never reimplemented:
@@ -3919,7 +3881,6 @@ async function mainWowRead() {
       // looking down +z toward the hall/portal (azimuth π), so W walks toward the
       // content and the avatar reads at stage distance. The movement/camera
       // controller then initializes the follow focus at the spawn.
-      // then inits the follow-focus at the spawn. Rig reused verbatim.
       movementCameraController.seedOrbitCamera({ azimuth: Math.PI });
 
       // (5) reload-resume: a genuine browser reload carrying a saved pose resumes
@@ -3967,7 +3928,6 @@ async function mainWowRead() {
     }
   }
 
-  // --- honest visible-pixels probe ---
   function probeVisiblePixels() {
     return alternateRuntime
       ? sceneRuntimeController.probeVisiblePixels()
@@ -3980,7 +3940,6 @@ async function mainWowRead() {
   const wowPanelChrome = panelTruthChromeController.chromeDriver();
   wowPanelChrome.close();
 
-  // --- expose the single honest `wow` debug surface for the entry proof ---
   const wowSurface = {
     ref: wowParam,
     resolved,
@@ -4313,7 +4272,7 @@ async function main() {
   // or history mutation happens here — the fabric key comes from sessionStorage.
   // hand the URL/hash-derived WoW intent to the adapter. The ONLY thing
   // it changes is whether this session registers presence (preview does not). Absent a WoW
-  // intent the adapter behaves exactly as it did before this change.
+  // intent the adapter behaves as for a plain URL.
   adapter = new LiveAdapter(role, {
     active: resolveBootActive(),
     wowIntent: wowUrlIntent,
@@ -4426,11 +4385,6 @@ async function main() {
         `${sourceRunCalibration.effective_run_translation_speed_mps.toFixed(3)} m/s (session-local)`
     );
   }
-  // the cosmetic "FALLBACK verifier" banner element was
-  // removed from all three views. The substantive honesty flags (DATA
-  // PROVENANCE native=false/std=false, native_teleportxr_teleport:false) still
-  // render in the "Proof-boundary flags" debug card below (flagCell/f-ntt/
-  // f-std) — only this console log + the on-screen badge are gone.
   logLine(`renderer: ${scene.rendererKind} (application renderer; not first-party TeleportXR)`);
   logLine(`portal visual alignment: ${portalVisualAlignment.reason || "unknown"} center=${vec3Label(portalVisualAlignment.visual_center || portalVisualAlignment.trigger_center)}`);
   logLine(`LIVE backend bound: ${adapter.base}`);
@@ -4481,18 +4435,7 @@ async function main() {
   // NOTE: the ?wow= read mode (mainWowRead) closes it the same way after its own mount.
   panelTruthChromeController.chromeDriver().close();
 
-  // ALL bottom control-bar buttons — "Debug: activate
-  // portal" / "Debug: depart" / "Debug: simulate arrival" AND the plain
-  // "Reset" button — and their click handlers were removed from all three
-  // views (scope update: Reset removed too, not kept). Portal
-  // activation / handoff / arrival are driven by the avatar walking into the
-  // trigger volume (see maybeTriggerAutoHandoff / startAvatarControls) and,
-  // for headless e2e / operator reset, via window.__assembly.reset() /
-  // .activatePortal() / .triggerHandoff() / .applyArrival() below and the
-  // live POST /reset endpoint — those driver paths are untouched. The bottom
-  // bar itself stays, but its only VISIBLE content is now
-  // the github link footer; the old "LIVE real Lane 3 backend" status label is
-  // still written by setConnectionPresentation() below, just no longer shown.
+  // There are no bottom control-bar buttons: portal activation, handoff and arrival are driven by the avatar walking into the trigger volume (see maybeTriggerAutoHandoff / startAvatarControls); headless e2e and operator reset use window.__assembly.reset() / .activatePortal() / .triggerHandoff() / .applyArrival() below and the live POST /reset endpoint.
   movementCameraController.start();
   // header camera-icon toggle (player only, no text ever).
   // Calls the exact same togglePlayerCameraMode() the C hotkey and the legacy
@@ -4519,13 +4462,13 @@ async function main() {
   // UM attach-point re-reads, resolution-ladder panels, and the observer
   // top-down drag surface (objects + portal). Labeled demo extension.
   portalRenderController.mount();
-  // BEGIN — loading-content THROUGH the portal (P11),
+  // loading-content THROUGH the portal (P11),
   // re-presented: the destination's metaverse.portal.*
   // loading content + the crossing's real background steps now surface as a
   // small transient toast + a structured notification record (published into
   // the notification shell above; the notification center
-  // consumes those records). The center-screen loading card is REMOVED (owner
-  // mandate: nothing mid-screen during traversal, ever). Content still comes
+  // consumes those records).
+  // Content still comes
   // from the DESTINATION server via the reload cache (or one lazy
   // fetch); nothing is hardcoded client-side. Player window only; adds no
   // delay to the crossing. Demonstration-only.
@@ -4544,7 +4487,6 @@ async function main() {
     publishNotification: publishNotificationRecord,
     logLine,
   });
-  // END
 
   // apply the restored orbit framing (if this load
   // resumed a reloaded session) now that the rig is wired; the focus point
@@ -4627,7 +4569,7 @@ async function main() {
     samplePortalApertureTexels: (portalKey, worldPoints) =>
       sceneRuntimeController.samplePortalApertureTexels(portalKey, worldPoints),
     equipmentReady: () => !equipmentLayer || equipmentLayer.isSettled(),
-    // what each portal's window shows, and the crossings refused so far (iteration 4)
+    // what each portal's window shows, and the crossings refused so far
     portalPreviews: () => sceneRuntimeController.portalPreviewStates(),
     portalRefusals: () => mainDemo.refusals(),
     // RENDERED peer-avatar layers (the actual co-present
@@ -4835,7 +4777,7 @@ async function main() {
   };
   if (isPlayer) mainDemo.startPortalWatch();
   // `mission=denver-skyport` now opens the real lobby journey. Portal C is a
-  // physical server-backed crossing; the launcher no longer bypasses its
+  // physical server-backed crossing; the launcher does not bypass its
   // prefetch, presence transfer, arrival, or reciprocal return contract.
   if (isPlayer && launcherMissionParam === "denver-skyport") {
     document.body.setAttribute("data-denver-skyport-mission", "portal-c-server-backed");

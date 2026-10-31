@@ -7,7 +7,6 @@
  * lived as hand-written wrappers at each handler call site inside server.js.
  *
  * WHY THIS FILE EXISTS
- * --------------------
  * The old layer had two defects that CONF-1 (parent, ledger)
  * closes:
  *
@@ -25,7 +24,6 @@
  *      project's documented recurring defect.
  *
  * WHAT THIS FILE DOES
- * -------------------
  * It derives the enforcement table AT STARTUP from the contract document's own
  * `paths` object (`wow-spec/generated/schema.json`, built from
  * `wow-spec/schema.yaml` by `npm run wow-schema-json`):
@@ -38,14 +36,12 @@
  * with it, with no matching edit anywhere in this lane.
  *
  * FAIL-CLOSED
- * -----------
  * There is no env var, flag or launcher switch that disables enforcement.
  * `createContractEnforcer()` THROWS if the contract cannot be loaded or
  * declares no `/wow` operations — the server refuses to start rather than serve
  * an unenforced surface. `OSL_WOW_VALIDATE` is not read anywhere in this lane.
  *
  * DEPENDENCY BOUNDARY (unchanged)
- * -------------------------------
  * The route table is built from plain JSON with ZERO third-party dependencies.
  * ajv is required LAZILY, on the first payload actually validated, exactly as
  * `wow-spec/validate.js` has always done. If ajv is unavailable the verdict is
@@ -54,7 +50,6 @@
  * validation-ON path did, never a silent pass.
  *
  * REUSE-OVER-REBUILD
- * ----------------------------------------------
  * This is still an ADDITIVE layer on the existing vanilla-Node server. It is
  * NOT Express and NOT express-openapi-validator: the handlers stay exactly where
  * they are and call in. literal "migrate to Express" instruction is
@@ -294,7 +289,6 @@ function createContractEnforcer(opts)
             + 'serve an UNENFORCED contract surface. Enforcement is always-on by design; '
             + 'an empty contract is a build failure, not an opt-out.');
 
-    // ---- anchor every declared variant IN the contract (drift => throw) ----
     const variants = DECLARED_VARIANTS.map((v) => {
         const op = operations.find((o) => o.method === v.method && o.template === v.template);
         if (!op)
@@ -314,7 +308,6 @@ function createContractEnforcer(opts)
         });
     });
 
-    // ---- ajv: lazily created, exactly as the env-gated layer did ------------
     let ajvState = null;
     function ajvOrError()
     {
@@ -418,7 +411,7 @@ function createContractEnforcer(opts)
      *   undeclared-status:NNN             the server emitted a status the
      *                                     contract does not declare
      *
-     * @returns null for non-/wow paths (byte-identical behaviour to before).
+     * @returns null for non-/wow paths.
      */
     function responseVerdict(method, pathname, status, body, ctx)
     {

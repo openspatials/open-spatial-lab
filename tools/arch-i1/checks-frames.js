@@ -48,7 +48,6 @@ async function frameChecks() {
   const reference = readReference();
   const orientation = readOrientationReference();
 
-  // ---- F1. The outside check: IOGP Guidance Note 7-2, EPSG method 9837 ----------------------
   const iogp = {
     origin: { position: { lat: 55, lon: 5, h: 200 }, angles: ZERO },
     point: { lat: dms(53, 48, 33.82), lon: dms(2, 7, 46.38), h: 73 },
@@ -69,7 +68,6 @@ async function frameChecks() {
     };
   }, real, [{ name: 'spherical Earth (radius 6,371,008.8 m)', impl: sphere }]);
 
-  // ---- F2. Real curvature ---------------------------------------------------------------------
   const flat = loadMutant(MODULE, [[
     'return ecefToLocal(frameFromGeoPose(anchor), ecef(point.lat, point.lon, point.h));',
     'return [(point.lon - anchor.position.lon) * 111320 * Math.cos(anchor.position.lat * RAD), point.h - anchor.position.h, -(point.lat - anchor.position.lat) * 111320];',
@@ -82,7 +80,6 @@ async function frameChecks() {
     return { ok: fixed && agree, detail: `x ${x.toFixed(7)} m, y ${(y * 1e3).toFixed(4)} mm, z ${(z * 1e3).toFixed(4)} mm` };
   }, real, [{ name: 'flat inverse (111,320 m per degree x cos latitude)', impl: flat }]);
 
-  // ---- F3. Axis mapping and yaw ---------------------------------------------------------------
   const axesIn = (impl, angles) => {
     const g2 = { position: G2_POINT, angles };
     const frame1 = impl.frameFromGeoPose(G1);
@@ -108,7 +105,6 @@ async function frameChecks() {
     impl: loadMutant(MODULE, [['senses: Object.freeze({ yaw: 1, pitch: 1, roll: 1 })', 'senses: Object.freeze({ yaw: -1, pitch: 1, roll: 1 })']]),
   }]);
 
-  // ---- F3b. Pitch (and roll, and all three together) ------------------------------------------
   await run('F3b', 'with pitch 10 degrees, and with yaw 30, pitch 10 and roll 5, the runtime and the quaternion reference agree to 1e-9', (impl) => {
     const a = maxDiff(axesIn(impl, { yaw: 0, pitch: 10, roll: 0 }), orientation.pitch10);
     const b = maxDiff(axesIn(impl, { yaw: 30, pitch: 10, roll: 5 }), orientation.mixed);
@@ -124,7 +120,6 @@ async function frameChecks() {
     impl: loadMutant(MODULE, [['const pitch = turn(1, k.pitch * (angles.pitch || 0) * RAD);', 'const pitch = turn(0, k.pitch * (angles.pitch || 0) * RAD);']]),
   }]);
 
-  // ---- F5. Why positions stay local -----------------------------------------------------------
   const frame = real.frameFromGeoPose(G1);
   const sweep = (storeAsFloat32, seeds) => {
     const stats = { axis: 0, threeD: 0, medianLow: Infinity, smallestMax: Infinity };
@@ -162,7 +157,6 @@ async function frameChecks() {
     impl: { storeAsFloat32: (p) => real.ecefToLocal(frame, real.localToEcef(frame, p).map(Math.fround)) },
   }]);
 
-  // ---- R1. The reference script prints what was recorded when it was written --------------------------
   // reference-output.txt is the output recorded with reference-geodesy.py. If the two ever differ, the
   // numbers the checks above lean on are not the numbers they were specified with.
   const printedLines = fs.readFileSync(path.join(__dirname, 'reference-output.txt'), 'utf8').trimEnd().split('\n');
@@ -180,7 +174,6 @@ async function frameChecks() {
   return { real, reference, orientation };
 }
 
-// ---- F4. One GeoPose reader ---------------------------------------------------------------------
 async function readerChecks(real) {
   const Ajv = require(path.join(ROOT, 'node_modules', 'ajv'));
   const schema = JSON.parse(fs.readFileSync(path.join(ROOT, 'wow-spec', 'upstream', 'geopose', 'GeoPose.Basic.YPR.Schema.json'), 'utf8'));

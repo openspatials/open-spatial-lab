@@ -40,7 +40,6 @@ function runSuite(M)
         `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
     );
 
-    // ---- 1. JOIN: bare URL, #join, #join=aspect  (spec-stated) ----
     eq('join.bare.intent',        M.parseWowFragment('').intent, 'join');
     eq('join.bare.isBare',        M.parseWowFragment('').bare, true);
     eq('join.verb.intent',        M.parseWowFragment('#join').intent, 'join');
@@ -51,17 +50,14 @@ function runSuite(M)
     eq('join.emptyValue.aspect',  M.parseWowFragment('#join=').aspectId, null);
     eq('join.emptyValue.intent',  M.parseWowFragment('#join=').intent, 'join');
 
-    // ---- 2. FOLLOW ----
     eq('follow.verb.intent',      M.parseWowFragment('#follow').intent, 'follow');
     eq('follow.aspect.intent',    M.parseWowFragment('#follow=user/avatar-local-001').intent, 'follow');
     eq('follow.aspect.id',        M.parseWowFragment('#follow=user/avatar-local-001').aspectId, 'user/avatar-local-001');
 
-    // ---- 3. PREVIEW ----
     eq('preview.verb.intent',     M.parseWowFragment('#preview').intent, 'preview');
     eq('preview.aspect.intent',   M.parseWowFragment('#preview=4182').intent, 'preview');
     eq('preview.aspect.id',       M.parseWowFragment('#preview=4182').aspectId, '4182');
 
-    // ---- 4. THE LOAD-BEARING CONSEQUENCE (interpretation #5) ----
     // These are the assertions the whole task turns on. If these are wrong, everything is wrong.
     eq('presence.join.registers',      M.intentRegistersPresence('join'), true);
     eq('presence.follow.registers',    M.intentRegistersPresence('follow'), true);
@@ -71,12 +67,10 @@ function runSuite(M)
     eq('presence.previewAspect.NOT',   M.parseWorldUrl(`${ORIGIN}/w/lobby#preview=4182`).registersPresence, false);
     eq('presence.followAspect.YES',    M.parseWorldUrl(`${ORIGIN}/w/lobby#follow=4182`).registersPresence, true);
 
-    // ---- 5. follow target (interpretation #6) ----
     eq('followTarget.aspect', M.parseWorldUrl(`${ORIGIN}/w/lobby#follow=4182`).followTarget, '4182');
     eq('followTarget.bare',   M.parseWorldUrl(`${ORIGIN}/w/lobby#follow`).followTarget, null);
     eq('followTarget.join',   M.parseWorldUrl(`${ORIGIN}/w/lobby#join=4182`).followTarget, null);
 
-    // ---- 6. unrecognized fragments are NOT hijacked (interpretation #4) ----
     // NOTE: '#section-2' and '#join&follow' fail the `verb[=value]` REGEX, so on their own they
     // never exercise the "is this a known WoW verb?" branch at all. Mutant M5 proved that: it
     // deleted the verb check and these cases still passed. The cases that actually reach the
@@ -96,16 +90,13 @@ function runSuite(M)
     eq('join.IS.recognized',   M.parseWowFragment('#join').recognized, true);
     eq('compound.notRecognized', M.parseWowFragment('#join&follow').recognized, false);
 
-    // ---- 7. case-insensitivity in, lowercase out (interpretation #3) ----
     eq('case.upper.intent',  M.parseWowFragment('#PREVIEW').intent, 'preview');
     eq('case.mixed.intent',  M.parseWowFragment('#Follow=X').intent, 'follow');
     eq('case.aspectPreserved', M.parseWowFragment('#follow=AbC').aspectId, 'AbC');
     eq('case.emit.lowercase', M.buildWorldUrl(`${ORIGIN}/w/a`, { intent : 'preview' }), `${ORIGIN}/w/a/#preview`);
 
-    // ---- 8. percent-decoding ----
     eq('pct.decoded', M.parseWowFragment('#join=user%2Favatar-1').aspectId, 'user/avatar-1');
 
-    // ---- 9. world resolution (interpretation #7) ----
     eq('world.path.lobby',   M.parseWorldUrl(`${ORIGIN}/w/lobby`).world, 'lobby');
     eq('world.path.a',       M.parseWorldUrl(`${ORIGIN}/w/a#preview`).world, 'a');
     eq('world.path.source',  M.parseWorldUrl(`${ORIGIN}/w/a`).worldSource, 'path');
@@ -119,7 +110,6 @@ function runSuite(M)
     eq('world.legacyStage',  M.parseWorldUrl(`${ORIGIN}/index.html?stage=1`).world, 'lobby');
     eq('world.apiBase',      M.parseWorldUrl(`${ORIGIN}/w/b`).apiBase, '/api/b');
 
-    // ---- 10. spec composition: <worldUrl>/wow/world must be a real URL a client can GET ----
     eq('compose.wowApiBase', M.parseWorldUrl(`${ORIGIN}/w/lobby#preview`).wowApiBase, `${ORIGIN}/w/lobby/wow`);
     eq('compose.worldUrl',   M.parseWorldUrl(`${ORIGIN}/w/lobby#preview`).worldUrl, `${ORIGIN}/w/lobby/`);
     // THE TRAILING SLASH IS LOAD-BEARING: a page at `/w/a` (no slash) resolves `app.js` against
@@ -135,14 +125,12 @@ function runSuite(M)
         (() => { try { return new URL(M.parseWorldUrl(`${ORIGIN}/w/a`).wowApiBase + '/world').href === `${ORIGIN}/w/a/wow/world`; } catch (_) { return false; } })(),
         'the spec\'s own composition URL/wow/world must parse to an absolute URL');
 
-    // ---- 11. aspect resolution (interpretation #2) ----
     eq('aspect.user.qualified', M.resolveAspect('user/4182').candidates, [ '/wow/user/4182' ]);
     eq('aspect.user.kind',      M.resolveAspect('user/4182').kind, 'user');
     eq('aspect.node.needsSpatial', M.resolveAspect('node/n1', { spatialId : 'demo' }).candidates, [ '/wow/spatial/demo/node/n1' ]);
     eq('aspect.bare.probesUser', M.resolveAspect('4182').candidates[0], '/wow/user/4182');
     eq('aspect.null',           M.resolveAspect(null).candidates, []);
 
-    // ---- 12. PERSIST + SHARE: the URL must round-trip (interpretation #8) ----
     // A URL that cannot be bookmarked back into the same state does not satisfy Persist.
     const roundTrip = (href) => {
         const a = M.parseWorldUrl(href);
@@ -167,7 +155,6 @@ function runSuite(M)
     eq('persist.previewAspect.url', M.parseWorldUrl(`${ORIGIN}/w/b#preview=4182`).persistUrl, `${ORIGIN}/w/b/#preview=4182`);
     eq('share.buildsSameUrl', M.buildWorldUrl(`${ORIGIN}/w/a`, { intent : 'follow', aspectId : '4182' }), `${ORIGIN}/w/a/#follow=4182`);
 
-    // ---- 13. the interpretation ledger must be present and complete ----
     check('ledger.exists', Array.isArray(M.WOW_CORE_INTERPRETATIONS) && M.WOW_CORE_INTERPRETATIONS.length >= 9,
         `interpretation ledger must carry every reading we took (got ${M.WOW_CORE_INTERPRETATIONS?.length})`);
     check('ledger.everyEntryHasReasoning',
@@ -262,7 +249,6 @@ async function main()
 
     const report = { wo : 'runtime', module : MODULE_PATH, baseline : null, mutants : [], ok : false };
 
-    // --- baseline: the real module must be fully green ---
     const real = await importModuleFrom(MODULE_PATH);
     const baseChecks = runSuite(real);
     const baseFailed = baseChecks.filter(c => !c.ok);
@@ -282,7 +268,6 @@ async function main()
         for (const f of baseFailed) printf(`  RED  ${f.id}: ${f.detail}\n`);
     }
 
-    // --- mutation testing: every mutant must be KILLED ---
     let survivors = 0;
     for (const mut of MUTANTS)
     {

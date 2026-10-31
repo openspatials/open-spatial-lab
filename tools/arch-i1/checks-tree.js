@@ -15,7 +15,6 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 async function treeChecks(ports) {
   const server = (impl, role) => boot(role || 'a', ports.next(), { edits: impl && impl.edits ? impl.edits : null });
 
-  // ---- N1. Moves ------------------------------------------------------------------------------------
   const ignoresParent = { store: [["const move = 'parent' in r ? planMove(id, existing, r.parent) : { ok : true, to : null };", 'const move = { ok : true, to : null };']] };
   const allowsCycles = { store: [['            if (cursor === id)\n                return { ok : false, status : 422, error : \'parent_would_create_cycle\',', '            if (false)\n                return { ok : false, status : 422, error : \'parent_would_create_cycle\',']] };
   const keepsOldLink = { store: [['                oldParent.children = oldParent.children.filter(c => c !== id);\n            const newParent', '                void 0;\n            const newParent']] };
@@ -60,7 +59,6 @@ async function treeChecks(ports) {
     { name: 'a move that leaves the node listed under its old parent', impl: { edits: keepsOldLink } },
   ]);
 
-  // ---- N2. Children are derived -------------------------------------------------------------------
   const appliesChildren = { store: [['                if (!echo)\n                {\n                    if (c.embedded.length)', '                if (false)\n                {\n                    if (c.embedded.length)']] };
   await run('N2', 'a PUT without children leaves them unchanged, a PUT that repeats them is accepted, and a PUT whose children differ is 422', async (impl) => {
     const s = await server(impl);
@@ -90,8 +88,7 @@ async function treeChecks(ports) {
     } finally { await s.close(); }
   }, { edits: null }, [{ name: 'a store that lets a PUT through with different children', impl: { edits: appliesChildren } }]);
 
-  // ---- N3. Ids are never reused -------------------------------------------------------------------
-  // Ids come from the world's id space (iteration 2): a counter that starts over issues from the store's own count.
+  // Ids come from the world's id space: a counter that starts over issues from the store's own count.
   const resetsCounter = { store: [
     ['            const id = Math.max(highWater + 1, Number.isInteger(floor) ? floor : 0);', '            const id = Number.isInteger(floor) ? floor : highWater + 1;'],
     ['        nextId = ids.highWater() + 1;\n    }', '        nextId = seedId + 1;\n    }'],
@@ -135,7 +132,6 @@ async function treeChecks(ports) {
     }
   }, { edits: null }, [{ name: 'a store whose id counter starts over on reset and restart (today\'s behaviour)', impl: { edits: resetsCounter } }]);
 
-  // ---- N5. Every node URL resolves, and no two nodes share one ----------------------------------------
   await run('N5', 'walking the graph by node URL reaches every node once, each URL returns its own node, and parent links agree with children lists', async (impl) => {
     const s = await server(impl);
     try {
@@ -150,7 +146,7 @@ async function treeChecks(ports) {
       const failures = problems.slice();
       if (new Set(ids).size !== ids.length) failures.push('duplicate ids');
       const world = await require('./lib').httpReq('GET', s.port, '/wow/world');
-      // primitives, portals, the root, the 4 made here, and (iteration 4) the nodes that place the hosted user and each
+      // primitives, portals, the root, the 4 made here, and the nodes that place the hosted user and each
       // view, and the node each portal's visitors arrive at
       const placements = 1 + world.json.views.view_count + world.json.portals.portal_count;
       const expected = (await require('./lib').httpReq('GET', s.port, '/demo/scene-objects')).json.objects.length + world.json.portals.portal_count + 1 + 4 + placements;

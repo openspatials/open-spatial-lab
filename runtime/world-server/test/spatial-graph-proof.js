@@ -97,7 +97,6 @@ async function main()
 
     let persistDir = null;
     try {
-        // ---- A: existing endpoints preserved (regression guard) ----
         const world = await GET(PORT_A, '/wow/world');
         check('A1 GET /wow/world still 200', world.status === 200, 'status=' + world.status);
         const pb = world.json && world.json.proof_boundary;
@@ -120,7 +119,6 @@ async function main()
             [ '/wow/world', '/wow/user/{userId}', '/wow/portal/{portalId}', '/wow/view/{viewId}' ]
                 .every(e => eps.indexOf(e) !== -1));
 
-        // ---- B: graph populated from REAL scene data ----
         // The graph root is the canonical Node by default: its children are the child nodes themselves.
         const rootR = await GET(PORT_A, '/wow/spatial/demo-room-a?form=node');
         check('B1 GET /wow/spatial/demo-room-a?form=node -> 200', rootR.status === 200, 'status=' + rootR.status);
@@ -170,7 +168,6 @@ async function main()
             && /target_world_id=demo-lobby/.test(lastNode.spatialAssetURI || ''),
             lastNode.spatialAssetURI);
 
-        // ---- C: >=2 worlds addressable, per-world isolation ----
         const rb = await GET(PORT_B, '/wow/spatial/demo-room-b?form=node');
         check('C1 second world demo-room-b addressable on :' + PORT_B, rb.status === 200 && rb.json.id === 0);
         check('C2 addressable by location_id alias (location-a)',
@@ -186,7 +183,6 @@ async function main()
             && v.validate('Spatial', spatial.json).valid,
             'status=' + spatial.status + ' hdr=' + spatial.headers['x-osl-wow-validation']);
 
-        // ---- D + E: CRUD round-trip + validation ----
         const createGood = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0',
             [ { label: 'validation-node', names: [ 'runtime' ],
                 localTransform: [ 1,0,0,0, 0,1,0,0, 0,0,1,0, 4,5,6,1 ],
@@ -246,8 +242,6 @@ async function main()
             { localTransform: 'not-an-array' });
         check('E3 PUT bad Node -> 422', badPut.status === 422, 'status=' + badPut.status);
 
-        // ---- G: NO SILENT CHILD-NODE DATA LOSS ----
-        //
         // THE DEFECT this section guards: a spec-conformant body (the canonical `Node`, children
         // EMBEDDED) used to be answered 200 OK with its whole subtree deleted: the client believed it
         // had stored a tree; the server had stored a root. The canonical Node is now the default form,
@@ -275,7 +269,6 @@ async function main()
         const maxIdBefore = Math.max(...(await GET(PORT_A, '/wow/spatial/demo-room-a?form=node')).json.children.map(c => c.id));
         const conformantPost = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0', canonicalBody());
 
-        // ---- G1-G6: the canonical default stores the whole subtree and says so ----
         check('G1 a conformant embedded-children POST is stored: 200, one node sent, one node returned',
             conformantPost.status === 200 && Array.isArray(conformantPost.json) && conformantPost.json.length === 1,
             'status=' + conformantPost.status);
@@ -305,7 +298,6 @@ async function main()
         check('G6 reading the node returns the same subtree the POST returned',
             JSON.stringify(subtree) === JSON.stringify(sent));
 
-        // ---- G7-G8: the flat form is explicit, and refuses what it cannot store ----
         const flatEmbedded = await httpReq('POST', PORT_A, '/wow/spatial/demo-room-a/node/0', canonicalBody(),
             { 'X-OSL-WoW-Node-Form': 'flat' });
         check('G7 the flat form refuses an embedded body: 422 naming OSLFlatNode, with offending paths and remedies',
@@ -319,7 +311,6 @@ async function main()
             rootAfterRefusal.children.length === rootBefore.children.length + 1,
             'before=' + rootBefore.children.length + ' after=' + rootAfterRefusal.children.length + ' (one root stored by G1)');
 
-        // ---- G9-G13: ids on a create body, and PUT never changing children ----
         const idRefPost = await POST(PORT_A, '/wow/spatial/demo-room-a/node/0',
             [ { label: 'wants-existing-children', children: [ 1, 2 ] } ]);
         check('G9 POST with INTEGER id-ref children -> 400 (they were once silently dropped)',
@@ -341,7 +332,6 @@ async function main()
             && rmwPut.headers['x-osl-wow-validation'] === 'pass:Node',
             'status=' + rmwPut.status);
 
-        // ---- G13-G15: the explicit flat form, for clients that read ids ----
         const flatLeaf = await httpReq('POST', PORT_A, '/wow/spatial/demo-room-a/node/0',
             [ { label: 'plain-leaf', children: [], spatialAssetURI: 'osl-primitive:box?size_m=1' } ],
             { 'X-OSL-WoW-Node-Form': 'flat' });
@@ -369,7 +359,6 @@ async function main()
             && flatEmbeddedPut.json.served_schema === 'OSLFlatNode',
             'rmw=' + flatRmw.status + ' restructure=' + flatRestructure.status + ' embedded=' + flatEmbeddedPut.status);
 
-        // ---- F: env-gated JSON persistence across a fresh server instance ----
         persistDir = fs.mkdtempSync(path.join(os.tmpdir(), 'osl-runtime-persist-'));
         process.env.OSL_WOW_SPATIAL_PERSIST = '1';
         process.env.OSL_WOW_SPATIAL_DIR = persistDir;
@@ -392,7 +381,6 @@ async function main()
         delete process.env.OSL_WOW_SPATIAL_PERSIST;
         delete process.env.OSL_WOW_SPATIAL_DIR;
 
-        // ---- evidence ----
         const diagnostics = {
             wo: 'runtime',
             title: 'WoW world + Spatial Composition Graph server',

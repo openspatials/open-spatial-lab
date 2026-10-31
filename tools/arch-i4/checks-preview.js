@@ -43,7 +43,6 @@ async function previewScene(ports, impl) {
 }
 
 async function previewChecks(ports) {
-  // ---- P3 ---------------------------------------------------------------------------------------------
   const everyNode = { serverEdits: { portalStandard: [['                if (distance > d.radius_m) continue;\n', '']] } };
   const readsTheGraph = { clientEdits: [['    const tree = await readJson(new URL(declared.url, destination.base).href, opts);', '    await readJson(new URL("wow/spatial/1/node/" + /node\\/(\\d+)/.exec(declared.node)[1], destination.base).href, opts);\n    const tree = await readJson(new URL(declared.url, destination.base).href, opts);']] };
   await run('P3', 'B\'s World declares a preview (arrival node n, 10 m, a preview URL); the preview URL returns only B\'s nodes within 10 m of n, the set a plain reference picks; A\'s portal shows exactly those nodes and fetches no other node of B', async (impl) => {
@@ -73,7 +72,6 @@ async function previewChecks(ports) {
     { name: 'a client that reads B\'s graph instead of only its preview', impl: readsTheGraph },
   ]);
 
-  // ---- P4 ---------------------------------------------------------------------------------------------
   const opensInnerPortals = { clientEdits: [['      closed: closedIds.has(Number(n.id)),', '      closed: false,']] };
   await run('P4', 'a portal inside the preview shows closed, and the preview reads nothing of the world it leads to', async (impl) => {
     const s = await previewScene(ports, impl);
@@ -95,7 +93,6 @@ async function previewChecks(ports) {
     }
   }, {}, [{ name: 'a client that shows portals inside a preview open', impl: opensInnerPortals }]);
 
-  // ---- P5 ---------------------------------------------------------------------------------------------
   const ignoresImage = { clientEdits: [['  if (declared && declared.image) return', '  if (false && declared && declared.image) return']] };
   await run('P5', 'a destination that declares a preview image shows that image; one that declares no preview shows a plain colour', async (impl) => {
     const A = await w.world('a', ports.next());
@@ -120,7 +117,6 @@ async function previewChecks(ports) {
     }
   }, {}, [{ name: 'a client that ignores the preview image', impl: ignoresImage }]);
 
-  // ---- P6 ---------------------------------------------------------------------------------------------
   const joinsToPreview = { clientEdits: [['  let world;\n  try { world = await readJson(new URL("wow/world", destination.base).href, opts); } catch (error) {\n    return { kind: "unreachable"', '  await (opts.fetch || globalThis.fetch)(new URL("fabric/presence/register", destination.base).href, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ player_id: "previewer", display_name: "previewer", avatar_id: "previewer" }) });\n  let world;\n  try { world = await readJson(new URL("wow/world", destination.base).href, opts); } catch (error) {\n    return { kind: "unreachable"']] };
   await run('P6', 'previewing B creates no user in B: the user counts stay as they were and B announces no user_joined', async (impl) => {
     const s = await previewScene(ports, impl);

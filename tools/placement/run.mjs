@@ -163,7 +163,6 @@ async function main() {
     const page = await browser.newPage();
     page.on("pageerror", (e) => console.log(`     page error: ${e.message}`));
 
-    // ---- Part 1: place, move, set the radius, save; then a visitor wakes it and crosses ----
     await openPlayer(page, player("a"));
     await page.click("#wow-place-toggle");
     await page.waitForFunction(() => window.__wowPlacement && window.__wowPlacement.on === true, { timeout: 10000 });
@@ -294,7 +293,6 @@ async function main() {
       arrived.url.includes(encodeURIComponent(`${addr("b")}wow/spatial/1`)) && arrived.arrival && arrived.arrival.arrived === true,
       `${arrived.url.replace(FRONT, "")}; arrived at ${arrived.arrival && arrived.arrival.node}`);
 
-    // ---- Part 2: add a world by configuration only, following the checklist ----
     const before = codeHash();
     writeWorlds([WORLD_E]); // checklist step 2: one entry in the worlds file
     const stop1 = sh("stopOpenSpatialLab.sh"); // step 3: restart

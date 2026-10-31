@@ -21,17 +21,8 @@
  * boot and never written back (the no-reload guard treats a pushState as
  * a navigation). Absent params => the defaults below.
  *
- * DEFAULTS ARE A PRODUCT DECISION.
- *
- * STATUS 2026-08-06: both arms were APPROVED on measured evidence
- * (glass measured at -8.49 points of one core in the after-baseline), but
- * NEITHER DEFAULT HAS BEEN CHANGED YET. Both constants below still hold the
- * shipped values (glass "on", cap 2). The lane implementing the flip was
- * terminated by a session usage limit after landing these levers and before
- * changing the defaults or capturing the required before/after screenshots.
- *
- * Do not read the approval as applied. Applying it is a two-line change to the
- * constants below, but it is gated on two things the terminated lane never did:
+ * DEFAULTS ARE A PRODUCT DECISION. Changing them is a two-line change to the
+ * constants below, gated on:
  * (1) before/after screenshots so the user can see the cosmetic cost, and
  * (2) confirming the pixel-ratio clamp is consistent across all three sites —
  *     runtime/scene-core/scene.js still holds literal

@@ -14,8 +14,7 @@
  * WHY THIS LIVES IN ITS OWN .mjs: sReference is MANIFEST DATA, not a URL literal
  * in code, so literal-sweep never saw this seam. This function is pure
  * and Node-importable (the base is passed in, not read from an injected global)
- * so the base-path check unit-proves BOTH modes in one process — the
- * coverage the check previously lacked.
+ * so the base-path check unit-proves BOTH modes in one process.
  */
 
 import { applyBase } from "./base-path.mjs";

@@ -11,16 +11,14 @@
 // The only imports are the sibling interface contracts (interfaces.mjs) and the
 // signing primitives (../signing/*.mjs) — both plain ESM with no bundler needed.
 //
-// ---------------------------------------------------------------------------
 // WHAT IS PROVEN vs NOT (read before touching the labels)
-// ---------------------------------------------------------------------------
 // PROVEN by this module + self-verify.mjs:
 //   - Schema-valid v0.4 EMISSION: the emitted manifest validates against
 //     spec/v0.4/schema.json under ajv Draft 2020-12 (see web/manifest/self-verify.mjs).
 //   - A correctly-shaped, REAL signature: Signature Profile A — Ed25519 over the
 //     RFC 8785 (JCS) canonical bytes of the manifest with `signature` removed, with the
 //     verifying key embedded as `publicKeySpkiB64`. Round-trips through verify.
-// NOT proven / NOT claimed here (intentionally — this change flips NO `um_conformance` flag):
+// NOT proven / NOT claimed here (intentionally — this module flips NO `um_conformance` flag):
 //   - Evaluator conformance: the six-stage evaluation sequence + structured `um:Receipt`
 //     (Arrive/Verify/Project/Consent/Compose/Receipt). That is job. Schema-valid
 //     is NOT evaluator-conformant.
@@ -29,9 +27,7 @@
 //   - Production key management / DID resolution. The demo embeds `publicKeySpkiB64` (the
 //     spec's offline/fixture escape hatch) and uses an ephemeral demo key.
 //
-// ---------------------------------------------------------------------------
 // SIGNATURE PROFILE A (universalmanifest spec/v0.2/SIGNATURE-PROFILE.md §4, unchanged in v0.4)
-// ---------------------------------------------------------------------------
 //   signing input = JCS-RFC8785( manifest with `signature` (and presentationProof,
 //                   postQuantumSignature) removed ) as UTF-8 bytes → Ed25519-sign.
 //   signature.algorithm       = "Ed25519"          (const in v0.4 schema $defs/signatureV04)
@@ -91,9 +87,7 @@ import {
 import { publicKeyToDidKey } from "../signing/did.mjs";
 import { verifyManifestProfileA } from "../signing/um-signature-profile-a.mjs";
 
-// ===========================================================================
 // v0.4 constants / defaults
-// ===========================================================================
 export const UM_MANIFEST_EMITTER_VERSION = "runtime-v1";
 
 // The keys the v0.4 signing input MUST NOT include (Signature Profile A §4 + the
@@ -135,9 +129,7 @@ export const UM_MANIFEST_EMISSION = Object.freeze({
     "(signing != conformance).",
 });
 
-// ===========================================================================
 // The emitter.
-// ===========================================================================
 
 /**
  * Build a v0.4 manifest OBJECT (UNSIGNED — carries a placeholder signature slot) from
@@ -186,7 +178,6 @@ export function buildManifest(state) {
     expiresAt,
   };
 
-  // ---- Facets (each REQUIRES @id + @type in v0.4) ----------------------------------
   const facets = [];
 
   // 1) Avatar facet — from the AvatarDefinition interface.
@@ -206,7 +197,6 @@ export function buildManifest(state) {
 
   if (facets.length > 0) manifest.facets = facets;
 
-  // ---- Pointers (each REQUIRES @type in v0.4) --------------------------------------
   const pointers = [];
   if (s.loading) {
     const ptr = looksLikeLoadingPointer(s.loading) ? s.loading : makeLoadingPointer(s.loading);
@@ -272,7 +262,6 @@ export function buildManifest(state) {
   }
   // END
 
-  // ---- Signature SLOT (placeholder; buildAndSignManifest fills it for real) ---------
   // v0.4 requires `signature`; this placeholder is present ONLY so the object shape is
   // complete for the emitter's own tests. It is NOT schema-valid (value/keyRef missing)
   // until signed — that honest distinction is the whole point of v0.4 (unsigned ≠ valid).
@@ -432,9 +421,7 @@ export async function verifyManifestSignatureDetailed(manifest) {
   }
 }
 
-// ===========================================================================
 // Facet / pointer builders (turn the published interfaces into v0.4 schema shapes).
-// ===========================================================================
 
 /** AvatarDefinition -> a v0.4 `um:Facet` (@id + @type required). */
 function avatarFacetFromDefinition(def) {
@@ -494,9 +481,7 @@ function loadingPointerFromInterface(ptr, manifestExpiresAt) {
   return out;
 }
 
-// ===========================================================================
 // Signing-input helpers (Signature Profile A canonicalization discipline).
-// ===========================================================================
 
 /**
  * Return a shallow copy of the manifest with the signing-excluded keys removed.
@@ -538,9 +523,7 @@ async function resolvePublicKeySpki(keyPair) {
   return rawPublicKeyToSpki(raw);
 }
 
-// ===========================================================================
 // Identity / URN helpers.
-// ===========================================================================
 function deriveSubject(explicit, continuityId) {
   if (explicit != null && String(explicit).length > 0) return String(explicit);
   // Deterministic demo subject DID from the continuity id (non-authoritative — a real
@@ -575,9 +558,7 @@ function slugify(v) {
     .slice(0, 64) || "anon";
 }
 
-// ===========================================================================
 // Small type helpers.
-// ===========================================================================
 function isoOrNow(v) {
   if (typeof v === "string" && Number.isFinite(Date.parse(v))) return new Date(Date.parse(v)).toISOString();
   return new Date().toISOString();

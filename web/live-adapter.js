@@ -1,13 +1,10 @@
 /**
  * LiveAdapter — Integration Assembly.
  *
- * DROP-IN REPLACEMENT for Lane 1's FixtureAdapter, backed by the LIVE Lane 3
- * backend instead of fixtures. It presents the EXACT SAME public surface that
- * Lane 1's app.js consumes (.world, .mode, init(), claimBoundary(),
+ * Adapter for the LIVE Lane 3 backend. Public surface consumed by app.js: .world, .mode, init(),
+ * claimBoundary(),
  * boundaryStatus(), activatePortal(), triggerHandoff(), applyArrival(), returnToLobby(), reset(),
- * listenForCrossWindow(), debugState(), and the "state" CustomEvent), so Lane 1's
- * app.js + scene.js + frontend-contract.js are reused UNMODIFIED — only the state
- * SOURCE changes (the documented Lane 1 swap point).
+ * listenForCrossWindow(), debugState(), and the "state" CustomEvent).
  *
  * Live wiring (BackendContract, Lane 3):
  *   - init():           WoW endpoints RESOLVED from the loaded fabric's
@@ -78,7 +75,7 @@ import {
 import {
   IWPS_CONFORMANCE,
 } from "./iwps-query-teleport.mjs";
-// `um_conformance` is now a SCOPED true object (v0.1-baseline via the
+// `um_conformance` is a SCOPED true object (v0.1-baseline via the
 // Universal Manifest conformance runner), not a bare false. The descriptor is the single
 // source of truth; it is BACKED by web/conformance/run-um-conformance.mjs, which drives the
 // UM repo's OWN runner over the v0.1 accept/reject matrix (21 valid accepted, 11 invalid
@@ -149,7 +146,7 @@ export {
   portalEntryFromWowPortal,
 } from "./live-adapter-world-projection.mjs";
 
-// BEGIN — sign the emitted v0.4 UM manifest at crossing time (Signature Profile A:
+// sign the emitted v0.4 UM manifest at crossing time (Signature Profile A:
 // Ed25519 + JCS-RFC8785 + did:key subject binding) using the crypto (via the
 // emitter), carry it through the exit-intent/arrival handoff, and VERIFY it on arrival. This
 // is signing WIRING only: it flips NO conformance flag (um_conformance stays the scoped
@@ -159,7 +156,6 @@ import {
   verifyManifestSignatureDetailed as umVerifyManifestSignatureDetailed,
 } from "./manifest/um-manifest-emitter.mjs";
 import { makeAvatarDefinition as umMakeAvatarDefinition, makeLoadingPointer as umMakeLoadingPointer } from "./manifest/interfaces.mjs";
-// END
 
 // RP1 fail-closed traversal gate (journey-07 + J22). The live crossing
 // consults gateChildScopeTraversal() BEFORE the portal traversal commits: on the happy path
@@ -177,7 +173,6 @@ import {
   gateChildScopeTraversal,
 } from "./rp1-fail-closed.mjs";
 import { buildRp1Section } from "./manifest/rp1-model.mjs";
-// END
 
 // integration — trust-tier engine: negotiated bilateral floor (Base §6.4.6)
 // + a Tier-2 sample panel for the crossing UI (records a REAL trustTierUnsupported on our
@@ -295,9 +290,7 @@ const RUN_MIN_CYCLE_DISTANCE_M = 0.5;
 const JUMP_SPEED_MPS = 4.25;
 const GRAVITY_MPS2 = 10.5;
 // CONTINUOUS seamless crossing — the winning Demo-A
-// controller's walk-through, grafted into the live World Navigator. This
-// SUPERSEDES instant centering + 0-duration spin/disappear beats:
-// the portal_centering / portal_spin / portal_disappear phases are DELETED
+// controller's walk-through, grafted into the live World Navigator.
 // (no walk-to-center, no control seizure, no held pose, no shrink, no hide).
 // The player simply KEEPS WALKING: when the avatar's sampled position crosses
 // the portal PLANE inside the oval (front -> back sign change, detected in
@@ -347,12 +340,12 @@ function endpointKeyForRole(role, active) {
   // a PLAYER with no assigned server starts in the LOBBY
   // ("when a character is started up and they haven't been assigned to
   // a server yet, they are in their own lobby"). An explicit-but-unknown
-  // `active` value and the observer roles keep their pre-004 defaults.
+  // `active` value and the observer roles keep their defaults.
   if (role === "player" && !requested) return "lobby";
   return role === "target" ? "b" : "a";
 }
 
-// The two demo worlds are each other's opposite (the pre-004 relationship);
+// The two demo worlds are each other's opposite ;
 // the lobby has TWO destinations, so it has no single opposite — callers that
 // need a preview/target endpoint for a multi-portal world must derive it from
 // a specific portal instead (endpointKeyForLocation).
@@ -396,8 +389,8 @@ function strictProofBoundary(flags) {
     // web/conformance/run-um-conformance.mjs. NOT v0.4, NOT evaluator, NOT full conformance.
     um_conformance: { ...UM_CONFORMANCE },
     // iwps_conformance is an HONEST-FALSE object.
-    // made it a "scoped true" (base_query_teleport:true) — THAT WAS AN OVERCLAIM and it is
-    // removed. We are IWPS-SHAPED (two POSTs, Query->Teleport order, kebab-case, POST-only),
+    // A "scoped true" (base_query_teleport:true) would be an OVERCLAIM:
+    // we are IWPS-SHAPED (two POSTs, Query->Teleport order, kebab-case, POST-only),
     // NOT IWPS-CONFORMANT: no IWPS parameter is on the wire, the destination implements
     // neither the Query (§5.3.2) nor the Teleport (§5.3.3) API, and the ack/nack callbacks
     // (§5.3.3 step 9, a SHALL) are never called. Single source of truth = IWPS_CONFORMANCE.
@@ -512,9 +505,9 @@ function findFabricSpawnNode(manifest) {
 
 /** Map a fabric sReference onto the same-origin proxy (backend origins have no CORS). */
 // bind the active injected base to the pure resolver. A
-// root-absolute sReference (/api/a/fabric.json) now resolves BENEATH the prefix
+// root-absolute sReference (/api/a/fabric.json) resolves BENEATH the prefix
 // (/open-spatial-lab/api/a/fabric.json) in subpath mode instead of 404-ing at the
-// origin; loopback-URL rewriting and root-mode output are byte-for-byte unchanged.
+// origin; loopback-URL rewriting and root-mode output are unchanged.
 function resolveFabricReference(ref) {
   return resolveFabricReferenceForBase(BASE_PATH, ref);
 }
@@ -735,13 +728,13 @@ function transformSnapshot(avatar) {
 
 // GeoPose Basic SDU construction.
 //
-// The builder `geoPoseShapedFromTransform()` now lives in the SHARED leaf module
+// The builder `geoPoseShapedFromTransform()` lives in the SHARED leaf module
 // web/geopose-basic-sdu.mjs (imported at the top of this file) so the object emitted
 // on the wire is the exact object the network-free validator
 // (web/geopose-schema-conformance-check.mjs) checks against the official OGC
 // GeoPose 1.0 Basic-YPR/Quaternion JSON Schemas — one source, no drift.
 //
-// changed the claim from a blanket false to a SCOPED true: the emitted
+// The claim is a SCOPED true: the emitted
 // Basic-YPR + Basic-Quaternion SDUs are SCHEMA-VALID (structural/data conformance);
 // `georeferenced` STAYS false (illustrative origin, flat local-tangent approximation,
 // no geodetic anchor); full GeoPose conformance beyond the Basic-SDU schema STAYS
@@ -825,7 +818,7 @@ async function verifyUmIdentity(wowUser) {
   }
 }
 
-// BEGIN — sign-on-exit / verify-on-arrival helpers for the live crossing.
+// sign-on-exit / verify-on-arrival helpers for the live crossing.
 //
 // The signed v0.4 UM manifest rides in the handoff packet at
 // `packet.avatar_context.um_manifest_v04`. It is built from the SAME crossing state the
@@ -1338,7 +1331,6 @@ async function featureVerifyManifestFromPacket(packet) {
     return { present: true, verified: false, reason: `verify-threw:${(e && e.message) || "error"}` };
   }
 }
-// END
 
 export class LiveAdapter extends EventTarget {
   constructor(role, opts = {}) {
@@ -1548,7 +1540,6 @@ export class LiveAdapter extends EventTarget {
     // the two fail-closed paths visible. last_receipt is the most recent traversal-gate
     // receipt (accepted on allow; REJECTED on a fail-closed deny). Surfaced in debugState().
     this._rp1FailClosed = { demo_mode: "off", last_receipt: null, allow_count: 0, deny_count: 0 };
-    // END
     // the controller is the sole mutable owner of
     // prefetch machines, scheduling, cache, occupancy, proof/promotion state,
     // and paced completion. LiveAdapter keeps only cross-domain callbacks and
@@ -1577,7 +1568,7 @@ export class LiveAdapter extends EventTarget {
       },
       getActiveBase: () => this.base,
       getAvatarPose: () => (this.state ? this.state.avatar : null),
-      // No read of a destination before a visitor nears its portal (iteration 4).
+      // No read of a destination before a visitor nears its portal.
       destinationOccupancy: false,
     });
     const fabricCompatibilityViews = {
@@ -1667,15 +1658,7 @@ export class LiveAdapter extends EventTarget {
       isEndpointKey: (endpointKey) => !!ENDPOINTS[endpointKey],
       onRuntimeState: (message) => {
         const debug = message && message.state && message.state.debug;
-        // this fired once per runtime-state frame — with
-        // the 100 ms server republish default that is a console line every
-        // 100 ms per window, forever, and every line is retained by the console
-        // buffer for the life of the session. The line is already classified as
-        // journal noise (panel-truth-chrome-controller `isJournalNoise`), so
-        // nothing reads the per-tick copies. Keep the diagnostic — the revision
-        // and the last input source are still reported, with the tick count
-        // that the suppressed lines would have carried — but emit it at most
-        // once per RUNTIME_STATE_LOG_INTERVAL_MS.
+        // At most one line per RUNTIME_STATE_LOG_INTERVAL_MS: a line per runtime-state frame is a console line every 100 ms per window, retained by the console buffer. The line is journal noise (panel-truth-chrome-controller `isJournalNoise`); the revision, the last input source and the suppressed tick count are still reported.
         this._runtimeStateTickCount = (this._runtimeStateTickCount || 0) + 1;
         const now = Date.now();
         if (now - (this._runtimeStateLogAtMs || 0) < RUNTIME_STATE_LOG_INTERVAL_MS) return;
@@ -2852,8 +2835,8 @@ export class LiveAdapter extends EventTarget {
    * resource lists every portal in webofworlds_extension.portals (id 1..n);
    * each is fetched via the spec integer route derived from the resolved
    * portal endpoint (swap the trailing id segment). A world that lists one
-   * portal (or an older backend that lists none) degrades to the exact
-   * pre-004 single fetch of ep.portal.path.
+   * portal (or an older backend that lists none) degrades to a
+   * single fetch of ep.portal.path.
    */
   async _fetchWowPortals(ep, wowWorld) {
     return readPortalResources({
@@ -3003,7 +2986,7 @@ export class LiveAdapter extends EventTarget {
       const spawn = [Number(cam.position[0]) || 0, 0, Number(cam.position[2]) || 0];
       const manifestYaw = yawFromQuaternionY(cam.rotation);
       // face the CENTROID of the portal attachment nodes
-      // (single portal -> that node, the exact pre-004 facing; the lobby ->
+      // (single portal -> that node, facing it; the lobby ->
       // the midpoint between its two portals).
       const spawnPortalNodes = findFabricPortalAttachmentNodes(rootFabric);
       const portalPos = spawnPortalNodes.length
@@ -3234,7 +3217,7 @@ export class LiveAdapter extends EventTarget {
   }
 
   /* ---------------- step 5: runtime avatar controls -------
-   * Requirement 2026-07-04: switch the player's avatar VRM and equip new
+   * Switch the player's avatar VRM and equip new
    * items AT RUNTIME. Both mutate the ONE avatar's state (a switch REPLACES
    * the variant key; an equip APPENDS to equippedItems — never a second
    * avatar), broadcast a forced pose so observers mirror immediately, and ride
@@ -3267,7 +3250,7 @@ export class LiveAdapter extends EventTarget {
    * free. The rendering half resolves it against whichever rig is worn
    * (AvatarEquipmentLayer#applyPreferredHeightM).
    *
-   * The UM read half is deliberately NOT wired yet (2026-07-11) — a UM avatar facet
+   * The UM read half is deliberately NOT wired yet — a UM avatar facet
    * would call exactly this, and nothing else would change.
    */
   setPreferredHeight(heightM) {
@@ -3292,12 +3275,8 @@ export class LiveAdapter extends EventTarget {
   /**
    * Toggle between two demo variants (upgraded <-> dwarf).
    *
-   * this used to toggle upgraded <-> "classic". `classic` was
-   * /runtime-assets/avatar.vrm, whose own VRM.meta declares licenseName
-   * "Redistribution_Prohibited" and allowedUserName "OnlyAuthor" — we could not serve it at
-   * all, so it was dropped from AVATAR_VARIANTS and the file was deleted. The toggle now
-   * reaches the dwarf, which is CC0 and self-authored AND is the better demo pick
-   * anyway: it is the uniquely-SHAPED rig (short + wide), so the swap visibly proves the
+   * The dwarf is CC0 and self-authored, and is the better demo pick:
+   * it is the uniquely-SHAPED rig (short + wide), so the swap visibly proves the
    * height/proportion tracking that a same-shaped swap does not.
    */
   toggleAvatarVariant() {
@@ -3844,8 +3823,8 @@ export class LiveAdapter extends EventTarget {
   }
 
   /**
-   * Debug/operator entry point. The real commit happens only after the visible
-   * center-entry/spin/disappear transition completes.
+   * Debug/operator entry point. The real commit is made by the traversal controller
+   * when the avatar crosses the portal plane.
    */
   async triggerHandoff() {
     this._portalTraversalController.triggerHandoff();
@@ -3960,7 +3939,6 @@ export class LiveAdapter extends EventTarget {
         "mounts refused; default-deny on unknown. Scoped flag only — um_conformance unchanged.",
     };
   }
-  // END
 
   // Portal commit, phase history, player completion, signing/verification,
   // observer relay, and crossing evidence are owned by the traversal controller.
@@ -4128,7 +4106,7 @@ export class LiveAdapter extends EventTarget {
     const right = [dir[2], 0, -dir[0]];
     // fix #2: place the presence at the CLOSER, mirrored exit distance
     // carried in the frame mapping (mirrors the source approach; clamped just
-    // outside the trigger) instead of the old fixed 1.45 m step-out. Fall back
+    // outside the trigger). Fall back
     // to the just-outside minimum if the mapping did not carry an offset.
     const exitOffset =
       frameMapping && Number.isFinite(Number(frameMapping.exit_offset_m))
@@ -4137,7 +4115,7 @@ export class LiveAdapter extends EventTarget {
     // the MAPPED (output-side) lateral — the entry lateral
     // mirrored by the 180° portal rotation, matching mapped_exit_transform and
     // the arrival the packet delivers. Using the raw entry-side lateral here
-    // (the pre-012 code) made the LIVE avatar land mirrored from where the
+    // made the LIVE avatar land mirrored from where the
     // target server placed it (the observer/player position mismatch).
     const lateral =
       frameMapping && Number.isFinite(Number(frameMapping.mapped_lateral_offset_m))
@@ -4945,7 +4923,7 @@ export class LiveAdapter extends EventTarget {
       // SCENE SOURCE the crossing re-based onto; the crossing DESTINATION variant
       // rides on crossing.destination_scene_source. Honest — surfaced, never hidden.
       wow_scene_source: this._wowSceneSource || null,
-      // BEGIN — live UM manifest signing status: what was signed on exit and the
+      // live UM manifest signing status: what was signed on exit and the
       // result of verifying on arrival. This is the observable proof that the crossing signs
       // a REAL v0.4 manifest and VERIFIES it on the far side. Signing != conformance: this
       // block does NOT set um_conformance (that stays the scoped object in
@@ -4958,7 +4936,6 @@ export class LiveAdapter extends EventTarget {
           "and verified on arrival (runtime verifier). Schema-valid v0.4 + real signature; NOT evaluator conformance. " +
           "um_conformance unchanged.",
       },
-      // END
       // the retained UM IDENTITY spine, brought live on
       // /wow/user: the honest result of VERIFYING the signed OpenUserManifest
       // ({name,age,avatarAssetURI} signed with Ed25519 over JCS-RFC8785, bound to a
@@ -4982,7 +4959,6 @@ export class LiveAdapter extends EventTarget {
       // receipt (accepted on the happy path; REJECTED on a fail-closed deny) + the SCOPED
       // descriptor (fail_closed_conformance only; um_conformance untouched).
       rp1_fail_closed: this._rp1FailClosedDebug(),
-      // END
       // addressable spatial fabric portal prefetch: the
       // portal's fabric address, the two-zone state, the loaded portal-
       // neighborhood region, and the destination occupancy read (all labeled
@@ -5227,7 +5203,6 @@ export class LiveAdapter extends EventTarget {
     }
   }
 
-  // --- internal ---
   _emit(opts = {}) {
     const detail = this.visualDebugState();
     this.dispatchEvent(new CustomEvent("state", { detail }));

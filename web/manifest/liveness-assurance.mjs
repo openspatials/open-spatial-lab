@@ -17,7 +17,7 @@
 //   docs/spec-v0.4/ext-t1.html         T1.3 / T1.3.1 / T1.3.2 / T1.3.3
 //   docs/spec-v0.4/core.html           Base §3.1.4 (gate order sealed-entry → consent →
 //                                      floors; floors evaluated with consent), §3.3.1/.1
-//   conformance/v0.4/expected.json     the 12 fixture entries this change owns
+//   conformance/v0.4/expected.json     the 12 fixture entries this module owns
 //   packages/universal-manifest/src/index.ts  classifyLivenessFreshness (reference
 //                                      thresholds: live ≤60s, recent ≤4h, stale within
 //                                      validUntil; past/unparseable validUntil ⇒ unknown)
@@ -32,7 +32,6 @@
 // (recommended merge order: tier(133) → assurance(135) → sealed(132) →
 // consent(122) → projection(123) — result artifact).
 //
-// ---------------------------------------------------------------------------
 // HONESTY CEILING — what is REAL vs PREVIEW/fail-closed (machine-readable
 // descriptor: feature_CONFORMANCE below; every `real:true` is exercised by
 // web/manifest/verify.mjs against the external suite or live crypto):
@@ -80,7 +79,6 @@
 // fixtures + the locked-facet demo surface. NOT consent semantics
 //NOT trust tiers, NOT sealed facets, NOT the full
 // six-stage evaluator.
-// ---------------------------------------------------------------------------
 //
 // FILE DISCIPLINE: NEW, specific module. Imports the receipt hub
 // (canonical container — the task dependency) and the signing library
@@ -100,9 +98,7 @@ import { verifyManifestProfileA, attachSignatureProfileA } from "../signing/um-s
 import { generateKeyPair, signBytes, verifyBytes } from "../signing/ed25519.mjs";
 import { utf8Encode, bytesToBase64Url } from "../signing/codecs.mjs";
 
-// ===========================================================================
 // Constants (schema.json $defs + EXT-T1 value sets)
-// ===========================================================================
 
 export { LIVENESS_FRESHNESS_CLASSES }; // hub-owned closed set: live|recent|stale|unknown
 
@@ -155,9 +151,7 @@ export const feature_CONFORMANCE = Object.freeze({
     "biometric capture and no human presence is claimed or implied.",
 });
 
-// ===========================================================================
 // Small helpers
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -172,9 +166,7 @@ export function isAssuranceClass(v) {
   return ASSURANCE_CLASSES.includes(v);
 }
 
-// ===========================================================================
 // 1) STRUCTURAL SURFACE — shape validation (schema.json $defs parity)
-// ===========================================================================
 
 /**
  * Validate a root-level livenessAttestation per schema.json
@@ -304,9 +296,7 @@ export async function structuralVerdictLivenessAssurance(manifest) {
   };
 }
 
-// ===========================================================================
 // 2) FRESHNESS CLASSIFICATION — EXT-T1 §T1.3 (reference-parity, fail closed)
-// ===========================================================================
 
 /**
  * Classify a liveness attestation's freshness per EXT-T1 §T1.3 (reference
@@ -355,11 +345,9 @@ export function livenessStatusEcho(manifest, now) {
   return echo;
 }
 
-// ===========================================================================
 // 3) DEMO ATTESTER — the ONLY proofType this module validates (REAL Ed25519,
 //    LABELED). schema.json proofValue recipe: signature over the UTF-8 bytes of
 //    subject || attestedAt. Proves attestation HANDLING, not human presence.
-// ===========================================================================
 
 /**
  * Issue a demo liveness attestation (proofType "demo-ed25519"): REAL Ed25519
@@ -438,9 +426,7 @@ export async function attestationValidatedForFloors(manifest, context = {}) {
   };
 }
 
-// ===========================================================================
 // 4) FLOOR CHECKS — EXT-T1 §T1.3.1 / §T1.3.3 (PREVIEW, fail closed)
-// ===========================================================================
 
 /**
  * Liveness floor comparison (T1.3.1). `floorClass` is the class usable FOR THE
@@ -670,14 +656,12 @@ export async function buildLivenessAssuranceFragment(manifest, context = {}) {
   return (await evaluateFacetFloors(manifest, context)).fragment;
 }
 
-// ===========================================================================
 // 5) EVALUATION verdict — the T1.3 slice at the pinned evaluationContext,
 //    composed THROUGH the hub (createReceipt → mergeFragment →
 //    finalizeReceipt; the hub's shape contract fails closed).
-// ===========================================================================
 
 /**
- * Evaluate ONE manifest through this change's slice at the pinned context:
+ * Evaluate ONE manifest through this module's slice at the pinned context:
  *   Arrive/Verify structural+signature → freshness (60s skew) →
  *   livenessStatus echo (T1.3) → per-facet floors (T1.3.1/T1.3.3, Consent-stage
  *   sequencing) → hub composition (composeOutcome rule 1 makes an
@@ -693,7 +677,6 @@ export async function evaluateLivenessAssurance(manifest, context = {}) {
   const receipt = createReceipt({ manifestId, evaluatorId: context.evaluatorId });
   let hardReject = false;
 
-  // --- Arrive/Verify: envelope + shapes ------------------------------
   const envErrors = envelopeErrors(manifest);
   const shapeErrors = envErrors.length === 0 ? validateLivenessAssuranceStructural(manifest).errors : [];
   if (envErrors.length > 0 || shapeErrors.length > 0) {
@@ -705,7 +688,6 @@ export async function evaluateLivenessAssurance(manifest, context = {}) {
     hardReject = true;
   }
 
-  // --- Signature (real Ed25519 Profile A) -----------------------------------
   if (!hardReject) {
     const sigReport = await verifyManifestProfileA(manifest);
     if (!sigReport.ok) {
@@ -727,7 +709,6 @@ export async function evaluateLivenessAssurance(manifest, context = {}) {
     }
   }
 
-  // --- Freshness at the PINNED now (Section 3.1.2; 60s skew) ----------------
   if (!hardReject) {
     const SKEW_MS = 60_000;
     if (Date.parse(manifest.issuedAt) - nowMs > SKEW_MS) {
@@ -751,7 +732,6 @@ export async function evaluateLivenessAssurance(manifest, context = {}) {
     }
   }
 
-  // --- T1.3 echo + T1.3.1/T1.3.3 floors (the slice this change owns) ------------
   let floors = { fragment: { engine: "runtime-liveness-assurance" }, floorChecks: [], passThroughFacetIds: [], deferred: [] };
   if (!hardReject) {
     floors = await evaluateFacetFloors(manifest, { ...context, now: new Date(nowMs).toISOString() });
@@ -781,12 +761,10 @@ export async function evaluateLivenessAssurance(manifest, context = {}) {
   };
 }
 
-// ===========================================================================
 // 6) DEMO SURFACE — the "locked facet" scenario (fixture-derived; the page's
 //    hospital-corridor scene was CUT by scenario — this is NOT a page
 //    scene). Pure functions; UI wiring into live-adapter.js is the
 //    a serialized edit.
-// ===========================================================================
 
 export const feature_DEMO_SCENARIO_LABEL =
   "fixture-derived: valid/manifest-locked-facet-below-floor.jsonld (locked-tier portable-unlock profile) — conformance-surface demo, NOT a page scene (runtime scenario)";
@@ -892,10 +870,8 @@ export async function demoLockedFacetScenario({ demoUnlock = false, now } = {}) 
   return out;
 }
 
-// ===========================================================================
 // 7) FIXTURE HANDLER + REGISTRATION HOOK (the composed v0.4 runner wires this
 //    with ONE line — applied by the integration step, not by this module).
-// ===========================================================================
 
 /** The 12 fixture files owns. */
 export const feature_FIXTURE_FILENAMES = Object.freeze([

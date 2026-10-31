@@ -15,11 +15,7 @@
  *   - writes evidence to evidence/wow-conformance.json and exits non-zero on any
  *     real conformance failure (contract-only 404s do NOT fail the run).
  *
- * THIS HARNESS USED TO LIE ABOUT ITSELF.
- *   Under load it silently downgraded to fixtures-only, wrote that thin result
- *   OVER a fixtures+live evidence file, and exited 0. A degraded run was byte-for-byte
- *   indistinguishable from a full one to anybody reading the exit code, and the richer
- *   evidence it destroyed was uncommitted, so the loss was unrecoverable. Now:
+ * A degraded run must never look like a full one.
  *     - the live pass is never skipped for machine load; a timeout-like failure of it is retried once;
  *     - a NARROWER run may not overwrite a RICHER one — the write is REFUSED, the good
  *       file is preserved, and the degraded run goes to *.degraded.json (exit 4);
@@ -61,7 +57,6 @@ function parseArgs(argv)
 
 function pad(s, n) { s = String(s); return s + ' '.repeat(Math.max(0, n - s.length)); }
 
-// ---- coverage rank + refuse-to-clobber ----------------
 // A run that saw LESS must never overwrite the evidence of a run that saw MORE.
 // Ranked so the comparison is explicit rather than an ad-hoc string test.
 const COVERAGE_RANK = { 'fixtures-only': 1, 'fixtures+live': 2 };
@@ -245,7 +240,6 @@ async function main()
         report.proof_port = port;
     }
 
-    // ---- e2e-driver manifest idiom: assertions.{ok,problems} + evidence ----
     const manifest = Object.assign({
         version_id: 'runtime',
         components: 'components F — WoW conformance (continuous)',
@@ -305,7 +299,6 @@ async function main()
     const divergeCount = report.endpoints.filter(e => e.status === 'conformant-with-declared-divergence').length;
     const contractOnly = report.endpoints.filter(e => e.status === 'contract-only' || e.status === 'not-implemented').length;
 
-    // ---- COVERAGE banner: a narrowed run must NEVER look like a full one -----
     console.log('\n=== COVERAGE (what this run actually looked at) ===');
     console.log('  mode: ' + report.mode + '   live endpoints validated: '
         + report.coverage.endpoints_live_validated + '/' + report.coverage.endpoints_total);

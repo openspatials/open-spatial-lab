@@ -22,7 +22,6 @@ async function transformChecks(ports) {
   const THREE = await import('three');
   const { buildWowScene } = await import(path.join(ROOT, 'web', 'wow-scene.mjs'));
 
-  // ---- T1. One asymmetric fixture, read the same way by the server, the scene and the reference ----
   await run('T1', 'a parent translated (1,2,3) and turned 90 degrees about Y places the child point (1,0,0) at (1,2,2) in the scene, as the reference does', async (impl) => {
     const s = await boot('a', ports.next());
     try {
@@ -52,7 +51,6 @@ async function transformChecks(ports) {
     } finally { await s.close(); }
   }, { read: (m) => m }, [{ name: 'a reader that takes the matrix as row-major', impl: { read: transpose } }]);
 
-  // ---- T2. Matrices that cannot be a placement are refused with 422 and a reason ------------------
   const lastRowBad = IDENTITY.slice(); lastRowBad[15] = 2;
   const lastRowSlanted = IDENTITY.slice(); lastRowSlanted[3] = 0.1;
   const sheared = [1, 0, 0, 0, 0.5, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];

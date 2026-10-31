@@ -2,9 +2,7 @@
 // message gating (R6). Bucket 3 — DEMONSTRATION-ONLY; FORWARD registered-profile
 // candidate. NO v0.4 conformance claim is made or implied by this module.
 //
-// ============================================================================
 // WHAT THIS IS (and the honesty ceiling, up front)
-// ============================================================================
 // The RP1 spatial-fabric page bars this module demonstrates:
 //   R6 — "Inter-service messages cross the browser-mediated channel only when
 //        the inter-service authorization manifest names the source, the target
@@ -42,9 +40,7 @@
 //       "/hospital/icu-corridor/wayfinding-service/radiology/**"
 //       reason "authorized-radiology-som-branch"
 //
-// ============================================================================
 // SINGLE-CHAIN DISCIPLINE (matrix G6) — chain is REUSED, never forked
-// ============================================================================
 // This module implements NO hash chain. Authorization/denial decisions are
 // appended as typed events onto EVENT chain (createReceiptChain /
 // appendChainEvent — the 16-class labels + minimized-receipt whitelist), then
@@ -59,9 +55,7 @@
 // NOT the JCS signing-input exclusion); links signed AFTER chain fields are
 // written; pass UNSIGNED hub receipts; append-after-seal throws.
 //
-// ============================================================================
 // VOCABULARY HONESTY
-// ============================================================================
 // Published (rp1 facet context): the facet type names SOMBranchAuthorization
 // and InterServiceAuthorization, and the terms somScopes, hostFunctions,
 // serviceDID. Fixture-attested shapes: somReadScopes/somWriteScopes (service-
@@ -72,9 +66,7 @@
 // they are DEMONSTRATION-SUGGESTED, non-normative, and labeled so in
 // feature_SOM_CONFORMANCE.vocabulary; only the type name is published.
 //
-// ============================================================================
 // FAIL-CLOSED CONTRACT (the real logic this module owns)
-// ============================================================================
 //   · glob grammar: literal segments, "*" (exactly ONE segment), and a
 //     trailing "/**" (ONE or more descendant segments — the branch root itself
 //     is NOT matched by its own "/**": protective pin, gitignore-style). "**"
@@ -116,9 +108,7 @@ import { buildCrossingSensorGateSurface } from "./consent-gating.mjs"; // gating
 import { RP1_MODEL } from "./rp1-model.mjs"; // the RP1 stack this authorization layer sits on
 import { UM_V04_CONTEXT, UM_V04_MANIFEST_VERSION, UM_FACET_TYPE, UM_ENTITY_TYPE } from "./interfaces.mjs";
 
-// ===========================================================================
 // 0) SMALL LOCAL HELPERS (module-local; peers keep the same discipline)
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -130,9 +120,7 @@ function asArray(v) {
   return Array.isArray(v) ? v : v === undefined || v === null ? [] : [v];
 }
 
-// ===========================================================================
 // 1) GLOB-SCOPE GRAMMAR — parse + match, fail closed (the R7 core)
-// ===========================================================================
 
 /** Concrete-path / literal-glob segment charset. "." and ".." are refused
  *  separately (dot-segment traversal must never alias across branches). */
@@ -216,10 +204,8 @@ export function somScopesMatch(scopes, path) {
   return null;
 }
 
-// ===========================================================================
 // 2) THE UM CLAIM — facet builders + extractors (authorization is READ FROM A
 //    MANIFEST FACET, never hardcoded; "UM provides the verifiable claim")
-// ===========================================================================
 
 /**
  * Split serviceAuth-style scope entries ("som.read:<glob>" / "som.write:<glob>"
@@ -406,10 +392,8 @@ export function extractInterServiceAuthorization(manifest) {
   return null; // no authorization facet ⇒ EVERY message is refused (default deny)
 }
 
-// ===========================================================================
 // 3) THE SOM — an authority-scoped scene tree with glob-scoped writes (R7).
 //    "The SOM enforces the authorization; UM provides the verifiable claim."
-// ===========================================================================
 
 /**
  * Create the SOM tree. `branches` pre-seeds branch-root nodes (path ⇒ marker);
@@ -568,9 +552,7 @@ export function somSnapshot(tree) {
   return JSON.stringify(paths.map((p) => [p, tree.nodes.get(p)]));
 }
 
-// ===========================================================================
 // 4) THE BROWSER-MEDIATED CHANNEL — inter-service message gating (R6)
-// ===========================================================================
 
 /**
  * Create the mediated channel. The authorization TRIPLES are read from the
@@ -672,10 +654,8 @@ export function sendInterServiceMessage(channel, { from, targetCategory, message
   return decision;
 }
 
-// ===========================================================================
 // 5) SESSION SURFACE — decisions ride EVENT chain; at seal time they
 //    land on HASH chain as an events-bearing receipt link (E7 route)
-// ===========================================================================
 
 /**
  * Create one SOM-gating audit session: ONE event chain shared by the
@@ -767,9 +747,7 @@ export async function sealSomGatingSession(
   return { summaryReceipt: summary, links, chainReport, traceRows: chainTraceRows(session.eventChain) };
 }
 
-// ===========================================================================
 // 6) THE FACTORY-FLOOR DEMO SURFACE — the page's Scene 02 moments, scripted
-// ===========================================================================
 
 /** Demo cast — fixture DIDs where the fixtures name them (user + safety
  *  service), page-scene names elsewhere. Demo-local, not a namespace claim. */
@@ -942,10 +920,8 @@ export async function runFactoryFloorSomDemo({ privateKeyInput, keyRef, admissio
   return { session, writes, messages, sensors, sealed, at };
 }
 
-// ===========================================================================
 // 7) DEMO PANEL ROW — API_EVENTS surface record (integration is the
 //    a serialized live-adapter.js edit)
-// ===========================================================================
 
 export function somGatingPanelRecord(session, { chainReport } = {}) {
   const rows = session?.eventChain?.events ?? [];
@@ -963,9 +939,7 @@ export function somGatingPanelRecord(session, { chainReport } = {}) {
   };
 }
 
-// ===========================================================================
 // 8) HONESTY DESCRIPTOR — what this module claims and (mostly) does NOT claim
-// ===========================================================================
 
 export const feature_SOM_CONFORMANCE = Object.freeze({
   wo: "runtime",

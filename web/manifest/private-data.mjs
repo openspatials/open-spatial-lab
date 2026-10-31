@@ -1,5 +1,4 @@
 // v0.4 private-data family (Tier-2 PREVIEW, fail-closed).
-// =====================================================================
 //
 // SCOPE (the private-data handling wave, CONFORMANCE §2.19 evaluator MUST +
 // §3.14 holder MUST, all Grade-1 PREVIEW per §9):
@@ -28,7 +27,6 @@
 // profile-supplied here, never sourced from the manifest under evaluation.
 //
 // External source of truth (READ-ONLY):
-// =====================================================================
 
 import { verifyManifestProfileA } from "../signing/um-signature-profile-a.mjs";
 
@@ -56,9 +54,7 @@ import {
   PREVIEW_KEY_LIFECYCLE_EVENTS,
 } from "./receipt-hub.mjs";
 
-// ===========================================================================
 // 0) CONFORMANCE DESCRIPTOR + honesty labels (PREVIEW — nothing flips a flag)
-// ===========================================================================
 
 export const feature_PRIVATE_DATA_CONFORMANCE = Object.freeze({
   wo: "runtime",
@@ -81,10 +77,8 @@ export const feature_PRIVATE_DATA_CONFORMANCE = Object.freeze({
   flagFlipped: false,
 });
 
-// ===========================================================================
 // 1) SMALL HELPERS + base envelope gate (mirrors the shared v0.4 envelope
 //    contract; each task module carries its own private copy by convention)
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -119,9 +113,7 @@ function reject(code, reason, detail) {
   return { decision: "reject", code, reason, ...(detail ? { detail } : {}) };
 }
 
-// ===========================================================================
 // 2) Q1 — Per-facet cryptographic isolation (mechanics REUSED)
-// ===========================================================================
 //
 // Base §2.3.5 / round-01.1 L-14: under an isolation CLAIM over a declared set,
 // no two facets in the set may share a decryption-authorizing recipients[].
@@ -179,9 +171,7 @@ export function checkFacetIsolation(value, context = {}) {
   return accept("Q1_ISOLATED", "isolated set has distinct kid and iv per facet", { facetCount: inSet.length });
 }
 
-// ===========================================================================
 // 3) Q3 — Derived-write monotonicity + DEC-03 sensitivity-ordering guard
-// ===========================================================================
 //
 // DEC-03 (ratified): the label ordering that gates derived writes is
 // PROFILE-SUPPLIED — it comes from a registered profile the DEPLOYMENT pins,
@@ -324,9 +314,7 @@ export function assertManifestOrderingIgnored(manifest, context) {
   };
 }
 
-// ===========================================================================
 // 4) Q5 — Write authorization (EXTENDS the consent API, fail-closed)
-// ===========================================================================
 //
 // Base §3.1.4 / round-01.1 L-10: a write to a facet is authorized only by a
 // consent whose facetRef matches the TARGET @id, whose scope LITERALLY carries
@@ -399,9 +387,7 @@ export function evaluateWriteAuthorizationReceipt(manifest, writes = [], context
   return { receipt, performed, denied };
 }
 
-// ===========================================================================
 // 5) Q7 — Unlock windows (bounded enumerated set, anti-replay, fail-closed)
-// ===========================================================================
 //
 // EXT-OPT O4.5 / round-01.1 L-11: an unlock window MUST explicitly enumerate a
 // bounded non-empty facet set (unlockWindowFacets), MUST bind to a fresh
@@ -500,9 +486,7 @@ export function refreshUnlockWindow(session, now) {
   return session;
 }
 
-// ===========================================================================
 // 6) Q6 — Key-lifecycle receipt-event semantics (rotate / shred)
-// ===========================================================================
 //
 // EXT-OPT O3.2/O3.3 / round-01.1 L-13: a receipt's facet-key-rotated /
 // facet-key-shredded events MUST each carry a non-empty facetKeyRef (an
@@ -593,9 +577,7 @@ export function buildKeyLifecycleReceiptEvents({ rotatedKeyRef, shreddedKeyRef, 
   ];
 }
 
-// ===========================================================================
 // 7) FACTORY-FLOOR renewal-path trace (key-lifecycle events ride chain)
-// ===========================================================================
 
 /**
  * Rebuild + semantically validate the factory-floor renewal path
@@ -626,9 +608,7 @@ export function buildRenewalPathTrace() {
   };
 }
 
-// ===========================================================================
 // 8) STRUCTURAL VERDICTS — the 5 Q-fixtures accept structurally (demo validator)
-// ===========================================================================
 //
 // Each Q-fixture is a signed v0.4 envelope; structural accept = valid envelope
 // + valid Profile A signature. The private-data members (write scope, unlock
@@ -683,9 +663,7 @@ export async function featureFixtureHandler(fixtureJson) {
   return out;
 }
 
-// ===========================================================================
 // 9) DEMO SURFACE — the "private data" panel (crossing / factory scenes)
-// ===========================================================================
 //
 // Headless data builder (browser-safe): a denied write (no write consent), a
 // granted write ('written'), a timed unlock window over a sealed gov-ID facet,
@@ -761,9 +739,7 @@ export function buildPrivateDataPanel({ now = "2026-06-01T00:02:00.000Z" } = {})
   };
 }
 
-// ===========================================================================
 // 10) OPTIONAL registry hook (NOT wired into the v0.1 gate runner by design)
-// ===========================================================================
 
 export function registerPrivateData(registry) {
   if (!registry || typeof registry.register !== "function") return;

@@ -38,9 +38,7 @@
 
   const RAD = Math.PI / 180;
 
-  // ---------------------------------------------------------------------------------------
   // Vectors and matrices (plain arrays; matrices are row-major 3x3).
-  // ---------------------------------------------------------------------------------------
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -54,9 +52,7 @@
   };
   const matVec = (m, v) => [dot(m[0], v), dot(m[1], v), dot(m[2], v)];
 
-  // ---------------------------------------------------------------------------------------
   // Geodesy.
-  // ---------------------------------------------------------------------------------------
 
   /** Geographic degrees and metres above the ellipsoid to Earth-centred, Earth-fixed metres. */
   function ecef(lat, lon, h) {
@@ -99,9 +95,7 @@
     return { lat: lat / RAD, lon: lon / RAD, h };
   }
 
-  // ---------------------------------------------------------------------------------------
   // Orientation.
-  // ---------------------------------------------------------------------------------------
   const turn = (axis, angle) => {
     const c = Math.cos(angle);
     const s = Math.sin(angle);
@@ -136,9 +130,7 @@
     return { yaw: (yaw / RAD) * k.yaw, pitch: (pitch / RAD) * k.pitch, roll: (roll / RAD) * k.roll };
   }
 
-  // ---------------------------------------------------------------------------------------
   // Frames. A frame is a graph's origin and axes in Earth-centred coordinates.
-  // ---------------------------------------------------------------------------------------
 
   /**
    * The frame a graph anchored at `geoPose` defines. At zero angles X is east, Y is up and Z is
@@ -202,9 +194,7 @@
     };
   }
 
-  // ---------------------------------------------------------------------------------------
   // The one GeoPose reader.
-  // ---------------------------------------------------------------------------------------
 
   const READ_ERRORS = Object.freeze({
     NOT_AN_OBJECT: "GEOPOSE_NOT_AN_OBJECT",

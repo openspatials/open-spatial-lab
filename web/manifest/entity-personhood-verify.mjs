@@ -70,9 +70,7 @@ function check(id, ok, msg, detail) {
 
 const CTX = () => ({ now: new Date().toISOString(), maxSupportedTrustTier: 1 });
 
-// ---------------------------------------------------------------------------
 // A — P4 multi-avatar entity-type scene (each signed + verified) + adversarial
-// ---------------------------------------------------------------------------
 async function sectionA() {
   for (const entityType of ENTITY_TYPES) {
     const { manifest } = await buildDemoAvatarManifest({ entityType });
@@ -166,9 +164,7 @@ async function sectionA() {
   );
 }
 
-// ---------------------------------------------------------------------------
 // B — tier honesty: unbound ⇒ VISIBLE Tier-0 cap; bound ⇒ Tier 1; tamper ⇒ cap
-// ---------------------------------------------------------------------------
 async function sectionB() {
   // B1 — UNBOUND Tier-1 entity-type claim ⇒ capped at Tier 0, visibly.
   const { manifest: unbound } = await buildDemoAvatarManifest({ entityType: "human", unbound: true });
@@ -225,9 +221,7 @@ async function sectionB() {
   );
 }
 
-// ---------------------------------------------------------------------------
 // C — proof-of-personhood: consistency gate + freshness + ZK fail-closed
-// ---------------------------------------------------------------------------
 async function sectionC() {
   // C1 — human avatar with a bound, namespaced, fresh personhood attestation ⇒ verified.
   const { manifest: human } = await buildDemoAvatarManifest({ entityType: "human", withPersonhood: true });
@@ -335,9 +329,7 @@ async function sectionC() {
   check("C6", threw6, "personhood builder REFUSES to emit without a namespace (namespace separation is mandatory)");
 }
 
-// ---------------------------------------------------------------------------
 // D — age proof: signed-VC threshold, no birth disclosure, FORWARD-labeled
-// ---------------------------------------------------------------------------
 async function sectionD() {
   const { manifest } = await buildDemoAvatarManifest({ entityType: "human", withAgeProof: true, ageThreshold: 18 });
   const f1 = await evaluateEntityPersonhood(manifest, CTX());
@@ -465,9 +457,7 @@ async function sectionD() {
   );
 }
 
-// ---------------------------------------------------------------------------
 // E — demo surface + honesty descriptor
-// ---------------------------------------------------------------------------
 async function sectionE() {
   const surface = await buildEntityPersonhoodDemoSurface();
 
@@ -532,7 +522,6 @@ async function sectionE() {
   );
 }
 
-// ---------------------------------------------------------------------------
 async function main() {
   console.log("runtime entity-type attestation + personhood — standalone verification");
   console.log("======================================================================");

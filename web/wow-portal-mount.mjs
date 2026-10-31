@@ -436,7 +436,7 @@ export function mountPlacementTool({ THREE, document, mounted, viewControls, cam
 
   /**
    * A pose on the floor, as the localTransform of a node under `parent`: at `point`, its +Z facing the middle of
-   * the world, as every portal in the lab faces (iteration 4); a portal placed at the middle faces the camera.
+   * the world, as every portal in the lab faces; a portal placed at the middle faces the camera.
    */
   function localTransformAt(parent, point) {
     const atMiddle = Math.hypot(point.x, point.z) < 0.5;

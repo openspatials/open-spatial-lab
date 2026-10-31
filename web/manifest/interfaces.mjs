@@ -16,9 +16,7 @@
 // the same portability trick web/geopose-basic-sdu.mjs and web/iwps-query-teleport.mjs
 // use.
 //
-// ---------------------------------------------------------------------------
 // WHY THESE SHAPES ARE v0.4-FACET / v0.4-POINTER SHAPED (not ad-hoc)
-// ---------------------------------------------------------------------------
 // The demo's emitted manifest targets Universal Manifest v0.4 (spec/v0.4/schema.json).
 // In v0.4:
 //   - A facet REQUIRES `@id` AND `@type` (schema.json $defs/facet, line 103) — v0.1
@@ -32,18 +30,14 @@
 // drops them into `facets[]` / `pointers[]` with only identity/URN normalization — no
 // second shape to drift out of schema-validity.
 //
-// ---------------------------------------------------------------------------
 // SCOPE / HONESTY (read before touching the labels)
-// ---------------------------------------------------------------------------
 // These are STRUCTURAL interface contracts. Conforming to them makes the emitted
 // facet/pointer *schema-shaped* for v0.4 — it is NOT a UM conformance claim (that is
 // evaluator conformance + live signing, handled by /117b/119, and gated behind
-// the `um_conformance` flag which this change does NOT flip). The validators below check
+// the `um_conformance` flag which this module does NOT flip). The validators below check
 // SHAPE only; they do not verify signatures, consent semantics, or tier logic.
 
-// ===========================================================================
 // The v0.4 canonical constants these interfaces are pinned to.
-// ===========================================================================
 export const UM_V04_CONTEXT = "https://universalmanifest.net/ns/v0.4";
 export const UM_V04_MANIFEST_VERSION = "0.4";
 export const UM_FACET_TYPE = "um:Facet";
@@ -55,9 +49,7 @@ export const UM_ENTITY_TYPE = "um:Entity";
 // pointer type (`um:agentDelegation`, which triggers the agentDelegationPointer $def).
 export const LOADING_POINTER_TYPE = "um:loadingPointer";
 
-// ===========================================================================
 // AvatarDefinition — the v0.4 avatar-FACET-shaped interface.
-// ===========================================================================
 //
 // An AvatarDefinition is the demo's portable, standards-facing description of the
 // crossing user's avatar (variant + equipment + a pose reference), expressed so it
@@ -93,7 +85,6 @@ export const LOADING_POINTER_TYPE = "um:loadingPointer";
 //   `fromAvatarParams()` below implements that tolerant mapping so the seam closes the
 //   moment 126 lands, accepting either the AvatarDefinition field names or the likely
 //   AvatarParams aliases. If 126's landed shape differs, adjust ONLY this one adapter.
-//
 export const AVATAR_DEFINITION_CONTRACT = Object.freeze({
   interface: "AvatarDefinition",
   version: "runtime-v1",
@@ -176,9 +167,7 @@ export function validateAvatarDefinition(def) {
   return { valid: errors.length === 0, errors };
 }
 
-// ===========================================================================
 // LoadingPointer — the v0.4 pointer-shaped interface.
-// ===========================================================================
 //
 // A LoadingPointer is the demo's portable reference to the DESTINATION's loading
 // content (the thing the arriving world loads for the user). It is expressed so it
@@ -205,7 +194,6 @@ export function validateAvatarDefinition(def) {
 //                           LOADING_POINTER_TYPE ("um:loadingPointer"). MUST NOT be
 //                           "um:agentDelegation" here (that is a different, delegation
 //                           pointer with its own required fields).
-//
 export const LOADING_POINTER_CONTRACT = Object.freeze({
   interface: "LoadingPointer",
   version: "runtime-v1",
@@ -258,9 +246,7 @@ export function validateLoadingPointer(ptr) {
   return { valid: errors.length === 0, errors };
 }
 
-// ===========================================================================
 // Shared shape helpers (local, no cross-file coupling).
-// ===========================================================================
 function str(v) {
   return v == null ? "" : String(v);
 }

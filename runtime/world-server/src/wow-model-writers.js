@@ -32,9 +32,7 @@
  * ISO — only that the bytes are the real thing for the geometry we host.
  */
 
-// ---------------------------------------------------------------------------
 // Geometry — the same primitives the live world hosts.
-// ---------------------------------------------------------------------------
 
 /** Axis-aligned box centred on the origin. Returns {positions, indices}. */
 function boxMesh(size)
@@ -104,9 +102,7 @@ function hexToRgb01(hex)
 
 const f = (n) => (Math.round(Number(n) * 1e6) / 1e6).toString();
 
-// ---------------------------------------------------------------------------
 // Writers
-// ---------------------------------------------------------------------------
 
 /** model/obj — Wavefront OBJ (references the sibling .mtl by name). */
 function writeObj(mesh, name)

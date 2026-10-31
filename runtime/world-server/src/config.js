@@ -49,12 +49,7 @@ const NODES = {
             target_location_id : 'location-a',
             target_world_id : 'demo-room-a',
             target_base_url : 'http://127.0.0.1:18151',
-            // P1 (shared-edge portal identity): this edge's
-            // counterpart is location-a's HOSTED lobby-return portal — no longer
-            // 'location-a-portal' (the A<->B portal!). Pre-P1, prefetch/region/
-            // aperture/exit all anchored on the WRONG portal in A (4.8 m off),
-            // which is the root of the "walk lobby->A, turn around, the
-            // portal now goes to B" report.
+            // Shared-edge portal identity: this edge's counterpart is location-a's HOSTED lobby-return portal, not 'location-a-portal' (the A<->B portal).
             target_portal_id : 'location-a-portal-lobby',
             trigger : { position : [ -2.0, 0, -2.8 ], radius_m : 1.25 },
             arrival : { position : [ 0, 0, 3.6 ], rotation_y : Math.PI },
@@ -84,7 +79,7 @@ const NODES = {
             label : 'Portal to Denver Skyport',
             source_location_id : 'location-lobby',
             source_world_id : 'demo-lobby',
-            // Portal C now uses the same real backend
+            // Portal C uses the same real backend
             // destination contract as A/B. The airport's authored graph remains
             // backend-hosted data at /wow/graph; no fixture/client-scene fallback
             // participates in prefetch, crossing, arrival, presence, or return.

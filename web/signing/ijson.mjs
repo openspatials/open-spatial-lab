@@ -82,10 +82,8 @@ export function findUnsafeNumber(value, path = "$") {
   return null;
 }
 
-// ---------------------------------------------------------------------------
 // parseIJson — strict recursive-descent I-JSON parser (RFC 8259 grammar with the
 // RFC 7493 discipline JSON.parse omits). Throws TypeError with a character offset.
-// ---------------------------------------------------------------------------
 
 // JSON number token, anchored stickily at the current offset (RFC 8259 §6).
 const NUMBER_RE = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;

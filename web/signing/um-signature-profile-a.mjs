@@ -61,7 +61,7 @@
 //     SIGNATURE, and reports exactly which checks it ran.
 //   - Producing a signature "shaped for Profile A" is proven by test vectors and
 //     by cross-checking against the UM reference implementation — NOT by flipping
-//     any conformance flag. No *_conformance flag is set anywhere in this change.
+//     any conformance flag. No *_conformance flag is set anywhere in this module.
 
 import { jcsCanonicalize, jcsCanonicalizeToBytes } from "./jcs-rfc8785.mjs";
 import {

@@ -1,9 +1,7 @@
 // BEGIN — v0.4 bilateral session + paired-receipt correlation
 // + THE receipt hash-chain (EXT-OPT O3.1/O4 PREVIEW; Base §4 field surface).
 //
-// ============================================================================
 // THIS MODULE IS THE SINGLE OWNER OF THE RECEIPT HASH-CHAIN (matrix G6).
-// ============================================================================
 // receipt hub RESERVED the chain surface (seq/prevHash/chainId on the
 // canonical um:Receipt; seq/prevHash/sealSignature nulls on the receipt-chain
 // facet) and NEVER computes prevHash. THIS module is the only computer of
@@ -89,9 +87,7 @@ import { base64ToBytes } from "../signing/codecs.mjs";
 
 export { mintExchangeId }; // re-export: the demo mints exchange tokens through ONE surface
 
-// ===========================================================================
 // 0) SMALL LOCAL HELPERS (module-local; the hub does not export its internals)
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -113,9 +109,7 @@ function utf8ToHex(str) {
   return hex;
 }
 
-// ===========================================================================
 // 1) THE SESSION OBJECT — um:BilateralSession (EXT-OPT O4.1, PREVIEW)
-// ===========================================================================
 
 /** The O4.2 lifecycle states, in strictly-forward order (+ the TTL terminal). */
 export const SESSION_STATES = Object.freeze([
@@ -218,9 +212,7 @@ export function createBilateralSession({ initiatorDid, responderDid, initiatedAt
   return session;
 }
 
-// ===========================================================================
 // 2) LIFECYCLE — strictly forward, TTL fail-closed (EXT-OPT O4.2)
-// ===========================================================================
 
 /** O4.1: after expiresAt the session IS "expired". Auto-marks an active session
  *  whose TTL elapsed; completed/expired are left untouched. Returns the session. */
@@ -302,9 +294,7 @@ export function assertSessionOperable(session, { now } = {}) {
   return session;
 }
 
-// ===========================================================================
 // 3) CORRELATION-TOKEN LINT (EXT-OPT O4.1 security / v0.4 README)
-// ===========================================================================
 
 /**
  * Lint a bilateral correlation token (sessionId / exchangeId) against the O4.1
@@ -383,9 +373,7 @@ export function lintCorrelationToken(token, { kind, partyIds = [] } = {}) {
   return { ok: problems.length === 0, problems };
 }
 
-// ===========================================================================
 // 4) NEGOTIATED FLOOR (CONFORMANCE §4 / Base §6.4.6 — reuses tier math)
-// ===========================================================================
 
 /**
  * The exchange-level tier floor: MAX of both parties' `requiredTrustTier`
@@ -423,9 +411,7 @@ export function enforceExchangeFloor({ floor, verifiedTiers = {}, sybilCritical 
   };
 }
 
-// ===========================================================================
 // 5) PAIRED-RECEIPT CORRELATION (EXT-OPT O4.3 — hub primitives underneath)
-// ===========================================================================
 
 /**
  * Stamp BOTH parties' receipts with the session's exchangeId + each evaluator's
@@ -481,9 +467,7 @@ export function correlateReceiptPair(receipts, exchangeId) {
   };
 }
 
-// ===========================================================================
 // 6) THE RECEIPT HASH-CHAIN (EXT-OPT O3.1 PREVIEW — the single chain, owned here)
-// ===========================================================================
 
 /**
  * Create the hash chain. Pass the um:BilateralSession for a bilateral chain —
@@ -648,7 +632,6 @@ export async function verifyReceiptChain(chainOrLinks, { expectChainId, session,
     );
   }
 
-  // ---- V1: SEAL / HEAD-ANCHOR BINDING (tail-truncation + genesis-collapse guard).
   // Every truncated PREFIX of a sealed chain is internally consistent (gapless seq,
   // matching prevHash) so it has NO broken link — the only witness that a link was
   // dropped is the sealed head. Bind the verified head to a signed/sealed anchor:
@@ -718,7 +701,6 @@ export async function verifyReceiptChain(chainOrLinks, { expectChainId, session,
     report.links.push(row);
   }
 
-  // ---- V2: SIGNER-KEY ↔ CLAIMED-IDENTITY BINDING (SECOND pass; BOUND mode only).
   // Runs ONLY when the structural pass above found NO break, so a re-signed link
   // with a GENUINE successor is still reported at that successor's prevHash break
   // (the classic "money check", brokenAt = successor) — this pass never moves that
@@ -773,9 +755,7 @@ export async function verifyReceiptChain(chainOrLinks, { expectChainId, session,
   return report;
 }
 
-// ===========================================================================
 // 7) FILLING RESERVED SEAL FIELDS (P17 facet / R5+R11 departure seal)
-// ===========================================================================
 
 /**
  * Fill the receipt-chain facet's RESERVED hash-chain seal fields (left
@@ -851,9 +831,7 @@ export async function buildSealedDepartureManifest({ eventChain, hashChain, subj
   return attachSignatureProfileA(draft, privateKeyInput, keyRef ? { keyRef } : {});
 }
 
-// ===========================================================================
 // 8) THE FULL CROSSING (P2) — both present, both evaluate, paired + chained
-// ===========================================================================
 
 /**
  * Conduct ONE bilateral exchange round end-to-end (the portal crossing):
@@ -941,9 +919,7 @@ export async function conductBilateralExchange({ initiator, responder, session, 
   };
 }
 
-// ===========================================================================
 // 9) DEMO PANEL ROW + HONESTY DESCRIPTOR (PREVIEW labels in claim text)
-// ===========================================================================
 
 /** Compact read-only telemetry row for the API_EVENTS panel — carries the
  *  PREVIEW label so the UI states the conformance posture verbatim. */

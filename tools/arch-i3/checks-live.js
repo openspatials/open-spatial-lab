@@ -30,7 +30,6 @@ function percentile(values, p) {
 }
 
 async function liveChecks(ports) {
-  // ---- O1 ---------------------------------------------------------------------------------------------
   const dropsEveryTenth = { count: 20, interval: 150, serverEdits: { runtime: [['        for (const subscriber of eventSubscribers)\n', '        if (wowRevision % 10 === 0) return;\n        for (const subscriber of eventSubscribers)\n']] } };
   const ignoresRelativeUrls = { count: 20, interval: 150, observeEdits: [['        const changed = new Set((evt.urls || []).map((u) => new URL(u, base).href));', '        const changed = new Set(evt.urls || []);']] };
   await run('O1', 'B\'s simulator changes node n every second for 120 seconds with nobody in B; a separate observer process, given only two data-point URLs, receives every change: revisions one apart, values and times equal to the simulator\'s log, and 95% delivered within 500 ms on loopback', async (impl) => {
@@ -71,7 +70,6 @@ async function liveChecks(ports) {
     { name: 'an observer that does not resolve an event\'s URLs against the world\'s base', impl: ignoresRelativeUrls },
   ]);
 
-  // ---- O2 ---------------------------------------------------------------------------------------------
   const observersAreUsers = { serverEdits: { runtime: [['                active_user_count : livePresenceEntries(Date.now()).length,', '                active_user_count : livePresenceEntries(Date.now()).length + eventSubscribers.size,']] } };
   await run('O2', 'with only observers connected (an observer of both worlds and a raw event stream to each), active_user_count stays 0 in both worlds while B changes', async (impl) => {
     const s = await twoWorlds(ports, impl);
@@ -99,7 +97,6 @@ async function liveChecks(ports) {
     }
   }, {}, [{ name: 'a server that counts observers as users', impl: observersAreUsers }]);
 
-  // ---- O2b --------------------------------------------------------------------------------------------
   const countNotNamed = { serverEdits: { runtime: [
     ["            urls : [ 'wow/user/' + entry.wow_user_id, 'wow/world' ],", "            urls : [ 'wow/user/' + entry.wow_user_id ],"],
     ["        evt.urls = Array.from(new Set((evt.urls || []).concat([ 'wow/world' ])));", '        evt.urls = Array.from(new Set(evt.urls || []));'],
@@ -130,7 +127,6 @@ async function liveChecks(ports) {
     }
   }, {}, [{ name: 'a server whose user events do not name the World', impl: countNotNamed }]);
 
-  // ---- O3 ---------------------------------------------------------------------------------------------
   const tagEveryRead = { serverEdits: { server: [['            const etag = wowEtag(type, body);', '            const etag = wowEtag(type, body + Math.random());']] } };
   await run('O3', 'iteration 2\'s conditional read, repeated every 100 ms while the simulator writes: 304 between changes, and 200 with a new entity tag after each change', async (impl) => {
     const s = await twoWorlds(ports, impl);

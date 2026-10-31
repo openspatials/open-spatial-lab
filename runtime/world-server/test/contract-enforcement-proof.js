@@ -4,7 +4,6 @@
  * ALWAYS-ON, CONTRACT-DRIVEN WoW enforcement proof.
  *
  * THE BAR THIS HARNESS IS WRITTEN AGAINST
- * ---------------------------------------
  * Not "validation runs" — "validation CATCHES WHAT IT CLAIMS TO CATCH". This
  * repository has a documented history of proofs that pass while measuring
  * nothing (five standards claims once backed by greps of themselves), so every
@@ -127,9 +126,7 @@ async function main()
     const started = [];
     let evidenceDir = null;
     try {
-        // =================================================================
         // A — ALWAYS ON
-        // =================================================================
         // SUPPORTING (source text, not a conclusion on its own): the env var the
         // old opt-in layer needed is not read anywhere in this lane's source.
         const laneSources = fs.readdirSync(LANE_SRC).filter(f => f.endsWith('.js'));
@@ -162,9 +159,7 @@ async function main()
             'status=' + badWhileOff.status + ' hdr=' + V(badWhileOff));
         delete process.env.OSL_WOW_VALIDATE;
 
-        // =================================================================
         // B — NO CONFORMANT BEHAVIOUR CHANGED
-        // =================================================================
         const root = (await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '?form=node')).json;
         const preserved = [
             [ '/wow/world', 'pass:OSLWorldResponse' ],
@@ -224,9 +219,7 @@ async function main()
             && V(nodeForm) === 'pass:Node' && nodeForm.headers['x-osl-wow-spatial-form'] === 'node',
             'contract-hdr=' + nodeForm.headers['x-osl-wow-contract']);
 
-        // =================================================================
         // C — BROADER COVERAGE, MEASURED
-        // =================================================================
         const matrix = [
             [ 'GET', '/wow/world' ],
             [ 'GET', '/wow/location' ],
@@ -281,9 +274,7 @@ async function main()
             && at('POST', '/wow/spatial/' + SPATIAL_ID).status === 405,
             'verdict=' + at('POST', '/wow/spatial/' + SPATIAL_ID).verdict);
 
-        // =================================================================
         // D — CONTROLLED RED: a MUTATED SERVER emitting a bad RESPONSE
-        // =================================================================
         const v = createValidator();
         const realWorld = a.runtime.getWowWorld();
         check('D0 the UNMUTATED payload really is contract-valid (else the RED proves nothing)',
@@ -317,9 +308,7 @@ async function main()
             V(greenAfter) === 'pass:OSLWorldResponse' && greenAfter.raw === greenBefore.raw,
             'hdr=' + V(greenAfter));
 
-        // =================================================================
         // E — CONTROLLED RED: a bad REQUEST body
-        // =================================================================
         const rootBefore = (await GET(PORT.alwaysOn, '/wow/spatial/' + SPATIAL_ID + '?form=node')).json;
         const badBody = [ { label : 12345 } ];   // contract: Node.label is a string
         check('E0 the bad body really violates the CONTRACT request schema',
@@ -371,10 +360,8 @@ async function main()
             && V(sameForm) === 'pass:Node[]',
             'status=' + sameForm.status + ' hdr=' + V(sameForm));
 
-        // =================================================================
         // F — CONTRACT-DRIVEN: change the CONTRACT, enforcement follows.
         //     No source file is edited in any of these four sub-proofs.
-        // =================================================================
         // F1 TIGHTEN: require a property the server does not emit.
         const tightened = cloneContract();
         tightened.components.schemas.OSLWorldResponse.allOf.push(
@@ -422,9 +409,7 @@ async function main()
             rnRes.status === 200 && V(rnRes) === 'pass:OSLWorldResponseRenamedForProof',
             'hdr=' + V(rnRes));
 
-        // =================================================================
         // G — FAIL-CLOSED
-        // =================================================================
         const emptyDoc = { openapi : '3.0.4', paths : {}, components : { schemas : {} } };
         check('G1 an EMPTY contract makes the enforcer THROW (never a silent opt-out)',
             (() => { try { createContractEnforcer({ doc : emptyDoc }); return false; }
@@ -445,9 +430,7 @@ async function main()
             (() => { try { createContractEnforcer({ doc : noFlat }); return false; }
                      catch (e) { return /OSLFlatNode/.test(e.message); } })());
 
-        // =================================================================
         // H — BLAST RADIUS
-        // =================================================================
         const health = await GET(PORT.alwaysOn, '/healthz');
         const debug = await GET(PORT.alwaysOn, '/debug/state');
         check('H1 non-/wow routes are completely untouched (no validation header, unchanged 200)',
@@ -455,7 +438,6 @@ async function main()
             && debug.status === 200 && V(debug) === undefined,
             'healthz=' + V(health) + ' debug=' + V(debug));
 
-        // ---- evidence ----
         const enforcer = createContractEnforcer();
         const evidenceArg = process.argv.find(x => x.indexOf('--diagnostics=') === 0);
         const outPath = evidenceArg

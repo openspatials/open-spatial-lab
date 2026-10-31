@@ -43,7 +43,6 @@ import { flattenEmbeddedChildren } from "./wow-graph.mjs";
 const IDENTITY_4X4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const MAX_NODES = 20000; // safety cap against a pathological/cyclic graph
 
-// ---------------------------------------------------------------------------
 // the `SpatialFabricSubtree` contract, checked structurally.
 //
 // The contract's vocabulary is stated in this module, which imports only
@@ -51,7 +50,6 @@ const MAX_NODES = 20000; // safety cap against a pathological/cyclic graph
 // and app.js imports it into the browser. `wow-spec/proof/roundtrip.js` (part F)
 // checks that FABRIC_SUBTREE_MEMBERS matches the properties of the schema's
 // `SpatialFabricSubtree` exactly, so a fork of the member list fails a test.
-// ---------------------------------------------------------------------------
 
 /** `upAxis` is DECLARED, never sniffed, never defaulted (OSL-FAB-XFORM-1 §2). */
 export const FABRIC_UP_AXES = Object.freeze(["z", "y"]);
@@ -265,7 +263,6 @@ export function buildWowScene(graph, THREE, opts = {}) {
   const ownRoom = [...nodes.values()].some((n) => Array.isArray(n && n.names) && n.names.includes("room-floor"));
   const ownLights = [...nodes.values()].some((n) => /^osl-light:/i.test(String((n && n.spatialAssetURI) || "")));
 
-  // ---- floor + reference grid (ground the graph for a standalone M2 view) ----
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(24, 24),
     new THREE.MeshStandardMaterial({ color: 0x161d31, roughness: 0.95, metalness: 0.05 })
@@ -282,7 +279,6 @@ export function buildWowScene(graph, THREE, opts = {}) {
     root.add(grid);
   }
   if (!bare && !ownLights) {
-    // ---- lights (so placeholders are lit even without loaded materials) ----
     root.add(new THREE.AmbientLight(0xffffff, 0.6));
     const key = new THREE.DirectionalLight(0xffffff, 0.85);
     key.position.set(5, 9, 6);
@@ -523,7 +519,7 @@ export function buildWowScene(graph, THREE, opts = {}) {
     } else if (isRoot && ownRoom) {
       // In a world that brings its own room, the root is the room's middle, not a thing to mark.
     } else if (isPlacementNode(node)) {
-      // A node that places a user or a view (iteration 4) is where that user or camera is, not a thing
+      // A node that places a user or a view is where that user or camera is, not a thing
       // in the world: it draws nothing.
     } else {
       obj.add(makeGroupGizmo(node, isRoot));
@@ -546,7 +542,6 @@ export function buildWowScene(graph, THREE, opts = {}) {
 
   if (rootId != null) walk(rootId, root, new Set());
 
-  // ---- compose world matrices, then read each node's GRAPH-SOURCED position ----
   root.updateMatrixWorld(true);
   const v = new THREE.Vector3();
   const bbMin = [Infinity, Infinity, Infinity];
@@ -578,7 +573,6 @@ export function buildWowScene(graph, THREE, opts = {}) {
   // non-uniformity that contract refuses.
   for (const rec of fabricNodes) rec.world_matrix = rec.group.matrixWorld.toArray();
 
-  // ---- MEASURE the walkable extent from the world's actual
   //      content placements (never hardcoded), size the cosmetic ground to it, and
   //      derive the avatar spawn + per-world movement clamp from the SAME
   //      measurement (project lesson: measure per world, don't hardcode ±5.4) ----
@@ -619,7 +613,6 @@ export function buildWowScene(graph, THREE, opts = {}) {
   root.add(wkGrid);
   root.updateMatrixWorld(true);
 
-  // ---- camera: generic elevated 3/4 framing of the node cloud ----
   let cx = 0, cy = 0, cz = 0, spread = 4;
   if (placements.length) {
     cx = (bbMin[0] + bbMax[0]) / 2;
@@ -743,13 +736,11 @@ function round4(n) {
   return Number((Number(n) || 0).toFixed(4));
 }
 
-// ---------------------------------------------------------------------------
 // `spatialAssetURI` glTF scene-asset ingest (ADDITIVE).
 // The async pass over the asset-bearing nodes buildWowScene recorded. Stays PURE
 // (THREE injected, no GLTFLoader/DOM import) so the module keeps its Node-side
 // headless-safety; the real fetch/parse is done by an INJECTED loader so this
 // REUSES the avatar GLTFLoader stack rather than standing up a second one.
-// ---------------------------------------------------------------------------
 
 const COL_ASSET_UNAVAILABLE = 0xff6b3a; // warn tint for a KEPT (failed-load) placeholder
 

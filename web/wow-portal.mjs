@@ -1,5 +1,5 @@
 /*
- * Portals and previews (iteration 4). Pure: no DOM and no three.js; fetch is passed in, so the same code
+ * Portals and previews. Pure: no DOM and no three.js; fetch is passed in, so the same code
  * runs in the browser and in the Node proof.
  *
  * A portal resource (GET {base}wow/portal/{id}) names:
@@ -208,8 +208,6 @@ export async function previewOf(portal, opts = {}) {
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
-// ---- Placing portals (the placement tool) ---------------------------------------------------------------
-//
 // A placed portal is two things in the world's Web of Worlds API: a node of its graph that places it
 // (POST wow/spatial/{g}/node/{parent}), and the portal that names that node (POST wow/portal), with its
 // destination and its active radius: the distance at which it wakes for a visitor and loads its preview.

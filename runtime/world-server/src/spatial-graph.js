@@ -456,7 +456,7 @@ function createSpatialGraphStore(opts)
      *
      * this is a TRUSTED-INPUT normalizer only. It is reached from the
      * seed builder and the persisted-file loader — both of which are OSL's own
-     * flat, integer-child data. It NO LONGER silently `.filter()`s children:
+     * flat, integer-child data. It does not silently `.filter()` children:
      * a non-integer child here means a CORRUPT store file (or a broken seed),
      * which is LOUD (warned) rather than quietly swallowed. Caller-supplied
      * bodies never reach here unclassified — inspectIncomingForest() has already
@@ -481,12 +481,12 @@ function createSpatialGraphStore(opts)
             : translationMatrix([ 0, 0, 0 ]);
         if (r.spatialAssetURI != null) node.spatialAssetURI = String(r.spatialAssetURI);
         if (r.appearanceURI != null) node.appearanceURI = String(r.appearanceURI);
-        // Data on the node (iteration 3): an object, typed by a JSON-LD context.
+        // Data on the node: an object, typed by a JSON-LD context.
         if (r.properties && typeof r.properties === 'object' && !Array.isArray(r.properties)) node.properties = clone(r.properties);
         // preserve a LABELED, NON-CANONICAL webofworlds_extension
         // bag when a node carries one (e.g. a PORTAL node's resolvable destination /
         // composition-graph reference). Additive: a node with no extension (every
-        // hosted-primitive node) is byte-identical to before. It rides legally on the
+        // hosted-primitive node) is unchanged. It rides legally on the
         // OPEN canonical Node (schema sets no additionalProperties:false) and is
         // SURFACED — never hidden — by the conformance lane.
         if (r.webofworlds_extension && typeof r.webofworlds_extension === 'object')
@@ -552,7 +552,6 @@ function createSpatialGraphStore(opts)
         return Array.from(nodes.values()).map(clone);
     }
 
-    // ---- public read API ----
 
     /** True if `id` addresses THIS graph. */
     function matches(id)
@@ -616,13 +615,12 @@ function createSpatialGraphStore(opts)
         return snapshotNodes();
     }
 
-    // ---- public write API (returns { ok, ... } discriminated results) ----
 
     /**
      * POST — create + attach new child nodes under an existing parent.
      *
      * children on the incoming body are CLASSIFIED, never dropped.
-     *   - flat/leaf bodies (children:[] or omitted) -> unchanged, byte-identical.
+     *   - flat/leaf bodies (children:[] or omitted) -> unchanged.
      *   - integer id-refs                           -> 400 (were silently dropped).
      *   - embedded canonical Node children          -> 422 by DEFAULT (were silently
      *     deleted); with opts.flattenEmbedded the whole subtree is stored and EVERY
@@ -783,7 +781,7 @@ function createSpatialGraphStore(opts)
         }
         else if (flat)
         {
-            // a PUT `children` used to be IGNORED — silently. It is now
+            // a PUT `children` is
             // classified. The ONE structure-bearing body we accept is the harmless
             // read-modify-write echo (children identical to what we already store):
             // GET the node, change a label, PUT it back. Anything that would RESTRUCTURE
@@ -911,7 +909,6 @@ function createSpatialGraphStore(opts)
         return getRoot();
     }
 
-    // ---- init: persisted state (if enabled + present) else fresh seed ----
     loadSeed();
     if (persist)
     {

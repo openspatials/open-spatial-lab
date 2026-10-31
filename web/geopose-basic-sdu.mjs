@@ -25,9 +25,7 @@
 // imports cleanly into Node from a `.mjs` file regardless of the prototype's
 // package.json `type:commonjs` (which only governs `.js` resolution).
 //
-// ---------------------------------------------------------------------------
 // SCOPE OF THE CONFORMANCE CLAIM — read this before touching the labels.
-// ---------------------------------------------------------------------------
 // Three DIFFERENT properties are deliberately kept separate here (a reusable
 // distinction the roadmap generalizes to the other standards):
 //
@@ -86,10 +84,8 @@ export const GEOPOSE_CONFORMANCE = Object.freeze({
     "georeferenced:false; NOT full GeoPose conformance beyond the Basic-SDU schema",
 });
 
-// ---------------------------------------------------------------------------
 // Private pure helpers (local copies so this module has no cross-file coupling;
 // identical semantics to the same-named helpers in live-adapter.js).
-// ---------------------------------------------------------------------------
 function clonePosition(value, fallback) {
   const src = Array.isArray(value) ? value : fallback;
   return [Number(src && src[0]) || 0, Number(src && src[1]) || 0, Number(src && src[2]) || 0];
@@ -111,7 +107,6 @@ function num(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// ---------------------------------------------------------------------------
 // The builder. Maps the avatar's LOCAL Cartesian transform (Three.js scene metres,
 // +X east, +Y up, +Z south / toward the camera; rotation_y = yaw about the up axis)
 // into OGC GeoPose 1.0 Basic-YPR + Basic-Quaternion SDUs.
@@ -119,7 +114,6 @@ function num(value) {
 // GeoPose outer frame is EPSG:4979 (WGS-84 lat/lon/ellipsoidal height); inner frame
 // is LTP-ENU (Local Tangent Plane East-North-Up). Those FRAME LABELS are shaped only;
 // the coordinate VALUES are a labeled demo-local projection (georeferenced:false).
-// ---------------------------------------------------------------------------
 export function geoPoseShapedFromTransform(transform) {
   const t = transform || {};
   const pos = clonePosition(t.position, [0, 0, 0]);

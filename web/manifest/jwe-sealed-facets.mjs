@@ -26,9 +26,8 @@
 //   spec/v0.4/CONFORMANCE.md         §2.7 (sealed entry), §3.6 (holder emit),
 //                                    §6.6 (malformed-JWE structural reject)
 //   docs/spec-v0.4/core.html         Base §2.3.1–2.3.5, §2.4.1–2.4.3, §3.1.4
-//   conformance/v0.4/expected.json   the 4 fixture entries this change owns
+//   conformance/v0.4/expected.json   the 4 fixture entries this module owns
 //
-// ---------------------------------------------------------------------------
 // HONESTY CEILING — what is REAL vs structural/PREVIEW (machine-readable
 // descriptor: feature_CONFORMANCE below; every `real:true` is exercised by
 // web/manifest/verify.mjs against the external suite or live crypto):
@@ -65,7 +64,6 @@
 // P6 crossing receipt surface. NOT the consent engine, NOT the full
 // private-data family — write consent / unlock windows / key-lifecycle events
 //NOT the full six-stage evaluator.
-// ---------------------------------------------------------------------------
 //
 // FILE DISCIPLINE: this is a NEW, specific module. It imports only the
 // signing library (read-only reuse) and is imported by nothing yet.
@@ -77,9 +75,7 @@
 import { verifyManifestProfileA } from "../signing/um-signature-profile-a.mjs";
 import { base64UrlToBytes, bytesToBase64Url, utf8Decode, utf8Encode } from "../signing/codecs.mjs";
 
-// ===========================================================================
 // Constants (schema.json $defs.jweEntity + Base §2.3/§2.4 value sets)
-// ===========================================================================
 
 /** The one registered inline-encryption profile (Base §2.3.1). */
 export const JWE_ENCRYPTION_PROFILE = "jwe-inline-v1";
@@ -131,9 +127,7 @@ export const feature_CONFORMANCE = Object.freeze({
     "slice, not the full six-stage evaluator.",
 });
 
-// ===========================================================================
 // Small helpers
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -165,9 +159,7 @@ function uint32be(n) {
   return Uint8Array.from([(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]);
 }
 
-// ===========================================================================
 // 1) STRUCTURAL SURFACE — schema.json $defs parity (fail closed)
-// ===========================================================================
 
 /**
  * Validate a jweEntity per schema.json $defs.jweEntity (Base §2.3.2 /
@@ -243,7 +235,7 @@ export function validateJweEntityShape(entity) {
  * Validate the encrypted facets of a manifest per the schema.json $defs.facet
  * conditional: `encryptionProfile: "jwe-inline-v1"` ⇒ `entity` is REQUIRED and
  * MUST be a valid jweEntity. Any other encryptionProfile value fails the
- * schema const. Non-encrypted facets are NOT this change's surface and are left
+ * schema const. Non-encrypted facets are NOT this module's surface and are left
  * alone. Returns { valid, errors, encryptedFacets: [{index, facetId, entity}] }.
  */
 export function validateSealedFacetsStructural(manifest) {
@@ -336,11 +328,9 @@ export function checkIsolationShape(manifest, declaredSetIds = null) {
   };
 }
 
-// ===========================================================================
 // 2) REAL JWE CRYPTO — WebCrypto only, zero deps (browser + Node >= 18.4)
 //    ECDH-ES (P-256) + Concat KDF (RFC 7518 §4.6.2, SHA-256) → AES-KW KEK →
 //    wraps a fresh A256GCM CEK; AAD = ASCII(protected b64u) (RFC 7516 §5.1).
-// ===========================================================================
 
 /** Decode a JWE protected header (base64url JSON). Returns object or null (never throws). */
 export function decodeProtectedHeader(protectedB64u) {
@@ -532,9 +522,7 @@ export async function makeSealedFacet({ facetId, name, entityPayload, recipients
   };
 }
 
-// ===========================================================================
 // 3) EVALUATOR SURFACE — the encrypted-facet Stage-4 slice (Base §3.1.4)
-// ===========================================================================
 
 function envelopeErrors(manifest) {
   const errors = [];
@@ -671,7 +659,7 @@ export async function structuralVerdictJweSealedFacets(manifest, opts = {}) {
  * signature + freshness, 60s skew) → Stage-4 sealed-entry/decrypt → Compose
  * (any sealed facet ⇒ accepted-partial) → Receipt.
  *
- * facetStatuses records the ENCRYPTED facets (this change's surface). Plaintext-
+ * facetStatuses records the ENCRYPTED facets (this module's surface). Plaintext-
  * facet consent/projection statuses are; the manifest-level tier
  * gate is; the full composition is.
  *
@@ -700,7 +688,6 @@ export async function evaluateJweSealedFacets(manifest, context = {}) {
     return { result: outcome === "rejected" ? "reject" : "accept", receipt, decrypted: receipt._decrypted || new Map() };
   };
 
-  // --- Arrive: envelope + encrypted-facet structure (malformed JWE ⇒ FAIL CLOSED) ---
   const envErrors = envelopeErrors(manifest);
   const sealedShape = envErrors.length === 0 ? validateSealedFacetsStructural(manifest) : { errors: [] };
   if (envErrors.length > 0 || sealedShape.errors.length > 0) {
@@ -711,7 +698,6 @@ export async function evaluateJweSealedFacets(manifest, context = {}) {
     return finish("rejected");
   }
 
-  // --- Verify: Profile A signature over the v0.4 signing input --------------
   const sig = manifest.signature;
   if (!sig || typeof sig !== "object") {
     warnings.push({ code: "um:reason:crypto:signature-missing", message: "Verify stage: missing signature" });
@@ -731,7 +717,6 @@ export async function evaluateJweSealedFacets(manifest, context = {}) {
   }
   receipt.signatureCheck = "valid";
 
-  // --- Freshness at the PINNED now (Section 3.1.2; 60s skew) ----------------
   const SKEW_MS = 60_000;
   if (Date.parse(manifest.issuedAt) - nowMs > SKEW_MS) {
     receipt.freshnessCheck = "stale";
@@ -745,22 +730,18 @@ export async function evaluateJweSealedFacets(manifest, context = {}) {
   }
   receipt.freshnessCheck = "fresh";
 
-  // --- Stage 4 (encrypted-facet slice): sealed entries / real decrypt -------
   const evalOut = await evaluateSealedFacets(manifest, context.decryptionKeys || []);
   receipt.facetStatuses = evalOut.facetStatuses;
   Object.defineProperty(receipt, "_decrypted", { value: evalOut.decrypted, enumerable: false });
 
-  // --- Compose: sealed entries degrade to accepted-partial, NEVER rejected --
   const hasSealed = evalOut.sealedCount > 0;
   if (hasSealed) return finish("accepted-partial");
   if (warnings.length > 0) return finish("accepted-with-warnings");
   return finish("accepted");
 }
 
-// ===========================================================================
 // 4) DEMO SURFACE — P6: "government ID + full birth date present but opaque"
 //    (portaling page bar P6; receipt rows "sealed entry / opaque")
-// ===========================================================================
 
 /** The demo's two sealed-facet identities (P6). DISTINCT kids per facet (Q1). */
 export const P6_GOVERNMENT_ID_FACET = Object.freeze({
@@ -883,10 +864,8 @@ export async function demoSealedFacetSurface() {
   };
 }
 
-// ===========================================================================
 // 5) CONFORMANCE-RUNNER REGISTRATION HOOK (the shared v0.4 runner wires this
 //    with the documented block — applied by the integration step, not by this module).
-// ===========================================================================
 
 /** The 4 fixture files owns (coverage-matrix §1 rows 16/17/18/69). */
 export const feature_FIXTURE_FILENAMES = Object.freeze([

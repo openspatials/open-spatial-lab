@@ -162,7 +162,6 @@ async function statementsFor(label, stack, { worldLocal, frontLocal, optIn = tru
   const portalBody = { node: `wow/spatial/1/node/${stack.node}`, label: "Should not be created", destination: null, active_radius_m: 3 };
   const spoof = { Host: `127.0.0.1:${WORLD_A}`, "X-Forwarded-For": "127.0.0.1", "X-Real-IP": "127.0.0.1", Forwarded: "for=127.0.0.1;host=127.0.0.1", Origin: "http://127.0.0.1", [OPT_IN]: "1", "X-OSL-Placement-Writes": "1" };
 
-  // ---- the world server itself ----
   const policy = await call(WORLD_A, "GET", "/placement");
   step(`${label}: the world reports placement ${worldOn ? "on" : "off"}, both conditions (bound to 127.0.0.1: ${worldLocal}; opt-in: ${optIn}) and the reason`,
     policy.status === 200 && policy.json && policy.json.allowed === worldOn && policy.json.bound_address === stack.worldHost
@@ -195,7 +194,6 @@ async function statementsFor(label, stack, { worldLocal, frontLocal, optIn = tru
       spoofed.every(refused), spoofed.map((r) => r.status).join(", "));
   }
 
-  // ---- through the frontend ----
   const viaApi = (path) => `/api/a${path}`;
   const frontPolicy = await call(FRONT, "GET", viaApi("/placement"));
   const expectFront = worldOn && frontOn;
@@ -215,7 +213,6 @@ async function statementsFor(label, stack, { worldLocal, frontLocal, optIn = tru
       step(`${label}: the frontend refuses ${route} (403 placement_local_only)`, refused(r), `answered ${r.status}${r.json ? ` ${r.json.error}` : ""}`);
   }
 
-  // ---- nothing changed, and the reads still work ----
   const after = await snapshot(stack);
   if (!worldOn || !frontOn) step(`${label}: after every refused write the world is exactly as it was (portal count, graph, placed portal)`, before === after, before === after ? "" : `the world changed: ${firstDifference(before, after)}`);
   const reads = [
@@ -230,7 +227,6 @@ async function statementsFor(label, stack, { worldLocal, frontLocal, optIn = tru
     reads.every(([, r]) => r.status === 200) && placed && placed.placed === true && placed.active_radius_m === 4,
     `placed portal ${stack.portal}: placed ${placed && placed.placed}, active_radius_m ${placed && placed.active_radius_m}`);
 
-  // ---- the control: where it is local, placement really works, through the frontend ----
   if (worldOn && frontOn) {
     const base = `http://127.0.0.1:${FRONT}/api/a/`;
     const io = { fetch };
@@ -244,7 +240,6 @@ async function statementsFor(label, stack, { worldLocal, frontLocal, optIn = tru
   }
 }
 
-// ---------- Part 2: the player in headless Chrome for Testing ----------
 let screenNumber = 0;
 async function shot(page, name) {
   screenNumber += 1;
@@ -353,7 +348,6 @@ async function serverStillRefuses(browser, label, stack) {
   }
 }
 
-// ---------- Part 3: the real launch script ----------
 /** `env` entries whose value is null are removed from the child's environment (so "not set" really is not set). */
 function launchSh(script, env, args = []) {
   const childEnv = { ...process.env, ...env };
@@ -411,7 +405,6 @@ async function launchStatements() {
   }
 }
 
-// ---------- The opt-in values ----------
 /** Only the exact value "1" turns placement on. Each value is set in this process's environment and asked on the world. */
 async function optInValueStatements(label) {
   const cases = [[null, false, "not set"], ["", false, "empty"], ["0", false, "0"], ["true", false, "true"], ["yes", false, "yes"], ["1", true, "1"]];
@@ -426,7 +419,6 @@ async function optInValueStatements(label) {
   step(`${label}: only the exact value 1 turns placement on (not set, empty, 0, true and yes stay off)`, wrong.length === 0, wrong.length ? `wrong for: ${wrong.map((c) => `${c.name} -> ${c.allowed}`).join(", ")}` : seen.map((c) => `${c.name} -> ${c.allowed}`).join(", "));
 }
 
-// ---------- The scan: nothing under deploy/ or in the launch files sets the opt-in ----------
 // Read-only. The scan reads files and never writes them. Two modes:
 //   "deploy": any mention of OSL_PLACEMENT (the setting's name, case-insensitive) in any text file fails. The
 //             deploy files have no reason to name it. Docs there must not name it either.
@@ -548,7 +540,6 @@ async function scanStatements() {
   }
 }
 
-// ---------- Part 4: planted faults ----------
 const real = { placementPolicy: localOnly.placementPolicy, isPlacementWrite: localOnly.isPlacementWrite };
 function restore() { localOnly.placementPolicy = real.placementPolicy; localOnly.isPlacementWrite = real.isPlacementWrite; }
 
@@ -570,7 +561,6 @@ async function main() {
     defaultViewport: { width: 1280, height: 800 },
   });
   try {
-    // ---- Part 1 and 2, the code as it is ----
     currentSection = "L: world and frontend on 127.0.0.1, with the opt-in (control)";
     setOptIn("1");
     let stack = await startStack("127.0.0.1", "127.0.0.1");
@@ -627,7 +617,6 @@ async function main() {
     currentSection = "scan: deploy/ and the launch files";
     await scanStatements();
 
-    // ---- Part 4: planted faults, each must turn a statement red ----
     currentSection = "planted faults";
     const faults = [
       {

@@ -19,7 +19,6 @@ const { w } = lab;
 const pointState = (p) => JSON.stringify([p.value, p.revision, p.status]);
 
 async function resumeChecks(ports) {
-  // ---- O4 ---------------------------------------------------------------------------------------------
   const noRevisions = { serverEdits: { runtime: [['        evt.revision = wowRevision;\n', '']] } };
   await run('O4', 'an observer drops while the last five of ten changes happen and reconnects with since=<revision>: it ends identical to an observer that never dropped, having replayed the five', async (impl) => {
     const B = await w.world('b', ports.next(), { base: '/w/b', edits: impl.serverEdits });
@@ -53,7 +52,6 @@ async function resumeChecks(ports) {
     }
   }, {}, [{ name: 'a server whose events carry no revision', impl: noRevisions }]);
 
-  // ---- O4b --------------------------------------------------------------------------------------------
   const revisionNotKept = { serverEdits: { runtime: [['        if (!revisionFile) return;\n', '        return;\n']] } };
   const neverResyncs = { serverEdits: { runtime: [['        if (since + 1 < first) return { resync : true, revision : wowRevision };\n', '        if (since + 1 < first) return { events : [] };\n']] } };
   await run('O4b', 'B keeps 3 events; the observer misses 6 changes and B\'s server restarts meanwhile: B answers resync with its current revision, the observer re-reads and ends identical to a fresh observer, and the next change after the restart is one revision above the last before it', async (impl) => {
@@ -104,7 +102,6 @@ async function resumeChecks(ports) {
     { name: 'a server that never sends resync', impl: neverResyncs },
   ]);
 
-  // ---- O5 ---------------------------------------------------------------------------------------------
   const deletionNotNamed = { serverEdits: { runtime: [["                emitWowEvent(wowNodeEvent('node_deleted', store.spatialId, { id : id }, [ 'wow/spatial/' + store.graphId + '/node/' + id ].concat(above)));", "                emitWowEvent(wowNodeEvent('node_deleted', store.spatialId, { id : id }, above));"]] } };
   await run('O5', 'node n is deleted: the observer receives node_deleted and marks the data point gone, the data point answers 404, and the next node created gets a new id', async (impl) => {
     const B = await w.world('b', ports.next(), { base: '/w/b', edits: impl.serverEdits });

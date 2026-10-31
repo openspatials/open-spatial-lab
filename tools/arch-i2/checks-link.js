@@ -25,7 +25,6 @@ async function measuredSize(inc, model, matrix) {
 }
 
 async function linkChecks(ports) {
-  // ---- I1 ---------------------------------------------------------------------------------------------
   const serverAnswersPlainJson = { serverEdits: { server: [["const WOW_MEDIA_TYPE = 'application/wow+json';", "const WOW_MEDIA_TYPE = 'application/json';"]] } };
   const clientGuessesFromAddress = { clientEdits: [[
     '    if (!isWowMediaType(answer.type)) {\n      if (isModelMediaType(answer.type)) {',
@@ -55,7 +54,6 @@ async function linkChecks(ports) {
     { name: 'a client that guesses from the address (/wow/ in the URL)', impl: clientGuessesFromAddress },
   ]);
 
-  // ---- I2 ---------------------------------------------------------------------------------------------
   const dropsOwnTransform = { clientEdits: [[
     'await walk(answer.body, target, record.world, IDENTITY.slice(), { depth, path, graph }, null);',
     'await walk(Object.assign({}, answer.body, { localTransform: IDENTITY.slice() }), target, record.world, IDENTITY.slice(), { depth, path, graph }, null);',
@@ -83,7 +81,6 @@ async function linkChecks(ports) {
     } finally { await s.close(); }
   }, {}, [{ name: 'a client that drops node n\'s own transform', impl: dropsOwnTransform }]);
 
-  // ---- I3 ---------------------------------------------------------------------------------------------
   const keepsCopies = { clientEdits: [[
     '    if (!out.registry.has(url)) out.registry.set(url, []);\n    out.registry.get(url).push(record);',
     '    const key = ctx.depth > 0 ? hostUrl + "#copy-" + node.id : url;\n    if (!out.registry.has(key)) out.registry.set(key, []);\n    out.registry.get(key).push(record);',

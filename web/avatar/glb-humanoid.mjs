@@ -25,9 +25,8 @@
 // frame. Reusing it means the GLB path is byte-for-byte the animation path the VRM
 // avatars are already proven on.
 //
-// CORRECTION — the sentence that used to sit here was WRONG, and it is the
-// bug the user reported. It claimed VRMHumanoidRig made a raw Mixamo skeleton safe
-// to drive. It does not. It reconciles bind AXES; it does NOT reconcile the rest
+// VRMHumanoidRig does not make a raw Mixamo skeleton safe to drive by itself.
+// It reconciles bind AXES; it does NOT reconcile the rest
 // POSE. `q = identity` on a normalized bone reproduces THAT RIG'S OWN REST — and a
 // Ready Player Me GLB rests in an A-POSE while every mocap clip is authored as a
 // delta from a T-POSE. The 66° droop was therefore added to every arm rotation and
@@ -118,7 +117,7 @@ const REQUIRED_VRM_BONES = Object.freeze([
  * normative T-pose so that `restWorld_target ≈ restWorld_source` and the terms
  * cancel for a GLB too.
  *
- * IT IS NOT A CORRECTION FOR ONE AVATAR. Every quantity is measured from the rig in
+ * NOTHING IS TUNED FOR ONE AVATAR. Every quantity is measured from the rig in
  * front of it:
  *   - the anatomical frame (up / left / forward) is measured from THIS rig's own
  *     hips->head and right-shoulder->left-shoulder axes, so it does not assume which

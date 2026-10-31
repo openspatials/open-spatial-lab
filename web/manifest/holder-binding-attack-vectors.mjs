@@ -49,9 +49,7 @@ import { generateKeyPair, signBytes } from "../signing/ed25519.mjs";
 import { publicKeyToDidKey } from "../signing/did.mjs";
 import { bytesToBase64Url, utf8Encode } from "../signing/codecs.mjs";
 
-// ---------------------------------------------------------------------------
 // scoreboard
-// ---------------------------------------------------------------------------
 const resistedList = [];
 const findings = []; // { id, title, severity, repro }
 
@@ -71,9 +69,7 @@ function note(id, title, detail) {
   console.log(`      NOTE: ${detail}`);
 }
 
-// ---------------------------------------------------------------------------
 // helpers
-// ---------------------------------------------------------------------------
 function baseManifest(overrides = {}) {
   const issuedAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 3600_000).toISOString();
@@ -93,7 +89,6 @@ function ctx(extra = {}) {
   return { now: NOW, maxSupportedTrustTier: 1, ...extra };
 }
 
-// ===========================================================================
 async function run() {
   console.log("runtime ADVERSARIAL attack-vector harness");
   console.log("========================================");
@@ -119,9 +114,7 @@ async function run() {
     console.log(`      ${ok ? "OK" : "BROKEN"}: holderBindingStatus=${r.receipt.holderBindingStatus} tier=${r.receipt.effectiveTrustTier} (pipeline is live; forgeries below are meaningful)\n`);
   }
 
-  // -------------------------------------------------------------------------
   // (a) CHALLENGE / AUDIENCE REPLAY
-  // -------------------------------------------------------------------------
   const k = await generateKeyPair();
   const signedPlain = await attachSignatureProfileA(baseManifest(), k.seed);
   const ch1 = issueVerifierChallenge({ audience: "did:web:demo.local:world:A1" });
@@ -168,9 +161,7 @@ async function run() {
     else vulnerable("AV-4", "did-auth validation transplant", "high", `validation accepted on a manifest it was not issued for (status=${r.receipt.presentationProofStatus})`);
   }
 
-  // -------------------------------------------------------------------------
   // (b) HOLDER-BINDING FORGERY  — the primary attack
-  // -------------------------------------------------------------------------
 
   // AV-5 — reciprocal-control boundDidProof TRANSPLANT / replay forgery.
   // ORIGINAL FINDING (HIGH): both proofs sign only UTF-8(manifest @id), so a
@@ -186,7 +177,6 @@ async function run() {
   //       transplant/replay.
   // This vector RESISTS iff spec-mode is verified-BUT-FLAGGED AND hardened-mode resists.
   {
-    // ---- (1) spec-mode forgery: still "verified" but no longer SILENT ----------
     const victimSubject = await generateKeyPair();
     const victimBound = await generateKeyPair(); // == D; attacker never gets this private key
     const X = `urn:uuid:${globalThis.crypto.randomUUID()}`;
@@ -217,7 +207,6 @@ async function run() {
     const specVerified = rSpec.receipt.holderBindingStatus === "verified" && rSpec.receipt.effectiveTrustTier >= 1;
     const specFlagged = (rSpec.receipt.warnings || []).some((w) => w.code === RECIPROCAL_REPLAYABLE_WARNING_CODE);
 
-    // ---- (2) hardened profile: positive control + the same transplant/replay ----
     const hSubject = await generateKeyPair();
     const hBound = await generateKeyPair(); // == D' (attacker never gets this)
     const HX = `urn:uuid:${globalThis.crypto.randomUUID()}`;
@@ -319,9 +308,7 @@ async function run() {
     else resisted("AV-5b", "confirmatory second reciprocal forgery", `rejected (hbStatus=${r.receipt.holderBindingStatus})`);
   }
 
-  // -------------------------------------------------------------------------
   // (c) PREVIEW-MODE COERCION  (sd-jwt-kb / bbs must NEVER report verified)
-  // -------------------------------------------------------------------------
 
   // AV-6 — sd-jwt-kb holder binding, decorated with reciprocal fields, on a Tier-1
   // claim: try to trick the evaluator into the crypto path / a verified status.
@@ -383,9 +370,7 @@ async function run() {
     else note("AV-9", "downgrade confusion", "control validation did not verify as did-auth; label test inconclusive but relabeled path still rejected");
   }
 
-  // -------------------------------------------------------------------------
   // (e) MISSING-WHEN-CHALLENGED BYPASS
-  // -------------------------------------------------------------------------
   {
     const chX = issueVerifierChallenge({ audience: "did:web:demo.local:world:A1" });
     const variants = [
@@ -410,9 +395,7 @@ async function run() {
     else vulnerable("AV-10", "missing-validation-when-challenged bypass", "critical", `a degenerate validation shape was accepted under an issued challenge: ${detail.join(", ")}`);
   }
 
-  // -------------------------------------------------------------------------
   // (d) VP SIZE-LIMIT (G2) BYPASS
-  // -------------------------------------------------------------------------
 
   // AV-11 — boundary probe: exactly at limit accepted, limit+1 rejected (no off-by-one).
   {
@@ -488,9 +471,7 @@ async function run() {
     }
   }
 
-  // -------------------------------------------------------------------------
   // summary
-  // -------------------------------------------------------------------------
   console.log("\n========================================");
   console.log(`RESISTED: ${resistedList.length}   FINDINGS: ${findings.length}`);
   if (findings.length === 0) {

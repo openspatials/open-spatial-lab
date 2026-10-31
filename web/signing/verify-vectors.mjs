@@ -91,9 +91,7 @@ async function loadJson(name) {
   return JSON.parse(await fs.readFile(path.join(VECTORS, name), "utf8"));
 }
 
-// --------------------------------------------------------------------------
 // A — RFC 8785 composite vector (§3.2.2 input -> §3.2.4 exact UTF-8 bytes)
-// --------------------------------------------------------------------------
 async function sectionA(rfc8785) {
   const { inputJsonText, expectedUtf8Hex } = rfc8785.composite;
   const parsed = JSON.parse(inputJsonText);
@@ -124,9 +122,7 @@ async function sectionA(rfc8785) {
   );
 }
 
-// --------------------------------------------------------------------------
 // B — RFC 8785 §3.2.3 property sorting vector
-// --------------------------------------------------------------------------
 async function sectionB(rfc8785) {
   const { inputJsonText, expectedValueOrder } = rfc8785.sorting;
   const canonicalString = canonicalizeToString(JSON.parse(inputJsonText));
@@ -144,9 +140,7 @@ async function sectionB(rfc8785) {
   if (ok) process.stdout.write(`      canonical: ${canonicalString}\n`);
 }
 
-// --------------------------------------------------------------------------
 // C — RFC 8785 Appendix B number serialization (bit-pattern-exact inputs)
-// --------------------------------------------------------------------------
 async function sectionC(rfc8785) {
   const rows = rfc8785.numbersAppendixB.rows;
   let idx = 0;
@@ -181,9 +175,7 @@ function float64FromHex(hex16) {
   return dv.getFloat64(0, false);
 }
 
-// --------------------------------------------------------------------------
 // D — RFC 8785 §3.2.2.2 string rules + lone-surrogate MUST-error
-// --------------------------------------------------------------------------
 async function sectionD(rfc8785) {
   let idx = 0;
   for (const c of rfc8785.stringRules.cases) {
@@ -208,9 +200,7 @@ async function sectionD(rfc8785) {
   check(`D${idx}`, err !== null, `SS3.2.2.2 lone surrogate in PROPERTY NAME must error: ${err ? "threw" : "DID NOT THROW"}`);
 }
 
-// --------------------------------------------------------------------------
 // E — RFC 8032 §7.1 Ed25519 (external authority for the platform crypto path)
-// --------------------------------------------------------------------------
 async function sectionE(rfc8032) {
   let idx = 0;
   for (const v of rfc8032.vectors) {
@@ -244,9 +234,7 @@ async function sectionE(rfc8032) {
   }
 }
 
-// --------------------------------------------------------------------------
 // F — did:key (offline derivation/resolution; spec-example round trip)
-// --------------------------------------------------------------------------
 async function sectionF(didVectors, rfc8032) {
   const pub = hexToBytes(rfc8032.vectors[0].publicKeyHex);
 
@@ -274,9 +262,7 @@ async function sectionF(didVectors, rfc8032) {
   check("F6", ok === true, "sign -> verify with the did:key DID string as the verification input");
 }
 
-// --------------------------------------------------------------------------
 // G — did:web (URL rule offline; resolution ONLY via injected loader)
-// --------------------------------------------------------------------------
 async function sectionG(didVectors, rfc8032) {
   let idx = 0;
   for (const c of didVectors.didWebUrlRule.cases) {
@@ -320,9 +306,7 @@ function concatBytes(a, b) {
   return out;
 }
 
-// --------------------------------------------------------------------------
 // H — did:pkh (solana derivable; other namespaces honestly non-derivable)
-// --------------------------------------------------------------------------
 async function sectionH(didVectors, rfc8032) {
   const pubHex = rfc8032.vectors[0].publicKeyHex;
   const pub = hexToBytes(pubHex);
@@ -359,9 +343,7 @@ async function sectionH(didVectors, rfc8032) {
   check(`H${idx}`, ladder.resolution === "unresolved", "keyRef ladder records non-derivable did:pkh as 'unresolved'");
 }
 
-// --------------------------------------------------------------------------
 // I — UM Signature Profile A (shape, frozen bytes, tamper, 1.6.4, interop-in)
-// --------------------------------------------------------------------------
 async function sectionI(profileVector) {
   const seed = hexToBytes(profileVector.signingSeedHex);
   const manifest = profileVector.unsignedManifest;
@@ -473,14 +455,12 @@ function flipBase64UrlBit(b64u) {
   return replacement + b64u.slice(1);
 }
 
-// --------------------------------------------------------------------------
 // K — regression: v0.4 presentationProof signing-input EXCLUSION
 // (Base 1.6.3). The UM suite's OWN signed fixture
 // valid/manifest-with-presentation-proof.jsonld (verbatim copy in vectors/)
 // verifies ONLY when presentationProof is excluded from the signing input;
 // an implementation that fails to exclude it MUST fail. Added —
 // ADDITIVE ONLY (no existing vector touched).
-// --------------------------------------------------------------------------
 async function sectionK() {
   const fixture = JSON.parse(
     await fs.readFile(path.join(VECTORS, "um-v04-manifest-with-presentation-proof.fixture.jsonld"), "utf8")
@@ -514,9 +494,7 @@ async function sectionK() {
   );
 }
 
-// --------------------------------------------------------------------------
 // J — determinism / canonical idempotence
-// --------------------------------------------------------------------------
 async function sectionJ() {
   const a = { z: [1, { b: 2, a: 3 }], a: "x", m: { "2": 1, "10": 2, "1": 3 } };
   const b = { m: { "1": 3, "10": 2, "2": 1 }, a: "x", z: [1, { a: 3, b: 2 }] };
@@ -531,7 +509,6 @@ async function sectionJ() {
   check("J3", arr === "[0.000001,1e+21,0]", `array order preserved; numbers normalized: ${arr}`);
 }
 
-// --------------------------------------------------------------------------
 async function main() {
   process.stdout.write("runtime signing library - test vectors\n");
   process.stdout.write("======================================\n");

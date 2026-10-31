@@ -28,7 +28,6 @@
  *           geoPose{position{lat, lan, h}, angles{yaw, pitch, roll}} }
  *   (`lan` is the standard's own misspelling of longitude. We carry it VERBATIM,
  *    exactly as the /wow/* surface already does — never "fixed" silently.)
- * ============================================================================
  *
  * ⚠ INTERPRETATION I12 — AN ASSET URL IS A PATH PREFIX.
  * The spec's paths are `/` and `/wow/asset`, rooted at an asset ORIGIN, so the

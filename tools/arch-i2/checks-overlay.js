@@ -102,7 +102,6 @@ function iteration2Text(doc) {
 }
 
 async function overlayChecks(ports) {
-  // ---- O1 ---------------------------------------------------------------------------------------------
   const hunkDoesNotApply = { edits: { world: (p) => p.replace('       operationId: getWorldStatus\n', '       operationId: getWorld\n') } };
   const danglingRef = { edits: { world: (p) => p.replace("+          $ref: '#/components/responses/PreconditionFailed'\n         '422':", "+          $ref: '#/components/responses/PreconditionFail'\n         '422':") } };
   const notOpenApi = { edits: { world: (p) => p.replace('+      name: If-Match\n+      in: header\n', '+      name: If-Match\n+      in: body\n') } };
@@ -126,7 +125,6 @@ async function overlayChecks(ports) {
     { name: 'a patch that is not valid OpenAPI (a parameter in: body)', impl: notOpenApi },
   ]);
 
-  // ---- O2 ---------------------------------------------------------------------------------------------
   const offerDrifts = { edits: { world: (p) => p.replace("+          description: The ids of the world's graphs (Spatial resources), the default graph first.", "+          description: The ids of the world's graphs.") } };
   const preflightLacksIfMatch = { serverEdits: { server: [["'Authorization, Content-Type, Accept, If-None-Match, If-Match, X-OSL-WoW-Node-Form, X-OSL-WoW-Spatial-Form'", "'Authorization, Content-Type, Accept, If-None-Match, X-OSL-WoW-Node-Form, X-OSL-WoW-Spatial-Form'"]] } };
   await run('O2', 'the offered text and the contract the lab serves say the same thing about inclusion, World.spatials, the media type, entity tags and cross-origin reads, and the world server does it on the wire', async (impl) => {

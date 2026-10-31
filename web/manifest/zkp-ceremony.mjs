@@ -2,9 +2,7 @@
 // cross-DID binding + Tier-3 ceremony proofs — STRUCTURAL + FAIL-CLOSED
 // (EXT-T2 / EXT-T3 PREVIEW).
 //
-// ---------------------------------------------------------------------------
 // HONESTY CEILING (the strictest honesty case in the program — read first)
-// ---------------------------------------------------------------------------
 // This module performs STRUCTURAL SHAPE VALIDATION per EXT-T2/EXT-T3 (PREVIEW);
 // NO zero-knowledge verification is performed or claimed. There is NO BBS+
 // verifier, NO Groth16 verifier, NO FROST/threshold-BBS aggregate verifier
@@ -27,9 +25,7 @@
 //     portaling age-proof boundary (issuer-asserted signed VC is NOT
 //     relabeled as ZK).
 //
-// ---------------------------------------------------------------------------
 // What this module owns
-// ---------------------------------------------------------------------------
 //   valid/manifest-with-zkp-binding-proof.jsonld      accept  (tier2-zkp)
 //   valid/cross-did-binding-proof-only.jsonld         accept  (tier2-zkp; the
 //         attester triple is REQUIRED only for attester-asserted bindings —
@@ -85,9 +81,7 @@ import {
 } from "./trust-tier.mjs";
 import { verifyManifestProfileA } from "../signing/um-signature-profile-a.mjs";
 
-// ===========================================================================
 // Vocabulary (schema.json $defs.bindingProof / $defs.ceremonyProof)
-// ===========================================================================
 
 /** The two defined Tier-2 ZKP proof profiles (EXT-T2 §T2.1.1 / §T2.1.2). */
 export const BINDING_PROOF_TYPES = Object.freeze(["ZkLinkedSecretProof", "ZkHdDerivationProof"]);
@@ -164,9 +158,7 @@ export const feature_CONFORMANCE = Object.freeze({
     ". A well-formed validation is at best 'present-unverified' and never elevates trust.",
 });
 
-// ===========================================================================
 // Small helpers
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -183,10 +175,8 @@ function claimsOf(manifest) {
   return Array.isArray(manifest?.claims) ? manifest.claims.filter((c) => c && typeof c === "object") : [];
 }
 
-// ===========================================================================
 // 1) STRUCTURAL SURFACE — shape validation (schema.json $defs parity + the
 //    reference implementation's evaluator-only checks + EXT-T3 prose rules)
-// ===========================================================================
 
 /**
  * Validate a bindingProof per schema.json $defs.bindingProof (EXT-T2 §T2.1):
@@ -302,7 +292,6 @@ export function validateCeremonyProofShape(validation) {
   if (!isNonEmptyString(validation.ceremonyId)) schemaDetectableErrors.push("ceremonyProof: missing ceremonyId");
   if (!isNonEmptyString(validation.aggregateProof)) schemaDetectableErrors.push("ceremonyProof: missing aggregateProof");
 
-  // ---- EVALUATOR-ONLY layer (reference assert + EXT-T3 §T3.1 prose) --------
   if (threshold && attestersIsArray && validation.attesters.length > 0) {
     const { m, n } = threshold;
     // Reference parity FIRST (fixture __expectedError: "ceremonyProof.attesters
@@ -334,7 +323,6 @@ export function validateCeremonyProofShape(validation) {
     }
   }
 
-  // ---- transitional `protocol` + candidate attesterRoles (never rejecting) --
   const protocol = isNonEmptyString(validation.protocol) ? validation.protocol : null;
   const protocolNote = protocol === null ? feature_PROTOCOL_TRANSITIONAL_NOTE : null;
   let attesterRolesNote;
@@ -478,9 +466,7 @@ export function validateZkpCeremonyStructural(manifest) {
   return { valid: errors.length === 0, errors, schemaDetectableErrors, evaluatorOnlyErrors, notes };
 }
 
-// ===========================================================================
 // 2) FAIL-CLOSED DISPOSITION — the honesty keystone (task deliverable 2)
-// ===========================================================================
 
 /**
  * Per-claim binding-status provider's injectable seam
@@ -587,7 +573,6 @@ export function evaluateProofDispositions(manifest, context = {}) {
     ? context.maxSupportedTrustTier
     : DEFAULT_MAX_SUPPORTED_TRUST_TIER;
 
-  // ---- structural gate (reference-assert parity: malformed ⇒ rejected) ------
   const structural = validateZkpCeremonyStructural(manifest);
   if (!structural.valid) {
     return {
@@ -603,7 +588,6 @@ export function evaluateProofDispositions(manifest, context = {}) {
     };
   }
 
-  // ---- tier pass with the provider injected --------------------
   const tier = evaluateTrustTiers(manifest, {
     maxSupportedTrustTier: max,
     holderBindingStatusOf: featureBindingStatusProvider,
@@ -621,7 +605,6 @@ export function evaluateProofDispositions(manifest, context = {}) {
   if (tier.holderBindingStatus !== undefined) fragment.holderBindingStatus = tier.holderBindingStatus;
   if (tier.effectiveTrustTier !== undefined) fragment.effectiveTrustTier = tier.effectiveTrustTier;
 
-  // ---- per-proof dispositions (diagnostic rows + the within-capability record)
   const recordedRefs = new Set(fragment.claimStatuses.map((s) => s.claimRef));
   for (const claim of claimsOf(manifest)) {
     const hasProof = claim.bindingProof !== undefined || claim.ceremonyProof !== undefined;
@@ -691,7 +674,6 @@ export function evaluateProofDispositions(manifest, context = {}) {
     });
   }
 
-  // ---- the reserved hub slot (omitted reference-style when absent) ----
   const cdb = crossDidBindingStatusOf(manifest);
   if (cdb !== BINDING_ABSENT) fragment.crossDidBindingStatus = cdb;
 
@@ -700,9 +682,7 @@ export function evaluateProofDispositions(manifest, context = {}) {
   return fragment;
 }
 
-// ===========================================================================
 // 3) HOLDER-SIDE STRUCTURAL EMIT (task deliverable 3 — HOLD-10/11/12 shapes)
-// ===========================================================================
 
 /**
  * Emit a Profile-2A ZkLinkedSecretProof bindingProof (EXT-T2 §T2.1.1)
@@ -868,11 +848,9 @@ export function buildZkpCeremonySampleClaims({ subjectDid = "did:web:demo.local:
   return { zkLinkedSecret, zkHdDerivation, ceremony };
 }
 
-// ===========================================================================
 // 4) DEMO SURFACE (Bucket-2 invented, honest) — the "higher-tier proof shapes"
 //    inspector panel (task deliverable 4). Pure data; the UI wiring into
 //    live-adapter.js is the a serialized edit.
-// ===========================================================================
 
 /**
  * buildProofShapesDemoSurface — display-ready data for the inspector panel:
@@ -937,9 +915,7 @@ export function buildProofShapesDemoSurface(options = {}) {
   };
 }
 
-// ===========================================================================
 // 5) FIXTURE SURFACE — the five expected.json rows owns
-// ===========================================================================
 
 /** The 5 fixture files owns. */
 export const feature_FIXTURE_FILENAMES = Object.freeze([

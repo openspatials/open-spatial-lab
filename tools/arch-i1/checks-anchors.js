@@ -17,9 +17,8 @@ const close = (a, b, tol) => Math.abs(a - b) <= tol;
 const GET = (port, p) => httpReq('GET', port, p);
 
 async function anchorChecks(ports) {
-  // ---- F2 end to end. Role a is served G2 and role lobby G1, so a server that ignores its fixture is wrong.
   const ignoresFixture = { runtime: [['const SPATIAL_ANCHORS = loadAnchors(cfg.spatial_anchor_fixture !== undefined ? cfg.spatial_anchor_fixture : cfg.spatial_anchors);', 'const SPATIAL_ANCHORS = loadAnchors(cfg.spatial_anchors);']] };
-  // The Spatial's geoPose is served per graph (iteration 2), from that graph's anchor.
+  // The Spatial's geoPose is served per graph, from that graph's anchor.
   const coarseAnchor = { runtime: [['            ...(anchor ? { geoPose : clone(anchor) } : {}),', '            ...(anchor ? { geoPose : { position : { lat : anchor.position.lat, lon : Number(anchor.position.lon.toFixed(5)), h : anchor.position.h }, angles : anchor.angles } } : {}),']] };
   await run('F2h', "two world servers, one anchor fixture each: the client reads both Spatial.geoPose values and finds G2 100.0000033 m east of G1, with the curvature", async (impl) => {
     const a = await boot('a', ports.next(), { edits: impl.edits, config: { spatial_anchor_fixture: path.join(FIXTURES, 'anchor-g2.json') } });
@@ -46,7 +45,6 @@ async function anchorChecks(ports) {
     { name: 'a server that serves its anchor rounded to 5 decimals of a degree', impl: { edits: coarseAnchor } },
   ]);
 
-  // ---- F4 on the server: the reader decides what a server may serve ---------------------------------
   const pose = (position) => ({ graphs: [{ id: 1, geoPose: { position, angles: { yaw: 0, pitch: 0, roll: 0 } } }] });
   const refused = [
     ['a lon and lan that disagree', pose({ lat: 1, lon: 2, lan: 3, h: 0 }), 'GEOPOSE_LON_LAN_CONFLICT'],
@@ -77,8 +75,7 @@ async function anchorChecks(ports) {
     return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : `${refused.length} bad fixtures refused by name; a lan fixture is read and served as lon on 5 resources` };
   }, { edits: null }, [{ name: 'a server that does not use the reader', impl: { edits: skipsReader } }]);
 
-  // ---- G1. Every resource's GeoPose is its local position put through real geodesy ----------------------
-  // A portal's and the view's GeoPose come from the node that places them (iteration 4), or, without one, from the
+  // A portal's and the view's GeoPose come from the node that places them, or, without one, from the
   // local position; the old mapping is planted in both.
   const flatMapping = { runtime: [
     ['        return roundedGeoPose(wowGeo.localPoseToGeoPose(WORLD_ANCHOR, local, Number(yawRad) || 0, Number(pitchRad) || 0));', '        return roundedGeoPose({ position : { lat : -local[2], lon : local[0], h : local[1] }, angles : { yaw : (Number(yawRad) || 0) * 180 / Math.PI, pitch : (Number(pitchRad) || 0) * 180 / Math.PI, roll : 0 } });'],
@@ -105,7 +102,6 @@ async function anchorChecks(ports) {
     } finally { await s.close(); }
   }, { edits: null }, [{ name: 'the old mapping: local metres copied into lat, lon and h', impl: { edits: flatMapping } }]);
 
-  // ---- G2. Every world server serves its own anchor as its World and Spatial location --------------------
   // The airport's world also reads authored data, which once held a placeholder location. The anchor
   // fixture is the one source: all four roles must serve it, and what they serve must be valid.
   // The mutant is the airport as it was: authored data that carries the old placeholder location, and a runtime that lets it win.

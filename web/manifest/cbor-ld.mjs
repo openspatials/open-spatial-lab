@@ -10,9 +10,7 @@
 // and the two receipts are BYTE-EQUAL — while each production carries its OWN signature
 // over its OWN canonical bytes (O1.5 per-production signing).
 //
-// ---------------------------------------------------------------------------
 // HONESTY CEILING — Tier-2 PREVIEW (read before touching the labels)
-// ---------------------------------------------------------------------------
 // PROVEN by this module + verify.mjs (re-runnable, network-free):
 //   - RFC 8949 §4.2.1 Core Deterministic Encoding CBOR codec (minimal-length arguments,
 //     definite lengths, bytewise-lexicographic map-key order, shortest-form floats),
@@ -49,7 +47,7 @@
 //     the LANDED evaluation surfaces, and the
 //     JSON-LD path is ANCHORED byte-exact to the landed engine so the CBOR-LD
 //     receipt transitively equals the landed engine's receipt.
-//   - No um_conformance flag is flipped anywhere in this change.
+//   - No um_conformance flag is flipped anywhere in this module.
 //
 // Zero third-party dependencies; browser + Node. Imports only sibling manifest modules
 // and the signing library (../signing/*.mjs).
@@ -84,10 +82,8 @@ import { evaluateConsentStage, validateConsentStructural } from "./consent-gatin
 import { UM_V04_CONTEXT } from "./interfaces.mjs";
 import { feature_PINNED_CONTEXT_B64, feature_PINNED_CONTEXT_MULTIHASH } from "./pinned-context-v04.mjs";
 
-// ===========================================================================
 // Scoped-truth descriptor (house pattern: UM_MANIFEST_EMISSION / SIGNING_CONFORMANCE).
 // Every `true` below is backed by a check in verify.mjs. PREVIEW is the ceiling.
-// ===========================================================================
 export const feature_CBOR_LD_PREVIEW = Object.freeze({
   standard: "Universal Manifest v0.4 EXT-OPT O1 — CBOR-LD second encoding (PREVIEW)",
   tier: "Tier-2 PREVIEW — EXT-OPT O1 optional feature (CONFORMANCE.md §2.2 #2: evaluator MAY support CBOR-LD)",
@@ -131,14 +127,12 @@ export const PROFILE_CBOR_CDE = Object.freeze({
   canonicalization: "CBOR-RFC8949-CDE",
 });
 
-// ===========================================================================
 // 1) CBOR codec — RFC 8949 §4.2.1 Core Deterministic Encoding, scoped to the
 //    JSON-tree data model (+ Uint8Array), which is what a UM manifest is.
 //    Supported: null, booleans, numbers (integers + shortest-form floats),
 //    strings, arrays, maps (plain objects / Map with integer|string keys),
 //    Uint8Array. Rejected (fail closed): NaN/Infinity, undefined, functions,
 //    BigInt, unsupported key types.
-// ===========================================================================
 
 /** Deterministically encode a value to CBOR bytes per RFC 8949 §4.2.1 CDE. */
 export function cborEncodeCde(value) {
@@ -435,12 +429,10 @@ function utf8DecodeStrict(bytes) {
   return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
-// ===========================================================================
 // 2) Context integrity (O1.7) + term-token table derivation.
 //    The table is DERIVED from the pinned context bytes at runtime — never
 //    hardcoded — and derivation REFUSES to run if the multihash does not match
 //    the pin (tokenization correctness depends on byte-identical context).
-// ===========================================================================
 
 /** The pinned multihash of the v0.4 context (multibase base58btc, sha2-256 / 0x12). */
 export const UM_V04_CONTEXT_MULTIHASH = feature_PINNED_CONTEXT_MULTIHASH;
@@ -534,10 +526,8 @@ export function getPinnedTermTokenTable() {
   return pinnedTablePromise;
 }
 
-// ===========================================================================
 // 3) CBOR-LD production rule (O1.4): tokenize term keys + context identifier,
 //    emit as deterministic CBOR; consumption reverses the mapping exactly.
-// ===========================================================================
 
 function tokenizeDocument(value, table) {
   if (Array.isArray(value)) return value.map((v) => tokenizeDocument(v, table));
@@ -627,12 +617,10 @@ export async function decodeCborLd(bytes, { table, strict = true } = {}) {
   return detokenizeDocument(cborDecodeCde(bytes, { strict }), t);
 }
 
-// ===========================================================================
 // 4) Per-production signing (O1.4 candidate rule / O1.5).
 //    Signing input = CBOR-LD document minus the Base §1.6.3 exclusions, encoded
 //    under RFC 8949 §4.2.1 CDE (the TOKENIZED form — the signature is bound to
 //    the context version that fixes the token mapping, hence the O1.7 gate).
-// ===========================================================================
 
 /** Compute the CBOR-LD signing input bytes for a manifest document. */
 export async function computeCborLdSigningInput(doc, { table } = {}) {
@@ -771,10 +759,8 @@ export async function verifyManifestCborLd(bytesOrDoc, opts = {}) {
   return { ok, reason: ok ? "verified" : "signature-verification-failed", checks, manifest: doc };
 }
 
-// ===========================================================================
 // 5) Production/consumption helpers for the reference (JSON-LD) encoding, so the
 //    harness treats both encodings uniformly as BYTES on a wire.
-// ===========================================================================
 
 /** JSON-LD production rule (O1.3) wire bytes (media type application/um+ld+json). */
 export function produceJsonLd(doc) {
@@ -786,7 +772,6 @@ export function consumeJsonLd(bytes) {
   return JSON.parse(utf8Decode(bytes));
 }
 
-// ===========================================================================
 // 6) Encoding-agnostic evaluation at the abstract-model boundary.
 //    The stages MIRROR evaluateConsentGating field-for-field (same
 //    receipt surface, same warning codes, same ordering) with ONE swap: the
@@ -796,7 +781,6 @@ export function consumeJsonLd(bytes) {
 //    validateConsentStructural) — not re-implemented. verify.mjs §F
 //    ANCHORS this mirror byte-exact against the landed evaluateConsentGating
 //    on the JSON-LD path, so the mirror cannot drift silently.
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -851,14 +835,12 @@ export function evaluateConsumedManifest(consumed, context = {}, signatureReport
     return { result: outcome === "rejected" ? "reject" : "accept", receipt };
   };
 
-  // --- Arrive/Verify: structure (envelope + consent shape; consent shapes REUSED) ---
   const structural = [...featureEnvelopeErrors(consumed), ...validateConsentStructural(consumed).errors];
   if (structural.length > 0) {
     warnings.push({ code: "um:reason:structure:malformed", message: `Verify stage: ${structural.join("; ")}` });
     return finish("rejected");
   }
 
-  // --- Arrive/Verify: signature — the PER-PRODUCTION report (O1.6: verified against
   //     the bytes of the production actually consumed; computed by the caller) --------
   const sig = consumed.signature;
   if (!sig || typeof sig !== "object") {
@@ -873,7 +855,6 @@ export function evaluateConsumedManifest(consumed, context = {}, signatureReport
   }
   receipt.signatureCheck = "valid";
 
-  // --- Arrive/Verify: freshness at the PINNED now (§3.1.2; 60s skew) ----------------
   const SKEW_MS = 60_000;
   const issuedMs = Date.parse(consumed.issuedAt);
   const expiresMs = Date.parse(consumed.expiresAt);
@@ -889,7 +870,6 @@ export function evaluateConsumedManifest(consumed, context = {}, signatureReport
   }
   receipt.freshnessCheck = "fresh";
 
-  // --- Stage-4 Consent — REUSED engine (not re-implemented) ------------------
   const stage = evaluateConsentStage(consumed, context);
   receipt.facetStatuses = stage.facetStatuses;
   receipt.consentStatuses = stage.consentStatuses;
@@ -904,7 +884,6 @@ export function evaluateConsumedManifest(consumed, context = {}, signatureReport
     }
   }
 
-  // --- Compose the outcome -----------------------------------------------------------
   if (stage.notProcessed.length > 0) return finish("accepted-partial");
   return finish("accepted");
 }
@@ -942,9 +921,7 @@ export async function evaluateProduction(bytes, { encoding, context = {}, table 
   return { encoding, wireSize: bytes.length, consumed, signatureReport, result, receipt };
 }
 
-// ===========================================================================
 // 7) Cross-encoding format-independence harness.
-// ===========================================================================
 
 /**
  * Produce the SAME abstract manifest through BOTH production rules, each signed

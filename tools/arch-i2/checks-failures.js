@@ -26,7 +26,6 @@ async function worlds(count, ports, impl) {
 const closeAll = async (list) => { for (const x of list) await x.close(); };
 
 async function failureChecks(ports) {
-  // ---- I5 ---------------------------------------------------------------------------------------------
   const throwsWhenUnreachable = { clientEdits: [[
     '      log.push({ url, status: 0, error: String((error && error.message) || error) });\n      return { url, status: 0, error: String((error && error.message) || error) };',
     '      throw error;',
@@ -55,7 +54,6 @@ async function failureChecks(ports) {
     } finally { await s.close(); }
   }, {}, [{ name: 'a client that stops composing when a world does not answer', impl: throwsWhenUnreachable }]);
 
-  // ---- I6 ---------------------------------------------------------------------------------------------
   const treats403AsUnreachable = { clientEdits: [[
     '  if (answer.status === 403 || answer.status === 401) return INCLUSION_STATUS.FORBIDDEN;',
     '  if (answer.status === 403 || answer.status === 401) return INCLUSION_STATUS.UNREACHABLE;',
@@ -83,7 +81,6 @@ async function failureChecks(ports) {
     { name: 'a B that serves node n to everyone', impl: ignoresReadPolicy },
   ]);
 
-  // ---- I7 ---------------------------------------------------------------------------------------------
   const noCycleCheck = { clientEdits: [['    if (ctx.path.includes(target)) blocked = INCLUSION_STATUS.CYCLE;', '    if (false) blocked = INCLUSION_STATUS.CYCLE;']] };
   await run('I7', 'A includes B and B includes A: the cycle is detected at depth 2 and reported, A\'s Spatial is fetched once, and nothing loops', async (impl) => {
     const [A, B] = await worlds(2, ports, impl);
@@ -103,7 +100,6 @@ async function failureChecks(ports) {
     } finally { await closeAll([A, B]); }
   }, {}, [{ name: 'a client with no cycle check', impl: noCycleCheck }]);
 
-  // ---- I8 ---------------------------------------------------------------------------------------------
   const offByOne = { clientEdits: [['    else if (depth > nestingLimit) blocked', '    else if (depth > nestingLimit + 1) blocked']] };
   await run('I8', 'with A\'s nesting limit set to 3, a chain A -> W1 -> W2 -> W3 -> W4 shows W1, W2 and W3, and the fourth level is refused', async (impl) => {
     const chain = await worlds(5, ports, impl);
@@ -122,7 +118,6 @@ async function failureChecks(ports) {
     } finally { await closeAll(chain); }
   }, {}, [{ name: 'a client whose limit lets one more level through', impl: offByOne }]);
 
-  // ---- I8b --------------------------------------------------------------------------------------------
   const repeatsAreCycles = { clientEdits: [['    if (ctx.path.includes(target)) blocked = INCLUSION_STATUS.CYCLE;', '    if (out.inclusions.some((i) => i.target === target && i.status === "included")) blocked = INCLUSION_STATUS.CYCLE;']] };
   const noBudget = { clientEdits: [
     ['    else if (out.graphsUsed >= budget) blocked = INCLUSION_STATUS.OVER_BUDGET;', '    else if (false) blocked = INCLUSION_STATUS.OVER_BUDGET;'],

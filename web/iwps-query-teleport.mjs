@@ -19,9 +19,7 @@
 // Section references below (§5.3.2 Query API, §5.3.3 Teleport API, §3.5 Naming
 // Conventions, §5.2 URIs, §5.4.1 No Security, §5.6 Asset Transfer TBD) cite it.
 //
-// ---------------------------------------------------------------------------
 // THIS MODULE IS A READING, NOT A PROTOCOL. READ THIS FIRST.
-// ---------------------------------------------------------------------------
 // claimed `base_query_teleport: true`. THAT CLAIM WAS FALSE and it has
 // been REMOVED. The honest claim it replaced — "IWPS-shaped portal handshake vocabulary
 // for local proof only; no IWPS conformance claim" — was accurate, and this change restores
@@ -73,9 +71,9 @@
 // UNAFFECTED by this module.
 //
 // THE VERIFIER RULE: no IWPS property may be labelled `true` until a harness inspects the
-// WIRE. tools/wow-conformance/crossing-proof.js used to "verify" this claim by
-// GREPPING THIS FILE FOR THE STRING `base_query_teleport: true`. It would have passed
-// identically if the protocol did not exist. It now asserts what is actually on the wire —
+// WIRE. tools/wow-conformance/crossing-proof.js must not verify this claim by
+// grepping this file FOR THE STRING `base_query_teleport: true`. It would have passed
+// identically if the protocol did not exist. It asserts what is actually on the wire —
 // including asserting that the IWPS fields are ABSENT from it, which is the truth.
 
 // Machine-readable descriptor of the conformance status. This is the object the demo

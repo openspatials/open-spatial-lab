@@ -118,7 +118,6 @@ const ringCenters = (page) => page.evaluate(() => {
   return out;
 });
 
-// ---- the checks ------------------------------------------------------------------------------------------------
 
 const CHECKS = {
   async M1(ctx) {
@@ -924,7 +923,6 @@ const CHECKS = {
   },
 };
 
-// ---- the planted faults -----------------------------------------------------------------------------------------
 
 // `expect` is the fault's named reason. A catch for any other reason (a start that broke, a request that failed) proves
 // nothing about the check: it is a harness error, and the proof exits non-zero, as for a stale fault.

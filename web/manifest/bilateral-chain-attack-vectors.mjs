@@ -59,9 +59,7 @@ import { UM_V04_CONTEXT, UM_V04_MANIFEST_VERSION } from "./interfaces.mjs";
 
 const NOW = "2026-06-15T00:00:00.000Z";
 
-// ---------------------------------------------------------------------------
 // result harness
-// ---------------------------------------------------------------------------
 let CHAIN_BREAKS = 0; // real, chain-integrity-breaking vulnerabilities (gate exit)
 let LOW = 0; // low-severity lint/boundary findings (reported, not gated)
 let RESISTED = 0;
@@ -85,9 +83,7 @@ function note(id, desc, detail) {
   if (detail) console.log(`               ${detail}`);
 }
 
-// ---------------------------------------------------------------------------
 // fresh party (real Ed25519 keys, did:key identity, signed v0.4 manifest)
-// ---------------------------------------------------------------------------
 async function makeParty({ tier } = {}) {
   const kp = await generateKeyPair();
   const did = publicKeyToDidKey(await derivePublicKeyRaw(kp.privateKey));
@@ -145,9 +141,7 @@ async function buildGenuineChain() {
   return { session, chain, VISITOR, WORLD };
 }
 
-// ===========================================================================
 // SECTION 1 — SANITY: the known defences must hold (else the harness is lying)
-// ===========================================================================
 async function sanity(G) {
   const ok = await verifyReceiptChain(G.chain, { expectChainId: G.session.sessionId });
   if (ok.valid && ok.brokenAt === null && ok.length === 3) {
@@ -178,9 +172,7 @@ async function sanity(G) {
   }
 }
 
-// ===========================================================================
 // SECTION 2 — TRUNCATION / SEAL-ANCHOR ATTACKS (class b)
-// ===========================================================================
 async function truncation(G) {
   // AV1 — drop the TAIL of a SEALED chain. The seal object still says headSeq=2 /
   // headHash=hash(l2); verifyReceiptChain extracts ONLY chain.links and never
@@ -242,11 +234,9 @@ async function truncation(G) {
   }
 }
 
-// ===========================================================================
 // SECTION 3 — RE-SIGN THE WHOLE TAIL UNDER THE VICTIM'S IDENTITY (class a) —
 //   the attempt to DEFEAT F4: re-sign a forged link AND forge every successor's
 //   prevHash consistently.
-// ===========================================================================
 async function wholeTailResign(G) {
   const links = structuredClone(G.chain.links);
   const victimEval1 = links[1].evaluatorId;
@@ -314,9 +304,7 @@ async function wholeTailResign(G) {
   }
 }
 
-// ===========================================================================
 // SECTION 4 — SPLICE / REORDER / REPLAY / GENESIS-FORGERY (class b)
-// ===========================================================================
 async function spliceReorderReplay(G) {
   // AV6 — splice a link from a DIFFERENT chain (different chainId).
   const other = await buildGenuineChain();
@@ -355,11 +343,9 @@ async function spliceReorderReplay(G) {
   else vulnerable("AV10", "HIGH", "seq gap accepted", JSON.stringify(r10));
 }
 
-// ===========================================================================
 // SECTION 5 — HASH-CONVENTION CONFUSION (class e): the chain hashes whole-doc
 //   INCL signature; the signature EXCLUDES {signature, presentationProof,
 //   postQuantumSignature}. Can a change verify-clean yet not re-hash?
-// ===========================================================================
 async function hashConvention(G) {
   // AV11 — inject presentationProof into a MID link. It is excluded from the
   // signing input (sig still verifies) BUT included in canonicalManifestHash, so
@@ -394,9 +380,7 @@ async function hashConvention(G) {
   }
 }
 
-// ===========================================================================
 // SECTION 6 — EXCHANGE-ID / CORRELATION (class c)
-// ===========================================================================
 async function exchangeCorrelation(G) {
   // AV13 — entropy-lint bypass: a fully PREDICTABLE, counter-like exchangeId that
   // nonetheless passes lintCorrelationToken (shape + ≥128-bit + diversity + runs).
@@ -463,9 +447,7 @@ async function exchangeCorrelation(G) {
   }
 }
 
-// ===========================================================================
 // SECTION 7 — INVARIANTS: append-after-seal + pre-signed input (class d)
-// ===========================================================================
 async function invariants(G) {
   // AV16 — append after seal must throw.
   let threw16 = false;
@@ -511,7 +493,6 @@ async function invariants(G) {
   else vulnerable("AV17", "HIGH", "pre-signed input accepted into the chain", reason17 || "no throw");
 }
 
-// ===========================================================================
 async function main() {
   console.log("runtime receipt hash-chain — ADVERSARIAL HARDENING HARNESS");
   console.log("=========================================================");

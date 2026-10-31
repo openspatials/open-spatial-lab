@@ -51,7 +51,6 @@ function iteration3Text(doc) {
 }
 
 async function overlayChecks(ports) {
-  // ---- W1 ---------------------------------------------------------------------------------------------
   const staleContext = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('the request headers Authorization, Content-Type, If-None-Match and If-Match."\n', 'the request headers If-Match."\n') } };
   const badType = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('+        properties:\n+          type: object\n', '+        properties:\n+          type: dictionary\n') } };
   await run('W1', 'the iteration 3 patches apply to the Web of Worlds files at main after iterations 1 and 2; the patched World API passes the OpenAPI 3.0 schema with every path parameter declared and every $ref resolving; the README completes the preview line and says observing creates no user; context.jsonld is new and names the provisional terms', async (impl) => {
@@ -73,7 +72,6 @@ async function overlayChecks(ports) {
     { name: 'a patch that is not valid OpenAPI (type: dictionary)', impl: badType },
   ]);
 
-  // ---- W2 ---------------------------------------------------------------------------------------------
   const offerDrifts = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('This world\'s current revision, the count of its changes; each event carries the revision it made.', 'This world\'s current revision.') } };
   const noTime = { serverEdits: { runtime: [['        evt.time = lastChangeTime;\n', '']] } };
   await run('W2', 'the offered text and the lab\'s contract agree on World.revision, World.services, Node.properties and the events, stream-authentication and data-point paragraphs; the served context holds the offered terms; on the wire the World reports its revision and events service, an event carries revision, time and urls, and a write that changes nothing makes no event', async (impl) => {

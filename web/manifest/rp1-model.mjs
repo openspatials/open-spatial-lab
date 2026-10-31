@@ -8,9 +8,7 @@
 // standing up next to RP1 (Sean) — the "does the portable shape compose across a second
 // ecosystem" evidence.
 //
-// ---------------------------------------------------------------------------
 // WHAT THIS MAPS (the model, per the integration doc) — and WHAT IT DOES NOT
-// ---------------------------------------------------------------------------
 // The authoritative model to map onto is
 // and its acceptance fixtures (v0.1, NOT migrated to v0.4):
 //   examples/v0.1/stubs/rp1-spatial-fabric-manifest.jsonld           (journey-07 happy path)
@@ -40,9 +38,7 @@
 //   - flip any `um_conformance` flag. The RP1 FAIL-CLOSED conformance pass + journey-07/J22
 //     acceptance is (this change builds the MODEL the 121 fail-closed edges sit on).
 //
-// ---------------------------------------------------------------------------
 // v0.4 SHAPE vs v0.1 RP1 SEMANTICS (the reconciliation that keeps it ajv-valid)
-// ---------------------------------------------------------------------------
 // The demo's emitted manifest is v0.4-shaped (spec/v0.4/schema.json). The RP1 fixture
 // SEMANTICS are v0.1 (unmigrated). v0.4 makes facets/pointers/consents STRICTER:
 //   - a facet REQUIRES `@id` + `@type` (v0.1 required only `@type`);
@@ -61,10 +57,8 @@
 
 import { UM_FACET_TYPE, UM_ENTITY_TYPE } from "./interfaces.mjs";
 
-// ===========================================================================
 // RP1 vocabulary constants (the non-normative pointer/consent/facet names the
 // integration doc suggests — integrations/rp1-spatial-fabric.md §"Suggested ...").
-// ===========================================================================
 
 /** The six suggested `rp1.*` pointer names (integration doc §"Suggested non-normative pointer names"). */
 export const RP1_POINTER_NAMES = Object.freeze({
@@ -115,9 +109,7 @@ export const RP1_MODEL = Object.freeze({
     "um_conformance stays false.",
 });
 
-// ===========================================================================
 // PUBLIC: derive the RP1 section from live crossing state.
-// ===========================================================================
 
 /**
  * Build the RP1 section (facets + pointers + consents) from the demo's live World Navigator
@@ -165,12 +157,10 @@ export function buildRp1Section(nav, opts = {}) {
   const sessionStatus = normSessionStatus(opts.sessionContextStatus, "active");
   const attachmentStatus = normAttachmentStatus(opts.attachmentStatus, "active");
 
-  // --- Portable scope ids -------------------------------------------------------------
   const rootScopeId = scopeIdFor(nav.root_fabric, "root");
   const childScopeRef = childScopeRefFor(nav);
   const attachment = attachmentSummaryFor(nav);
 
-  // === Facets (each REQUIRES @id + @type in v0.4; entity keeps the rp1:* @type tokens) ===
   const facets = [];
 
   // 1) spatialAnchors — only the small portable anchor set the subject reuses. The demo's
@@ -191,7 +181,6 @@ export function buildRp1Section(nav, opts = {}) {
   // 4) spatialAssetProfile — pointer-only external gltf/glb delivery (no embedded payloads).
   facets.push(spatialAssetProfileFacet());
 
-  // === Consents (v0.4 consent shape; RP1 semantics preserved via name/value) ============
   // facetRef binds each consent to the attachment-policy facet it gates (v0.4 requires it).
   const attachmentPolicyFacetId = urnFacetId("spatialFabricAttachmentPolicy", rootScopeId);
   const consents = spatialConsents({
@@ -202,7 +191,6 @@ export function buildRp1Section(nav, opts = {}) {
     sessionReplay: "denied", // one-context crossing: no session replay (matches the stubs)
   });
 
-  // === Pointers (v0.4 pointer shape; RP1 name/url/freshness preserved via extra members) ==
   const pointers = rp1Pointers({
     nav,
     rootFabricUrl: nav.root_fabric && isNonEmptyString(nav.root_fabric.url) ? nav.root_fabric.url : null,
@@ -230,9 +218,7 @@ export function buildRp1Section(nav, opts = {}) {
   return { facets, pointers, consents, summary };
 }
 
-// ===========================================================================
 // Facet builders.
-// ===========================================================================
 
 /** spatialAnchors facet — the portable portal anchor (reusable cross-scope entry). */
 function spatialAnchorsFacet(rootScopeId, attachment, nav) {
@@ -340,9 +326,7 @@ function spatialAssetProfileFacet() {
   };
 }
 
-// ===========================================================================
 // Consent builder (v0.4 consent shape; RP1 name/value preserved).
-// ===========================================================================
 
 /**
  * The four spatial.* consents in the v0.4 consent shape. v0.4 REQUIRES
@@ -393,9 +377,7 @@ function spatialConsents({ facetRef, issuedAt, ttlSeconds, crossWorldLinking, se
   ];
 }
 
-// ===========================================================================
 // Pointer builder (v0.4 pointer shape; RP1 name/url/freshness preserved).
-// ===========================================================================
 
 /**
  * The six rp1.* pointers in the v0.4 pointer shape. v0.4 REQUIRES `@type` on each pointer.
@@ -456,9 +438,7 @@ function rp1Pointers({ nav, rootFabricUrl, childScopeRef, issuedMs, attachmentSt
   return pointers;
 }
 
-// ===========================================================================
 // Live-state -> portable-RP1 derivations.
-// ===========================================================================
 
 /** A stable, non-PII scope id derived from a fabric's container/url (e.g. "fs_world-a-boot"). */
 function scopeIdFor(fabric, fallbackKind) {
@@ -537,9 +517,7 @@ function sessionContextUrl(nav, base) {
   return `${base}/sessions/${ctx}/context`;
 }
 
-// ===========================================================================
 // URN / identity helpers (namespaced so RP1 facet/pointer/consent @ids are stable + opaque).
-// ===========================================================================
 function urnFacetId(kind, id) {
   return `urn:um:facet:rp1:${kind}:${slugify(id)}`;
 }
@@ -560,9 +538,7 @@ function slugify(v) {
   );
 }
 
-// ===========================================================================
 // Small value helpers.
-// ===========================================================================
 function isoOrNow(v) {
   if (typeof v === "string" && Number.isFinite(Date.parse(v))) return new Date(Date.parse(v)).toISOString();
   return new Date().toISOString();

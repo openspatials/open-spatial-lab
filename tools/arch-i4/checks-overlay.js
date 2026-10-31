@@ -45,7 +45,6 @@ function iteration4Text(doc) {
 }
 
 async function overlayChecks(ports) {
-  // ---- W1 ---------------------------------------------------------------------------------------------
   const staleContext = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('-    Data points. A data point is a resource URL', '-    Data points. A data point is the resource URL') } };
   const badType = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('+        destination:\n+          type: string\n', '+        destination:\n+          type: url\n') } };
   await run('W1', 'the iteration 4 patch applies to the World API at main after iterations 1 to 3, and the patched World API passes the OpenAPI 3.0 schema with every path parameter declared and every $ref resolving', async (impl) => {
@@ -65,7 +64,6 @@ async function overlayChecks(ports) {
     { name: 'a patch that is not valid OpenAPI (type: url)', impl: badType },
   ]);
 
-  // ---- W2 ---------------------------------------------------------------------------------------------
   const offerDrifts = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('+            world\'s nodes within the radius of the arrival node, each relative to it, and only those the', '+            world\'s nodes within the radius of the arrival node, and only those the') } };
   const viewWithoutNode = { serverEdits: { runtime: [['            id : WOW_PLAYER_VIEW_ID, // number, per WoW View schema\n            ...(placed != null ? { node : nodeRef(spatialStore, placed) } : {}),', '            id : WOW_PLAYER_VIEW_ID, // number, per WoW View schema']] } };
   await run('W2', 'the offered text and the lab\'s contract agree on Portal.destination, Portal.node, User.node, View.node, World.preview and the portals paragraph; on the wire a portal carries destination and node, the user and the view carry node, the World declares its preview, and the preview URL returns a Node tree', async (impl) => {

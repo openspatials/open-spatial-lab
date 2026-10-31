@@ -2,7 +2,6 @@
  * source-mutations.js.
  *
  * WHY THIS EXISTS
- * ===============
  * A negative control has to confront the proof with the ACTUAL defect, in the ACTUAL code path.
  * learned that the hard way: its first negative control faked the post-crossing panel from
  * inside the page on a rAF loop, that loop RACED the app's own per-frame gate, and the result was
@@ -20,7 +19,6 @@
  * app's own update.
  *
  * SAFETY
- * ======
  * - OFF unless `OSL_SOURCE_MUTATION` names a mutation in this table. Default behaviour is
  *   byte-identical.
  * - REFUSED on the local demo ports (8143 / 18151-18153) — see serve.js.

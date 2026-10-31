@@ -17,7 +17,6 @@ const at = (inc, record) => inc.transformPoint(record.world, [0, 0, 0]);
 const withoutChildren = (node) => { const copy = Object.assign({}, node); delete copy.children; return copy; };
 
 async function readChecks(ports) {
-  // ---- I4 ---------------------------------------------------------------------------------------------
   const tagChangesEveryTime = { serverEdits: { server: [['            const etag = wowEtag(type, body);', '            const etag = wowEtag(type, body + Math.random());']] } };
   const clientNeverRevalidates = { clientEdits: [['    if (kept && kept.etag) headers["If-None-Match"] = kept.etag;\n', '']] };
   await run('I4', 'read again with If-None-Match, every unchanged resource answers 304; after B moves node n, the reads that hold n answer 200 with a new entity tag and A shows n at its new place', async (impl) => {
@@ -62,7 +61,6 @@ async function readChecks(ports) {
     { name: 'a client that never sends If-None-Match', impl: clientNeverRevalidates },
   ]);
 
-  // ---- I4b --------------------------------------------------------------------------------------------
   const ignoresIfMatch = { serverEdits: { server: [[
     '                        if (current && ifMatchFails(req, readableNode(graphIdOf(spatialID), current)))',
     '                        if (false && current && ifMatchFails(req, readableNode(graphIdOf(spatialID), current)))',

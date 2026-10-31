@@ -25,16 +25,15 @@
 //           absent." (spec §1.4.4, §3.1.4)
 //     · §fixtures rows facet-without-consent / consent-expired / consent-withdrawn
 //           / consent-scope-mismatch-read / consent-unknown-condition
-//           / consent-missing-facet-ref (the six this change owns)
+//           / consent-missing-facet-ref (the six this module owns)
 //     · §PREVIEW note: "unrecognized or unenforceable consent conditions fail closed"
 //   spec/v0.4/schema.json      $defs.consent — REQUIRED @id, @type:um:Consent,
 //                              facetRef, scope, purpose, grantedAt, expiresAt;
 //                              OPTIONAL grantor, withdrawnAt, conditions.
-//   conformance/v0.4/expected.json  the six fixture entries this change owns
+//   conformance/v0.4/expected.json  the six fixture entries this module owns
 //     (pinned evaluationContext.now = 2026-06-01T00:01:00.000Z; the read-path
 //      scope fixture pins evaluationContext.intendedScope = ["read"]).
 //
-// ---------------------------------------------------------------------------
 // HONESTY CEILING — what is REAL vs demonstration (machine-readable descriptor:
 // feature_CONSENT_CONFORMANCE below; every real:true is exercised by
 // web/manifest/verify.mjs against the external suite):
@@ -58,7 +57,6 @@
 // that); NOT signature/TTL verification; NOT
 // write-consent / unlock-window / key-lifecycle;
 // NOT SOM/inter-service sensor denials.
-// ---------------------------------------------------------------------------
 //
 // FILE DISCIPLINE: this is a NEW, specific module. It imports only the
 // signing library (read-only reuse for the Verify precondition) and is
@@ -69,9 +67,7 @@
 
 import { verifyManifestProfileA } from "../signing/um-signature-profile-a.mjs";
 
-// ===========================================================================
 // Constants (schema.json $defs.consent + CONFORMANCE §36 status set)
-// ===========================================================================
 
 /** REQUIRED consent members (schema.json $defs.consent.required). */
 export const CONSENT_REQUIRED_FIELDS = Object.freeze([
@@ -158,9 +154,7 @@ export const feature_CONSENT_CONFORMANCE = Object.freeze({
     "from runtime/119 (not re-implemented). This is the Stage-4 slice, not the full evaluator.",
 });
 
-// ===========================================================================
 // Small helpers (browser-safe; no Buffer)
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -179,9 +173,7 @@ function hasConsentType(t) {
   return t === "um:Consent" || (Array.isArray(t) && t.includes("um:Consent"));
 }
 
-// ===========================================================================
 // 1) STRUCTURAL SURFACE — envelope + consent shape (schema.json $defs.consent)
-// ===========================================================================
 
 /** Minimal v0.4 envelope shape check (mirrors the reference evaluator's Arrive gate). */
 function envelopeErrors(manifest) {
@@ -263,10 +255,8 @@ export async function structuralVerdictConsent(manifest) {
   };
 }
 
-// ===========================================================================
 // 2) CORE CONSENT ENGINE — facetRef matching + 4-value fail-closed vocabulary
 //    (the reusable API consumed private-data and SOM gating).
-// ===========================================================================
 
 /**
  * Find the consent entry governing a facet: consents[].facetRef === facet @id.
@@ -404,10 +394,8 @@ export function evaluateConsentStage(manifest, context = {}) {
   return { facetStatuses, consentStatuses, processed, notProcessed };
 }
 
-// ===========================================================================
 // 3) FULL EVALUATE SLICE — Verify precondition (reused) + Consent stage +
 //    receipt composition. This is the fixture-facing evaluate.
-// ===========================================================================
 
 /**
  * Evaluate a manifest through the Verify precondition then the Consent stage,
@@ -440,14 +428,12 @@ export async function evaluateConsentGating(manifest, context = {}) {
     return { result: outcome === "rejected" ? "reject" : "accept", receipt };
   };
 
-  // --- Arrive/Verify: structure (envelope + consent shape) ------------------
   const structural = [...envelopeErrors(manifest), ...validateConsentStructural(manifest).errors];
   if (structural.length > 0) {
     warnings.push({ code: "um:reason:structure:malformed", message: `Verify stage: ${structural.join("; ")}` });
     return finish("rejected");
   }
 
-  // --- Arrive/Verify: signature --
   const sig = manifest.signature;
   if (!sig || typeof sig !== "object") {
     warnings.push({ code: "um:reason:crypto:signature-missing", message: "Verify stage: missing signature" });
@@ -461,7 +447,6 @@ export async function evaluateConsentGating(manifest, context = {}) {
   }
   receipt.signatureCheck = "valid";
 
-  // --- Arrive/Verify: freshness at the PINNED now (§3.1.2; 60s skew) ---------
   const SKEW_MS = 60_000;
   const issuedMs = Date.parse(manifest.issuedAt);
   const expiresMs = Date.parse(manifest.expiresAt);
@@ -477,7 +462,6 @@ export async function evaluateConsentGating(manifest, context = {}) {
   }
   receipt.freshnessCheck = "fresh";
 
-  // --- Stage-4 Consent -------------------------------------------------------
   const stage = evaluateConsentStage(manifest, context);
   receipt.facetStatuses = stage.facetStatuses;
   receipt.consentStatuses = stage.consentStatuses;
@@ -492,20 +476,17 @@ export async function evaluateConsentGating(manifest, context = {}) {
     }
   }
 
-  // --- Compose the outcome ---------------------------------------------------
   // Envelope accepted; a facet present-but-not-processed ⇒ partial acceptance.
   if (stage.notProcessed.length > 0) return finish("accepted-partial");
   return finish("accepted");
 }
 
-// ===========================================================================
 // 4) CROSSING SENSOR GATING — page bars P8 (portaling) + R8/R9 (RP1).
 //    A page-visible DEMONSTRATION of fail-closed monotonicity: a service request
 //    or enterprise reinforcement can only TIGHTEN a gate, never loosen it; a deny
 //    always holds. NO expected.json fixtures back this (it is scenario, not
 //    conformance) — the honesty ceiling is explicit in feature_CONSENT_CONFORMANCE.
 // (SOM / inter-service sensor denials) consumes gateSensorRequest.
-// ===========================================================================
 
 /** Sensor dispositions, most-protective → least. `granted` is the only unconstrained grant. */
 export const SENSOR_DISPOSITIONS = Object.freeze(["denied", "occluder-only", "post-server-mix", "granted"]);
@@ -627,10 +608,8 @@ export function buildCrossingSensorGateSurface({ enterpriseReinforced = false, s
   };
 }
 
-// ===========================================================================
 // 5) CONFORMANCE-RUNNER REGISTRATION HOOK (the shared v0.4 runner wires this with
 //    ONE block — applied by the integration step, not by this module).
-// ===========================================================================
 
 /** The six fixture files owns (5 evaluation valid/ + 1 schema reject invalid). */
 export const feature_FIXTURE_FILENAMES = Object.freeze([

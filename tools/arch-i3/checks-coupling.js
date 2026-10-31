@@ -21,7 +21,6 @@ const maxDiff = (a, b) => Math.max(...a.map((v, i) => Math.abs(v - b[i])));
 const nonReads = (log) => log.filter((r) => !['GET', 'HEAD', 'OPTIONS'].includes(r.method));
 
 async function couplingChecks(ports) {
-  // ---- O6 ---------------------------------------------------------------------------------------------
   const mirrorReadsOnce = { serverEdits: { mirrors: [['                onChange : (point) => apply(point),', '                onChange : () => {},']] } };
   await run('O6', 'a node in A holds B\'s data-point URL under properties.mirror; while B has nobody in it and its simulator changes the temperature, A\'s server mirrors every value into A\'s own node, and sends B no write', async (impl) => {
     const B = await w.world('b', ports.next(), { base: '/w/b' });
@@ -54,7 +53,6 @@ async function couplingChecks(ports) {
     }
   }, {}, [{ name: 'a mirror that reads once and never follows', impl: mirrorReadsOnce }]);
 
-  // ---- O6b --------------------------------------------------------------------------------------------
   const noOpCreatesEvent = { serverEdits: { runtime: [["            if (JSON.stringify(before) === JSON.stringify(store.getNode(nodeId, { form : 'flat' }))) return Object.assign(r, { unchanged : true });\n", '']] } };
   await run('O6b', 'A and B mirror one value both ways; after one change in B, both worlds settle within two events and then stay quiet, because a write that changes nothing creates no event', async (impl) => {
     const A = await w.world('a', ports.next(), { edits: impl.serverEdits });
@@ -88,7 +86,6 @@ async function couplingChecks(ports) {
     }
   }, {}, [{ name: 'a server where a write that changes nothing still creates an event', impl: noOpCreatesEvent }]);
 
-  // ---- O7 ---------------------------------------------------------------------------------------------
   const ignoresEvents = { inclusionEdits: [['          if (named.some((u) => reader.cache.has(u))) return recompose(evt);', '          if (false) return recompose(evt);']] };
   await run('O7', 'A includes B\'s graph at X; while B\'s simulator moves node n, A\'s composition updates from the event of each change (n under X follows each logged transform exactly), and reads nothing between events', async (impl) => {
     const B = await w.world('b', ports.next(), { base: '/w/b' });
@@ -128,7 +125,6 @@ async function couplingChecks(ports) {
     }
   }, {}, [{ name: 'a client that ignores events', impl: ignoresEvents }]);
 
-  // ---- O9 ---------------------------------------------------------------------------------------------
   const noStreamBudget = { inclusionEdits: [['    if (out.streams.length >= streamBudget) return false;\n', '']] };
   await run('O9', 'with I8b\'s 13 worlds live and a stream budget of 8, A holds 8 event streams, its own among them, handed out in tree order; inclusions from the other worlds show "over budget"', async (impl) => {
     const all = [];
@@ -160,7 +156,6 @@ async function couplingChecks(ports) {
     }
   }, {}, [{ name: 'a client with no stream budget', impl: noStreamBudget }]);
 
-  // ---- O10 --------------------------------------------------------------------------------------------
   const literalType = { inclusionEdits: [['    return [].concat(properties["@type"]).some((t) => expand(t, 0) === ENVIRONMENT_IRI);', '    return [].concat(properties["@type"]).includes("Environment");']] };
   await run('O10', 'B\'s nodes typed as environment through the JSON-LD context (the served context, and an inline one with another term) are not shown in A, with their subtrees; a node whose "Environment" term means something else is shown, and A\'s own environment node stays', async (impl) => {
     const B = await w.world('b', ports.next(), { base: '/w/b' });

@@ -24,7 +24,7 @@
  *       caught. BEHAVIOURAL.
  *       The browser-side machinery (no-reload in-memory promotion, the
  *       (x,y,z)->(-x,y,-z) camera isometry) keeps a SOURCE TRIPWIRE, labeled as
- *       exactly that and no longer published as continuity evidence; its RUNTIME
+ *       exactly that and not published as continuity evidence; its RUNTIME
  *       proof is the e2e-driver's (browser), tracked by runtime.
  *
  * Isolated ports ONLY (NEVER 8143 / 18151-18153 — the live local demo). Boots a
@@ -54,7 +54,6 @@ const PORT_B = Number(process.env.OSL_CROSSING_PROOF_PORT_B || 18988);
 const IWPS_QUERY_PATH = '/portal/exit-intent';
 const IWPS_TELEPORT_PATH = '/portal/arrival';
 
-// ---------------------------------------------------------------------------
 // NEGATIVE MODE. A verifier you have never seen fail is not a
 // verifier; it is a decoration. This proof can be run with the capability REMOVED, and it
 // is REQUIRED to go red. Two modes, because there are two ways to lie:
@@ -65,8 +64,7 @@ const IWPS_TELEPORT_PATH = '/portal/arrival';
 //                     false, and the proof MUST go red.
 //   --negative=claim  RE-INFLATE THE CLAIM. The conformance descriptor is overridden to
 //                     `base_query_teleport: true` / `iwps_conformance: true` while the wire
-//                     is left exactly as it is. THIS IS THE EXACT REGRESSION
-// SHIPPED — and the old source-grep verifier PASSED
+//                     is left exactly as it is.
 //                     it. The claim/wire lock MUST now go red.
 //   --negative=continuity
 //                     BREAK CONTINUITY ON THE WIRE. The crosser's
@@ -75,12 +73,11 @@ const IWPS_TELEPORT_PATH = '/portal/arrival';
 //                     mock. The crossing still SUCCEEDS: the handoff_id still correlates, the
 //                     arrival is still 201, presence is still ghost-free. ONLY the identity
 //                     fails to carry. Everything block (F) claims is then false, and the proof
-//                     MUST go red. Before this change, block (F) "proved" continuity by grepping
-//                     web/live-adapter.js for regexes — it would have passed this cleanly.
+//                     MUST go red. A source grep of
+//                     web/live-adapter.js would pass this cleanly, so it proves nothing.
 //
 // In negative mode the exit code is INVERTED: red == the negative test PASSED (exit 0);
 // green == THE VERIFIER IS BLIND, which is the real bug (exit 3).
-// ---------------------------------------------------------------------------
 const NEGATIVE = (() => {
     const arg = process.argv.slice(2).find((a) => a.startsWith('--negative'));
     const env = process.env.OSL_CROSSING_PROOF_NEGATIVE;
@@ -166,10 +163,9 @@ function ok(name, cond, detail) {
     if (!cond) problems.push(name + (detail ? ' — ' + detail : ''));
 }
 
-// ---------------------------------------------------------------------------
 // THE EVIDENCE MUST BE DERIVED FROM THE RUN, NOT ASSERTED.
 //
-// evidence.continuity_static used to HARDCODE `no_reload_invariant: true`,
+// evidence.continuity_static must not HARDCODE `no_reload_invariant: true`,
 // `in_memory_promotion: true`, `isometry_x_and_z_negated: true`, ... — literal `true`s
 // written into the evidence file for results this proof actually COMPUTES into checks[].
 // If a source regex stopped matching (the machinery was deleted, renamed, refactored) the
@@ -179,7 +175,6 @@ function ok(name, cond, detail) {
 // These names are now declared ONCE and used BOTH to register the check and to derive the
 // evidence field, so the two cannot drift. A field whose check never ran is `null`
 // (UNKNOWN) and raises an EVIDENCE INTEGRITY problem — never `true`, never quietly `false`.
-// ---------------------------------------------------------------------------
 const C = {
     ISO_X:           'ISOMETRY source tripwire: canonical proper local helper negates x and mapCameraAcrossCrossing consumes it',
     ISO_Z:           'ISOMETRY source tripwire: canonical proper local helper negates z and mapCameraAcrossCrossing consumes it',
@@ -239,7 +234,6 @@ async function walkGraph(base, spatialId) {
 
 function near(a, b, tol) { return Math.abs((Number(a) || 0) - (Number(b) || 0)) <= (tol || 0.001); }
 
-// ---------------------------------------------------------------------------
 // THE CROSSER'S IDENTITY, AND WHY IT MUST BE MINTED.
 //
 // Every 041 node boots with the SAME factory identity: avatar_id == continuity_id ==
@@ -252,7 +246,6 @@ function near(a, b, tol) { return Math.abs((Number(a) || 0) - (Number(b) || 0)) 
 // factory default (B cannot produce it by accident) and distinct from avatar_id (so a fallback to
 // avatar_id is VISIBLE rather than silently correct). Two of them, because a destination that
 // merely echoed a constant would still satisfy one.
-// ---------------------------------------------------------------------------
 const FACTORY_IDENTITY = 'avatar-local-001';
 const CROSSER_AVATAR_ID = 'avatar-local-001';
 const mintId = (tag) => 'runtime-continuity-' + tag + '-' + process.pid + '-' + Math.floor(Math.random() * 1e9);
@@ -334,7 +327,6 @@ async function main() {
     };
 
     try {
-        // ===== (A) BOTH worlds rendered via the WoW composition graph =====
         const worldA = await getJson(baseA, '/wow/world');
         const worldB = await getJson(baseB, '/wow/world');
         const spA = worldA.json && worldA.json.id;
@@ -400,7 +392,6 @@ async function main() {
             note: 'render_summary.shape=wow-composition-graph; node counts+positions taken VERBATIM from /wow/spatial (buildWowScene).',
         };
 
-        // ===== (B) destination resolved from the labeled Portal.osl_destination (iteration 4: `destination` is the entry URL) =====
         const portalA = await getJson(baseA, '/wow/portal/1');
         const pa = portalA.json || {};
         const dest = pa.osl_destination && typeof pa.osl_destination === 'object' ? pa.osl_destination : {};
@@ -414,10 +405,8 @@ async function main() {
         const portalStringId = (paExt.portal_id && typeof paExt.portal_id === 'string') ? paExt.portal_id : 'location-a-portal';
         diagnostics.crossing.destination = { via: 'Portal.osl_destination', target_world_id: dest.target_world_id, resolves_on_B: destResolve.status === 200, source_portal_string_id: portalStringId };
 
-        // ===== (C) IWPS handshake: Query = exit-intent, Teleport = arrival; handoff_id correlation =====
         await postJson(baseA, '/reset'); await postJson(baseB, '/reset');
 
-        // --- make the crosser's identity DISTINGUISHABLE before it crosses. ---
         // Learn A's own world/location ids from its own exit packet (its `source` block), record the
         // destination's FACTORY identity, and confirm the destination has never heard of the minted
         // id. Only then is "B ends up holding the minted id" a fact about the CROSSING rather than a
@@ -456,7 +445,6 @@ async function main() {
             dsA.location && dsA.location.location_id === 'location-a' && dsB.location && dsB.location.location_id === 'location-b');
         diagnostics.crossing.iwps = { handoff_id: exitPacket.handoff_id, a_exit_handoff: aExitHandoff, b_arrival_handoff: bArrHandoff, target: 'location-b', native_teleportxr_teleport: false };
 
-        // ===== (D) ghost-free presence hand-off across the two /wow/user registries =====
         const playerId = 'runtime-crosser';
         const contId = (exitPacket.avatar_context && exitPacket.avatar_context.continuity_id) || 'continuity-runtime';
         const regA = await postJson(baseA, '/fabric/presence/register', { player_id: playerId, avatar_id: 'avatar-local-001', continuity_id: contId, display_name: 'runtime crosser' });
@@ -479,19 +467,8 @@ async function main() {
 
         // ===== (E) honesty scoping — WIRE-LEVEL, NOT A SOURCE GREP =====
         //
-        // WHAT THIS USED TO BE, AND WHY IT WAS A FRAUD:
         //
-        //     const iwpsSrc = fs.readFileSync('web/iwps-query-teleport.mjs', 'utf8');
-        //     ok('IWPS base-scoped: base_query_teleport:true', /base_query_teleport:\s*true/.test(iwpsSrc));
-        //
-        // THE VERIFIER FOR OUR IWPS CONFORMANCE CLAIM GREPPED THE FILE CONTAINING THE CLAIM
-        // FOR THE CLAIM. It asserted that a string exists in a file. It would have passed
-        // IDENTICALLY IF THE PROTOCOL DID NOT EXIST — and in fact the protocol did not
-        // exist, and it passed, and it shipped a `✓` to a demo we show to standards people.
-        // A verifier that greps for its own claim string is worse than no verifier: it
-        // launders an assertion into evidence.
-        //
-        // WHAT IT IS NOW: it asserts BEHAVIOUR ON THE WIRE, and it locks the CLAIM to that
+        // It asserts BEHAVIOUR ON THE WIRE, and it locks the CLAIM to that
         // wire IN BOTH DIRECTIONS.
         //   - The capability we genuinely have (IWPS-SHAPED: two POSTs, Query->Teleport
         //     order, kebab-case, POST-only, two separate servers) is asserted against real
@@ -499,7 +476,6 @@ async function main() {
         //   - The capability we DO NOT have (the IWPS protocol itself) is asserted ABSENT
         //     from the wire — and the descriptor must SAY it is absent. Re-inflate the claim
         //     without changing the wire and this goes RED. (Proven: `--negative=claim`.)
-        //     That is precisely the regression shipped and nothing caught.
         //
         // The descriptor is READ BY IMPORTING THE REAL MODULE, never by regex over its text.
         ok('portal proof_boundary.standards_conformance:false', pa.proof_boundary && pa.proof_boundary.standards_conformance === false);
@@ -511,7 +487,6 @@ async function main() {
             ? Object.assign({}, iwpsMod.IWPS_CONFORMANCE, { iwps_conformance: true, base_query_teleport: true })
             : iwpsMod.IWPS_CONFORMANCE;
 
-        // --- E1. The claim itself. Read from the real module object, not its source text. ---
         ok('IWPS claim is HONEST: iwps_conformance === false (the flag this proof refuses to flip)',
             IWPS.iwps_conformance === false, 'iwps_conformance=' + IWPS.iwps_conformance);
         ok('IWPS NOT INFLATED: base_query_teleport === false (we do NOT implement Query/Teleport)',
@@ -522,7 +497,6 @@ async function main() {
             String(IWPS.claim).slice(0, 60) + '...');
         ok('IWPS security profile named as No-Security (§5.4.1)', /No-Security/.test(String(IWPS.profile)));
 
-        // --- E2. THE WIRE: what we genuinely hold. IWPS-SHAPED. Behavioural. ---
         // Query leg and Teleport leg were REALLY POSTed above (exitR/arrR), to two REALLY
         // separate servers, in Query->Teleport order, on kebab-case paths. Assert that.
         ok('WIRE — IWPS-SHAPED: Query leg is a real POST accepted on source A (§5.1.1 order, call 1 of 2)',
@@ -540,7 +514,6 @@ async function main() {
         ok('WIRE — IWPS-SHAPED: the crossing routes are POST-only — a GET is NOT accepted (§5.2.1 SHALL)',
             getQuery.status !== 201 && getQuery.status !== 200, 'GET ' + IWPS_QUERY_PATH + ' -> ' + getQuery.status);
 
-        // --- E3. THE WIRE: what we DO NOT hold. The gap, asserted as fact. ---
         // These are the two MANDATORY fields of the IWPS Query response (§5.3.2 Table 2).
         // They are synthesized in the browser. They are NOT on the wire. PROVE it.
         const wireKeys = Object.keys(exitPacket || {});
@@ -566,7 +539,6 @@ async function main() {
             !ackServed && !nackServed,
             'POST /portal/source-ack -> ' + ackR.status + ' · POST /portal/source-nack -> ' + nackR.status);
 
-        // --- E4. THE TWO-WAY LOCK. The claim must MATCH the observed wire. ---
         // Overclaim (claim says implemented, wire says absent) -> RED.
         // Underclaim (wire gains real IWPS, claim still says absent) -> RED, so whoever
         // earns conformance is FORCED to come back here and update the claim.
@@ -609,40 +581,7 @@ async function main() {
                 + '(claim re-inflated) both drive this validation RED.',
         };
 
-        // ===== (F) CONTINUITY — ASSERTED AS A CONSEQUENCE OF THE RUN =====
-        //
-        // WHAT THIS USED TO BE, AND WHY IT WAS A FRAUD:
-        //
-        // It read web/live-adapter.js, matched the isometry with a regex and published the match as
-        // continuity evidence.
-        //
-        // The PUBLISHED CONTINUITY EVIDENCE WAS DERIVED FROM REGEX HITS ON A SOURCE FILE. It
-        // asserted that certain characters appear in live-adapter.js. Continuity — the one thing a
-        // crossing exists to preserve — was never once observed CROSSING anything. Two servers were
-        // standing right there, a crossing was being driven through them, and the proof went and
-        // read a file instead.
-        //
-        // And underneath it lay a second, quieter lie: the ONE behavioural continuity check in this
-        // file (block C, 'continuity_id preserved across the crossing') compared B's post-arrival
-        // continuity_id to A's exit-packet continuity_id — and BOTH nodes boot with the SAME factory
-        // identity, 'avatar-local-001'. It compared a default to itself. It passed with the
-        // continuity field stripped off the wire entirely. Both halves of the continuity claim were
-        // therefore unfalsifiable, which is the only kind of claim worth nothing.
-        //
-        // WHAT IT IS NOW. The crosser was given a MINTED identity (block C) that the destination
-        // cannot produce by accident and that differs from avatar_id, so a fallback is visible.
-        // Continuity is then OBSERVED CROSSING, at every point it must survive:
-        //     A's live state -> the exit packet ON THE WIRE -> B's avatar record -> B's arrival
-        //     receipt -> B's WoW /wow/user registry -> B's presence registry
-        // and then it is done AGAIN with a DIFFERENT identity, which catches a destination that
-        // merely echoes a constant. Every field of evidence.continuity below is READ BACK OFF THE
-        // WIRE from that run. Nothing is derived from source text.
-        //
-        // Negative-tested: `--negative=continuity` deletes avatar_context.continuity_id from the
-        // arrival body on the wire into B. The crossing still completes — 201, handoff_id
-        // correlated, presence ghost-free — and ONLY these checks go red. Which is the point.
 
-        // --- F1. The identity was DISTINGUISHABLE before it crossed. Without this, everything
         //         below could be satisfied by two servers sharing a default. ---
         ok('CONTINUITY setup: the destination B\'s FACTORY identity is the shared default (so an un-minted check would be a tautology)',
             baselineB === FACTORY_IDENTITY, 'B factory continuity_id=' + baselineB);
@@ -655,7 +594,6 @@ async function main() {
         ok('CONTINUITY on the SOURCE: A\'s live avatar record now carries the minted continuity_id',
             dsASeed.avatar && dsASeed.avatar.continuity_id === MINTED_1, dsASeed.avatar && dsASeed.avatar.continuity_id);
 
-        // --- F2. Continuity travels ON THE WIRE, read out of the SOURCE's live state. ---
         ok('CONTINUITY on the WIRE: the exit packet carries the SOURCE\'s LIVE continuity_id (not a constant, not a default)',
             exitPacket.avatar_context && exitPacket.avatar_context.continuity_id === MINTED_1,
             exitPacket.avatar_context && exitPacket.avatar_context.continuity_id);
@@ -663,7 +601,6 @@ async function main() {
             MINTED_1 !== exitPacket.handoff_id && MINTED_1 !== CROSSER_AVATAR_ID,
             'continuity=' + MINTED_1 + ' handoff=' + exitPacket.handoff_id + ' avatar=' + CROSSER_AVATAR_ID);
 
-        // --- F3. Continuity is OBSERVABLE IN THE DESTINATION'S STATE after the crossing. ---
         const bCont = dsB.avatar && dsB.avatar.continuity_id;
         const bArrivalRcpt = (dsB.debug && dsB.debug.handoff && dsB.debug.handoff.last_arrival) || {};
         ok('CONTINUITY in the DESTINATION: B\'s avatar record carries the crosser\'s minted continuity_id after arrival',
@@ -676,7 +613,6 @@ async function main() {
         ok('CONTINUITY receipt: B preserved the crosser\'s avatar_id alongside its continuity_id',
             bArrivalRcpt.preserved_avatar_id === CROSSER_AVATAR_ID, 'preserved_avatar_id=' + bArrivalRcpt.preserved_avatar_id);
 
-        // --- F4. Continuity is observable on the WoW-native surface, and in presence. ---
         const wowUserAfter = await getJson(baseB, '/wow/user/' + encodeURIComponent(MINTED_1));
         ok('CONTINUITY on the WoW SURFACE: the identity that 404\'d on B before the crossing RESOLVES on B after it (/wow/user/{continuity_id} -> 200)',
             wowUserAfter.status === 200, 'GET /wow/user/' + MINTED_1 + ' -> ' + wowUserAfter.status +
@@ -696,7 +632,6 @@ async function main() {
             !!crosserInB && crosserInB.continuity_id === MINTED_1,
             crosserInB ? ('entry.continuity_id=' + crosserInB.continuity_id) : 'crosser not found in B presence registry');
 
-        // --- F5. THE CONSTANT-ECHO TEST. A destination that hardcoded/echoed one id would have
         //         satisfied everything above. Cross a SECOND, DIFFERENT identity and demand B tracks
         //         it. Continuity must be a FUNCTION OF THE WIRE, not a stored value. ---
         await postJson(baseA, '/reset'); await postJson(baseB, '/reset');
@@ -745,7 +680,6 @@ async function main() {
                 + 'the crossing still completes (201, handoff_id correlated, presence ghost-free) and ONLY these checks go red.',
         };
 
-        // ===== (F2) CLIENT-side crossing MACHINERY — a SOURCE TRIPWIRE, and labeled as one =====
         // These regexes are NOT a continuity proof. What remains: the (x,y,z)->(-x,y,-z) portal isometry
         // (web/live-adapter-portal-geometry.mjs, not moving). That the page crosses without a reload, and builds the
         // destination's scene from the destination's own graph, is run in the page by

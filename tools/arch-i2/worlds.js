@@ -69,7 +69,6 @@ async function world(role, port, options) {
   return api;
 }
 
-// ---- Models -----------------------------------------------------------------------------------------
 
 function gltfDocument(parts) {
   const positions = new Float32Array([
@@ -136,7 +135,6 @@ async function modelHost(port) {
   return { port, base, url: (p) => base + p, gltf: (p) => MODELS[p].body(), close: () => new Promise((r) => server.close(r)) };
 }
 
-// ---- The client -------------------------------------------------------------------------------------
 
 const CLIENT = 'web/wow-inclusion.mjs';
 const CLIENT_SIBLINGS = ['wow-geopose.mjs', 'wow-geopose.js', 'wow-observe.mjs'];
@@ -174,7 +172,6 @@ function countingFetch() {
   return f;
 }
 
-// ---- three.js in Node, for the models ---------------------------------------------------------------
 
 let threeModules = null;
 async function three() {

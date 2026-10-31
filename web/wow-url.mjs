@@ -26,14 +26,12 @@
  * intent. The caller (web/index.html boot hook) applies it. Keeping it pure is what makes the
  * grammar provable by load-independent unit tests rather than by a flaky browser run.
  *
- * ---------------------------------------------------------------------------------------
  * READ-ONLY ON THE URL — a hard constraint inherited.
  * app.js documents it: params are "read once at boot from location.search and never
  * written", because Puppeteer counts history.pushState/replaceState as a main-frame
  * `framenavigated`, which breaks the no-reload proof's nav-count==1 guard. So this module
  * only ever PARSES and BUILDS strings. It never assigns location.hash, never pushes history.
  * Persist and Share need only that the URL be stable and restorable — not that we write it.
- * ---------------------------------------------------------------------------------------
  *
  * EVERY INTERPRETATION IS LABELLED `INTERPRETATION:` BELOW, WITH ITS REASONING. The spec is
  * thin, one row is literally truncated mid-sentence, and it contradicts its own API.yaml
@@ -371,7 +369,6 @@ export function parseWorldUrl(href, opts = {})
 {
     const u = new URL(String(href));
 
-    // --- which world? ---
     let worldKey = null;
     let worldSource = 'default';
 
@@ -405,7 +402,6 @@ export function parseWorldUrl(href, opts = {})
         else { worldKey = DEFAULT_WORLD; worldSource = roleParam ? 'query:role' : 'default'; }
     }
 
-    // --- which intent? ---
     const frag = parseWowFragment(u.hash);
     const aspect = resolveAspect(frag.aspectId, opts);
 

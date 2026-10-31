@@ -36,7 +36,6 @@ const pathParams = (doc, method) => (((doc.paths || {})[NODE_PATH] || {})[method
 const SPATIAL_PARAM = '+        - name: spatialID\n+          in: path\n+          description: ID of the graph the node belongs to\n+          required: true\n+          schema:\n+            type: integer\n';
 
 async function upstreamChecks() {
-  // ---- U1. The patches apply, and the result is a consistent API description ---------------------------
   const lacksOneSpatialId = { world: (p) => p.replace(SPATIAL_PARAM, '') };
   const keepsNodeid = { world: (p) => p.replace('+        - name: nodeId\n           in: path\n           description: node id to delete', '+        - name: nodeid\n           in: path\n           description: node id to delete') };
   const dropsLon = { world: (p) => p.replace('+            lon:\n+              type: number\n+              minimum: -180\n+              maximum: 180\n', '') };
@@ -94,7 +93,6 @@ async function upstreamChecks() {
     { name: 'a patch that leaves the Asset geoPose without the shared definition', impl: { edits: assetKeepsInline } },
   ]);
 
-  // ---- U2. The offered text is the proven text ---------------------------------------------------------
   const oslDriftsTransform = (osl) => { osl.components.schemas.Node.properties.localTransform.maxItems = 12; };
   const oslDriftsGeoPose = (osl) => { osl.components.schemas.GeoPose.properties.position.properties.lon.minimum = -90; };
   const oslDropsWorldNote = (osl) => { delete osl.components.schemas.World.properties.geoPose.description; };

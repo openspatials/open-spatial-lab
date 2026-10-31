@@ -63,9 +63,7 @@
 //     which said "signature removed" — that is the SIGNING-input rule, a different
 //     hash. The binding-chain reference hash is over the full artifact.]
 //
-// ---------------------------------------------------------------------------
 // SCOPE / HONESTY (read before touching the labels)
-// ---------------------------------------------------------------------------
 // IMPLEMENTED FOR REAL here: receiver-role projection with fail-closed withholding
 // and non-leaking not-projected records; data-driven entitlement (facet disclosure
 // policy + consent audience.match); unrecognized claim/pointer recording; the
@@ -95,9 +93,7 @@ import {
   defaultHolderBindingStatusOf,
 } from "./trust-tier.mjs";
 
-// ===========================================================================
 // v0.4 vocabulary (pinned to the reference implementation)
-// ===========================================================================
 
 /** Per-facet status set — CONFORMANCE §2 item 6 / Base §3.3.1. */
 export const FACET_STATUSES = Object.freeze([
@@ -134,9 +130,7 @@ export const RECOGNIZED_POINTER_TYPES = Object.freeze(new Set(["um:agentDelegati
 /** Project-stage receipt-outcome contributions (subset of the full um:Receipt set). */
 export const PROJECT_OUTCOMES = Object.freeze(["accepted", "accepted-partial", "rejected"]);
 
-// ===========================================================================
 // Small pure helpers
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -155,12 +149,10 @@ function typeSet(node) {
   return [];
 }
 
-// ===========================================================================
 // (A) Canonicalization + hashing — the binding-chain reference hash.
 //     Byte-identical to examples/.../service-encounter/verify-service-encounter.mjs
 //     `canonicalizeJson` (deep-key-sorted JSON, undefined dropped). Covers the WHOLE
 //     manifest, INCLUDING `signature`. Browser-safe (WebCrypto), so async.
-// ===========================================================================
 
 /** Deterministic JSON: keys sorted ascending, `undefined` members dropped. */
 export function canonicalizeManifest(value) {
@@ -200,9 +192,7 @@ export async function canonicalManifestHash(manifest) {
   return `sha256:${await sha256Hex(canonicalizeManifest(manifest))}`;
 }
 
-// ===========================================================================
 // (B) Requirement→projection binding chain (RP1 service encounter).
-// ===========================================================================
 
 /** Find a facet by `name` and return its `entity` object (RP1 facets are `{name, entity}`). */
 function facetEntity(manifest, name) {
@@ -292,9 +282,7 @@ export async function verifyServiceEncounterBinding({ requirementManifest, conte
   return { ok, checks };
 }
 
-// ===========================================================================
 // (C) Data-driven entitlement — the disclosure RULES travel as DATA (P13).
-// ===========================================================================
 
 /**
  * Decide whether a receiver is entitled to a source facet, using ONLY data that
@@ -333,9 +321,7 @@ export function facetEntitlement(facet, receiver, manifest) {
   return { entitled: false, basis: disclosure ? "no-matching-rule" : "no-disclosure-policy" };
 }
 
-// ===========================================================================
 // (D) RECEIVER-ROLE PROJECTION — produce a per-receiver projected manifest.
-// ===========================================================================
 
 /**
  * Project ONE source envelope for ONE receiver. Returns a NEW projected manifest
@@ -463,10 +449,8 @@ export function projectForReceiver(sourceManifest, receiver, options = {}) {
   };
 }
 
-// ===========================================================================
 // (E) PROJECT-STAGE RECEIPT FRAGMENT — claimStatuses / unprocessedEntries /
 //     facetStatuses / verdict, pinned to the reference (index.ts).
-// ===========================================================================
 
 /**
  * Record a single claim's Project-stage status, reproducing the reference order:
@@ -559,7 +543,6 @@ export function projectStageReceipt(manifest, context = {}) {
     holderBindingStatusOf: context.holderBindingStatusOf,
   };
 
-  // --- claims (Section 1.4.3 + tier paths) ---
   const claimStatuses = [];
   let holderBindingStatus;
   let effectiveTrustTier;
@@ -572,7 +555,6 @@ export function projectStageReceipt(manifest, context = {}) {
     }
   }
 
-  // --- pointers (Section 1.4.5) ---
   const unprocessedEntries = [];
   if (Array.isArray(m.pointers)) {
     for (const pointer of m.pointers) {
@@ -587,7 +569,6 @@ export function projectStageReceipt(manifest, context = {}) {
     }
   }
 
-  // --- projected facets: Project-stage baseline is `processed` (
   //     re-status downstream); merge the not-projected records from projection. ---
   const facetStatuses = [];
   for (const facet of Array.isArray(m.facets) ? m.facets : []) {
@@ -606,7 +587,6 @@ export function projectStageReceipt(manifest, context = {}) {
     });
   }
 
-  // --- outcome (reference mapping, index.ts L3375-3399). not-projected is neutral. ---
   const hasFailed = facetStatuses.some(
     (f) => f.status === "consent-denied" || f.status === "trustTierUnsupported" || f.status === "assuranceInsufficient"
   );
@@ -633,9 +613,7 @@ export function projectStageReceipt(manifest, context = {}) {
   };
 }
 
-// ===========================================================================
 // (F) Conformance-fixture handler + registration hook (mirrors registerHolderBinding).
-// ===========================================================================
 
 /** The two v0.4 fixtures owns. */
 export const feature_FIXTURE_FILENAMES = Object.freeze([
@@ -683,9 +661,7 @@ export function registerProjection(registry) {
   return feature_FIXTURE_FILENAMES.length;
 }
 
-// ===========================================================================
 // (G) Demo surface — "one envelope, three different views" (RP1 R3 / P7 / P13).
-// ===========================================================================
 
 /**
  * Build a demo SOURCE envelope carrying four facets with data-driven disclosure
@@ -751,9 +727,7 @@ export function buildThreeViewDemo() {
   return { source, views: { service, peer, auditor } };
 }
 
-// ===========================================================================
 // (H) Module descriptor (honesty surface — mirrors TRUST_TIER_ENGINE / feature_CONFORMANCE).
-// ===========================================================================
 
 export const feature_PROJECTION = Object.freeze({
   wo: "runtime",

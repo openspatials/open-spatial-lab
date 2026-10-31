@@ -35,7 +35,6 @@ const BASE = [
 const ENV = { ...process.env, OSL_WORLDS: WORLDS_FILE, OSL_RUN_DIR: RUN_DIR };
 delete ENV.OSL_PLACEMENT_WRITES;
 
-// ---- The scan: anything that names worlds or their ports by hand in the browser code. ----
 const LIST_PATTERNS = [
   [/\b(?:8143|1815[0-9])\b/, "a world or frontend port"],
   [/\bSERVICE_PORTS\s*=\s*Object\.freeze\(\[/, "a list of service ports"],
@@ -179,7 +178,6 @@ try {
   try {
     await browserStatements(browser, { shots: true });
 
-    // ---- planted faults ----
     const fileFault = sourceFault("demo-launcher-catalog.mjs", ".concat(genericWorldMissions(worlds))", "");
     const adapterFault = sourceFault("live-adapter.js", "if (ENDPOINTS[requested]) return requested;", "");
     const faults = [

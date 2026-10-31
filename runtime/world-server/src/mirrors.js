@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Coupling by observation (iteration 3).
+ * Coupling by observation.
  *
  * A node may hold another world's data-point URL as a property value, under `properties.mirror`:
  *

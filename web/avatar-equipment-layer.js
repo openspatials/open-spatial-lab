@@ -16,8 +16,8 @@ import { createGlbHumanoidAvatar } from "./avatar/glb-humanoid.mjs";
 // END
 // every avatar/mocap asset URL below is a root-absolute same-origin path.
 // Route each through the ONE base-path helper so it resolves beneath the public prefix in subpath
-// mode; in root mode withBase() is the identity, so the frozen tables are byte-for-byte unchanged
-// and avatar behaviour is untouched (only the URL string is made prefix-aware).
+// mode; in root mode withBase() is the identity,
+// so avatar behaviour is untouched (only the URL string is made prefix-aware).
 import { withBase } from "./base-path.mjs";
 
 const ATTACHMENT_PRESETS = {
@@ -40,19 +40,19 @@ const ATTACHMENT_PRESETS = {
 // are not in this repository.
 const MOCAP_URLS = { locomotion: withBase("/assets/mocap/locomotion-mocap.json") };
 
-// step 5: the runtime-switchable avatar set. A switch REPLACES the one
+// The runtime-switchable avatar set. A switch REPLACES the one
 // avatar model inside the rig (never adds a second), re-retargets the mocap set onto the
 // new humanoid rig, and re-attaches the current equipment to the new rig's bones. The
 // adapter carries the active variant key in avatar.avatar_variant (broadcast to observers +
 // carried through the crossing packet).
 //
-// TWO THINGS THE OLD COMMENT HERE GOT WRONG — both were licence claims, both are corrected
+// Licence facts for the variants below:
 //
-//   1. It called "upgraded" (AvatarSample_B) "VRoid CC0". THE BYTES DO NOT SAY CC0. They say
+//   1. "upgraded" (AvatarSample_B) is NOT CC0. The bytes say
 //      VRM.meta.licenseName = "Other" with an EMPTY otherLicenseUrl. Its licence is therefore
 //      UNKNOWN — recorded as Unknown, not guessed into something friendlier. See the entry.
-//   2. It called "upgraded" "the new default". It is NOT — DEFAULT_AVATAR_VARIANT below is
-//      "readyplayerme-cyberpunk" (CC-BY-NC-SA-4.0), and has been.
+//   2. "upgraded" is not the default: DEFAULT_AVATAR_VARIANT below is
+//      "readyplayerme-cyberpunk" (CC-BY-NC-SA-4.0).
 //
 // The "classic" variant (/runtime-assets/avatar.vrm, HYPERFY "HYPERROBO_TEMPLATE") IS GONE.
 // Its own VRM.meta declares licenseName "Redistribution_Prohibited" and allowedUserName
@@ -681,7 +681,7 @@ export class AvatarEquipmentLayer {
       completed_cycles: 0,
     };
     this._runFootContactLock = null;
-    // step 5: runtime avatar switching bookkeeping.
+    // Runtime avatar switching bookkeeping.
     this._avatarModel = null; // the ONE VRM scene currently inside avatarRig
     this._switchInFlight = false;
     this._pendingVariant = null;
@@ -1148,7 +1148,7 @@ export class AvatarEquipmentLayer {
   }
 
   /**
-   * step 5: switch the avatar to a different VRM at runtime.
+   * Switch the avatar to a different VRM at runtime.
    * REPLACES the one avatar model (never adds a second), re-retargets the
    * mocap locomotion set onto the new humanoid rig, and re-attaches the
    * CURRENT equipment to the new VRM's bones. The new model is fully loaded
@@ -1773,7 +1773,7 @@ export class AvatarEquipmentLayer {
     const previousSignature = this._equipmentSignature;
     this.avatar = avatar || null;
     this._syncAvatarTransform();
-    // step 5: a runtime avatar switch flows through the
+    // A runtime avatar switch flows through the
     // avatar state (player UI sets it on the adapter; observers receive it via
     // the pose/arrival mirrors) — the layer reacts here for all three views.
     const requestedVariant = this.avatar && this.avatar.avatar_variant;
@@ -1938,7 +1938,7 @@ export class AvatarEquipmentLayer {
     // The seat is now referenced to the rig's MEASURED SKULL (see measureSkullTopY), so the
     // assertion measures the same surface the seating maths places the item on, and goes RED
     // against a floating hat instead of blessing it. The silhouette figure is kept beside it
-    // rather than deleted, because it is the number that used to lie.
+    // rather than deleted, because it is the number that misled.
     let skullTopWorldY = null;
     const headBoneNode = rawBone("head");
     const headTopOffset = this._rigMetrics && this._rigMetrics.head_top_offset_m;
@@ -1981,7 +1981,7 @@ export class AvatarEquipmentLayer {
         item_bottom_world_y: itemBottomWorldY,
         item_top_world_y: itemTopWorldY,
         // For a worn head item: how far its underside sits ABOVE the crown of the SKULL.
-        // Negative = settled onto the head (correct). Positive = hovering (the bug).
+        // Negative = settled onto the head (correct). Positive = hovering.
         head_seat_gap_m:
           meta.attachmentPoint === "head" && itemBottomWorldY !== null && skullTopWorldY !== null
             ? Number((itemBottomWorldY - skullTopWorldY).toFixed(4))

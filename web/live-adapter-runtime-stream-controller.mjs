@@ -4,7 +4,7 @@ import { applyBase, BASE_PATH } from "./base-path.mjs";
 // locally, wss: behind HTTPS — never hardcoded). The path is prefixed with the deploy-time public
 // base path (the injected BASE_PATH, NOT the page path — a page at {base}/w/a/ still upgrades at
 // {base}/api/a/…). `base` is exposed for deterministic testing of both modes in one process; the
-// runtime default is the active BASE_PATH, so root mode is byte-for-byte unchanged.
+// runtime default is the active BASE_PATH, so root mode is unchanged.
 export function sameOriginWebSocketUrl(endpointKey, wsPath, locationLike = globalThis.location, base = BASE_PATH) {
   const protocol = locationLike.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${locationLike.host}${applyBase(base, `/api/${endpointKey}${wsPath}`)}`;

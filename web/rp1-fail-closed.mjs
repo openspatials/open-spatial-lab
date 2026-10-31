@@ -39,10 +39,8 @@
 // ZERO dependencies; pure data over plain objects; browser-safe (no Node built-ins) so the
 // live crossing gate (web/live-adapter.js) and the Node harness share ONE implementation.
 
-// ===========================================================================
 // Scoped descriptor (the honesty object — mirrors UM_CONFORMANCE / IWPS_CONFORMANCE /
 // RP1_MODEL). Machine-readable statement of EXACTLY what is and is not claimed.
-// ===========================================================================
 
 /** The demo modes the crossing UI can arm (the two fail-closed paths + off). */
 export const RP1_FAIL_CLOSED_MODES = Object.freeze(["off", "stale-attachment", "revoked-session"]);
@@ -97,9 +95,7 @@ const CONSENT_SESSION_REPLAY = "spatial.sessionReplay";
 const FACET_ATTACHMENT_POLICY = "spatialFabricAttachmentPolicy";
 const DENY_CHILD_SCOPE_TRAVERSAL = "deny-child-scope-traversal";
 
-// ===========================================================================
 // hook consumption: demo mode -> the rp1-model input hooks.
-// ===========================================================================
 
 /**
  * Map a crossing-UI demo mode onto the buildRp1Section input hooks
@@ -133,11 +129,9 @@ export function traversalRequestForDemoMode(mode, childScopeRef) {
   };
 }
 
-// ===========================================================================
 // Surface extraction — works over BOTH the v0.1 RP1 stubs ({name,url}/{name,value} shapes)
 // and the v0.4-shaped emission (same RP1 members preserved alongside v0.4 keys),
 // and over a bare section ({facets,pointers,consents}).
-// ===========================================================================
 
 /** Normalize a manifest or section into the RP1 surface the gate evaluates. */
 export function extractRp1Surface(source) {
@@ -173,9 +167,7 @@ export function resolveAttachment(policyEntity, childScopeRef) {
   return attachments.length === 1 ? attachments[0] : null;
 }
 
-// ===========================================================================
 // Freshness + session evaluation (the J22 sources).
-// ===========================================================================
 
 const KNOWN_STATUS = ["active", "stale", "revoked"];
 
@@ -309,11 +301,9 @@ export function evaluateCrossWorldConsent(consents, request) {
   };
 }
 
-// ===========================================================================
 // Cycle / repeated-mount safety (integration checklist: "Child-scope traversal handles
 // cycles or repeated mounts safely"; near-real fixture: cycleHandling +
 // repeatedMountPolicy).
-// ===========================================================================
 
 /**
  * A per-traversal visited-scope tracker. `cycleHandling: track-visited-scopes` +
@@ -356,9 +346,7 @@ export function createTraversalTracker(policyEntity) {
   };
 }
 
-// ===========================================================================
 // THE GATE — the one decision function the live crossing and the harness call.
-// ===========================================================================
 
 /**
  * Decide whether a parent-scope -> child-scope traversal may proceed. FAIL-CLOSED.
@@ -409,7 +397,6 @@ export function gateChildScopeTraversal(input) {
       action = action || "default-deny";
     }
 
-    // --- 1) Attachment policy + attachment resolution (unknown mount => deny) ----------
     const policy = surface.attachmentPolicy;
     const attachment = resolveAttachment(policy, request.childScopeRef || null);
     const policyFacetCount = surface.facets.filter((facet) => facet && facet.name === FACET_ATTACHMENT_POLICY).length;
@@ -443,7 +430,6 @@ export function gateChildScopeTraversal(input) {
       action = action || DENY_CHILD_SCOPE_TRAVERSAL;
     }
 
-    // --- 2) Attachment freshness (J22: stale/expired/uncertain => deny traversal) -------
     const freshnessSource = policyCheck.freshness_source || PTR_ATTACHMENT_INDEX;
     const attachmentPointers = surface.pointers.filter((pointer) => pointer && pointer.name === PTR_ATTACHMENT_INDEX);
     const attachmentFreshness = evaluatePointerFreshness(attachmentPointers[0] || null, nowMs);
@@ -468,7 +454,6 @@ export function gateChildScopeTraversal(input) {
       action = action || failureAction;
     }
 
-    // --- 3) Consent gate (cross-scope link blocked when consent denied) -----------------
     const consentGate = evaluateCrossWorldConsent(surface.consents, request);
     consentGate.required = policyCheck.consent_required;
     const consentRequired = policyCheck.consent_required.includes(CONSENT_CROSS_WORLD);
@@ -492,7 +477,6 @@ export function gateChildScopeTraversal(input) {
       }
     }
 
-    // --- 4) Session context (J22: revoked/expired => no replay, no reuse) ---------------
     const sessionPointers = surface.pointers.filter((pointer) => pointer && pointer.name === PTR_SESSION_CONTEXT);
     const sessionContext = evaluateSessionContext(sessionPointers[0] || null, surface.consents, nowMs);
     sessionContext.replay_requested = request.sessionReplayRequested === true;
@@ -505,7 +489,6 @@ export function gateChildScopeTraversal(input) {
       action = action || "deny-replay-and-reuse";
     }
 
-    // --- 5) Cycle / repeated-mount safety (only an otherwise-allowed mount consumes a
     //         tracker slot; a repeated mount within one traversal is refused) ------------
     const tracker = input && input.tracker ? input.tracker : createTraversalTracker(policy);
     const cycleCheck = {

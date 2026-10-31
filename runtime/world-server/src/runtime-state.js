@@ -36,8 +36,6 @@ const wowGeo = require('../../../web/wow-geopose.js');
 // in config.js (where the topology is validated at load); descriptors reuse it.
 const { portalEdgeId } = require('./config');
 
-// ---- UM identity signer (the IDENTITY trust spine) --------
-//
 // Brings the retained UniversalManifest identity spine LIVE on /wow/user. REUSES
 // the proven, standalone signing library (web/signing/) — Ed25519 (WebCrypto) +
 // RFC 8785 JCS canonicalization + did:key binding + UM Signature Profile A shape.
@@ -102,7 +100,6 @@ async function umSignOpenUserManifest(content)
     return signed;
 }
 
-// ---- OMB fabric-manifest constants ------------------------
 // These MIRROR the live client's portal-frame constants in prototype 057
 // web/live-adapter.js (PORTAL_FRAME_PRESETS, PORTAL_FRAME_WIDTH_M,
 // PORTAL_FRAME_HEIGHT_M, PORTAL_TRIGGER_DEPTH_M and the sourceSpawn clearance)
@@ -130,8 +127,6 @@ const FABRIC_TRIGGER_BOUND_MAX = [
 // #scene-mount radial gradient base #0b1020), projected as a flat RRGGBB.
 const FABRIC_BACKGROUND_RRGGBB = '0B1020';
 
-// ---- Web of Worlds (OpenSpatialWorld) conformance constants ----
-//
 // The /wow/* read surface follows the real Web of Worlds OpenAPI:
 //     WoWAPI/specification/
 //     OpenSpatialWorld/API.yaml
@@ -189,7 +184,7 @@ const DEMO_WORLD_BASE_COLOR = {
     'location-airport' : '#15364a',
 };
 
-// BEGIN — loading-content-through-the-portal (portaling bar P11).
+// loading-content-through-the-portal (portaling bar P11).
 // Each world server hosts its OWN branded loading content under the agreed
 // `metaverse.portal.*` pointer names (TeleportVR/UM integration packet) so the
 // SOURCE world can render the DESTINATION's loading experience through the portal
@@ -224,9 +219,8 @@ const DEMO_PORTAL_LOADING_BRAND = {
         instructions : [ 'WASD to walk', 'Gate A12 is down the concourse', 'return portal is behind the entry spawn' ],
     },
 };
-// END
 
-// BEGIN — server-side per-location player presence registry.
+// server-side per-location player presence registry.
 // Registration/heartbeat/departure are EXPLICIT session actions a player client
 // POSTs against its OWN currently-active server (never against a prefetch
 // destination). Entries expire on TTL so a closed/crashed tab never leaves
@@ -257,7 +251,6 @@ const PRESENCE_MAX_PLAYERS = 64;
 // always clears the tombstone and wins. Sized above the client heartbeat interval
 // (3000 ms) so an in-flight beat cannot outlive it.
 const PRESENCE_DEPART_TOMBSTONE_MS = 5000;
-// END
 
 function demoDefaultSceneObjects(locationId)
 {
@@ -370,7 +363,7 @@ function authoredFabricRegionMaxRadius(graph)
 // anchor, quota per radial band mirroring the /fabric/region chunk bands —
 // so band populations are reproducible in assertions. Every synthetic entity
 // is labeled `synthetic_density_fixture:true`. Default (env unset): returns
-// [] and every world's scene_objects stay byte-identical to pre-006.
+// [] and every world's scene_objects are unchanged.
 const FABRIC_DENSITY_FIXTURE_PALETTE = [
     '#2bd4ff', '#6ee7a8', '#8a7dff', '#ff8c42', '#ffd166', '#c65ccd', '#9fb0d0', '#42d68a',
 ];
@@ -539,7 +532,6 @@ function createRuntime(opts)
         },
     };
 
-    // ---- POC-faithful helpers -------------------------------------------------
 
     function clone(value)
     {
@@ -614,12 +606,10 @@ function createRuntime(opts)
         return subscribers.size;
     }
 
-    // ---- WS /events realtime event stream --------
-    //
     // A SECOND, ADDITIVE subscription channel that carries TYPED, GRANULAR event
     // envelopes (user_joined/left, node_created/updated/deleted) rather than the
     // full-state snapshots the existing `subscribe()` / `/runtime-state` WS emit.
-    // Both channels coexist: `/runtime-state` stays byte-for-byte the pre-015
+    // Both channels coexist: `/runtime-state` keeps its
     // full-state broadcast; `/events` is the WoW-surface realtime convention.
     //
     // HONESTY: `WS /events` is a LABELED NON-CANONICAL reference-impl convention
@@ -632,8 +622,6 @@ function createRuntime(opts)
     // semantics, and `/runtime-state` broadcasts are untouched.
     const eventSubscribers = new Set();
 
-    // ---- iteration 3: every change has a revision, a time and the URLs it changed ----
-    //
     // Each event is one change. Its `revision` is this world's count of changes, one higher each time,
     // and it survives a restart (a small file beside the world's node-id file). `time` is the server's
     // UTC time of the change (RFC 3339). `urls` lists every resource whose representation changed,
@@ -811,8 +799,6 @@ function createRuntime(opts)
         };
     }
 
-    // ---- WoW / OpenSpatialWorld projections (read-only over live state) -------
-    //
     // these projections emit the OSL WoW response
     // composites (canonical OpenSpatialWorld schema + labeled OSL extensions).
     // The types are single-sourced from wow-spec/schema.yaml and consumed here
@@ -855,8 +841,6 @@ function createRuntime(opts)
         };
     }
 
-    // ---- Iteration 4: portals, users and views are placed by a node -----------------------------
-    //
     // A Portal, a User and a View each name the node that places it (`node`, relative to the
     // world's base URL), and its GeoPose is derived from that node: the node's position in its
     // graph, turned into a GeoPose through the graph's anchor. A graph with no anchor is not on
@@ -1013,7 +997,6 @@ function createRuntime(opts)
     function getWowWorld()
     {
         const projected = {
-            // ---- WoW `World` schema members ----
             content : {
                 label : state.location.title + ' - world surface',
                 age_restriction : 0,
@@ -1026,7 +1009,7 @@ function createRuntime(opts)
             geoPose : clone(WORLD_ANCHOR),
             // The ids of the world's graphs, the default graph first (proposed World.spatials).
             spatials : spatialGraphIds(),
-            // This world's current revision, and its services, relative to its base URL (iteration 3).
+            // This world's current revision, and its services, relative to its base URL.
             revision : wowRevision,
             services : { events : 'events' },
             presence : {
@@ -1058,9 +1041,8 @@ function createRuntime(opts)
             portals : {
                 portal_count : placedPortals.count(),
             },
-            // what this world shows as a preview (iteration 4), when it declares one
+            // what this world shows as a preview, when it declares one
             ...(worldPreview.ofWorld() ? { preview : worldPreview.ofWorld() } : {}),
-            // ---- demo additional properties (legacy readers in 057 web client) ----
             id : state.world.world_id,
             location : {
                 id : state.location.location_id,
@@ -1215,7 +1197,7 @@ function createRuntime(opts)
      * `Portal.destination` extension (wow-spec `PortalDestination`). The canonical
      * WoW `Portal` is a bare `{id, geoPose}` with NO destination field — it cannot
      * express "leads to world X". OSL carries the navigation-bearing target HERE,
-     * migrated OFF the raw `webofworlds_extension` bag, plus the flat forward-looking
+     * plus the flat forward-looking
      * spatial-fabric address. The composition-graph reference (the resolvable
      * destination — the target world's canonical /wow/spatial graph) rides in
      * `webofworlds_extension` (see wowPortalExtension). Proposed upstream
@@ -1300,8 +1282,8 @@ function createRuntime(opts)
             source_location_id : portal.source_location_id,
             source_world_id : portal.source_world_id,
             // the navigation-bearing target (target_world_id /
-            // target_location_id / target_base_url) MOVED to the labeled
-            // `Portal.destination` (a measurable shrink of this private bag). What
+            // target_location_id / target_base_url) lives in the labeled
+            // `Portal.destination`. What
             // remains as a WoW-native pointer is the COMPOSITION-GRAPH REFERENCE:
             // this portal's own graph node id, and the RESOLVABLE destination — the
             // target world's /wow/spatial graph, by its integer id (the first graph of that
@@ -1328,7 +1310,7 @@ function createRuntime(opts)
                 rotation_y : portal.arrival.rotation_y,
             },
             geopose_mapping : WOW_GEOPOSE_MAPPING,
-            // BEGIN — addressable spatial fabric portal prefetch.
+            // addressable spatial fabric portal prefetch.
             // The portal carries (a) TWO DISTINCT interaction volumes — the larger
             // prefetch/loading zone and the smaller traversal/commit trigger — and
             // (b) the loadable spatial fabric address of its destination. Labeled
@@ -1338,7 +1320,6 @@ function createRuntime(opts)
             // semantics). Conformance flags stay false.
             zones : portalZones(portal),
             spatial_fabric_address : spatialFabricAddressForPortal(portal) || undefined,
-            // END
             // the traversal-direction field lives HERE in
             // the server descriptor beside zones + spatial_fabric_address.
             // Bidirectional portals commit from either side of the frame plane;
@@ -1357,7 +1338,6 @@ function createRuntime(opts)
         return extension;
     }
 
-    // ---- addressable spatial fabric portal prefetch ------
 
     /** the portal's traversal-direction rule (the
      *  value: bidirectional vs one-way with an allowed side). Side names are
@@ -1484,8 +1464,8 @@ function createRuntime(opts)
                 armed_entry_sides : armedEntrySides.slice(),
                 purpose : 'larger OUTER data-loading circle — resolve + preload the '
                     + 'destination spatial fabric neighborhood; NEVER commits traversal',
-                // the outer loading circle is widened from
-                // the 2.5 m proof value to the uniform 3.0 m geometric maximum
+                // the outer loading circle is
+                // the uniform 3.0 m geometric maximum
                 // (the spawn contract puts a location-world player exactly
                 // 3.2 m from the portal and the approach must start OUTSIDE
                 // the circle; the lobby's proven walk-away waypoints bound the
@@ -1588,8 +1568,6 @@ function createRuntime(opts)
         };
     }
 
-    // ---- per-location player presence registry ----------
-    //
     // player_id -> entry. Mutated ONLY by the explicit POST session actions
     // (/fabric/presence/register|heartbeat|depart) and by TTL expiry; the GET
     // /fabric/presence + /fabric/region reads are PURE (they filter live
@@ -1942,7 +1920,7 @@ function createRuntime(opts)
             // the ghost-free crossing's server-side invariant,
             // readable. `resurrections_blocked` counts heartbeats that arrived after
             // their own player had departed and were REFUSED (each one would have been
-            // a 10-second ghost in this world under the pre-076 upsert).
+            // a 10-second ghost in this world).
             departure_enforcement : {
                 _claim : 'runtime: an explicit departure is final — a heartbeat '
                     + 'already in flight cannot upsert a departed player back into this world',
@@ -2001,7 +1979,7 @@ function createRuntime(opts)
     }
 
     const FABRIC_REGION_MIN_RADIUS_M = 1.0;
-    // A/B/lobby have no authored graph and remain byte-for-byte at the proven
+    // A/B/lobby have no authored graph and keep the
     // 12 m cap. Large authored worlds derive a bounded local aperture from
     // their walkable geometry (24 m for the 24 x 88 m Denver concourse), so
     // even the largest allowed read remains partial rather than whole-world.
@@ -2050,8 +2028,8 @@ function createRuntime(opts)
      * this — the destination — side). A read-time projection of the
      * presence registry, filtered by the same planar circle as the entity
      * scan: live spatial state, never cached fabric, never counted against
-     * the chunk entity/byte budgets, and never mixed into `entities`/`totals`
-     * (so every pre-011 partiality proof stays byte-stable). Pure read.
+     * the chunk entity/byte budgets, and never mixed into `entities`/`totals`.
+     * Pure read.
      */
     function fabricRegionAvatarsInCircle(scan)
     {
@@ -2136,14 +2114,12 @@ function createRuntime(opts)
         }, fabricRegionBoundary()));
     }
 
-    // ---- chunked/progressive region streaming ------------
-    //
     // The single-radius neighborhood read grows a TILED contract: the region is
     // served as DISTANCE-BANDED chunks (near ring first) with per-chunk
     // freshness/TTL, explicit byte/entity budgets with truncated:true + a
     // continuation cursor, and a scope=full mode whose beyond-ROI band feeds
     // post-arrival background fabric completion. Requests WITHOUT chunked=1 get
-    // the exact pre-006 single response — the legacy shape is byte-identical.
+    // the single-radius response (the legacy shape).
     // Everything stays a labeled local proof contract: no chunking/tiling
     // standard exists for spatial fabrics; the shape follows the OGC 3D Tiles
     // precedent (bounding volumes, coarse error metric, ADD refinement) without
@@ -2484,7 +2460,6 @@ function createRuntime(opts)
         }, fabricRegionBoundary(), { chunking_standard_conformance : false }));
     }
 
-    // END helpers
 
     /** Yaw (radians) of this world's portal frame forward preset. */
     function portalFrameYawRad()
@@ -2512,7 +2487,7 @@ function createRuntime(opts)
         const entry = portalEntryUrl(portal);
         return {
             id : wowId, // number, per WoW Portal schema
-            // where it leads (the target world's URL), and the node that places it (iteration 4)
+            // where it leads (the target world's URL), and the node that places it
             ...(entry ? { destination : entry } : {}),
             ...(nodeId != null ? { node : nodeRef(spatialStore, nodeId) } : {}),
             geoPose : geoPoseOfNode(nodeId) || wowGeoPoseFromLocal(portal.trigger.position, portalFrameYawRad(), 0),
@@ -2528,7 +2503,7 @@ function createRuntime(opts)
      * Legacy string-alias projection (/wow/portal/location-a-portal). The live
      * 057 client and its e2e harness require `id` to stay the STRING portal_id
      * (frame descriptors are validated as strings client-side), so this alias
-     * keeps the pre-076 shape. The spec's own path param is an integer, so the
+     * keeps that shape. The spec's own path param is an integer, so the
      * string route is outside the spec domain — a labeled compatibility alias;
      * the numeric route above is the tightened WoW resource.
      */
@@ -2578,7 +2553,7 @@ function createRuntime(opts)
         const a = state.avatar;
         const accepted = [ String(WOW_LOCAL_USER_ID), a.avatar_id, a.continuity_id, 'me' ]
             .filter((alias, index, all) => all.indexOf(alias) === index);
-        // Hosted-avatar user (id 1 + aliases) — pre-015 projection, unchanged.
+        // Hosted-avatar user (id 1 + aliases).
         if (!userId || accepted.indexOf(String(userId)) !== -1)
         {
             const t = a.transform;
@@ -2587,7 +2562,7 @@ function createRuntime(opts)
                 id : WOW_LOCAL_USER_ID, // number, per WoW User schema
                 name : a.display_name,
                 AvatarURI : '', // avatar is a client-side VRM/GLB; this node hosts no avatar asset
-                // the node that places the user, and the GeoPose derived from it (iteration 4)
+                // the node that places the user, and the GeoPose derived from it
                 ...(placed != null ? { node : nodeRef(spatialStore, placed) } : {}),
                 geoPose : geoPoseOfNode(placed) || wowGeoPoseFromLocal(t.position, t.rotation_y, 0),
                 webofworlds_extension : {
@@ -2665,7 +2640,7 @@ function createRuntime(opts)
 
     /**
      * the SIGNED OpenUserManifest identity fronted via
-     * /wow/user. Wraps the (byte-unchanged) getWowUser projection and attaches the
+     * /wow/user. Wraps the getWowUser projection and attaches the
      * retained UM identity spine: the OpenUserManifest content shape
      * {name, age, avatarAssetURI} SIGNED with UM Signature Profile A (Ed25519 /
      * JCS-RFC8785 / did:key), carried as a LABELED non-canonical additive field
@@ -2803,8 +2778,6 @@ function createRuntime(opts)
         };
     }
 
-    // ---- Spatial Composition Graph (canonical /wow/spatial) --
-    //
     // The mutable, per-world scene-graph store the 041 backend serves at
     // /wow/spatial/{spatialID} (+ node CRUD). Seeded from THIS world's REAL live
     // scene data — the hosted primitives (/demo/scene-objects) and portals —
@@ -2841,7 +2814,7 @@ function createRuntime(opts)
             });
         }
         // (b) portals as composition-graph nodes — the crossing anchors.:
-        // the node now carries its RESOLVABLE DESTINATION as a labeled, non-canonical
+        // the node carries its RESOLVABLE DESTINATION as a labeled, non-canonical
         // `webofworlds_extension` (the target world's canonical /wow/spatial graph
         // reference) so a client walking the graph derives the portal from the NODE,
         // not a side-channel. The `osl-portal:` spatialAssetURI is KEPT as a labeled
@@ -2884,13 +2857,13 @@ function createRuntime(opts)
                 },
             });
         });
-        // (c) the hosted user and the player view, each placed by its own node (iteration 4).
+        // (c) the hosted user and the player view, each placed by its own node.
         children.push(placementSeed('user', WOW_LOCAL_USER_ID, 'User ' + WOW_LOCAL_USER_ID + ' (' + state.avatar.display_name + ')', hostedUserPose()));
         children.push(placementSeed('view', WOW_PLAYER_VIEW_ID, 'View ' + WOW_PLAYER_VIEW_ID + ' (player camera)', playerViewPose()));
         // (d) the room the demo page draws around this world (its floor, two walls, grid and light), when the world
         // is configured with one, so a Web of Worlds client shows the same world as the demo page.
         if (cfg.room && typeof cfg.room === 'object') for (const node of roomSeedNodes(cfg.room)) children.push(node);
-        // (e) where a visitor arrives through each of this world's portals (iteration 4).
+        // (e) where a visitor arrives through each of this world's portals.
         for (const node of portalArrivalSeeds(state.portals, portalFrameYawRad(), AUTHORED_WOW_GRAPH)) children.push(node);
         return {
             root : {
@@ -3067,8 +3040,6 @@ function createRuntime(opts)
         return urls;
     }
 
-    // ---- a server-side simulator (iteration 3) ----------------------------------
-    //
     // Changes one node of graph 1 on a timer, with nobody present: its localTransform (a turn about +Y
     // and a small sway) and properties.temperature. Each tick is one write through the same path as a
     // client's PUT, so it is one revision and one event. The log is the reference the proof compares
@@ -3122,8 +3093,6 @@ function createRuntime(opts)
         return simulator ? simulator.log.slice() : [];
     }
 
-    // ---- OMB fabric-manifest projection -------------------
-    //
     // GET /fabric.json projects the live world state into the Open Metaverse
     // Browser "fabric manifest" shape (docs/webofworlds-teleportxr-demo/
     // WORLD-NAVIGATOR-ARCHITECTURE.md section 4.2). NAMING RULE (section 7):
@@ -3191,7 +3160,7 @@ function createRuntime(opts)
         // CENTROID of the portal ground centers (the lobby's gathering spot
         // between its portals) instead of biasing toward portals[0]. For a
         // single-portal world the centroid IS that portal's trigger, so the
-        // pre-004 pose is byte-identical. The live client's spawn derivation
+        // pose is unchanged there. The live client's spawn derivation
         // (web/live-adapter.js sourceSpawnForWorld) MIRRORS this rule.
         const triggers = state.portals
             .map(p => fabricVec3(p.trigger && p.trigger.position, null))
@@ -3339,7 +3308,6 @@ function createRuntime(opts)
         };
     }
 
-    // ---- Movement (state ownership proof) ------------------------------------
 
     function applyMovement(raw)
     {
@@ -3359,7 +3327,6 @@ function createRuntime(opts)
         return getState();
     }
 
-    // ---- Portal exit intent (SOURCE side) ------------------------------------
 
     /** A portal placed by a node, in the shape the exit packet reads. It names only where it leads: the client that
      *  crosses it knows that world and where it arrives. */
@@ -3498,7 +3465,6 @@ function createRuntime(opts)
         return packet;
     }
 
-    // ---- Portal arrival (TARGET side) ----------------------------------------
 
     function commitArrival(handoff, now)
     {
@@ -3635,7 +3601,7 @@ function createRuntime(opts)
         };
     }
 
-    // BEGIN — THIS world's loading-content-through-the-portal
+    // THIS world's loading-content-through-the-portal
     // block, served on GET /demo/portal-view (every resolution rung) and on the
     // attach-point payload, under the agreed `metaverse.portal.*` pointer
     // names + the `metaverse.portal.preloadContent` consent key. A SOURCE world
@@ -3701,7 +3667,6 @@ function createRuntime(opts)
             },
         };
     }
-    // END
 
     function getSceneObjects()
     {
@@ -3886,7 +3851,6 @@ function createRuntime(opts)
         }, demoExtensionBoundary()));
     }
 
-    // ---- Reset / replay ------------------------------------------------------
 
     function reset()
     {
@@ -3965,7 +3929,7 @@ function createRuntime(opts)
     // portal-view value. reloadable-not-streaming stays true.
     //
     // APPLICATION DEFAULT ON: boot and reset use 100 ms. An explicit operator
-    // value of 0 still disables the timer and preserves the pre- behavior
+    // value of 0 still disables the timer and preserves the no-drift behavior
     // (no ambient change; the attach-point only bumps on drags/reset). Labeled
     // demo extension; standards_conformance stays false.
     const DEMO_REPUBLISH_RATE_DEFAULT_MS = 100;
@@ -4091,7 +4055,7 @@ function createRuntime(opts)
         // granular WS /events realtime stream +
         // the initial hello snapshot for a newly-connected /events client.
         subscribeEvents, eventSubscriberCount, getWowEventsHello,
-        // iteration 3: revisions, replay and change times; the server-side simulator.
+        // Revisions, replay and change times; the server-side simulator.
         eventsSince, currentRevision, lastChangeOf,
         startSimulator, stopSimulator, getSimulatorLog, listSpatialNodes,
         addPortal : placedPortals.add, updatePortal : placedPortals.update, setPreview : worldPreview.set, getPreview : worldPreview.get, placementOf,

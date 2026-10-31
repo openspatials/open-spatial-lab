@@ -43,7 +43,6 @@ function proofBoundary()
     };
 }
 
-// ---- OSL response composites (canonical + labeled extensions) ----
 
 function worldResponse()
 {
@@ -100,7 +99,7 @@ function portalResponse()
             target_world_id: 'world-b',
             spatial_fabric_address: { profile: 'osl.spatial-fabric-address', value: 'fixture://world-b' },
         },
-        // where it leads (an entry URL) and the node that places it (iteration 4)
+        // where it leads (an entry URL) and the node that places it
         destination: 'http://127.0.0.1:18152/',
         node: 'wow/spatial/1/node/4',
         // the demo's own target description, on the labeled extension point beside it:
@@ -112,8 +111,6 @@ function portalResponse()
     };
 }
 
-// ---- Spatial composition graph ----
-//
 // Two node shapes live here, and the difference between them is the point:
 //
 //   canonicalNode()  = the STANDARD (`Node`): children are EMBEDDED Node objects
@@ -202,7 +199,6 @@ function canonicalNode()
     };
 }
 
-// ---- WS /events envelope (LABELED NON-CANONICAL convention) ----
 // Intentionally OUT of the OpenAPI HTTP contract (wow-spec/OSL-WOW-CONTRACT.md
 // §6). No wow-spec schema governs it; the harness asserts this shape ITSELF and
 // flags it labeled non-canonical.
@@ -217,7 +213,6 @@ function eventsEnvelopes()
     ];
 }
 
-// ---- Negative fixtures (drift guard self-test — proves the guard is real) ----
 // These MUST be caught by conformance.js drift/validation, mirroring the
 // proof's "deliberately-bad payloads are rejected" discipline.
 function badNodes()

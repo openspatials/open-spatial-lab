@@ -1,12 +1,7 @@
 // Loading-content-through-the-portal (portaling bar P11),
 // re-presented.
 //
-// The DESTINATION's loading experience used to render as a CENTER-SCREEN card
-// in the source while the crossing's real background steps ran. The user
-// mandate for portal traversal is now explicit: NOTHING mid-screen, ever — no
-// modal, no card, no black status surface. therefore
-// REMOVED the center-screen card render path entirely and converted the same
-// content into:
+// The DESTINATION's loading experience never renders mid-screen (no modal, no card, no black status surface). It is presented as:
 //   1. a small transient TOAST (top strip, pointer-events:none, auto-dismiss)
 //      fired only while a crossing is still in flight, plus destination
 //      branding folded into the existing ARRIVED toast (app.js renderOverlay);
@@ -17,9 +12,8 @@
 //      declared ETA, transfer duration, and honesty flags.
 // The background-step model (real crossing signals only), the
 // metaverse.portal.* content sourcing, and the manifest LoadingPointer binding
-// are UNCHANGED. Nothing here delays or gates the crossing (it never did) —
-// and the presentational minimum-visible hold the card used to have is gone
-// with the card. The tracker's only timers stop TRACKING; they never hold any
+// are UNCHANGED. Nothing here delays or gates the crossing (it never did).
+// The tracker's only timers stop TRACKING; they never hold any
 // UI on screen.
 //
 // WHERE THE CONTENT COMES FROM (nothing hardcoded client-side):
@@ -78,9 +72,7 @@ export const PORTAL_LOADING_DEMO = Object.freeze({
     "No conformance flag is flipped by this capability.",
 });
 
-// ---------------------------------------------------------------------------
 // Pure helpers (no DOM) — extraction + manifest-pointer binding.
-// ---------------------------------------------------------------------------
 
 /**
  * Pull the destination's `metaverse_portal` loading-content block out of a
@@ -134,12 +126,10 @@ export function buildLoadingPointersForManifest(content, opts) {
   return out;
 }
 
-// ---------------------------------------------------------------------------
 // Scene-3b step model — REAL background signals only (nothing simulated).
 // Each step reads the live adapter debugState(); a step check-marks the moment
 // the underlying mechanism actually reports done. The steps now check-mark
 // INSIDE the notification record instead of on a card.
-// ---------------------------------------------------------------------------
 const STEPS = Object.freeze([
   {
     id: "exit-intent",
@@ -211,9 +201,7 @@ const MAX_TRACK_MS = 12000;
 const UNWOUND_END_MS = 1200;
 const REFRESH_MS = 200;
 
-// ---------------------------------------------------------------------------
 // Tracker state (module-scoped; one player window = one tracker).
-// ---------------------------------------------------------------------------
 const tracker = {
   configured: false,
   isPlayer: false,
@@ -358,9 +346,7 @@ export function notePortalLoadingState(dbg) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Tracking lifecycle (replaces the old card show/refresh/hide lifecycle).
-// ---------------------------------------------------------------------------
 function beginTracking(dbg, key, opts) {
   tracker.active = true;
   tracker.startedAt = Date.now();
@@ -521,9 +507,7 @@ function endTracking(status, doneCount) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Notification record (the notification-center seam).
-// ---------------------------------------------------------------------------
 function buildNotificationRecord(dbg, destKey, base, key) {
   const nowIso = new Date().toISOString();
   const rec = {
@@ -641,9 +625,7 @@ function escapeToastText(v) {
   return String(v).replace(/[<>&"]/g, "");
 }
 
-// ---------------------------------------------------------------------------
 // Probe surface for the headless driver / manual verification.
-// ---------------------------------------------------------------------------
 export function portalLoadingDriverApi() {
   return {
     descriptor: () => ({ ...PORTAL_LOADING_DEMO }),

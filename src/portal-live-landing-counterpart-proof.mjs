@@ -278,7 +278,6 @@ async function main() {
     const abTriggerInA = aPortalToB.trigger.position; // ~[2.8,0,-2.8] — the WRONG (back) node
     const lobbyCounterpartTriggerInA = aPortalToLobby.trigger.position; // ~[-2.8,0,-2.8] — the RIGHT counterpart
 
-    // ---- E1: post-P1 A is a TWO-portal world; the lobby-edge counterpart and
     // the A<->B portal are 5.6 m apart (so a wrong pick is a 5.6 m error) ------
     await check("E1", "A hosts 2 attachment nodes; lobby counterpart and A<->B portal are ~5.6 m apart", () => {
       const { nodes } = firstAttachmentNode(fabricA);
@@ -289,7 +288,6 @@ async function main() {
       close(sep, 5.6, 0.2, "A<->B portal vs lobby counterpart separation");
     });
 
-    // ---- E2: THE FIX — the lobby -> A crossing destination is the counterpart
     // portal (location-a-portal-lobby), NOT the fabric back node --------------
     const lobbyRegion = await regionForEntry(lobbyPortalA);
     const lobbyTargetFrame = adoptedTargetFrame(lobbyPortalA, lobbyRegion.portal);
@@ -321,7 +319,6 @@ async function main() {
       assertOk(standoff > 0, "parity landing must be on the counterpart FRONT side");
     });
 
-    // ---- E3: ORACLE TEETH — the RETIRED fabric-first-node derivation lands at
     // the WRONG portal (reproduces the 5.6 m defect); a revert FAILS here -----
     await check("E3", "the retired fabric-first-node exit lands ~4.9 m away AT the A<->B portal (defect reproduced; fix is load-bearing)", () => {
       const { first } = firstAttachmentNode(fabricA);
@@ -347,7 +344,6 @@ async function main() {
       assertOk(divergence >= 4.5, `fix and retired path diverge by only ${divergence.toFixed(3)} m (must be >= 4.5 — the wrong-portal distance)`);
     });
 
-    // ---- E4: A->B is PRESERVED (its counterpart already was the first node),
     // and the e2e-driver oracle reconstruction matches the shipping
     // frame-based landing (geometry-verifies the load-deferred battery fix) ---
     const abRegion = await regionForEntry(aPortalToB);
@@ -385,7 +381,6 @@ async function main() {
       assertOk(gap <= 0.08, `oracle reconstruction ${gap.toFixed(4)} m from the shipping landing (e2e tol 0.08 m)`);
     });
 
-    // ---- E5: the RETURN (A -> lobby) lands IN FRONT of the entered portal ---
     await check("E5", "A->lobby return lands in front of lobby-portal-a (the entered portal), not portal-b", async () => {
       const returnRegion = await regionForEntry(aPortalToLobby);
       const returnTargetFrame = adoptedTargetFrame(aPortalToLobby, returnRegion.portal); // lobby-portal-a pose

@@ -143,7 +143,7 @@ export function createPresenceController({
    * reports a liveness this window does not have — it only changes how long the
    * server will wait before calling us gone, so a throttled hidden document
    * cannot expire and re-register between beats. Returning to visible restores
-   * the 10 s TTL immediately, so a departure stays as observable as before.
+   * the 10 s TTL immediately, so a departure stays observable.
    */
   function handleVisibilityChange() {
     if (!state.supported || !state.registered) return;

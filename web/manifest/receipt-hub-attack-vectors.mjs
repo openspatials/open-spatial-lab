@@ -41,9 +41,7 @@ import {
 import { verifyManifestProfileA } from "../signing/um-signature-profile-a.mjs";
 import { generateKeyPair } from "../signing/ed25519.mjs";
 
-// ---------------------------------------------------------------------------
 // scoreboard
-// ---------------------------------------------------------------------------
 const resistedList = [];
 const findings = []; // { id, title, severity, repro }
 const notes = [];
@@ -81,14 +79,11 @@ function composeFromFragments(fragments, { manifestId = "urn:uuid:attack", omitP
   return { receipt: finalized, rejected, conflicts };
 }
 
-// ===========================================================================
 async function run() {
   console.log("runtime receipt-hub composition — adversarial attack vectors");
   console.log("===========================================================\n");
 
-  // -------------------------------------------------------------------------
   // (a) STICKY-REJECTED — can a rejected verdict be LOST in the merge?
-  // -------------------------------------------------------------------------
 
   // V1a — a tier fragment that rejects
   // MUST make the composed receipt rejected even when its facetStatuses would
@@ -126,9 +121,7 @@ async function run() {
     }
   }
 
-  // -------------------------------------------------------------------------
   // (b) DENIED -> PROCESSED — can the overridable `processed` baseline win?
-  // -------------------------------------------------------------------------
 
   // V2 — a consent-denied facet must NOT be replaced by a later `processed` for
   // the same facetId, in EITHER merge order (duplicate-facetId attack).
@@ -153,9 +146,7 @@ async function run() {
     }
   }
 
-  // -------------------------------------------------------------------------
   // (c) FAILURE-DOMINANT ROLL-UPS — holderBinding / presentationProof / tier
-  // -------------------------------------------------------------------------
 
   // V5 — holderBindingStatus: failed (dominance 3) must survive a later verified.
   {
@@ -216,14 +207,12 @@ async function run() {
     }
   }
 
-  // -------------------------------------------------------------------------
   // (d) COMPOSE-OUTCOME MAPPING BYPASS via merge-order + same-key conflicts.
   //     mergeFragment resolves same-key facet/claim conflicts KEEP-FIRST (only a
   //     diagnostic), NOT by outcome severity — unlike the dominance-ranked
   //     holderBinding / tier roll-ups. Because composeOutcome ranks statuses by
   //     severity, a lower-severity status merged FIRST can suppress a
   //     higher-severity same-key status and flip the outcome up.
-  // -------------------------------------------------------------------------
 
   // V3 — facetStatuses: an assuranceInsufficient (reject path when nothing
   // processed) masked by an earlier consent-denied (partial path) on the SAME
@@ -328,9 +317,7 @@ async function run() {
     }
   }
 
-  // -------------------------------------------------------------------------
   // (e) FAIL-CLOSED — finalizeReceipt / validateReceiptShape / emit path.
-  // -------------------------------------------------------------------------
 
   // V9 — finalizeReceipt MUST throw on every shape violation (the fail-closed
   // keystone). Battery of malformed/incomplete receipts.
@@ -486,9 +473,7 @@ async function run() {
     }
   }
 
-  // -------------------------------------------------------------------------
   // summary
-  // -------------------------------------------------------------------------
   console.log("\n===========================================================");
   console.log(`RESISTED: ${resistedList.length}   FINDINGS: ${findings.length}   NOTES: ${notes.length}`);
   if (findings.length === 0) {

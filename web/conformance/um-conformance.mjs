@@ -5,9 +5,7 @@
 // web/geopose-basic-sdu.mjs (GEOPOSE_CONFORMANCE): a precisely-bounded truth object, NOT a
 // bare boolean, worded so it CANNOT be read as a full-conformance or a v0.4 claim.
 //
-// ---------------------------------------------------------------------------
 // WHY THIS IS A LEGITIMATE false -> scoped-true (read before touching the labels)
-// ---------------------------------------------------------------------------
 // The flip is backed by a re-runnable, network-free gate — web/conformance/run-um-conformance.mjs —
 // which drives the Universal Manifest repo's OWN conformance runner
 // () over the v0.1 accept/reject
@@ -21,9 +19,7 @@
 // A reviewer re-runs that gate independently before accepting the flip (same discipline as
 // GeoPose/IWPS). If the gate does not fully pass, this flag MUST go back to false.
 //
-// ---------------------------------------------------------------------------
 // THE EXACT BOUNDARY (what is TRUE here, and what stays FALSE)
-// ---------------------------------------------------------------------------
 //   conformance_level     : "v0.1-baseline"  — the ONE hostable, machine-emitted level the
 //                            UM runner can actually issue (its determineConformanceLevel tops
 //                            out at v0.2-extended; there is NO v0.4 level in the runner code,

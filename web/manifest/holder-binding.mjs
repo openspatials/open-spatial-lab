@@ -11,7 +11,7 @@
 //   spec/v0.4/schema.json            $defs.holderBinding / $defs.presentationProof
 //   spec/v0.4/CONFORMANCE.md         §2.9 / §2.10 (evaluator MUSTs 9/10), §9 (at-risk)
 //   docs/spec-v0.4/ext-t1.html       T1.1, T1.1.1, T1.2, T1.4, T1.5.1
-//   conformance/v0.4/expected.json   the 12 fixture entries this change owns
+//   conformance/v0.4/expected.json   the 12 fixture entries this module owns
 //
 // THE did-auth BYTE RECIPE (EXT-T1 §T1.2 — empirically confirmed against the
 // suite fixture valid/manifest-with-presentation-proof.jsonld):
@@ -23,7 +23,6 @@
 //   presentationProof is EXCLUDED from the manifest signing input (Base §1.6.3) — the
 // library computeSigningInput is already version-aware for v0.4.
 //
-// ---------------------------------------------------------------------------
 // HONESTY CEILING — what is REAL vs PREVIEW/fail-closed (machine-readable
 // descriptor: feature_CONFORMANCE below; every `real:true` is exercised by
 // web/manifest/verify.mjs against the external suite or live crypto):
@@ -49,7 +48,6 @@
 // This module flips NO um_conformance flag. Scope: the 12 fixtures + the
 // crossing demo surface. NOT the full six-stage evaluator;
 // NOT facet sealing; NOT the full tier engine.
-// ---------------------------------------------------------------------------
 //
 // FILE DISCIPLINE: this is a NEW, specific module. It imports only the
 // signing library (read-only reuse) and is imported by nothing yet.
@@ -68,9 +66,7 @@ import { base64ToBytes, bytesToBase64, bytesToBase64Url, bytesToHex, utf8Encode 
 import { publicKeyToDidKey, resolveKeyRefOffline } from "../signing/did.mjs";
 import { verifyManifestProfileA, computeSigningInput } from "../signing/um-signature-profile-a.mjs";
 
-// ===========================================================================
 // Constants (schema.json $defs + EXT-T1 value sets)
-// ===========================================================================
 
 export const HOLDER_BINDING_MODES = Object.freeze(["sd-jwt-kb", "bbs-holder-commitment", "reciprocal-control"]);
 export const PRESENTATION_PROOF_TYPES = Object.freeze(["sd-jwt-kb", "bbs-derived", "did-auth"]);
@@ -87,7 +83,6 @@ export const VP_TOTAL_LIMIT_BYTES = 500 * 1024;
 export const HOLDER_BINDING_STATUSES = Object.freeze(["verified", "failed", "unsupported-mode", "absent"]);
 export const PRESENTATION_PROOF_STATUSES = Object.freeze(["verified", "failed", "missing-required", "absent"]);
 
-// ---------------------------------------------------------------------------
 // AV-5 HARDENING (hardening report FINDING 1). The EXT-T1 §T1.1.1 reciprocal
 // recipe — both proofs sign only UTF-8(manifest @id) — is REPLAYABLE: a published
 // boundDidProof transplants into an attacker-authored manifest that reuses the same
@@ -147,9 +142,7 @@ export const feature_CONFORMANCE = Object.freeze({
     "evade the 50 KB/500 KB VP caps as a nominal 'URI reference'.",
 });
 
-// ===========================================================================
 // Small helpers
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -180,9 +173,7 @@ function utf8ByteLength(str) {
   return utf8Encode(str).length;
 }
 
-// ===========================================================================
 // 1) STRUCTURAL SURFACE — shape validation (schema.json $defs parity)
-// ===========================================================================
 
 /**
  * Validate a holderBinding object per schema.json $defs.holderBinding +
@@ -332,9 +323,7 @@ export function validateHolderBindingStructural(manifest) {
   return { valid: errors.length === 0, errors };
 }
 
-// ===========================================================================
 // 2) HOLDER SIDE — attach bindings + presentation proofs (real material)
-// ===========================================================================
 
 /**
  * Structural emit support for ALL THREE holderBinding modes (HOLD-08).
@@ -540,9 +529,7 @@ export function issueVerifierChallenge(opts = {}) {
   };
 }
 
-// ===========================================================================
 // 3) EVALUATOR SIDE — Stage-2 sub-steps 2a/2b (EXT-T1 §T1.4)
-// ===========================================================================
 
 /**
  * Verify a did-auth presentationProof's crypto (EXT-T1 §T1.2). The verification
@@ -923,11 +910,9 @@ export async function recordKeyRefResolution(manifest, opts = {}) {
   }
 }
 
-// ===========================================================================
 // 4) SCOPE EVALUATION — enough of the Verify stage to decide the four
 //    evaluation-mode fixtures (and the demo's interactive crossing check).
 //    NOT the full six-stage engine.
-// ===========================================================================
 
 /** Minimal envelope checks shared by both surfaces (v0.4 Base §1.2/§1.3). */
 function envelopeErrors(manifest) {
@@ -977,7 +962,7 @@ export async function structuralVerdictHolderBinding(manifest) {
 }
 
 /**
- * EVALUATION verdict for a fixture: the Verify-stage slice this change owns,
+ * EVALUATION verdict for a fixture: the Verify-stage slice this module owns,
  * executed at the pinned evaluationContext (never the wall clock):
  *   Arrive/Verify structural+signature → freshness (60s skew) → keyRefResolution
  *   → sub-step 2b presentationProof → sub-step 2a holder bindings → outcome.
@@ -1003,7 +988,6 @@ export async function evaluateHolderBinding(manifest, context = {}) {
     return { result: outcome === "rejected" ? "reject" : "accept", receipt };
   };
 
-  // --- Arrive/Verify: structure + shapes + signature -----------------
   const envErrors = envelopeErrors(manifest);
   const shapeErrors = envErrors.length === 0 ? validateHolderBindingStructural(manifest).errors : [];
   if (envErrors.length > 0 || shapeErrors.length > 0) {
@@ -1033,7 +1017,6 @@ export async function evaluateHolderBinding(manifest, context = {}) {
   // "accepted-with-warnings" — the cap is expressed by the field itself).
   receipt.keyRefResolution = await recordKeyRefResolution(manifest);
 
-  // --- Freshness at the PINNED now (Section 3.1.2; 60s skew) ----------------
   const SKEW_MS = 60_000;
   const issuedMs = Date.parse(manifest.issuedAt);
   const expiresMs = Date.parse(manifest.expiresAt);
@@ -1049,7 +1032,6 @@ export async function evaluateHolderBinding(manifest, context = {}) {
   }
   receipt.freshnessCheck = "fresh";
 
-  // --- Sub-step 2b: presentation proof (EXT-T1 §T1.4) -----------------------
   const pp = await evaluatePresentationProof(manifest, context);
   if (pp.status !== null) receipt.presentationProofStatus = pp.status;
   if (pp.reject) {
@@ -1057,25 +1039,21 @@ export async function evaluateHolderBinding(manifest, context = {}) {
     return finish("rejected");
   }
 
-  // --- Sub-step 2a: holder bindings + Tier-0 caps (EXT-T1 §T1.1) ------------
   const hb = await evaluateHolderBindings(manifest, context);
   if (hb.holderBindingStatus !== undefined) receipt.holderBindingStatus = hb.holderBindingStatus;
   if (hb.effectiveTrustTier !== undefined) receipt.effectiveTrustTier = hb.effectiveTrustTier;
   if (hb.claimStatuses.length > 0) receipt.claimStatuses = hb.claimStatuses;
   warnings.push(...hb.warnings);
 
-  // --- Compose the outcome ---------------------------------------------------
   const anyCapped = hb.claimStatuses.some((c) => c.status === "trustTierUnsupported" || c.status === "unverified");
   if (anyCapped) return finish("accepted-partial");
   if (warnings.length > 0) return finish("accepted-with-warnings");
   return finish("accepted");
 }
 
-// ===========================================================================
 // 5) DEMO SURFACE — the interactive crossing exchange (challenge → proof →
 //    receipt), including the replay-reject toggle. Pure functions; the UI
 //    wiring into live-adapter.js is the a serialized edit.
-// ===========================================================================
 
 /**
  * End-to-end interactive presentation for the portal crossing demo:
@@ -1108,10 +1086,8 @@ export async function demoPresentationExchange(signedManifest, privateKey, opts 
   return { challenge, presented, receiptVerified, receiptReplay };
 }
 
-// ===========================================================================
 // 6) CONFORMANCE-RUNNER REGISTRATION HOOK (the shared v0.4 runner wires this
 //    with ONE line — applied by the integration step, not by this module).
-// ===========================================================================
 
 /** The 12 fixture files owns (11 named by the task + G2 oversize-vp). */
 export const feature_FIXTURE_FILENAMES = Object.freeze([

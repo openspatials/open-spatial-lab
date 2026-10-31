@@ -74,7 +74,6 @@ async function mountModule(edits) {
 }
 
 async function worldChecks(ports) {
-  // ---- I9 ---------------------------------------------------------------------------------------------
   const flatEarth = { clientEdits: [['  const origin = ecefToLocal(base, other.origin);', '  const origin = [(other.geo.lon - base.geo.lon) * 111320 * Math.cos((base.geo.lat * Math.PI) / 180), 0, 0];']] };
   const showsUnanchored = { clientEdits: [[
     '        } else {\n          inclusion.graphs.push({ url, shown: false, reason: "no anchor" });\n        }',
@@ -116,7 +115,6 @@ async function worldChecks(ports) {
     { name: 'a B whose graphs each issue their own node ids', impl: ownIdSpaces },
   ]);
 
-  // ---- I10 --------------------------------------------------------------------------------------------
   const wrongOrder = { clientEdits: [['      world: multiply(parentWorld, local),', '      world: multiply(local, parentWorld),']] };
   await run('I10', 'Z (turned 30 degrees, scale 2) links {B}/wow/world: every included node\'s position relative to B\'s graph origin, computed from B\'s own nodes, matches the composed scene, and taking Z away from a composed position gives it back (re-rooting into B)', async (impl) => {
     const { B, markers } = await threeGraphWorld(impl, ports.next());
@@ -148,7 +146,6 @@ async function worldChecks(ports) {
     } finally { await A.close(); await B.close(); }
   }, {}, [{ name: 'a client that multiplies child and parent in the wrong order', impl: wrongOrder }]);
 
-  // ---- I12 --------------------------------------------------------------------------------------------
   const keepsEnvironment = { clientEdits: [['    if (child.isDirectionalLight || child.isHemisphereLight || child.isAmbientLight || child.isCamera) doomed.push(child);', '    if (false) doomed.push(child);']] };
   const dropsAllLights = { clientEdits: [['    if (child.isDirectionalLight || child.isHemisphereLight || child.isAmbientLight || child.isCamera) doomed.push(child);', '    if (child.isLight || child.isCamera) doomed.push(child);']] };
   await run('I12', 'B\'s graph holds a glTF with a directional light, a point light (KHR_lights_punctual) and a camera; in A\'s composed scene the point light is present under X and the directional light and the camera are not, while A\'s own copy of the same model keeps all three', async (impl) => {

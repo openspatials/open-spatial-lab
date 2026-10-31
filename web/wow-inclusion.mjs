@@ -85,9 +85,7 @@ export function resolveReference(reference, baseUrl) {
   return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
 }
 
-// ---------------------------------------------------------------------------------------------
 // 4x4 column-major matrices (the API's localTransform layout).
-// ---------------------------------------------------------------------------------------------
 
 export function multiply(a, b) {
   const out = new Array(16).fill(0);
@@ -143,9 +141,7 @@ export function relativeGraphPlacement(baseGeoPose, otherGeoPose) {
   return [x[0], x[1], x[2], 0, y[0], y[1], y[2], 0, z[0], z[1], z[2], 0, origin[0], origin[1], origin[2], 1];
 }
 
-// ---------------------------------------------------------------------------------------------
 // Reading Web of Worlds resources, with conditional requests.
-// ---------------------------------------------------------------------------------------------
 
 /**
  * A reader of Web of Worlds resources. It keeps each answer and its entity tag; a later read of the
@@ -234,9 +230,7 @@ function spatialUrlOfWorld(worldUrl, id) {
   return `${base}wow/spatial/${id}`;
 }
 
-// ---------------------------------------------------------------------------------------------
 // Composition.
-// ---------------------------------------------------------------------------------------------
 
 /**
  * Compose world A's graph with everything it includes.
@@ -532,9 +526,7 @@ function failureOf(answer) {
   return null;
 }
 
-// ---------------------------------------------------------------------------------------------
 // Writes that cannot lose an update.
-// ---------------------------------------------------------------------------------------------
 
 /**
  * Change a node at its owner without losing someone else's update: read it, change it, PUT it with
@@ -576,9 +568,7 @@ export async function writeNodeSafely(nodeUrl, change, opts = {}) {
   return { status: 412, attempts: retries + 1, statuses, node: null };
 }
 
-// ---------------------------------------------------------------------------------------------
 // The included world's environment.
-// ---------------------------------------------------------------------------------------------
 
 /**
  * Remove what belongs to an included world's environment from a loaded model (a three.js Object3D):
@@ -629,9 +619,7 @@ export function bundleOfGraph(composition, graph) {
   return { spatialID: graph.url, root: idOf.get(graph.rootUrl), nodes, idOf };
 }
 
-// ---------------------------------------------------------------------------------------------
-// Live inclusion (iteration 3).
-// ---------------------------------------------------------------------------------------------
+// Live inclusion.
 
 /**
  * Compose world A and keep the composition current. A holds one event stream for each world it shows,

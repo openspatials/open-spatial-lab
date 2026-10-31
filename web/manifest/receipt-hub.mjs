@@ -1,8 +1,6 @@
 // BEGIN — v0.4 structured um:Receipt hub + single-manifest receipt chain.
 //
-// ============================================================================
 // THIS MODULE IS THE SINGLE OWNER OF THE CANONICAL um:Receipt SHAPE.
-// ============================================================================
 // Six later tasks write into the fields defined here
 // and verifies receipts against conformance/v0.4/expected.json with the
 // comparator exported here. DO NOT fork this shape — extend it HERE.
@@ -34,9 +32,7 @@
 //                              requiredFields [seq,eventClass,subject,reason],
 //                              forbiddenPayloads, flushPolicy "session-end"
 //
-// ============================================================================
 // THE CANONICAL RECEIPT CONTAINER (what every consumer binds to)
-// ============================================================================
 //
 //   {
 //     "@type": "um:Receipt",              // string form for stage receipts;
@@ -88,9 +84,7 @@
 //     receiptSignature?: {…}                     // or promote + Profile A sign
 //   }
 //
-// ============================================================================
 // HOW THE EXISTING FRAGMENTS MAP INTO THIS CONTAINER (mergeFragment)
-// ============================================================================
 // evaluateTrustTiers fragment:
 //     verdict → outcome contribution ("rejected" is sticky) · claimStatuses/
 //     facetStatuses/warnings → merged (tier paths take precedence: an entry this
@@ -125,9 +119,7 @@
 //   CLAIM_STATUS_DOMINANCE below), so a reject/deny/tier-cap can NOT be lost
 //   to merge order (hardening F1/F2/F3).
 //
-// ============================================================================
 // SEAMS AND CONVENTIONS
-// ============================================================================
 // SEAM (bilateral session + receipt hash-chaining — NOT built here):
 //     stampBilateral writes exchangeId/evaluatorId (supplies values
 //       from its session object; mintExchangeId() is provided for the demo).
@@ -163,9 +155,7 @@
 import { UM_V04_CONTEXT, UM_V04_MANIFEST_VERSION } from "./interfaces.mjs";
 import { attachSignatureProfileA } from "../signing/um-signature-profile-a.mjs";
 
-// ===========================================================================
 // 1) VALUE SETS — the canonical enums (CONFORMANCE §2.5/§2.6, EXT-T1, EXT-OPT)
-// ===========================================================================
 
 /** The 4-value Compose outcome set (Base §3.1.5 / six-stage summary #5). */
 export const RECEIPT_OUTCOMES = Object.freeze([
@@ -309,9 +299,7 @@ export const CHAIN_FORBIDDEN_PAYLOADS = Object.freeze([
   "source-adapter-payloads",
 ]);
 
-// ===========================================================================
 // 2) SMALL HELPERS
-// ===========================================================================
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.length > 0;
@@ -333,9 +321,7 @@ function mintUrnUuid() {
   return `urn:uuid:${globalThis.crypto.randomUUID()}`;
 }
 
-// ===========================================================================
 // 3) CONTAINER LIFECYCLE — create / validate / merge / compose / finalize
-// ===========================================================================
 
 /**
  * Create an in-progress canonical receipt for one evaluated manifest. The four
@@ -544,18 +530,15 @@ export function mergeFragment(receipt, fragment) {
   const f = fragment;
   if (isNonEmptyString(f.engine)) diag.engine = f.engine;
 
-  // --- outcome contribution --------------------------------------------------
   const contribution = isNonEmptyString(f.outcome) ? f.outcome : f.verdict;
   if (contribution === "rejected") diag.rejected = true;
 
-  // --- signature / freshness ---------------------------------------------------
   for (const key of ["signatureCheck", "freshnessCheck"]) {
     if (!isNonEmptyString(f[key])) continue;
     if (receipt[key] === "not-evaluated" || receipt[key] === undefined) receipt[key] = f[key];
     else if (receipt[key] !== f[key]) diag.conflicts.push(`${key}: kept "${receipt[key]}", fragment said "${f[key]}"`);
   }
 
-  // --- facetStatuses -----------------------------------------------------------
   if (Array.isArray(f.facetStatuses)) {
     for (const entry of f.facetStatuses) {
       if (!entry || typeof entry !== "object") continue;
@@ -581,7 +564,6 @@ export function mergeFragment(receipt, fragment) {
     }
   }
 
-  // --- claimStatuses -----------------------------------------------------------
   if (Array.isArray(f.claimStatuses)) {
     if (receipt.claimStatuses === undefined) receipt.claimStatuses = [];
     for (const entry of f.claimStatuses) {
@@ -608,7 +590,6 @@ export function mergeFragment(receipt, fragment) {
     if (receipt.claimStatuses.length === 0) delete receipt.claimStatuses;
   }
 
-  // --- consentStatuses / unprocessedEntries -------------------------------------
   if (Array.isArray(f.consentStatuses) && f.consentStatuses.length > 0) {
     if (receipt.consentStatuses === undefined) receipt.consentStatuses = [];
     for (const entry of f.consentStatuses) {
@@ -626,7 +607,6 @@ export function mergeFragment(receipt, fragment) {
     }
   }
 
-  // --- warnings ------------------------------------------------------------------
   if (Array.isArray(f.warnings)) {
     if (!Array.isArray(receipt.warnings)) receipt.warnings = [];
     for (const w of f.warnings) {
@@ -636,7 +616,6 @@ export function mergeFragment(receipt, fragment) {
     }
   }
 
-  // --- roll-ups --------------------------------------------------------------------
   if (isNonEmptyString(f.holderBindingStatus)) {
     const cur = receipt.holderBindingStatus;
     if (cur === undefined || (HB_DOMINANCE[f.holderBindingStatus] ?? -1) > (HB_DOMINANCE[cur] ?? -1)) {
@@ -660,13 +639,11 @@ export function mergeFragment(receipt, fragment) {
     receipt.livenessStatus = { ...f.livenessStatus };
   }
 
-  // --- receipt events (on-wire shape) --------------------------------------------
   if (Array.isArray(f.events) && f.events.length > 0) {
     if (receipt.events === undefined) receipt.events = [];
     for (const e of f.events) if (e && isNonEmptyString(e.eventType)) receipt.events.push({ ...e });
   }
 
-  // --- engine diagnostics: known non-wire members are captured, never emitted ----
   for (const key of ["delegations", "floorViolations", "deferredClaims", "deferredFacetIds", "rejectedBy", "processed", "notProcessed", "manifestTier", "maxSupportedTrustTier"]) {
     if (f[key] !== undefined) diag.extras[key] = f[key];
   }
@@ -727,9 +704,7 @@ export function finalizeReceipt(receipt, { rejected = false, outcomeOverride, no
   return receipt;
 }
 
-// ===========================================================================
 // 4) COMPARATOR — receipt vs an expected.json evaluation-mode entry
-// ===========================================================================
 
 /**
  * Compare a canonical receipt against EVERY receipt assertion present on a
@@ -801,12 +776,10 @@ export function assertReceiptAgainstExpectedEntry(receipt, entry) {
   return { ok: mismatches.length === 0, mismatches };
 }
 
-// ===========================================================================
 // 5) THE RECEIPT-EVENT CHAIN — single-manifest/session audit trail (R5/P17).
 //    Fixture-local trace shape (factory-floor oracle) + on-wire events.
 //    HASH-CHAINING IS NOT IMPLEMENTED HERE — reuses this chain shape and
 //    adds seq/prevHash linkage + the departure seal (single-chain discipline).
-// ===========================================================================
 
 /**
  * Create a session-local receipt chain. flushPolicy "session-end" is the
@@ -905,10 +878,8 @@ export function chainToReceiptEvents(chain, { defaultAt } = {}) {
   }));
 }
 
-// ===========================================================================
 // 6) FACTORY-FLOOR 3-PATH MIRROR — the task acceptance oracle, rebuilt through
 //    the chain machinery (validated appends), NOT replayed from the fixture.
-// ===========================================================================
 
 const FF_USER = "did:peer:2.Ez6LRp1FactoryFloorSafetyPairwiseUserProjection";
 const FF_SERVICE = "did:web:factory.example.com:services:floor-safety";
@@ -958,9 +929,7 @@ export function buildFactoryFloorTraces() {
   };
 }
 
-// ===========================================================================
 // 7) BILATERAL SURFACE (Base §4 field surface only) + THE SEAM
-// ===========================================================================
 
 /** Mint an exchange correlation token: 128 bits of crypto entropy, encoding NO
  *  party identifiers (v0.4 README security: bilateral correlation tokens). */
@@ -1018,9 +987,7 @@ export function reserveChainLinkFields(receipt, { seq, prevHash, chainId } = {})
   return receipt;
 }
 
-// ===========================================================================
 // 8) P16/P17 FACETS + THE DEPARTURE MANIFEST (R5/R11 demo surface)
-// ===========================================================================
 
 /**
  * P16 — the receipt-expectations facet: what the holder expects of the receipts
@@ -1102,11 +1069,9 @@ export async function sealDepartureManifest(chain, { subject, issuedAt, ttlSecon
   return attachSignatureProfileA(draft, privateKeyInput, keyRef ? { keyRef } : {});
 }
 
-// ===========================================================================
 // 9) RECEIPT-AS-MANIFEST PROMOTION (EXT-OPT receipts-as-a-class — PREVIEW).
 //    Wire shape pinned by valid/receipt-facet-key-shredded.jsonld:
 //    envelope members + @type ["um:Manifest","um:Receipt"] + receipt members.
-// ===========================================================================
 
 /** Acceptance/severity ranking of the 4 outcomes for the emit fail-closed
  *  check: a receipt may STATE a more-severe outcome than its evidence derives
@@ -1157,11 +1122,9 @@ export async function signReceiptManifest(receipt, envelope = {}, privateKeyInpu
   return attachSignatureProfileA(manifest, privateKeyInput, opts);
 }
 
-// ===========================================================================
 // 10) DEMO PANEL ROW — the API_EVENTS surface record (integration is the
 //     a serialized live-adapter.js/app.js edit; see the result
 //     artifact for the exact wiring lines).
-// ===========================================================================
 
 /** A compact, read-only telemetry row for the API_EVENTS request-log panel. */
 export function receiptPanelRecord(receipt, { label } = {}) {
@@ -1182,9 +1145,7 @@ export function receiptPanelRecord(receipt, { label } = {}) {
   };
 }
 
-// ===========================================================================
 // 11) HONESTY DESCRIPTOR — what this module claims and does not claim.
-// ===========================================================================
 
 export const feature_RECEIPT_CONFORMANCE = Object.freeze({
   wo: "runtime",

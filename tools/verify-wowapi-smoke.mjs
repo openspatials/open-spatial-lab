@@ -57,7 +57,6 @@ async function probe(url, opts) {
     return { status: res.status, headers: res.headers, body };
 }
 
-// ---- 1. Service availability + a couple of section-9 performance smoke checks ----
 async function checkServiceAvailability() {
     for (const [key, port] of Object.entries(BACKEND_PORTS)) {
         const t0 = performance.now();
@@ -68,7 +67,6 @@ async function checkServiceAvailability() {
     }
 }
 
-// ---- 2. Auth & authorization — real cases only. There is no 401 path in this API: unauthorized
 // access to a restricted/hidden asset answers 403/404 (the OpenSpatialAsset existence-concealing
 // contract), never a generic "unauthenticated" response, since nothing here requires a session to
 // even attempt a request. ----
@@ -99,7 +97,6 @@ async function checkAuthAndAuthorization() {
     return { openAssetId: openId };
 }
 
-// ---- 3. Contract validation — reuses the server's own ajv validation, surfaced via the
 // X-OSL-WoW-Validation response header (the same mechanism tools/verify-demo.mjs relies on). ----
 async function assertValidated(url) {
     const res = await fetch(url);
@@ -134,7 +131,6 @@ async function checkContractValidation() {
     return { world, spatialId, rootNodeId };
 }
 
-// ---- 4. CRUD smoke coverage. Real for the one resource the spec defines full CRUD for:
 // POST (create) / GET (read) / PUT (update) / DELETE on /wow/spatial/{spatialID}/node/{nodeId}.
 // Creates a real throwaway node under the graph's root and deletes it again in a finally block —
 // this mutates live server state (in-memory, reset on restart), so cleanup must run even if a
@@ -175,7 +171,6 @@ async function checkCrudCoverage(spatialId, parentNodeId) {
     }
 }
 
-// ---- 4b. DELETE /wow/user/{userId} — the spec's other write operation. Exercises both defined
 // response cases (400 for the local hosted identity, which has no safe stateless-DELETE
 // interpretation) plus a real presence-registry user's full lifecycle: register a throwaway
 // player, GET it, DELETE it, confirm it's actually gone (not just "200 and still there"), and
@@ -223,7 +218,6 @@ async function checkDeleteUser() {
     }
 }
 
-// ---- 4c. Request limits. A node body nested deeper than the server's limit (64 levels) is
 // refused with 422 before it is walked further, and a body over 1 MB is refused with 413. The
 // server must stay healthy after both.
 function nestedNodeBody(depth) {
@@ -260,7 +254,6 @@ async function checkRequestLimits(spatialId, parentNodeId) {
     record("limits:server-healthy-after", health.status === 200 && health.body?.ok === true, { status: health.status });
 }
 
-// ---- 5. Cross-service integration ----
 async function checkCrossServiceIntegration(world, openAssetId) {
     if (openAssetId) {
         const asset = await probe(`${BASE_A}/wow/asset/${encodeURIComponent(openAssetId)}`, { headers: { Accept: "model/gltf+json" } });
@@ -281,9 +274,7 @@ async function checkCrossServiceIntegration(world, openAssetId) {
     record("cross-service:manifest-to-world", manifestOk && worldAfter.status === 200, { manifestOk, worldStatus: worldAfter.status });
 }
 
-// ---- 6. Search & discovery — not applicable. No search/list endpoints exist in this API surface.
 
-// ---- 7. Error handling ----
 async function checkErrorHandling() {
     const unknownPortal = await probe(`${BASE_A}/wow/portal/999`);
     record("errors:unknown-portal-id-404", unknownPortal.status === 404, { status: unknownPortal.status });
@@ -300,7 +291,6 @@ async function checkErrorHandling() {
     record("errors:unsupported-verb-404", unsupportedVerb.status === 404, { status: unsupportedVerb.status });
 }
 
-// ---- 8. Data consistency ----
 async function checkDataConsistency() {
     const portal = await probe(`${BASE_A}/wow/portal/1`);
     const declaredLocationId = portal.body?.osl_destination?.target_location_id;
@@ -316,14 +306,12 @@ async function checkDataConsistency() {
     record("consistency:shared-edge-counterpart-matches-destination", sharedEdgeCounterpart === declaredLocationId, { sharedEdgeCounterpart, declaredLocationId });
 }
 
-// ---- 9. Performance smoke — additional thresholds beyond the healthz ones checked in section 1 ----
 async function checkPerformance() {
     const t0 = performance.now();
     await probe(`${BASE_A}/wow/world`);
     record("performance:world-get-under-1s", performance.now() - t0 < 1000, { elapsedMs: Math.round(performance.now() - t0) });
 }
 
-// ---- 10. End-to-end golden path (pure HTTP — no browser/UI). This demo has no authentication
 // step and no generic "update user state over REST" endpoint (state changes go over the
 // WebSocket/presence protocol, not a resource write) — recorded honestly as not-applicable rather
 // than force-fit, matching section 4's note above. ----
