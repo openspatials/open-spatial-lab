@@ -52,6 +52,45 @@ const GROUNDING_FOOT_BONES = Object.freeze(["leftFoot", "rightFoot", "leftToes",
 const PORTAL_APERTURE_PLANE_EPS_M = 0.02;
 const PORTAL_APERTURE_SEGMENT_MARGIN_M = 0.6;
 const CAMERA_WALL_HYSTERESIS_M = 0.08;
+const FRAME_FAULT_NOTICE_AFTER_MS = 2000;
+const FRAME_FAULT_NOTICE_EVERY_MS = 15000;
+const FRAME_FAULT_OVER_AFTER_MS = 2000;
+const FRAME_FAULT_DISTINCT_LIMIT = 20;
+
+/**
+ * What the movement loop does with a frame that threw: each distinct message goes to the console once, and a person is
+ * told in plain words only when the failures keep coming. A fault is over after a stretch of clean frames.
+ */
+function createFrameFaults({ windowTarget, showToast }) {
+  const reported = new Set();
+  let faultStartedAt = null;
+  let lastFaultAt = null;
+  let lastNoticeAt = null;
+  return {
+    clean(timestamp) {
+      if (faultStartedAt !== null && timestamp - lastFaultAt >= FRAME_FAULT_OVER_AFTER_MS) {
+        faultStartedAt = null;
+        lastNoticeAt = null;
+      }
+    },
+    failed(error, timestamp) {
+      const message = (error && error.message) || String(error);
+      if (faultStartedAt === null) faultStartedAt = timestamp;
+      lastFaultAt = timestamp;
+      const lasted = timestamp - faultStartedAt >= FRAME_FAULT_NOTICE_AFTER_MS;
+      if (lasted && (lastNoticeAt === null || timestamp - lastNoticeAt >= FRAME_FAULT_NOTICE_EVERY_MS)) {
+        lastNoticeAt = timestamp;
+        showToast("Movement is not working", "Try reloading the page.", "failed");
+      }
+      if (!reported.has(message) && reported.size < FRAME_FAULT_DISTINCT_LIMIT) {
+        reported.add(message);
+        // A window that cannot report gets the throw itself: uncaught, it reports the same way, and the frame is still queued.
+        if (typeof windowTarget.reportError !== "function") throw error;
+        windowTarget.reportError(error);
+      }
+    },
+  };
+}
 
 /**
  * validate source-owned movement/camera continuity.
@@ -228,6 +267,7 @@ export function createMovementCameraController({
   isTypingTarget,
   motionPreference = null,
 }) {
+  const frameFaults = createFrameFaults({ windowTarget, showToast });
   const controlState = { forward: false, back: false, left: false, right: false, jump: false };
   const runModifierKeys = new Set();
   const crossingSuppressedKeyCodes = new Set();
@@ -1243,9 +1283,7 @@ export function createMovementCameraController({
     if (started && frameHandle === null) frameHandle = requestFrame(tick);
   }
 
-  function tick(timestamp) {
-    frameHandle = null;
-    if (!started) return;
+  function stepFrame(timestamp) {
     const deltaSeconds = Math.min(0.05, Math.max(0, (timestamp - lastControlAt) / 1000));
     lastControlAt = timestamp;
     const capabilities = runtime();
@@ -1278,7 +1316,19 @@ export function createMovementCameraController({
     if (isPlayer) sceneRuntime.renderChildFabricPreview(capabilities && capabilities.state ? capabilities.state.preview : null);
     if (isPlayer) sceneRuntime.renderPortalPreviews();
     if (isPlayer && typeof refreshViewMatch === "function") refreshViewMatch(timestamp);
-    scheduleNextFrame();
+  }
+
+  function tick(timestamp) {
+    frameHandle = null;
+    if (!started) return;
+    try {
+      stepFrame(timestamp);
+      frameFaults.clean(timestamp);
+    } catch (error) {
+      frameFaults.failed(error, timestamp);
+    } finally {
+      scheduleNextFrame();
+    }
   }
 
   function cameraButtonStyle() {
