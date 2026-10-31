@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opt-in renderers</title>
+  <style>
+    @font-face { font-family: "Space Grotesk"; font-weight: 400 700; font-display: swap; src: url("./fonts/space-grotesk-latin.woff2") format("woff2"); }
+    @font-face { font-family: "Space Mono"; font-weight: 400; font-display: swap; src: url("./fonts/space-mono-400-latin.woff2") format("woff2"); }
+    :root {
+      --bg: #0C0D11; --panel: #16171C; --panel-2: #1E1F26; --ink: #F5F5F7; --ink-dim: #A1A1AB;
+      --line: rgba(255,255,255,.08); --accent: #A3E635; --pending: #D6A94A; --gap: #E5484D;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 "Space Grotesk", system-ui, sans-serif; }
+    main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    h2 { font-size: 18px; margin: 32px 0 10px; }
+    h3 { font-size: 15px; margin: 18px 0 6px; }
+    p, li { color: var(--ink-dim); }
+    p { margin: 0 0 12px; }
+    ul.plain { margin: 0 0 12px; padding-left: 20px; }
+    strong { color: var(--ink); }
+    a { color: var(--accent); }
+    code, .mono { font-family: "Space Mono", ui-monospace, monospace; font-size: 13px; }
+    ul.links { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    ul.links a { display: block; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); text-decoration: none; }
+    ul.links a:hover, ul.links a:focus-visible { border-color: var(--accent); outline: none; }
+    ul.links .what { display: block; color: var(--ink-dim); font-size: 14px; margin-top: 2px; }
+    .adapters { display: grid; gap: 8px; }
+    .adapter { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+    .adapter strong { margin-right: 8px; }
+    .adapter .meta { color: var(--ink-dim); font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }
+    .credit { padding: 14px; border: 1px solid var(--accent); border-radius: 10px; background: var(--panel); }
+    pre { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; margin: 0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Opt-in renderers</h1>
+  <p>Open Spatial Lab draws its worlds with three.js. That is the default, and nothing on it changes. <strong>X3DOM</strong> and <strong>X_ITE</strong> are opt-in, through <code>?renderer=</code>, and draw the same worlds from the same world servers. This is a proof of the path, with the shortfalls below.</p>
+  <p>Everything this page says about X3DOM and X_ITE was seen on a lab run on one machine. A private copy was also run under the content security policy lab.openspatials.com sends. Under it X3DOM draws, walks and crosses as it does here. X_ITE draws, walks and crosses too, but the policy blocks parts of it: the avatar and hosted objects look washed out, the sign at the Lobby's fourth portal is blank, and the browser console shows an uncaught <code>CompileError</code>, because the policy does not let X_ITE compile WebAssembly. X3D Text is missing under X_ITE everywhere, for the reason given below. three.js stays the default.</p>
+
+  <div class="credit">
+    <p style="margin:0">The render adapter boundary and the X3DOM path are the work of <strong>Nicholas Polys</strong>, from his public fork <a href="https://github.com/npolys/open-spatial-lab">npolys/open-spatial-lab</a>, commit <code>99175b4b6</code>, Apache-2.0. Nicholas is co-author of lab commit <code>ef702ec</code>. His files are ported by hand and credited in each header. The X_ITE adapter is new here, written to his interface. <a href="https://github.com/x3dom/x3dom">X3DOM</a> is taken under its MIT licence; <a href="https://github.com/create3000/x_ite">X_ITE</a>, by Holger Seelig and contributors, is under MIT.</p>
+  </div>
+
+  <h2>Open the lab with a renderer</h2>
+  <ul class="links">
+    <li><a id="link-x3dom" href="./index.html?role=player&amp;intro=bypass&amp;renderer=x3dom"><strong>X3DOM</strong>, <code>?renderer=x3dom</code><span class="what">Nicholas's path. The lobby, with three portals showing bounded previews, a fourth to John Carlson's world, and an avatar. Walk with W, A, S, D. Walk through a portal to cross.</span></a></li>
+    <li><a id="link-x_ite" href="./index.html?role=player&amp;intro=bypass&amp;renderer=x_ite"><strong>X_ITE</strong>, <code>?renderer=x_ite</code><span class="what">The same lobby and the same walk, through the new X_ITE adapter.</span></a></li>
+    <li><a id="link-default" href="./index.html?role=player&amp;intro=bypass"><strong>three.js</strong>, no switch<span class="what">The lab as it is: the default. With no switch the page loads no renderer file.</span></a></li>
+    <li><a id="link-three" href="./index.html?role=player&amp;intro=bypass&amp;renderer=three"><code>?renderer=three</code><span class="what">The same as no switch.</span></a></li>
+    <li><a id="link-unknown" href="./index.html?role=player&amp;intro=bypass&amp;renderer=babylon"><code>?renderer=babylon</code><span class="what">An engine the lab does not know. three.js draws and the page says so.</span></a></li>
+  </ul>
+  <p style="margin-top:12px">Keys on the X3D paths: W, A, S, D walk. Shift runs. Drag to turn the camera. C switches first and third person. The buttons at the top right change the avatar's equipment. The proof does not test Shift, dragging or the Space jump.</p>
+
+  <h2>An X3D JSON world with an X3D Anchor as its portal</h2>
+  <p>This answers John Carlson's finding on a portal shape for his Ex3D JSON format. The world is one X3D 4.0 JSON file. Its portal is an X3D <code>Anchor</code> whose <code>url</code> is the address of Location B (<code>/w/b/</code>), and a <code>ProximitySensor</code> is its walk-in trigger. The file names no renderer.</p>
+  <ul class="links">
+    <li><a id="link-world-x_ite" href="./x3d-world.html?renderer=x_ite"><strong>Under X_ITE</strong><span class="what">Click the orange disc, or hold W to walk into it. You land in Location B, still under X_ITE. X_ITE reads the JSON and runs the Anchor and the sensor itself.</span></a></li>
+    <li><a id="link-world-x3dom" href="./x3d-world.html?renderer=x3dom"><strong>Under X3DOM</strong><span class="what">The same world and the same crossing. X3DOM's own parser reads the JSON and its Anchor runs the click. X3DOM has no ProximitySensor, so this page tests the sensor's box itself.</span></a></li>
+    <li><a id="link-world-file" href="./x3d-worlds/anchor-portal-world.x3d.json"><strong>The file</strong>, <code>x3d-worlds/anchor-portal-world.x3d.json</code><span class="what">The world as text.</span></a></li>
+  </ul>
+
+  <h2>John Carlson's soft-body world</h2>
+  <div class="credit" id="soft-credit">
+    <p style="margin:0">The world and its physics are the work of <strong>John Carlson</strong>, from his public repository <a href="https://github.com/coderextreme/open-spatial-lab/commit/bf12953173">coderextreme/open-spatial-lab, commit bf12953173</a>, under Apache-2.0 (the <code>LICENSE</code> file at that commit). A swingable cloth, a brick wall and a squishy ball, in X3D JSON.</p>
+  </div>
+  <p>His humanoid is left out, and so is its texture: his commit does not state the source of those two files. The world loads without them. Nothing the lab loads refers to them. His own file stands unchanged beside the copy the page loads, and it still names the humanoid.</p>
+  <p>On the X3D paths the Lobby has a fourth portal, the one to the right of Portal C: hold D until you stand in line with it, then hold W. It opens the world under the engine you came from. In the world, Q and A swing the arm. W, S, D and the left arrow walk. Walk into the orange disc, or click it, to go back to the Lobby. The three.js Lobby has no fourth portal.</p>
+  <ul class="links">
+    <li><a id="link-soft-x_ite" href="./x3d-world.html?world=soft-body.x3d.json&amp;renderer=x_ite"><strong>Under X_ITE</strong><span class="what">The world, drawn by X_ITE.</span></a></li>
+    <li><a id="link-soft-x3dom" href="./x3d-world.html?world=soft-body.x3d.json&amp;renderer=x3dom"><strong>Under X3DOM</strong><span class="what">The same world and the same physics, drawn by X3DOM.</span></a></li>
+    <li><a id="link-soft-lobby-x_ite" href="./index.html?role=player&amp;intro=bypass&amp;renderer=x_ite"><strong>From the Lobby, X_ITE</strong><span class="what">Start in the Lobby and walk through the fourth portal.</span></a></li>
+    <li><a id="link-soft-file" href="./x3d-worlds/soft-body.x3d.json"><strong>The file the page loads</strong>, <code>x3d-worlds/soft-body.x3d.json</code><span class="what">His world, less the humanoid, with a viewpoint to stand at and an Anchor back to the Lobby added by the lab.</span></a></li>
+    <li><a id="link-soft-his-file" href="./worlds/soft-body.json"><strong>His file</strong>, <code>worlds/soft-body.json</code><span class="what">As his commit has it.</span></a></li>
+  </ul>
+  <h3>Where it falls short</h3>
+  <ul>
+    <li>Neither engine has a SoftBody or Stitch node, and X3DOM has no RigidBody nodes. The soft bodies move because this page runs Bullet itself, in JavaScript, and moves the engine's nodes every frame. The X3D file alone does not make them move in a plain X3D browser.</li>
+    <li>Bullet comes from the Ammo.js build inside X_ITE's package, through an X_ITE internal, not a public interface. X3DOM's page loads X_ITE's code for that too, and X_ITE draws nothing there.</li>
+    <li>His own page, <code>softbody.html</code>, and his <code>index.js</code> did not come in. They draw with three.js 0.186 on WebGPU and take Ammo.js and three's addons from a CDN, which are outside his commit. So there is no three.js drawing of this world.</li>
+    <li>The fourth portal is not a Web of Worlds portal. It comes from <code>x3d_portals</code> in the lab's <code>worlds.json</code>, only the X3D paths draw it, and no world server lists it or records a crossing: walking in loads the world's page. It shows a plain colour and a sign, not a preview. Its place differs from his commit's, because his stood behind the Lobby's camera.</li>
+    <li>The way back reloads the Lobby, with the avatar at its usual spawn, not at the portal.</li>
+    <li>After a swing the cloth draws white with grey and black flecks, and his ball goes dark on the side away from the world's one light. Under X_ITE the flecks went when the cloth was not lit and stayed under flat shading, so they are folds turned from the light.</li>
+    <li>The ball looks faceted. His nearest-node way of drawing it, kept here, gives many drawn triangles no area.</li>
+  </ul>
+  <h2>What works on X3DOM and X_ITE</h2>
+  <p id="proof-result"><code>npm run renderer-proof</code> runs each of these headless and measures the pictures. It ends with one statement for each engine and for John Carlson's world. It is slow, so it is not part of <code>npm test</code>. Only some of its steps press real keys and click a real mouse:</p>
+  <ul class="plain" id="proof-input">
+    <li><strong>Real keys and clicks.</strong> In each engine's lobby: hold W, click the head equipment button, press C. In the X3D JSON world: click the Anchor's disc, and hold W into its sensor. In John Carlson's world: hold Q to swing the arm; from the Lobby, hold D, then W, into the fourth portal; hold the left arrow, then W, back into the Anchor; click the disc. Under three.js: hold D, then W, over the spot where the fourth portal stands under X3D.</li>
+    <li><strong>No keys.</strong> The crossings from the lobby to Location A, Location B and Denver Skyport, the walk on along the airport's concourse, and the three.js crossings. For these the proof calls the page's step function directly, <code>stepAvatar</code> on the X3D paths and <code>moveAvatar</code> under three.js, to walk the avatar to each portal and through it.</li>
+  </ul>
+  <p>What the proof checks:</p>
+  <ul class="plain">
+    <li>The lobby, Location A and Location B: room, grid and portal rings, each ring found where its world says the portal is.</li>
+    <li>Denver Skyport: the building, signs, storefronts and gate.</li>
+    <li>Walking with the keyboard. The world servers are the same ones three.js uses.</li>
+    <li>Crossing a portal: from the lobby to Location A, Location B and Denver Skyport. The world is redrawn on arrival. The proof walks these crossings with the step function, not with keys.</li>
+    <li>Portal previews in the lobby: bounded snapshots of each destination, built when the page loads or a crossing lands, from what that world's preview declares. The proof reads what each preview holds, then hides one destination's room and sees which picture changes. Under X3DOM the avatar stands in front of the middle portal, so that one result is weaker.</li>
+    <li>An avatar with three items of equipment, a button to change an item, and first and third person.</li>
+    <li>The X3D JSON world: it loads, and its Anchor lands in Location B by a mouse click and by walking in. The proof checks the address, the world, the world server and the header there.</li>
+  </ul>
+
+  <h2>Where X3DOM and X_ITE fall short of three.js</h2>
+  <h3>Both</h3>
+  <ul class="plain">
+    <li><strong>Avatars stand still.</strong> They hold their rest pose while they slide. There is no idle, walk or run. It is always the same avatar, not one of the five picked at random.</li>
+    <li><strong>Equipment sits at fixed points</strong> near the head and hands. It does not follow bones.</li>
+    <li><strong>The airport is a building with nobody in it.</strong> No travelers, no staff, no manifest cards, no boarding journey, no airport HUD labels. The airport's preview through Portal C also lacks these.</li>
+    <li><strong>Portal previews are not a true window.</strong> The whole destination view is mapped onto the aperture, inside a rectangle, at 256 pixels square. In three.js it is a pixel-exact window. From far off to one side the preview can be dark, because its camera then stands outside the destination room.</li>
+    <li><strong>Previews draw plain shapes.</strong> Each hosted object in a preview is the box or sphere its world declares, not its model.</li>
+    <li><strong>The side panels and inspector belong to the three.js path.</strong> They are not wired here. The launcher's links do not carry <code>?renderer=</code>; use the links on this page.</li>
+    <li><strong>The boundary does not reach the default path.</strong> three.js still draws through its own code. The boundary has a three.js class, checked against the interface, and it draws nothing in the lab. So the world content has a parallel build, and a <code>?wow=</code> world does not draw under X3DOM or X_ITE.</li>
+    <li>Some hosted objects in each location are refused by their own world server by design, so they draw as plain boxes or spheres, and the browser console shows those errors.</li>
+  </ul>
+  <h3>X3DOM</h3>
+  <ul class="plain">
+    <li>Hosted objects come late after a crossing: X3DOM loads one model at a time, and a refused one waits 4 seconds before it falls back to a plain shape.</li>
+    <li>The console can show an X3DOM error, "Cannot read properties of null (reading 'doc')". It comes from X3DOM's Inline node when a model's download finishes after that node was moved or removed. The worlds in the proof drew with it present. Its effect was not studied further. X3DOM's file also adds an unload listener, the likely source of a "Permissions policy violation: unload" line in the console. The file stays as downloaded.</li>
+  </ul>
+  <h3>X_ITE</h3>
+  <ul class="plain">
+    <li><strong>No X3D Text.</strong> X_ITE's own fonts are WOFF2, and the lab does not serve X_ITE's WOFF2 decoder, because it could not show that file's licence. So under X_ITE the "Location B" sign in the X3D JSON world and the four lines of text in John Carlson's world are blank. The Lobby's sign at the fourth portal is not X3D Text, and it shows on a lab run; under the policy lab.openspatials.com sends it is blank, as said at the top of this page.</li>
+    <li>For the same reason the lab leaves out X_ITE's KTX texture decoder, its look-up tables for environment light and sheen, and its Gaussian splat sorter. No lab world uses KTX textures or splats. John Carlson's world has an EnvironmentLight, which X_ITE now lights without its look-up table.</li>
+    <li>X_ITE's RenderedTexture is marked experimental in its source. Its preview is cut only by the portal's plane, not by the sphere three.js and X3DOM use, because X_ITE allows too few clip planes.</li>
+    <li>Equipment looks almost black. The likely cause, X_ITE lighting those materials with no environment light, was not tested.</li>
+    <li>The third-person camera hides a wall between it and the avatar only for flat walls and boxes on the line through the middle of the view. X_ITE has no public call to pick at a pixel, so the lab's adapter does this test itself. After a crossing the camera can stand outside the room, where X_ITE's background is black.</li>
+  </ul>
+  <p>The proof runs headless on software rendering, so it says nothing about frame rate on a graphics card.</p>
+
+  <h2>Licences</h2>
+  <ul class="plain">
+    <li>Nicholas's fork and John's repository are Apache-2.0, each read from its own <code>LICENSE</code> file at the commit named above.</li>
+    <li>X_ITE's package holds a CC-BY-NC-4.0 text that names no work or file, and no other file in the package mentions that licence. Its <code>package.json</code> and <code>LICENSE.md</code> say MIT. No file we vendored is marked as falling under it. The lab does not serve that text, nor X_ITE's hatching, line type and icon pictures, which the renderer did not load. Detail: <code>THIRD_PARTY_NOTICES.md</code>.</li>
+    <li>Of X_ITE's decoders the lab serves only Draco's, meshoptimizer's and mikktspace's, each with its copyright line and licence in <code>vendor/x_ite/assets/lib/LICENSES.md</code>. The others are left out; <code>THIRD_PARTY_NOTICES.md</code> says why for each.</li>
+    <li>X_ITE's minified files also hold code from other projects, among them the Ammo.js and Bullet physics that John Carlson's world runs on. <code>vendor/x_ite/THIRD-PARTY-IN-BUNDLES.md</code> names each, with its copyright line and licence text.</li>
+    <li>The avatar on the X3D paths is the lab's own file under CC BY-NC-SA 4.0. That licence comes with the lab, not with an engine.</li>
+  </ul>
+
+  <h2>Engines in this copy</h2>
+  <p>Read when this page loads from <code>runtime/scene-core/public/render-adapter/registry.mjs</code>. Versions and licences are taken from each engine's own files.</p>
+  <div class="adapters" id="adapters"><p>Loading…</p></div>
+
+  <h2>The Anchor, read from the file</h2>
+  <pre id="anchor-summary" class="mono">Loading…</pre>
+</main>
+<script type="importmap">
+  { "imports": { "three": "./vendor/scene-core/vendor/three/three.module.js" } }
+</script>
+<script type="module">
+  import * as THREE from "three";
+  import { createRenderAdapterRegistry } from "./vendor/scene-core/render-adapter/registry.mjs";
+
+  const registry = createRenderAdapterRegistry(THREE);
+  const host = document.getElementById("adapters");
+  host.replaceChildren(...Object.values(registry).map((entry) => {
+    const row = document.createElement("div");
+    row.className = "adapter";
+    row.dataset.adapter = entry.kind;
+    const name = document.createElement("strong");
+    name.textContent = `${entry.label} ${entry.version}`;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `?renderer=${entry.kind} · ${entry.licence} · ${entry.source}`;
+    row.append(name, meta);
+    return row;
+  }));
+
+  function findNode(value, type) {
+    if (!value || typeof value !== "object") return null;
+    if (Array.isArray(value)) { for (const item of value) { const hit = findNode(item, type); if (hit) return hit; } return null; }
+    if (value[type]) return value[type];
+    for (const child of Object.values(value)) { const hit = findNode(child, type); if (hit) return hit; }
+    return null;
+  }
+  const summary = document.getElementById("anchor-summary");
+  try {
+    const world = await (await fetch("./x3d-worlds/anchor-portal-world.x3d.json", { cache: "no-store" })).json();
+    const anchor = findNode(world.X3D.Scene, "Anchor");
+    const sensor = findNode(world.X3D.Scene, "ProximitySensor");
+    const meta = anchor["-metadata"].MetadataSet["-value"].map((entry) => {
+      const [type, node] = Object.entries(entry)[0];
+      return `  ${node["@name"]} = ${node["@value"].join(", ")}  (${type})`;
+    });
+    summary.textContent = [
+      `X3D ${world.X3D["@version"]}, profile ${world.X3D["@profile"]}`,
+      `Anchor DEF ${anchor["@DEF"]}`,
+      `  description: ${anchor["@description"]}`,
+      `  url: ${anchor["@url"].join("  |  ")}`,
+      `  parameter: ${anchor["@parameter"].join(", ")}`,
+      `ProximitySensor DEF ${sensor["@DEF"]}, center ${sensor["@center"].join(" ")}, size ${sensor["@size"].join(" ")}`,
+      `metadata ${anchor["-metadata"].MetadataSet["@name"]}:`,
+      ...meta,
+    ].join("\n");
+  } catch (error) {
+    summary.textContent = `Could not read the X3D JSON world: ${error.message}`;
+  }
+</script>
+</body>
+</html>

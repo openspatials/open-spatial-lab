@@ -43,7 +43,8 @@
     "check:worlds": "node tools/check-worlds.mjs",
     "check:world-list": "node tools/placement/check-world-list.mjs",
     "check:placement": "node tools/placement/run.mjs",
-    "check:local-only": "node tools/placement/check-local-only.mjs"
+    "check:local-only": "node tools/placement/check-local-only.mjs",
+    "renderer-proof": "node tools/renderer/proof.mjs"
   },
   "dependencies": {
     "@pixiv/three-vrm": "3.3.3",

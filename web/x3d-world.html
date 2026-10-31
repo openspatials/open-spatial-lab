@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>X3D JSON world</title>
+  <style>
+    :root { --bg: #0C0D11; --ink: #F5F5F7; --dim: #A8A8B3; --accent: #A3E635; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; overflow: hidden; }
+    #world-host { position: fixed; inset: 0; }
+    #world-host x3d, #world-host x3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border: 0; }
+    #hud { position: fixed; left: 16px; top: 16px; max-width: min(520px, calc(100vw - 32px)); padding: 12px 14px; border-radius: 10px;
+      background: rgba(12, 13, 17, .86); border: 1px solid rgba(255,255,255,.12); pointer-events: auto; z-index: 5; }
+    #hud h1 { font-size: 16px; margin: 0 0 4px; }
+    #hud p { margin: 0 0 4px; color: var(--dim); }
+    #hud a { color: var(--accent); }
+    code { font: 13px ui-monospace, Menlo, monospace; color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div id="world-host"></div>
+  <div id="hud">
+    <h1 id="hud-title">Loading the X3D JSON world</h1>
+    <p id="hud-engine"></p>
+    <p id="hud-how">Click the orange disc, or walk into it with W, to cross. Its X3D Anchor goes to <code id="hud-url">...</code></p>
+    <p><a href="./renderer-lane.html">Back to the renderer page</a></p>
+  </div>
+<script>
+  // X3DOM is a classic script that starts at DOMContentLoaded, so it is written during the parse.
+  if (new URLSearchParams(location.search).get("renderer") === "x3dom") {
+    document.write('<link rel="stylesheet" href="./vendor/scene-core/vendor/x3dom/x3dom.css">');
+    document.write('<script src="./vendor/scene-core/vendor/x3dom/x3dom-full.js"><\/script>');
+    document.write('<x3d id="x3dom-world" showStat="false" showLog="false" showProgress="false"><scene id="x3dom-world-scene"><environment gammaCorrectionDefault="none"></environment></scene></x3d>');
+  }
+</script>
+<script type="module" src="./x3d-world.mjs"></script>
+</body>
+</html>

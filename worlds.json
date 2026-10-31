@@ -10,5 +10,9 @@
       "anchor": { "lat": 47.7, "lon": -122.3013323189, "h": 11.5 }, "room": "#42d68a", "preview_radius_m": 10 },
     { "key": "airport", "name": "Denver Skyport", "port": 18154, "address": "http://127.0.0.1:18154/",
       "anchor": { "lat": 39.8561, "lon": -104.6737, "h": 1655.0 }, "preview_radius_m": 24 }
+  ],
+  "x3d_portals": [
+    { "portal_id": "lobby-portal-d", "label": "Soft Body Demo - X3D JSON", "world": "lobby", "x3d_world": "soft-body.x3d.json",
+      "position": [4.4, 0, -4.4], "radius_m": 1.25, "color": "#bfd1e5" }
   ]
 }
