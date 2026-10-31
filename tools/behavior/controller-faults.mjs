@@ -59,6 +59,12 @@ export const controllerFaults = [
     '(CONTROL_KEY_MAP[event.code] || event.key === "Escape")', "CONTROL_KEY_MAP[event.code]"),
   fault("return-to-lobby-camera", "the return keeps the old camera heading", /azimuth was not reset/,
     "      seedOrbitCamera({ azimuth: 0 });\n      orbitCamera.focusInitialized = false;", "      orbitCamera.focusInitialized = false;"),
+  fault("camera-wall-treatment", "the wall in the way is never hidden", /hidden while it blocks the view/,
+    "    let selectedHit = nearestHit;\n", "    let selectedHit = null;\n"),
+  fault("camera-wall-treatment", "a wall that is not in the way is hidden instead", /hidden is the one in the way/,
+    "    let selectedHit = nearestHit;\n", "    let selectedHit = nearestHit ? { object: eligible.find((mesh) => !hitObjects.has(mesh)) || null, distance: null } : null;\n"),
+  fault("camera-wall-treatment", "a wall stays hidden after the view clears", /wall restores within two updates/,
+    "      if (previousClearFrames < 1) {\n", "      if (true) {\n"),
 ];
 
 /** Faults for src/server-camera-footer-check.mjs, which checks the server view's button. */

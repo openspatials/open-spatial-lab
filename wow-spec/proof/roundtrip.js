@@ -274,100 +274,13 @@ async function main()
             pb.additionalProperties === false && pb.required.length === 4
             && pb.required.indexOf('standards_conformance') !== -1);
 
-        // The VOCABULARY PIN. web/wow-scene.mjs restates the refusal reasons and the
-        // placement set rather than importing them (importing wow-fabric-transform.mjs
-        // would drag the render-filament compositor into the PURE discovery path). So
-        // pin them here, where importing everything is free: a fork fails this test.
+        // The strict member list of web/wow-scene.mjs is pinned to the schema, so a fork fails this test.
         const { pathToFileURL } = require('url');
         const webUrl = (f) => pathToFileURL(path.join(REPO_ROOT, 'web', f)).href;
         const wowScene = await import(webUrl('wow-scene.mjs'));
-        const xform = await import(webUrl('wow-fabric-transform.mjs'));
-        const backend = await import(webUrl('wow-fabric-backend.mjs'));
-        check('F14 VOCABULARY PIN — wow-scene\'s refusal reasons are IDENTICAL to OSL-FAB-XFORM-1\'s',
-            wowScene.FABRIC_SUBTREE_REFUSAL.MISSING_UNITS_PER_METER === xform.REFUSAL.MISSING_UNITS_PER_METER
-            && wowScene.FABRIC_SUBTREE_REFUSAL.BAD_UNITS_PER_METER === xform.REFUSAL.BAD_UNITS_PER_METER
-            && wowScene.FABRIC_SUBTREE_REFUSAL.UNKNOWN_UP_AXIS === xform.REFUSAL.UNKNOWN_UP_AXIS);
-        check('F15 VOCABULARY PIN — the placement set is IDENTICAL to the backend seam\'s placement->backend table',
-            JSON.stringify(wowScene.FABRIC_PLACEMENTS) === JSON.stringify(Object.keys(backend.PLACEMENT_BACKEND))
-            && wowScene.FABRIC_SUBTREE_REFUSAL.UNKNOWN_PLACEMENT === backend.BACKEND_REFUSAL.UNKNOWN_PLACEMENT,
-            'scene=' + JSON.stringify(wowScene.FABRIC_PLACEMENTS)
-            + ' backend=' + JSON.stringify(Object.keys(backend.PLACEMENT_BACKEND)));
-        check('F16 VOCABULARY PIN — the strict member list matches the schema\'s properties exactly',
+        check('F16 the strict member list matches the schema\'s properties exactly',
             JSON.stringify([].concat(wowScene.FABRIC_SUBTREE_MEMBERS).sort())
                 === JSON.stringify(Object.keys(sfs.properties).sort()));
-
-        // ================================================================
-        // PART G — DISCOVERY: `built.fabric_nodes[]` from the REAL
-        // builder (web/wow-scene.mjs) over the REAL fixture, with the REAL
-        // three injected. Node-safe: buildWowScene stays PURE.
-        // ================================================================
-        let THREE = require('three');
-        if (!THREE.Scene && THREE.default && THREE.default.Scene) THREE = THREE.default;
-        const fabricWorld = require(path.join(REPO_ROOT, 'web', 'fixtures', 'wow', 'world-fabric.json'));
-        const builtF = wowScene.buildWowScene(fabricWorld, THREE, { source: 'wow-validation:world-fabric.json' });
-        const fn = builtF.fabric_nodes;
-        const byId = (id) => fn.find(f => f.node_id === id);
-
-        check('G1 buildWowScene returns fabric_nodes[] — the 3 CONTRACT-BEARING nodes, found by the EXTENSION',
-            Array.isArray(fn) && fn.length === 3
-            && [ 2, 3, 4 ].every(id => !!byId(id)),
-            'fabric_nodes=' + JSON.stringify(fn.map(f => f.node_id)));
-        check('G2 fabric nodes are EXCLUDED from asset_nodes (else loadGltf would read a signed .msf as a broken glTF)',
-            builtF.asset_nodes.every(a => [ 2, 3, 4 ].indexOf(a.id) === -1),
-            'asset_nodes=' + JSON.stringify(builtF.asset_nodes.map(a => a.id)));
-        check('G3 the .msf node with NO declared contract (5) is NOT a fabric node — the SUFFIX IS NEVER SNIFFED',
-            !byId(5) && builtF.asset_nodes.some(a => a.id === 5)
-            && builtF.render_summary.fabric_subtrees.unspecified_contract_warnings.length === 1
-            && builtF.render_summary.fabric_subtrees.unspecified_contract_warnings[0].node_id === 5);
-        // The composed world matrix — column-major, metres, straight into OSL-FAB-XFORM-1.
-        const orrery = byId(3);
-        const wm = orrery.world_matrix;
-        check('G4 each fabric node carries its COMPOSED column-major world_matrix (translation in m[12..14])',
-            Array.isArray(wm) && wm.length === 16
-            && Math.abs(wm[12] - 2.5) < 1e-9 && Math.abs(wm[13] - 0.9) < 1e-9 && Math.abs(wm[14] - 0) < 1e-9,
-            'm[12..14]=' + JSON.stringify(wm && wm.slice(12, 15)));
-        check('G5 the VALID subtree contracts are ACCEPTED, with fail-closed effective values (requireVerified defaults TRUE)',
-            orrery.contract.ok === true && orrery.contract.effective.placement === 'in-room'
-            && orrery.contract.effective.upAxis === 'z'
-            && byId(2).contract.ok === true && byId(2).contract.effective.placement === 'backdrop'
-            && byId(2).contract.effective.requireVerified === true);
-        // FAIL-CLOSED at discovery, before any fetch.
-        const brokenNode = byId(4);
-        check('G6 the subtree missing `unitsPerMeter` is REFUSED — MISSING_UNITS_PER_METER, structured, before any fetch',
-            brokenNode.contract.ok === false
-            && brokenNode.contract.reason === wowScene.FABRIC_SUBTREE_REFUSAL.MISSING_UNITS_PER_METER,
-            'reason=' + brokenNode.contract.reason);
-        check('G7 a REFUSED subtree KEEPS a labeled, warn-tinted placeholder — never silently dropped, never drawn',
-            /^wow-fabric-refused:/.test(brokenNode.placeholder.name)
-            && brokenNode.placeholder.userData.assetUnavailable === true
-            && !!brokenNode.placeholder.parent,
-            'placeholder=' + brokenNode.placeholder.name);
-        check('G8 render_summary COUNTS the fabric nodes and the refusal (surfaced, never hidden)',
-            builtF.render_summary.fabric_subtrees.fabric_nodes === 3
-            && builtF.render_summary.fabric_subtrees.contract_ok === 2
-            && builtF.render_summary.fabric_subtrees.contract_refused === 1
-            && builtF.render_summary.rendered.fabric_placeholders === 3,
-            JSON.stringify(builtF.render_summary.fabric_subtrees.fabric_nodes) + '/'
-            + builtF.render_summary.fabric_subtrees.contract_ok + '/'
-            + builtF.render_summary.fabric_subtrees.contract_refused);
-        // The HANDOVER actually works: world_matrix + the declared contract feed
-        // OSL-FAB-XFORM-1 and produce a real placement. This is the seam rides.
-        const prep = xform.prepareFabricPlacement(wm, {
-            upAxis: orrery.contract.effective.upAxis,
-            unitsPerMeter: orrery.contract.effective.unitsPerMeter,
-            node_id: orrery.node_id });
-        check('G9 HANDOVER — world_matrix + the declared contract feed OSL-FAB-XFORM-1 and yield a real placement',
-            prep.ok === true && Number.isFinite(prep.composeScale) && prep.composeScale > 0
-            && prep.basisApplied === true,
-            'composeScale=' + (prep.ok ? prep.composeScale : prep.reason));
-        // NO REGRESSION: a graph with NO fabric node behaves exactly as it does today.
-        const worldA = require(path.join(REPO_ROOT, 'web', 'fixtures', 'wow', 'world-a.json'));
-        const builtA = wowScene.buildWowScene(worldA, THREE, { source: 'wow-validation:world-a.json' });
-        check('G10 NO REGRESSION — a graph with NO fabric node yields fabric_nodes:[] and its 6 asset_nodes unchanged',
-            builtA.fabric_nodes.length === 0 && builtA.asset_nodes.length === 6
-            && builtA.render_summary.rendered.asset_placeholders === 6
-            && builtA.render_summary.fabric_subtrees.unspecified_contract_warnings.length === 0,
-            'asset_nodes=' + builtA.asset_nodes.length + ' fabric_nodes=' + builtA.fabric_nodes.length);
 
         // ---- evidence ----
         const diagnostics = {
@@ -380,7 +293,6 @@ async function main()
             tool_versions: {
                 ajv: require(path.join(REPO_ROOT, 'node_modules', 'ajv', 'package.json')).version,
                 'ajv-formats': require(path.join(REPO_ROOT, 'node_modules', 'ajv-formats', 'package.json')).version,
-                'openapi-typescript': require(path.join(REPO_ROOT, 'node_modules', 'openapi-typescript', 'package.json')).version,
                 'js-yaml': require(path.join(REPO_ROOT, 'node_modules', 'js-yaml', 'package.json')).version,
             },
             contract: {

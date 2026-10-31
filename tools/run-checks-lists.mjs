@@ -74,7 +74,9 @@ const CLIENT_PORTS = {
   "src/portal-movement-orientation-continuity-proof.mjs": fourWorlds("OSL_PEER_AVATAR_PORT"),
 };
 
-const groupStep = (group, file) => ({ file, groups: [group], ports: CLIENT_PORTS[file] });
+// Client proofs that carry planted faults behind a --faults flag.
+const WITH_FAULTS = new Set(["src/self-identity-push-departure-check.mjs"]);
+const groupStep = (group, file) => ({ file, groups: [group], ports: CLIENT_PORTS[file], ...(WITH_FAULTS.has(file) ? { faultsFlag: true } : {}) });
 
 // Steps outside the three older groups. Each runs on its own as `node <file> <args>`.
 const MORE = [
@@ -115,11 +117,6 @@ export const STEPS = [
   ...MORE,
 ];
 
-// Steps that are red today and are not repaired here. Each names why and which phase of the refactor takes it.
-// A step on this list that passes is reported as FAIL, so the list cannot go stale.
-export const KNOWN_RED = {
-  "wow-spec/proof/roundtrip.js": {
-    reason: "its fabric section imports web/wow-fabric-transform.mjs and web/wow-fabric-backend.mjs, which are not in the repository; the dead .msf path they belonged to goes in the removal phase",
-    phase: "phase 2",
-  },
-};
+// Steps that are red today and are not repaired here, keyed by file. Each entry names why and which phase of the
+// refactor takes it. A step on this list that passes is reported as FAIL, so the list cannot go stale. Empty now.
+export const KNOWN_RED = {};

@@ -86,11 +86,6 @@ import {
 // manifest is accepted. NOT v0.4, NOT evaluator conformance, NOT full conformance.
 import { UM_CONFORMANCE } from "./conformance/um-conformance.mjs";
 
-// the pure-browser OMB fabric (.msf) reader —
-// compact-JWS parse + WebCrypto RS256 verify + x5c chain to a SHIPPED anchor
-// (OMBI Test Root CA) + module-hash handling. Threaded through the adapter so a
-// `?fabric=<url.msf>` root source is fetched + VERIFIED here (R2.7), never as an
-// OS-trust/public-PKI claim. Reader has no THREE/node:* dependency (pure).
 import {
   DEFAULT_LIVE_ADAPTER_TRANSPORT,
   displayPath,
@@ -1387,42 +1382,17 @@ export class LiveAdapter extends EventTarget {
     this.base = this.endpoint.proxy_base;
     this.baseA = BASE_A;
     this.baseB = BASE_B;
-    // R1.2 — URL-driven root fabric entry. When a fabric URL
-    // is supplied (?fabric=<url>), the ROOT fabric source is that URL (an OMB
-    // `.msf` compact-JWS token for M1), NOT the frozen ENDPOINTS proxy base. This
-    // branch is additive: the endpoint above is kept as a harmless fallback for
-    // any role/world code path, and when `fabricUrl` is absent every field below
-    // is exactly the pre-002 behavior (the ENDPOINTS/role path is untouched).
-    this.fabricUrl = opts.fabricUrl || null;
-    this.rootIsMsf = false;
-    this._msfRead = null;
-    this._msfChildRead = null;
-    this._msfChildModuleRun = null;
-    if (this.fabricUrl) {
-      this.rootFabricSource = this.fabricUrl;
-      this.rootIsMsf = /\.msf(\?|#|$)/i.test(this.fabricUrl);
-      // base = the directory the fabric was loaded from, so a relative child
-      // reference (M4) resolves against the parent fabric URL for any host.
-      const pageHref = typeof location !== "undefined" ? location.href : "http://127.0.0.1/";
-      try {
-        this.base = new URL("./", new URL(this.fabricUrl, pageHref)).href.replace(/\/$/, "");
-      } catch (e) {
-        this.base = String(this.fabricUrl).replace(/[^/]*$/, "").replace(/\/$/, "");
-      }
-    }
     // URL/id-driven WoW world entry. When a WoW
     // ref is supplied (?wow=<url|id>), the browser opens THAT world by fetching
     // its Spatial Composition Graph (initWow) and rendering it through the
-    // additive buildWowScene seam. Additive + orthogonal to the fabricUrl/msf
-    // path: absent => byte-for-byte the pre-016 role/world behavior.
+    // additive buildWowScene seam. Absent => the role/world behavior.
     this.wowRef = opts.wowRef || null;
     this._wowResolved = null;
     // the crossing's SCENE SOURCE OF RECORD: the active
     // world's WoW Spatial Composition Graph (/wow/spatial/{id}) resolved via the
-    // canonical walk, REPLACING the prefetched Sneeze .msf child-fabric as the
-    // destination scene source. Best-effort + non-fatal; the .msf navigator stays
-    // best-effort enrichment. Surfaced in debugState().wow_scene_source (honest,
-    // never hidden). Null before the first resolve.
+    // canonical walk, as the destination scene source. Best-effort + non-fatal.
+    // Surfaced in debugState().wow_scene_source (honest, never hidden). Null
+    // before the first resolve.
     this._wowSceneSource = null;
     // local-walk (fixture ?wow=) flags. `_movementBounds`
     // is null on the live path, so stepAvatar's clamp stays byte-identical
@@ -1538,7 +1508,7 @@ export class LiveAdapter extends EventTarget {
     // render every player in the observer's current location. Same-origin lane5
     // BroadcastChannel is the transport - local same-machine proof, not
     // networking.
-    this._playerContextMarker = role === "player" || this.rootIsMsf ? makePlayerContextMarker() : null;
+    this._playerContextMarker = role === "player" ? makePlayerContextMarker() : null;
     // frozen snapshot of the marker AT LOAD. The no-reload proof is a
     // REAL comparison of this snapshot against a read of the live in-memory
     // marker after the crossing (see _recordMarkerCrossingComparison).
@@ -1896,7 +1866,6 @@ export class LiveAdapter extends EventTarget {
       this._wowSceneSource = {
         ok: true,
         via: "client_scene_load",
-        msf_dependency: false,
         resolved_from: target.graph_endpoint,
         graph_url: resolved.graph_url,
         spatialID: resolved.spatialID,
@@ -2130,10 +2099,9 @@ export class LiveAdapter extends EventTarget {
     if (this.role === "player") await this._initWorldNavigator();
     // re-source the ACTIVE world's SCENE from its WoW
     // Spatial Composition Graph (/wow/spatial/{id}) so the world renders from the
-    // GRAPH — node counts / positions graph-sourced, NOT the .msf child fabric.
-    // Best-effort + non-fatal; the .msf navigator above stays best-effort
-    // enrichment and the crossing carries no .msf dependency (the destination
-    // world is re-sourced the same way on promotion — see _promoteActiveEndpoint).
+    // GRAPH — node counts / positions graph-sourced.
+    // Best-effort + non-fatal (the destination world is re-sourced the same way
+    // on promotion — see _promoteActiveEndpoint).
     if (this.role === "player") {
       const authoredEndpoint = authoredWowGraphEndpoint(wowWorld, this.base);
       await this._resolveWowSceneGraph({
@@ -2566,407 +2534,6 @@ export class LiveAdapter extends EventTarget {
   }
 
   /**
-   * R2.7 — the `.msf` sibling of _ensureRootFabric: fetch
-   * the compact-JWS token from the root fabric URL, run the reader (WebCrypto
-   * RS256 verify + x5c chain to the SHIPPED OMBI Test Root CA anchor + module
-   * hash), and CACHE the verified manifest + JWS result. Never throws — a crypto
-   * failure yields result:"FAILED" (fail-closed), rendered nothing as verified.
-   */
-  async _ensureRootFabricMsf() {
-    if (this._msfRead && this._msfReadUrl === this.fabricUrl) return this._msfRead;
-    // the LABELED `?verify=structured` dev escape hatch (a
-    // valid signature that does NOT chain to a shipped anchor). Absent it, the
-    // reader is strictly VERIFIED-only and WITHHOLDS the manifest of anything
-    // else — so the cache slot below can no longer be poisoned by a tampered
-    // fabric's manifest (which is exactly what used to happen).
-    const allowStructured =
-      typeof location !== "undefined" && !!location.search &&
-      new URLSearchParams(location.search).get("verify") === "structured";
-    const msf = await readMsf(this.fabricUrl, { allowStructured });
-    this._msfRead = msf;
-    this._msfReadUrl = this.fabricUrl;
-    if (msf.manifest) {
-      // Reuse the plain-JSON manifest cache slot so any world code that reads it
-      // sees the VERIFIED manifest (not an unsigned /fabric.json). `msf.manifest`
-      // is now ONLY ever present for a fabric that actually verified.
-      this._rootFabricManifest = msf.manifest;
-      this._rootFabricManifestUrl = this.fabricUrl;
-    }
-    return msf;
-  }
-
-  /**
-   * R2.7 — M1 world-navigator init for a `.msf` ROOT source.
-   * Builds the honest navigator debug object (root-fabric JWS result, portal
-   * attachment, scene summary, `wasm_run:false`) WITHOUT the live Lane-3 backend
-   * — M1 is specified as zero-server, so this is a focused read/verify path, not
-   * the full live crossing navigator (which requires `this.world`). Every field
-   * is labeled; no green flag is set that a verifier does not back. The emitted
-   * fields mirror _initWorldNavigator's naming so renderStandardFabric / Track C
-   * can surface them. Returns the `msf` read object.
-   */
-  async initMsf() {
-    if (!this.fabricUrl) throw new Error("initMsf requires a fabricUrl (?fabric=)");
-    const msf = await this._ensureRootFabricMsf();
-    const scene = msf.scene || {};
-    const portal = scene.portals && scene.portals.length ? scene.portals[0] : null;
-    const verified = msf.result === "VERIFIED";
-    const navigator = {
-      subsystem: "world_navigator",
-      profile: "omb.world-navigator.msf-read.v0.1",
-      claim:
-        "local web validation; reads a real OMB fabric file (their .msf); signature " +
-        "VERIFIED against a SHIPPED test anchor (NOT OS-trust/public-PKI); root fabric WASM not run",
-      context_id: this._playerContextMarker ? this._playerContextMarker.context_id : null,
-      context_marker_id: this._playerContextMarker ? this._playerContextMarker.marker_id : null,
-      single_context: true,
-      status: verified ? "root_fabric_verified" : `root_fabric_${String(msf.result).toLowerCase()}`,
-      active_fabric_role: "root",
-      root_fabric: {
-        url: this.fabricUrl,
-        container: msf.manifest ? msf.manifest.container || null : null,
-        status: verified ? "verified" : String(msf.result).toLowerCase(),
-        fabric_role: "root",
-        format: msf.format || "compact-jws-msf",
-        signed: true,
-        jws: msf.jws || null,
-        node_count: scene.node_count || 0,
-        type_histogram: scene.type_histogram || {},
-      },
-      portal_attachment: portal
-        ? {
-            name: portal.name || null,
-            bSubtype: FABRIC_PORTAL_ATTACHMENT_SUBTYPE,
-            sReference: portal.sReference || null,
-            resolved_url: null,
-            note: "portal attachment present; explicit M4 follow verifies and executes the child before rendering",
-          }
-        : null,
-      child_fabric: null,
-      child_render: { active: false, reason: "child_not_followed" },
-      portal_count: scene.portal_count || 0,
-      fabrics_loaded: msf.manifest && msf.manifest.container ? [msf.manifest.container] : [],
-      fabrics_loaded_count: msf.manifest && msf.manifest.container ? 1 : 0,
-      transition_count: 0,
-      transition_history: [],
-      wasm_run: false,
-      wasm_status: msf.wasm_status,
-      modules_hash_ok: msf.modules_hash_ok,
-      modules: msf.modules || [],
-      scene: {
-        node_count: scene.node_count || 0,
-        type_histogram: scene.type_histogram || {},
-        portal_count: scene.portal_count || 0,
-      },
-      label: msf.label || null,
-    };
-    this._navigator = navigator;
-    this._msfNavigator = navigator;
-    if (this._playerContextMarker) {
-      this._playerContextMarker.fabrics_loaded = navigator.fabrics_loaded.slice();
-      this._playerContextMarker.fabrics_loaded_count = navigator.fabrics_loaded_count;
-      this._playerContextMarker.root_fabric_url = this.fabricUrl;
-      this._playerContextMarker.child_fabric_url = null;
-      this._playerContextMarker.upgraded_at = new Date().toISOString();
-    }
-    this._log(
-      `msf-read: ${this.fabricUrl} -> ${msf.result}` +
-        (msf.jws && msf.jws.anchor ? ` (anchor="${msf.jws.anchor}")` : "") +
-        ` nodes=${scene.node_count || 0} portals=${scene.portal_count || 0} wasm_run=false`
-    );
-    return msf;
-  }
-
-  /**
-   * M4 — follow the verified root portal to one child
-   * fabric without navigating the page. Trust and module execution stay in the
-   * shared reader/ABI spine; the caller supplies only the composition callback.
-   * The verified parent remains active unless every child gate and the render
-   * callback complete in the original in-memory navigator context.
-   */
-  async followMsfChild(renderChild) {
-    const navigator = this._msfNavigator || this._navigator;
-    const root = await this._ensureRootFabricMsf();
-    const rootContainer = root.manifest ? root.manifest.container || this.fabricUrl : this.fabricUrl;
-    let childUrl = null;
-    let runtimeFailure = {
-      state: "unavailable",
-      kind: "child_runtime_unavailable",
-      source_state: "child_follow_started",
-      recoverable: true,
-      parent_retained: true,
-      detail: "child follow did not complete",
-    };
-    try {
-      if (!navigator || root.result !== "VERIFIED" || !root.manifest) {
-        const trustRefusal = !!(root && root.jws && root.result !== "VERIFIED");
-        runtimeFailure = {
-          ...runtimeFailure,
-          state: trustRefusal ? "refused" : "unavailable",
-          kind: trustRefusal ? "root_trust_refused" : "root_unavailable",
-          source_state: `root_fabric_${String(root && root.result ? root.result : "unavailable").toLowerCase()}`,
-          recoverable: !trustRefusal,
-        };
-        throw new Error("M4 child follow requires a VERIFIED root fabric");
-      }
-      if (typeof renderChild !== "function") {
-        runtimeFailure = {
-          ...runtimeFailure,
-          state: "refused",
-          kind: "child_render_policy_refused",
-          source_state: "render_callback_missing",
-          recoverable: false,
-        };
-        throw new Error("M4 child follow requires a render callback");
-      }
-      const reference = navigator.portal_attachment && navigator.portal_attachment.sReference;
-      if (!reference) {
-        runtimeFailure = {
-          ...runtimeFailure,
-          state: "refused",
-          kind: "child_reference_refused",
-          source_state: "child_reference_missing",
-          recoverable: false,
-        };
-        throw new Error("verified root fabric has no child portal reference");
-      }
-
-      const pageHref = typeof window !== "undefined" && window.location
-        ? window.location.href
-        : "http://127.0.0.1/";
-      const parentUrl = new URL(this.fabricUrl, pageHref);
-      childUrl = new URL(reference, parentUrl).href;
-      if (!/^https?:$/i.test(new URL(childUrl).protocol)) {
-        runtimeFailure = {
-          ...runtimeFailure,
-          state: "refused",
-          kind: "child_reference_refused",
-          source_state: "child_protocol_unsupported",
-          recoverable: false,
-        };
-        throw new Error(`unsupported child fabric URL protocol: ${new URL(childUrl).protocol}`);
-      }
-
-      navigator.portal_attachment.resolved_url = childUrl;
-      navigator.status = "child_verifying";
-      navigator.active_fabric_role = "root";
-      navigator.child_fabric = { url: childUrl, status: "verifying", fabric_role: "child" };
-      navigator.child_render = { active: false, reason: "verification_in_progress" };
-
-      const child = await readMsf(childUrl);
-      if (child.result !== "VERIFIED" || !child.manifest || child.modules_hash_ok !== true) {
-        if (child.result !== "VERIFIED" || !child.manifest) {
-          const trustRefusal = !!child.jws;
-          runtimeFailure = {
-            ...runtimeFailure,
-            state: trustRefusal ? "refused" : "unavailable",
-            kind: trustRefusal ? "child_trust_refused" : "child_unavailable",
-            source_state: trustRefusal ? `child_${String(child.result).toLowerCase()}` : "child_unreadable",
-            recoverable: !trustRefusal,
-          };
-        } else {
-          const modulePolicyRefusal = child.modules_hash_ok === false || !Array.isArray(child.modules) || child.modules.length === 0;
-          runtimeFailure = {
-            ...runtimeFailure,
-            state: modulePolicyRefusal ? "refused" : "unavailable",
-            kind: modulePolicyRefusal ? "child_module_policy_refused" : "child_module_unavailable",
-            source_state: child.modules_hash_ok === false ? "module_hash_mismatch" : "module_unavailable",
-            recoverable: !modulePolicyRefusal,
-          };
-        }
-        throw new Error(
-          `child fabric refused: result=${child.result} modules_hash_ok=${String(child.modules_hash_ok)}` +
-            `${child.error ? ` error=${child.error}` : ""}`
-        );
-      }
-      const moduleRun = await runFabricMap(child.manifest, childUrl);
-      if (moduleRun.ran !== true || moduleRun.hash_ok !== true || moduleRun.refused === true) {
-        const modulePolicyRefusal = moduleRun.refused === true || moduleRun.hash_ok === false || moduleRun.declared_hash == null;
-        runtimeFailure = {
-          ...runtimeFailure,
-          state: modulePolicyRefusal ? "refused" : "unavailable",
-          kind: modulePolicyRefusal ? "child_module_policy_refused" : "child_module_unavailable",
-          source_state: moduleRun.hash_ok === false ? "module_hash_mismatch" : "module_execution_unavailable",
-          recoverable: !modulePolicyRefusal,
-        };
-        throw new Error(`child module refused: ${moduleRun.error || "verified/hash-gated execution did not complete"}`);
-      }
-      this._msfChildRead = child;
-      this._msfChildModuleRun = moduleRun;
-      navigator.child_fabric = {
-        url: childUrl,
-        container: child.manifest.container || null,
-        status: "verified_executed_awaiting_render",
-        fabric_role: "child",
-        resolved_from: `root portal ${navigator.portal_attachment.name || "unnamed"} sReference`,
-        jws: child.jws || null,
-        modules_hash_ok: child.modules_hash_ok,
-        modules: child.modules || [],
-        module_run: moduleRun,
-        scene: child.scene || null,
-        verified_at: new Date().toISOString(),
-      };
-      navigator.status = "child_verified_executed_awaiting_render";
-      navigator.child_render = { active: false, reason: "awaiting_verified_child_render" };
-
-      const readNavigationProof = () => {
-        const marker = this._playerContextMarker;
-        const atLoad = this._markerAtLoad;
-        let navigationEntryCount = 0;
-        try {
-          const entries = typeof performance !== "undefined" && performance.getEntriesByType
-            ? performance.getEntriesByType("navigation")
-            : [];
-          navigationEntryCount = entries ? entries.length : 0;
-        } catch (_) {
-          navigationEntryCount = atLoad ? atLoad.navigation_entry_count_at_boot : 0;
-        }
-        const currentHref = typeof window !== "undefined" && window.location ? window.location.href : "";
-        const sameMarker = !!(marker && atLoad && marker.marker_id === atLoad.marker_id && marker.context_id === atLoad.context_id);
-        const sameNavigationEntryCount = !!(atLoad && navigationEntryCount === atLoad.navigation_entry_count_at_boot);
-        const sameHref = !!(atLoad && currentHref === atLoad.boot_href);
-        const noReload = sameMarker && sameNavigationEntryCount && sameHref;
-        return { noReload, sameMarker, sameNavigationEntryCount, sameHref, navigationEntryCount, currentHref };
-      };
-
-      const beforeRender = readNavigationProof();
-      if (!beforeRender.noReload) {
-        runtimeFailure = {
-          ...runtimeFailure,
-          state: "refused",
-          kind: "navigator_context_refused",
-          source_state: "context_changed_before_render",
-          recoverable: false,
-        };
-        throw new Error("navigator context changed before child render");
-      }
-      runtimeFailure = {
-        ...runtimeFailure,
-        state: "unavailable",
-        kind: "child_render_unavailable",
-        source_state: "child_render_failed",
-        recoverable: true,
-      };
-      const renderResult = await renderChild({
-        child,
-        manifest: child.manifest,
-        module_run: moduleRun,
-        url: childUrl,
-        parent: root,
-      });
-      if (!renderResult || renderResult.rendered !== true || !(Number(renderResult.rendered_nodes) > 0)) {
-        throw new Error("verified child render did not produce a confirmed non-empty scene");
-      }
-      const afterRender = readNavigationProof();
-      if (!afterRender.noReload) {
-        runtimeFailure = {
-          ...runtimeFailure,
-          state: "refused",
-          kind: "navigator_context_refused",
-          source_state: "context_changed_during_render",
-          recoverable: false,
-        };
-        throw new Error("navigator context changed during child render");
-      }
-
-      const completedAt = new Date().toISOString();
-      const transition = {
-        status: "completed",
-        from: "root",
-        to: "child",
-        child_url: childUrl,
-        verified_before_execution: true,
-        module_hash_verified_before_execution: true,
-        module_executed_before_render: true,
-        rendered_nodes: Number(renderResult.rendered_nodes),
-        renderer_kind: renderResult.renderer_kind || null,
-        no_page_reload: afterRender.noReload,
-        same_context_marker: afterRender.sameMarker,
-        navigation_entry_count: afterRender.navigationEntryCount,
-        completed_at: completedAt,
-      };
-      navigator.child_fabric.status = "active";
-      navigator.child_fabric.activated_at = completedAt;
-      navigator.child_render = { ...renderResult, active: true, updated_at: completedAt };
-      navigator.active_fabric_role = "child";
-      navigator.status = "child_active_one_context";
-      navigator.fabrics_loaded = [rootContainer, child.manifest.container || childUrl];
-      navigator.fabrics_loaded_count = 2;
-      navigator.transition_count = Number(navigator.transition_count || 0) + 1;
-      navigator.transition_history = [...(navigator.transition_history || []), transition];
-      navigator.last_transition = transition;
-      if (this._playerContextMarker) {
-        this._playerContextMarker.current_href = afterRender.currentHref;
-        this._playerContextMarker.same_marker_after_crossing = afterRender.sameMarker;
-        this._playerContextMarker.crossing_comparison = { ...transition };
-        this._playerContextMarker.fabrics_loaded = navigator.fabrics_loaded.slice();
-        this._playerContextMarker.fabrics_loaded_count = 2;
-        this._playerContextMarker.root_fabric_url = this.fabricUrl;
-        this._playerContextMarker.child_fabric_url = childUrl;
-        this._playerContextMarker.upgraded_at = completedAt;
-      }
-      this._log(
-        `msf M4: verified child active in one context root=${rootContainer || "?"} ` +
-          `child=${child.manifest.container || childUrl} rendered_nodes=${transition.rendered_nodes}`
-      );
-      return transition;
-    } catch (cause) {
-      const error = cause instanceof Error ? cause : new Error(String(cause));
-      const failedAt = new Date().toISOString();
-      const parentRetained = root.result === "VERIFIED" && !!root.manifest;
-      runtimeFailure = {
-        ...runtimeFailure,
-        parent_retained: parentRetained,
-        detail: error.message,
-        failed_at: failedAt,
-      };
-      error.runtime_failure = { ...runtimeFailure };
-      if (navigator) {
-        const previousChild = navigator.child_fabric || {};
-        navigator.status = "child_failed_parent_retained";
-        navigator.active_fabric_role = "root";
-        navigator.fabrics_loaded = rootContainer ? [rootContainer] : [];
-        navigator.fabrics_loaded_count = navigator.fabrics_loaded.length;
-        navigator.child_fabric = {
-          ...previousChild,
-          url: childUrl || previousChild.url || null,
-          status: previousChild.status === "verified_executed_awaiting_render"
-            ? "verified_executed_not_rendered"
-            : runtimeFailure.state,
-          fabric_role: "child",
-          error: error.message,
-          failure: { ...runtimeFailure },
-        };
-        navigator.child_render = {
-          active: false,
-          parent_retained: parentRetained,
-          reason: error.message,
-          failure: { ...runtimeFailure },
-          updated_at: failedAt,
-        };
-        navigator.last_transition = {
-          status: "failed",
-          from: "root",
-          to: "child",
-          child_url: childUrl,
-          parent_retained: parentRetained,
-          error: error.message,
-          failure: { ...runtimeFailure },
-          failed_at: failedAt,
-        };
-      }
-      if (this._playerContextMarker) {
-        this._playerContextMarker.fabrics_loaded = rootContainer ? [rootContainer] : [];
-        this._playerContextMarker.fabrics_loaded_count = this._playerContextMarker.fabrics_loaded.length;
-        this._playerContextMarker.child_fabric_url = null;
-        this._playerContextMarker.upgraded_at = failedAt;
-      }
-      this._log(`msf M4: child follow failed; verified parent retained (${error.message})`);
-      throw error;
-    }
-  }
-
-  /**
    * open a WoW world by URL/id and resolve its
    * Spatial Composition Graph for the render seam. Fixtures-first: `wowRef` is
    * EITHER a URL/path to a dev-fixture bundle (the typed graph mocks we
@@ -3128,8 +2695,7 @@ export class LiveAdapter extends EventTarget {
    * `_promoteActiveEndpoint`), the (x,y,z)->(-x,y,-z) isometry, handoff_id
    * correlation, the no-reload in-memory promotion, and the procedural render
    * machinery are all untouched. Best-effort + NON-FATAL: a failure logs and
-   * leaves the /wow-projected world as the fallback (the .msf navigator stays
-   * best-effort enrichment). Returns a provenance record (also stored on
+   * leaves the /wow-projected world as the fallback. Returns a provenance record (also stored on
    * `this._wowSceneSource`, surfaced in debugState().wow_scene_source).
    *
    * @param {{ base?:string, spatialId?:string, graphEndpoint?:string, resolvedFrom?:string }} o
@@ -3140,9 +2706,7 @@ export class LiveAdapter extends EventTarget {
     const record = {
       ok: false,
       via: "wow_composition_graph",
-      // The scene comes from the WoW graph — NOT the .msf child fabric. The
-      // crossing carries NO .msf dependency (invariant / acceptance).
-      msf_dependency: false,
+      // The scene comes from the WoW graph.
       resolved_from: o.resolvedFrom || null,
       graph_url: null,
       spatialID: null,
@@ -3241,11 +2805,6 @@ export class LiveAdapter extends EventTarget {
    *  debugState().crossing.destination_scene_source. */
   wowSceneSource() {
     return this._wowSceneSource;
-  }
-
-  /** the honest M1 read result (or null before initMsf). */
-  msfRead() {
-    return this._msfRead;
   }
 
   /**
@@ -5382,10 +4941,9 @@ export class LiveAdapter extends EventTarget {
       crossing: traversalDebug.crossing,
       client_scene_load: this._clientSceneController.debug(),
       // the active world's WoW Spatial Composition Graph
-      // scene source of record (graph_url, spatialID, node_count; msf_dependency
-      // false). This is the SCENE SOURCE the crossing re-based onto, replacing
-      // the .msf child fabric; the crossing DESTINATION variant rides on
-      // crossing.destination_scene_source. Honest — surfaced, never hidden.
+      // scene source of record (graph_url, spatialID, node_count). This is the
+      // SCENE SOURCE the crossing re-based onto; the crossing DESTINATION variant
+      // rides on crossing.destination_scene_source. Honest — surfaced, never hidden.
       wow_scene_source: this._wowSceneSource || null,
       // BEGIN — live UM manifest signing status: what was signed on exit and the
       // result of verifying on arrival. This is the observable proof that the crossing signs

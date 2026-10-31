@@ -183,7 +183,6 @@ function ok(name, cond, detail) {
 const C = {
     ISO_X:           'ISOMETRY source tripwire: canonical proper local helper negates x and mapCameraAcrossCrossing consumes it',
     ISO_Z:           'ISOMETRY source tripwire: canonical proper local helper negates z and mapCameraAcrossCrossing consumes it',
-    RESRC_HONEST:    'RE-SOURCE honest: scene source records msf_dependency:false',
 };
 
 /** The recorded outcome of a check that actually ran; null (+ a loud problem) if it did not. */
@@ -398,8 +397,7 @@ async function main() {
                  walk: { fetched: gA.stats.fetched, failed: gA.stats.failed, complete: gA.stats.failed === 0 } },
             b: { spatialID: spB, node_count: gB.stats.total, rendered_nodes: builtB.render_summary.rendered.rendered_nodes, shape: builtB.render_summary.shape, positions_graph_sourced: psB,
                  walk: { fetched: gB.stats.fetched, failed: gB.stats.failed, complete: gB.stats.failed === 0 } },
-            msf_dependency: false,
-            note: 'render_summary.shape=wow-composition-graph; node counts+positions taken VERBATIM from /wow/spatial (buildWowScene), not the .msf child fabric.',
+            note: 'render_summary.shape=wow-composition-graph; node counts+positions taken VERBATIM from /wow/spatial (buildWowScene).',
         };
 
         // ===== (B) destination resolved from the labeled Portal.osl_destination (iteration 4: `destination` is the entry URL) =====
@@ -749,11 +747,9 @@ async function main() {
 
         // ===== (F2) CLIENT-side crossing MACHINERY — a SOURCE TRIPWIRE, and labeled as one =====
         // These regexes are NOT a continuity proof. What remains: the (x,y,z)->(-x,y,-z) portal isometry
-        // (web/live-adapter-portal-geometry.mjs, not moving) and the msf_dependency:false record, which
-        // goes with the .msf path in phase 2. That the page crosses without a reload, and builds the
+        // (web/live-adapter-portal-geometry.mjs, not moving). That the page crosses without a reload, and builds the
         // destination's scene from the destination's own graph, is run in the page by
         // tools/behavior/crossing-views.check.mjs.
-        const adapterSrc = fs.readFileSync(path.join(REPO_ROOT, 'web', 'live-adapter.js'), 'utf8');
         const geometrySrc = fs.readFileSync(
             path.join(REPO_ROOT, 'web', 'live-adapter-portal-geometry.mjs'), 'utf8');
         ok(C.ISO_X,
@@ -762,18 +758,13 @@ async function main() {
         ok(C.ISO_Z,
             /z:\s*-\(Number\(local\s*&&\s*local\.z\)\s*\|\|\s*0\)/.test(geometrySrc) &&
             /properPortalLocalRotation\(localForward\)/.test(geometrySrc));
-        ok(C.RESRC_HONEST, /msf_dependency:\s*false/.test(adapterSrc));
 
-        const msfHonest = derived(C.RESRC_HONEST);
         diagnostics.client_machinery_source_tripwire = {
             proof_class: 'SOURCE-PRESENCE TRIPWIRE — NOT a behavioural validation and NOT diagnostics of continuity. '
-                + 'It asserts the scene source still records msf_dependency:false in web/live-adapter.js, and the '
-                + 'proper local isometry still exists in web/live-adapter-portal-geometry.mjs. '
+                + 'It asserts the proper local isometry still exists in web/live-adapter-portal-geometry.mjs. '
                 + 'The continuity CLAIM is proven behaviourally in diagnostics.continuity; the runtime validation of '
                 + 'THIS machinery (nav-count=1 / in-memory promotion / camera isometry) is the browser e2e-driver\'s.',
             isometry_x_and_z_negated_source_present: derived(C.ISO_X, C.ISO_Z),
-            msf_dependency: msfHonest === true ? false : null,
-            msf_dependency_source_asserted: msfHonest,
             runtime_navcount_proof: 'e2e-driver (browser) mainThreeWindowEvidence nav-count=1 / promotion_count=1 — '
                 + 'NOT RUN HERE by design: this is the deterministic Node validation (1-min load ' + load1.toFixed(2)
                 + '; the browser validation is the e2e-driver\'s, tracked by runtime)',

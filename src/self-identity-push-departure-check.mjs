@@ -13,10 +13,23 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as THREE from "three";
+import { runPlantedFaults } from "../tools/behavior/planted-node.mjs";
 
 const require = createRequire(import.meta.url);
 const { applySourceMutation } = require("./source-mutations.js");
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+const PREVIEW = "web/portal-spatial-preview.mjs";
+const PORTAL_AVATAR_FAULTS = [
+  { name: "the destination circle is a metre wider than the server's", expect: /0\.1 mm outside the destination circle is outside it/, edits: [{ file: PREVIEW, find: "    const radius = circle ? Number(circle.radius_m) : NaN;", replace: "    const radius = circle ? Number(circle.radius_m) + 1 : NaN;" }] },
+  { name: "a peer's pose is never used", expect: /peer with a fresh pose inside the volume gets a full avatar/, edits: [{ file: PREVIEW, find: "    if (!avatar || !avatar.player_id) return null;\n    const pose = this.peerPlayers.get(avatar.player_id);", replace: "    if (!avatar || !avatar.player_id || true) return null;\n    const pose = this.peerPlayers.get(avatar.player_id);" }] },
+  { name: "the full avatar layer is never used", expect: /peer with a fresh pose inside the volume gets a full avatar/, edits: [{ file: PREVIEW, find: "volumeHit.eligible && !!pose && !!this.AvatarLayerClass;", replace: "volumeHit.eligible && !!pose && false;" }] },
+];
+if (process.argv.includes("--faults")) {
+  runPlantedFaults({ file: "src/self-identity-push-departure-check.mjs", faults: PORTAL_AVATAR_FAULTS });
+  process.exit();
+}
+
 const previewModuleRoot = mkdtempSync(path.join(tmpdir(), "runtime-preview-module-"));
 let SpatialPortalPreviewManager;
 let portalAwarenessVolume;
@@ -142,7 +155,11 @@ check("destination-circle classification is exact at the radius and remains fail
   };
   const selected = preview._destinationAvatars(machine);
   assert.equal(selected.find((entry) => entry.player_id === OTHER).inside_destination_circle, true);
-  assert.equal(selected.find((entry) => entry.player_id === GUARD).inside_destination_circle, false);
+  assert.equal(
+    selected.find((entry) => entry.player_id === GUARD).inside_destination_circle,
+    false,
+    "a player 0.1 mm outside the destination circle is outside it",
+  );
   machine.region.avatars.circle = null;
   assert.equal(
     preview._destinationAvatars(machine).every((entry) => entry.inside_destination_circle === false),
@@ -189,13 +206,13 @@ class FakePortalAvatarLayer {
   }
 }
 
-function representationFixture(avatarFault = null) {
+function representationFixture(options = {}) {
   const nowMs = 10_000;
   const preview = manager(SELF, {
     AvatarLayerClass: FakePortalAvatarLayer,
     getMount: () => ({ clientWidth: 960, clientHeight: 540 }),
     nowMs: () => nowMs,
-    avatarFault,
+    ...options,
   });
   const peer = {
     ...avatar(OTHER, [1.5, 0, 0]),
@@ -237,6 +254,7 @@ check("eligible high-frequency pose swaps atomically to one keyed full avatar", 
   const fixture = representationFixture();
   fixture.preview._reconcileAvatarRepresentations(fixture.rec, fixture.machine, fixture.portalEntry);
   const representation = fixture.rec.avatarRepresentations.get(OTHER);
+  assert.ok(representation, "a peer with a fresh pose inside the volume gets a full avatar");
   assert.equal(representation.state, "full");
   assert.equal(representation.proxy, null);
   assert.equal(representation.layer.avatarRig.visible, true);
@@ -244,29 +262,25 @@ check("eligible high-frequency pose swaps atomically to one keyed full avatar", 
   assert.equal(representation.pose_samples.length, 1);
 });
 
-check("legacy portal-avatar fault arms cannot restore a visible proxy representation", () => {
-  const capsule = representationFixture("capsule_only");
-  capsule.preview._reconcileAvatarRepresentations(capsule.rec, capsule.machine, capsule.portalEntry);
-  assert.equal(capsule.rec.avatarRepresentations.has(OTHER), false);
+check("a peer without a fresh pose, outside the awareness volume or without an avatar layer gets no representation", () => {
+  const noPose = representationFixture();
+  noPose.preview.setPeerPlayers([]);
+  noPose.preview._reconcileAvatarRepresentations(noPose.rec, noPose.machine, noPose.portalEntry);
+  assert.equal(noPose.rec.avatarRepresentations.has(OTHER), false);
+  assert.equal(noPose.rec.avatarCulling.get(OTHER).reason, "fresh_same_destination_pose_unavailable");
 
-  const coarse = representationFixture("coarse_pose");
-  coarse.preview._reconcileAvatarRepresentations(coarse.rec, coarse.machine, coarse.portalEntry);
-  assert.equal(coarse.rec.avatarRepresentations.has(OTHER), false);
+  const noLayer = representationFixture({ AvatarLayerClass: null });
+  noLayer.preview._reconcileAvatarRepresentations(noLayer.rec, noLayer.machine, noLayer.portalEntry);
+  assert.equal(noLayer.rec.avatarRepresentations.has(OTHER), false);
+  assert.equal(noLayer.rec.avatarCulling.get(OTHER).reason, "full_avatar_layer_unavailable");
 
-  const widened = representationFixture("widen_circle");
-  widened.machine.region.avatars.avatars[0].position = [2.5, 0, 0];
-  widened.machine.presence.occupancy.avatars[0].position = [2.5, 0, 0];
-  widened.peer.position = [2.5, 0, 0];
-  widened.preview.setPeerPlayers([widened.peer]);
-  widened.preview._reconcileAvatarRepresentations(widened.rec, widened.machine, widened.portalEntry);
-  assert.equal(widened.rec.avatarRepresentations.has(OTHER), false);
-
-  const dual = representationFixture("dual_representation");
-  dual.preview._reconcileAvatarRepresentations(dual.rec, dual.machine, dual.portalEntry);
-  const dualRepresentation = dual.rec.avatarRepresentations.get(OTHER);
-  assert.equal(dualRepresentation.state, "full");
-  assert.equal(dualRepresentation.proxy, null);
-  assert.equal(dualRepresentation.layer.avatarRig.visible, true);
+  const outside = representationFixture();
+  outside.machine.region.avatars.avatars[0].position = [2.5, 0, 0];
+  outside.machine.presence.occupancy.avatars[0].position = [2.5, 0, 0];
+  outside.peer.position = [2.5, 0, 0];
+  outside.preview.setPeerPlayers([outside.peer]);
+  outside.preview._reconcileAvatarRepresentations(outside.rec, outside.machine, outside.portalEntry);
+  assert.equal(outside.rec.avatarRepresentations.has(OTHER), false);
 });
 
 check("pose and departure preserve canonical scene identity while keyed reconcile removes the peer", () => {

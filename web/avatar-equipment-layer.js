@@ -230,23 +230,19 @@ const DEFAULT_GAIT = Object.freeze({
   runContactWindows: RUN_CONTACT_WINDOWS_S,
 });
 const LOCOMOTION_CROSSFADE_S = 0.22;
-const JUMP_PLAYBACK_FAULT = "hidden-clock-repeat";
 
-function jumpPlaybackStatus(fault) {
-  const mutationActive = fault === JUMP_PLAYBACK_FAULT;
+function jumpPlaybackStatus() {
   return {
-    policy: mutationActive ? "fault-hidden-clock-repeat" : "takeoff-reset-loop-once",
-    mutation_active: mutationActive,
-    fault: mutationActive ? fault : null,
+    policy: "takeoff-reset-loop-once",
     clip_duration_seconds: null,
     action_time_seconds: 0,
     normalized_time: 0,
     effective_weight: 0,
     effective_time_scale: 1,
-    loop_mode: mutationActive ? "LoopRepeat" : "LoopOnce",
-    repetitions: mutationActive ? "Infinity" : 1,
-    clamp_when_finished: !mutationActive,
-    paused: !mutationActive,
+    loop_mode: "LoopOnce",
+    repetitions: 1,
+    clamp_when_finished: true,
+    paused: true,
     running: false,
     finished: false,
     airborne: false,
@@ -678,11 +674,6 @@ export class AvatarEquipmentLayer {
     this.mixer = null;
     this.actions = null;
     this._animState = "idle";
-    const jumpPlaybackFault =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("jump_playback_fault")
-        : null;
-    this._jumpPlaybackFault = jumpPlaybackFault === JUMP_PLAYBACK_FAULT ? jumpPlaybackFault : null;
     this._lastJumpActionTime = null;
     this._runCalibrationTelemetry = {
       active_wall_seconds: 0,
@@ -770,7 +761,7 @@ export class AvatarEquipmentLayer {
       },
       avatar_grounded: true,
       avatar_jump_height_m: 0,
-      jump_playback: jumpPlaybackStatus(this._jumpPlaybackFault),
+      jump_playback: jumpPlaybackStatus(),
       avatar_visual_scale: 1,
       avatar_model_height_m: null,
       avatar_head_height_m: null,
@@ -1232,20 +1223,19 @@ export class AvatarEquipmentLayer {
         active_clip_seconds: 0,
         completed_cycles: 0,
       };
-      this.status.jump_playback = jumpPlaybackStatus(this._jumpPlaybackFault);
+      this.status.jump_playback = jumpPlaybackStatus();
       this._lastJumpActionTime = null;
       for (const [state, clip] of Object.entries(clips)) {
         const action = this.mixer.clipAction(clip);
         action.enabled = true;
         const isJump = state === "jump";
-        const useFault = isJump && this._jumpPlaybackFault === JUMP_PLAYBACK_FAULT;
-        action.setLoop(isJump && !useFault ? THREE.LoopOnce : THREE.LoopRepeat, isJump && !useFault ? 1 : Infinity);
-        action.clampWhenFinished = isJump && !useFault;
+        action.setLoop(isJump ? THREE.LoopOnce : THREE.LoopRepeat, isJump ? 1 : Infinity);
+        action.clampWhenFinished = isJump;
         action.setEffectiveWeight(state === "idle" ? 1 : 0);
         action.play();
         // The jump must not accumulate an invisible clock while its weight is
         // zero. It is unpaused and reset only on the airborne edge below.
-        if (isJump && !useFault) action.paused = true;
+        if (isJump) action.paused = true;
         this.actions[state] = action;
       }
       // World-speed playback match (treadmill fix): scale the walk cycle so its
@@ -1338,14 +1328,12 @@ export class AvatarEquipmentLayer {
       const playback = this.status.jump_playback;
       if (desired === "jump" && jump) {
         playback.cycle_count += 1;
-        if (this._jumpPlaybackFault !== JUMP_PLAYBACK_FAULT) {
-          jump.reset();
-          jump.setLoop(THREE.LoopOnce, 1);
-          jump.clampWhenFinished = true;
-          jump.setEffectiveTimeScale(1);
-          jump.play();
-          playback.takeoff_reset_count += 1;
-        }
+        jump.reset();
+        jump.setLoop(THREE.LoopOnce, 1);
+        jump.clampWhenFinished = true;
+        jump.setEffectiveTimeScale(1);
+        jump.play();
+        playback.takeoff_reset_count += 1;
         playback.takeoff_action_time_seconds = Number(jump.time.toFixed(4));
         playback.takeoff_weight = Number(jump.getEffectiveWeight().toFixed(4));
         this._lastJumpActionTime = jump.time;

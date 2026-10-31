@@ -65,12 +65,6 @@ const PEER_POSE_STALE_MS = 4000;
 // entire win came from the near/side clip in the projection below. Left at 16.
 const MIN_PROJECTED_PORTAL_AREA_DEVICE_PX = 16;
 const RADIAL_CLIP_PLANE_COUNT = 20;
-const PORTAL_AVATAR_FAULTS = new Set([
-  "capsule_only",
-  "coarse_pose",
-  "widen_circle",
-  "dual_representation",
-]);
 
 function vec3(value, fallback) {
   const src = Array.isArray(value) ? value : fallback || [0, 0, 0];
@@ -842,15 +836,6 @@ export class SpatialPortalPreviewManager {
       ? opts.composeDestinationContent
       : null;
     this.destinationSources = new Map();
-    const queryFault =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("portal_avatar_fault")
-        : null;
-    this.avatarFault = PORTAL_AVATAR_FAULTS.has(opts.avatarFault)
-      ? opts.avatarFault
-        : PORTAL_AVATAR_FAULTS.has(queryFault)
-        ? queryFault
-        : null;
     this.peerPlayers = new Map();
     this.avatarRepresentationCreateCount = 0;
     this.avatarRepresentationDisposeCount = 0;
@@ -1014,9 +999,8 @@ export class SpatialPortalPreviewManager {
       circle.center.slice(0, 3).every((value) => Number.isFinite(Number(value)))
         ? circle.center.slice(0, 3).map(Number)
         : null;
-    const baseRadius = circle ? Number(circle.radius_m) : NaN;
-    const circleValid = !!center && Number.isFinite(baseRadius) && baseRadius >= 0;
-    const radius = circleValid && this.avatarFault === "widen_circle" ? baseRadius + 1 : baseRadius;
+    const radius = circle ? Number(circle.radius_m) : NaN;
+    const circleValid = !!center && Number.isFinite(radius) && radius >= 0;
 
     // Presence not polled yet — start from the just-captured snapshot rather
     // than a blank frame; the next poll (~2 s) takes over as the live truth.
@@ -1135,7 +1119,7 @@ export class SpatialPortalPreviewManager {
   }
 
   _poseForAvatar(avatar, portalEntry) {
-    if (!avatar || !avatar.player_id || this.avatarFault === "coarse_pose") return null;
+    if (!avatar || !avatar.player_id) return null;
     const pose = this.peerPlayers.get(avatar.player_id);
     if (!pose || pose.location_id !== portalEntry.target_location_id) return null;
     if (!Array.isArray(pose.position) || this.nowMs() - pose.received_at_ms > PEER_POSE_STALE_MS) return null;
@@ -1184,7 +1168,7 @@ export class SpatialPortalPreviewManager {
         max: [px + 0.45, py + 2.1, pz + 0.45],
       };
       const volumeHit = boundsIntersectPortalAwareness(bodyBounds, rec.awarenessVolume);
-      const desiredFull = volumeHit.eligible && !!pose && !!this.AvatarLayerClass && this.avatarFault !== "capsule_only";
+      const desiredFull = volumeHit.eligible && !!pose && !!this.AvatarLayerClass;
       if (!desiredFull) {
         rec.avatarCulling.set(playerId, {
           player_id: playerId,
@@ -1193,9 +1177,7 @@ export class SpatialPortalPreviewManager {
             ? volumeHit.reason
             : !pose
               ? "fresh_same_destination_pose_unavailable"
-              : !this.AvatarLayerClass
-                ? "full_avatar_layer_unavailable"
-                : "controlled_capsule_fault_arm",
+              : "full_avatar_layer_unavailable",
           bounds: bodyBounds,
         });
         continue;
@@ -2186,7 +2168,6 @@ export class SpatialPortalPreviewManager {
         (entry) => entry.state === "full" && entry.layer && entry.layer.avatarRig && entry.layer.avatarRig.visible
       ).length,
       avatar_representation_count: rec.avatarRepresentations.size,
-      avatar_fault: this.avatarFault,
       avatar_representations: Array.from(rec.avatarRepresentations.values()).map((entry) => {
         const rig = entry.layer && entry.layer.avatarRig;
         const latest = entry.pose_samples.length ? entry.pose_samples[entry.pose_samples.length - 1] : null;

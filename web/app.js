@@ -19,18 +19,10 @@ import {
   cloneGltfSceneAsset,
   loadGltfSceneAsset,
 } from "./avatar-equipment-layer.js";
-// seamless portal aperture render — the prefetched
-// destination fabric rendered spatially through the ring + crossing takeover.
-// static Three.js scene builder for a VERIFIED
-// OMB fabric manifest (the reader lives in the adapter; THREE is injected here).
-// `assertMsfRenderable` is the ONE fail-closed render gate
-// (shared with the reader + the child-fabric policy) — a tampered/unverified
-// fabric is REFUSED here, never drawn, and its map.wasm is never executed.
 // additive render seam builder
 // that walks a WoW Spatial Composition Graph (/wow/spatial nodes -> 4x4
-// column-major localTransform -> three.js) into the SAME {scene,camera} the msf
-// builders return. Primary render source for a WoW world; the .msf/procedural
-// builders are DEFERRED, kept in place, not deleted.
+// column-major localTransform -> three.js) into a {scene,camera} pair.
+// Primary render source for a WoW world.
 // mountWowSceneAssets is the ASYNC ingest pass that
 // loads each node's real glTF `spatialAssetURI` into its group (placeholder until
 // loaded; labeled fallback on error), reusing the avatar GLTFLoader stack above.
@@ -146,10 +138,6 @@ const portalAtomicityOracleParam = ["127.0.0.1", "localhost"].includes(location.
   ["microtask", "task", "raf", "all"].includes(params.get("portal_atomicity_oracle"))
   ? params.get("portal_atomicity_oracle")
   : null;
-const cameraWallFaultArms = new Set(["disabled", "avatar_xray", "non_restoration", "wrong_wall"]);
-let cameraWallFault = cameraWallFaultArms.has(params.get("camera_wall_fault"))
-  ? params.get("camera_wall_fault")
-  : null;
 const motionPreference = createMotionPreference({ view: window, target: document.documentElement });
 const launcherMissionParam = params.get("mission");
 // read the world + intent out of the URL ONCE at boot. Read-only: the
@@ -188,12 +176,6 @@ const isPlayer = role === "player";
 // a `/w/{world}` WoW world URL selects its own world (an explicit
 // ?active= still wins). Legacy URLs are untouched: absent both, this is "" exactly as before.
 const activeParam = params.get("active") || (isWowWorldUrl ? wowUrlIntent.world : "");
-// R1.1 — URL-driven root fabric entry. When present, this
-// absolute-or-relative URL is the ROOT fabric the browser loads (an OMB `.msf`
-// compact-JWS token for M1), replacing the frozen ENDPOINTS/role lookup. Absent
-// => behavior is exactly today's. No URL/history mutation (no-reload
-// guard): the value is read once at boot from location.search and never written.
-const fabricParam = null;
 // URL/id-driven WoW world entry. When present,
 // this opens a WoW world by its Spatial Composition Graph (a dev-fixture bundle
 // URL/path now; a live spatialID against /wow/spatial/{id} once serves
@@ -204,16 +186,6 @@ const wowParam = params.get("wow");
 // the meeting-visible default is the clean base avatar.
 // An explicit `?noequip=0` remains available to focused legacy equipment proofs.
 const noEquipParam = params.get("noequip") !== "0" && params.get("noequip") !== "false";
-// additive faithful-render switch for the `.msf`
-// path. When `?faithful=1` accompanies `?fabric=<url.msf>`, mainMsfRead runs the
-// fabric's REAL hash-verified `map.wasm` via the Scene ABI host and renders the
-// authoritative baked scene at PHYSICAL orbital scale with the real celestial
-// textures (buildFaithfulSolarScene), instead of the M1 log-radial static
-// preview (buildMsfScene). `?view=oracle|overview` picks the camera; `?epoch=<n>`
-// overrides the default epoch (0). Absent => today's behavior is unchanged.
-const faithfulParam = params.get("faithful") === "1" || params.get("faithful") === "true";
-const faithfulView = params.get("view") === "oracle" ? "oracle" : "overview";
-const faithfulEpoch = params.get("epoch");
 
 // manual-reload location persistence for the PLAYER
 // view. When the player refreshes the browser, the view must resume at the
@@ -448,7 +420,6 @@ function updatePortalApertureOcclusion(position, target, cameraMode) {
         wallCandidates,
         sceneId: impl && impl.scene ? impl.scene.uuid : null,
         worldId: adapter && adapter.world ? adapter.world.location_id : null,
-        faultArm: cameraWallFault,
       })
     : null;
 }
@@ -3725,26 +3696,13 @@ function wireReturnLobbyButton() {
 }
 
 /**
- * Phase 2 — replace the live lobby's procedural render
- * with the existing airport WoW graph in the same browser/player session.
- * The data still flows through LiveAdapter.initWow; rendering still flows
- * through buildWowScene, mountAirportTerminalContent, and mountWowSceneAssets.
- */
-function mountClientSceneLoad(target) {
-  // Compatibility anchors: mountAirportTerminalContent(...),
-  // enterClientSceneLoad(...), and returnFromClientSceneLoad(...) now execute
-  // inside the scene-runtime controller.
-  return sceneRuntimeController.mountClientSceneLoad(target);
-}
-
-/**
  * the additive `?wow=<url|id>`
  * boot path: open a WoW world, resolve its Spatial Composition Graph
  * (adapter.initWow), and render it through buildWowScene (the additive render
- * seam) into #scene-mount using the SAME zero-server Three.js idiom mainMsfRead
- * proved. Node counts + positions come from the graph; glTF `spatialAssetURI`
+ * seam) into #scene-mount with a zero-server Three.js scene. Node counts +
+ * positions come from the graph; glTF `spatialAssetURI`
  * assets are LABELED placeholders (real ingest is). The live role/world
- * path and the `.msf` read path are untouched. Exposes window.__wow (+ a
+ * path is untouched. Exposes window.__wow (+ a
  * visible-pixels probe) for the entry proof.
  */
 async function mainWowRead() {
@@ -4009,7 +3967,7 @@ async function mainWowRead() {
     }
   }
 
-  // --- honest visible-pixels probe (same shape as mainMsfRead's) ---
+  // --- honest visible-pixels probe ---
   function probeVisiblePixels() {
     return alternateRuntime
       ? sceneRuntimeController.probeVisiblePixels()
@@ -4520,8 +4478,7 @@ async function main() {
   // collapsed default (static #app.rail-collapsed + the role-`${role} rail-collapsed`
   // className) keeps it closed during `await adapter.init()`; this close() keeps
   // it closed after mount. The manual #btn-rail-toggle stays the only opener.
-  // NOTE: the ?wow= read mode (mainWowRead) closes it the same way after its own mount; the ?fabric=
-  // read mode (mainMsfRead) still defaults the panel open.
+  // NOTE: the ?wow= read mode (mainWowRead) closes it the same way after its own mount.
   panelTruthChromeController.chromeDriver().close();
 
   // ALL bottom control-bar buttons — "Debug: activate
@@ -4823,11 +4780,6 @@ async function main() {
       movementCameraController.orbitBy(dAzimuth, dPolar, dDistance),
     orbitCameraState: () => movementCameraController.orbitState(),
     cameraWallOcclusionState: () => movementCameraController.cameraWallOcclusionState(),
-    setCameraWallFault: (arm = null) => {
-      cameraWallFault = cameraWallFaultArms.has(arm) ? arm : null;
-      movementCameraController.applyPlayerCamera();
-      return cameraWallFault;
-    },
     refreshPreviewReadOnlyState: () => adapter.refreshPreviewReadOnlyState(),
     reset: async () => {
       movementCameraController.reset();

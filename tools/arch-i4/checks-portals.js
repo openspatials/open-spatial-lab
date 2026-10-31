@@ -17,7 +17,6 @@ const lab = require('./lab');
 const { w } = lab;
 
 async function portalChecks(ports) {
-  // ---- P1 ---------------------------------------------------------------------------------------------
   const noParents = { clientEdits: [['      matrix = multiply(localTransformOf(above), matrix);', '      void above;']] };
   const wrongOrder = { clientEdits: [['      matrix = multiply(localTransformOf(above), matrix);', '      matrix = multiply(matrix, localTransformOf(above));']] };
   await run('P1', 'portal P is placed by node N_P in A and leads to {B}/#join=node.{n}; crossing navigates there, and the client arrives at node n\'s pose within 1 cm of a plain double-precision reference', async (impl) => {
@@ -51,7 +50,6 @@ async function portalChecks(ports) {
     { name: 'a client that multiplies the parents in the wrong order', impl: wrongOrder },
   ]);
 
-  // ---- P2 ---------------------------------------------------------------------------------------------
   const noCheck = { clientEdits: [['  try {\n    await readJson(new URL("wow/world", destination.base).href, opts);\n  } catch (error) {', '  try {\n    void 0;\n  } catch (error) {']] };
   await run('P2', 'with B offline, crossing A\'s portal to B is refused with the reason, nothing navigates, and the visitor stays in A', async (impl) => {
     const A = await w.world('a', ports.next());
@@ -74,9 +72,8 @@ async function portalChecks(ports) {
     }
   }, {}, [{ name: 'a client that navigates without checking that the destination answers', impl: noCheck }]);
 
-  // ---- P7 ---------------------------------------------------------------------------------------------
   const ownTransformOnly = { serverEdits: { portalStandard: [['        m = m ? multiplyMatrices(local, m) : local.slice();', '        m = m || local.slice();']] } };
-  const userWithoutNode = { serverEdits: { runtime: [['                // the node that places the user, and the GeoPose derived from it (iteration 4)\n                ...(placed != null ? { node : nodeRef(spatialStore, placed) } : {}),', '']] } };
+  const userWithoutNode = { serverEdits: { runtime: [['                // the node that places the user, and the GeoPose derived from it\n                ...(placed != null ? { node : nodeRef(spatialStore, placed) } : {}),', '']] } };
   const portalWithoutDestination = { serverEdits: { portalStandard: [['                ...(added.destination ? { destination : added.destination } : {}),', '']] } };
   await run('P7', 'GET /wow/portal/{id} returns destination and node; User and View return node too; in an anchored graph each derived GeoPose, turned back by EPSG 9837, lies within 1 mm of its node\'s composed position (plain double-precision reference)', async (impl) => {
     const A = await w.world('a', ports.next(), { edits: impl.serverEdits });
@@ -128,7 +125,6 @@ async function portalChecks(ports) {
     { name: 'a server whose added portal loses its destination', impl: portalWithoutDestination },
   ]);
 
-  // ---- P8 ---------------------------------------------------------------------------------------------
   const crossesAnyway = { clientEdits: [['    return { crossed: false, reason: REFUSAL.NO_DESTINATION };\n  }\n  let destination;', '    if (opts.navigate) opts.navigate("");\n    return { crossed: true };\n  }\n  let destination;']] };
   await run('P8', 'a portal with no destination does nothing: crossing it navigates nowhere and says why, its preview says why, and nothing is requested beyond A', async (impl) => {
     const A = await w.world('a', ports.next());

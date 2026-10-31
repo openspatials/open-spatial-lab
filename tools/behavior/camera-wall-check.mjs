@@ -31,43 +31,22 @@ function hidesTheBlockingWall(harness, room) {
   const update = (camera, mode, extra = {}) => harness.controller.updatePortalOcclusion(camera, FOCUS, mode, { ...options, ...extra });
   update(BLOCKED, "player_third_person");
   let state = harness.controller.cameraWallOcclusionState();
-  assert.equal(state.active, true);
-  assert.equal(state.hit_wall.uuid, leftWall.uuid);
-  assert.equal(state.affected_meshes[0].uuid, leftWall.uuid);
-  assert.equal(leftWall.visible, false);
-  assert.equal(backWall.visible, true);
+  assert.equal(state.active, true, "the wall in the way is hidden while it blocks the view");
+  assert.equal(state.hit_wall.uuid, leftWall.uuid, "the wall in the way is the one found");
+  assert.equal(state.affected_meshes[0].uuid, leftWall.uuid, "the wall that is hidden is the one in the way");
+  assert.equal(leftWall.visible, false, "the wall in the way is hidden");
+  assert.equal(backWall.visible, true, "a wall that is not in the way stays visible");
   assert.deepEqual(materialState(material), preimage, "shared wall material is never mutated");
   update(CLEAR, "player_third_person");
   assert.equal(leftWall.visible, false, "one-frame clear hysteresis prevents corner flicker");
   update(CLEAR, "player_third_person");
   state = harness.controller.cameraWallOcclusionState();
-  assert.equal(state.active, false);
+  assert.equal(state.active, false, "wall restores within two updates: the treatment ends");
   assert.equal(leftWall.visible, true, "wall restores within two updates");
   assert.deepEqual(state.restored.at(-1).original_state.materials, state.restored.at(-1).restored_state.materials);
   update(BLOCKED, "player_third_person");
   update(BLOCKED, "player_first_person");
   assert.equal(leftWall.visible, true, "first person restores immediately");
-}
-
-function faultArmsStayVisible(harness, room) {
-  const { leftWall, backWall, options } = room;
-  const update = (camera, mode, extra = {}) => harness.controller.updatePortalOcclusion(camera, FOCUS, mode, { ...options, ...extra });
-  update(BLOCKED, "player_third_person", { faultArm: "disabled" });
-  assert.equal(leftWall.visible, true, "disabled treatment preserves raw-depth wall");
-  assert.equal(harness.controller.cameraWallOcclusionState().hit_wall.uuid, leftWall.uuid);
-  update(BLOCKED, "player_third_person", { faultArm: "wrong_wall" });
-  const state = harness.controller.cameraWallOcclusionState();
-  assert.equal(state.hit_wall.uuid, leftWall.uuid);
-  assert.equal(state.affected_meshes[0].uuid, backWall.uuid);
-  assert.equal(leftWall.visible, true);
-  assert.equal(backWall.visible, false);
-  update(BLOCKED, "player_first_person");
-  update(BLOCKED, "player_third_person");
-  update(CLEAR, "player_third_person", { faultArm: "non_restoration" });
-  update(CLEAR, "player_third_person", { faultArm: "non_restoration" });
-  assert.equal(leftWall.visible, false, "non-restoration fault remains observably wrong");
-  update(CLEAR, "player_first_person");
-  assert.equal(leftWall.visible, true);
 }
 
 function restoresAtTheBoundaries(harness, room) {
@@ -87,6 +66,5 @@ export function cameraWallTreatment() {
   const harness = createHarness();
   const room = roomWithTwoWalls();
   hidesTheBlockingWall(harness, room);
-  faultArmsStayVisible(harness, room);
   restoresAtTheBoundaries(harness, room);
 }

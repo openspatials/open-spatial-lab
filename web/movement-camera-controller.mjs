@@ -596,7 +596,7 @@ export function createMovementCameraController({
     position,
     target,
     cameraMode,
-    { impl, wallCandidates = [], sceneId = null, worldId = null, faultArm = null } = {},
+    { impl, wallCandidates = [], sceneId = null, worldId = null } = {},
   ) {
     const candidates = Array.from(new Set(wallCandidates.filter((mesh) => mesh && mesh.isMesh)));
     const previousActive = activeCameraWall;
@@ -619,7 +619,6 @@ export function createMovementCameraController({
     const base = {
       active: false,
       camera_mode: cameraMode || null,
-      fault_arm: faultArm || null,
       scene_id: sceneId || (impl && impl.scene ? impl.scene.uuid : null),
       world_id: worldId || null,
       candidate_count: candidates.length,
@@ -666,18 +665,8 @@ export function createMovementCameraController({
     let selectedHit = nearestHit;
     let reason = nearestHit ? "authored_wall_between_camera_and_focus" : "no_authored_wall_in_the_way";
 
-    if (faultArm === "disabled" || faultArm === "avatar_xray") {
-      selectedHit = null;
-      reason = faultArm === "avatar_xray" ? "fault_avatar_xray_instead_of_wall_treatment" : "fault_treatment_disabled";
-    } else if (faultArm === "wrong_wall" && nearestHit) {
-      const wrong = eligible.find((mesh) => !hitObjects.has(mesh)) || null;
-      selectedHit = wrong ? { object: wrong, distance: null } : null;
-      reason = "fault_wrong_nonblocking_wall_selected";
-    } else if (!nearestHit && previousActive && candidates.includes(previousActive) && previousOriginal?.visible !== false) {
-      if (faultArm === "non_restoration") {
-        selectedHit = { object: previousActive, distance: null };
-        reason = "fault_blocking_wall_not_restored";
-      } else if (previousClearFrames < 1) {
+    if (!nearestHit && previousActive && candidates.includes(previousActive) && previousOriginal?.visible !== false) {
+      if (previousClearFrames < 1) {
         selectedHit = { object: previousActive, distance: null };
         reason = "one_frame_clear_hysteresis";
       }
@@ -734,14 +723,13 @@ export function createMovementCameraController({
     position,
     target,
     cameraMode,
-    { impl, candidates = [], wallCandidates = [], sceneId = null, worldId = null, faultArm = null } = {},
+    { impl, candidates = [], wallCandidates = [], sceneId = null, worldId = null } = {},
   ) {
     updateCameraWallOcclusion(position, target, cameraMode, {
       impl,
       wallCandidates,
       sceneId,
       worldId,
-      faultArm,
     });
     const restore = () => {
       for (const mesh of candidates) mesh.visible = mesh.userData.portalSurfaceWanted !== false;
