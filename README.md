@@ -151,6 +151,22 @@ The servers bind to 127.0.0.1 unless `OSL_BIND_HOST` says otherwise. With `OSL_B
 
 Placing portals is off by default. It works only on a lab bound to 127.0.0.1 and started with `OSL_PLACEMENT_WRITES=1`, for example `OSL_PLACEMENT_WRITES=1 npm start`; then `&place=1` opens placement mode, on a `?wow=` player link and in the main demo as a Player (`index.html?role=player&place=1`). Without both conditions the write routes answer 403 with the reason, and placed portals are shown read-only. Never set this in a deploy file. `npm run check:placement` and `npm run check:local-only` prove this. Like every check that starts a browser, they need a headless Chrome for Testing, which `tools/find-browser.mjs` finds.
 
+### Running in a container
+
+The repository builds and runs as one container: `Dockerfile`, `docker-compose.yml`, `.dockerignore` and `docker/entrypoint.sh`. The entrypoint starts the world servers and the frontend. If either one dies it stops the other and exits with a non-zero code, so `docker run --restart on-failure` (or an orchestrator) restarts the container; a stop request from Docker is a clean exit (0).
+
+```bash
+docker compose up --build        # launcher at http://127.0.0.1:8143/
+OSL_FRONTEND_PORT=9000 docker compose up --build   # the same on 127.0.0.1:9000
+docker compose down
+```
+
+Without Compose: `docker build -t open-spatial-lab .`, then `docker run --rm -p 127.0.0.1:8143:8143 open-spatial-lab`. If you publish another host port you must also pass `-e OSL_PUBLIC_ORIGIN=http://127.0.0.1:<port>`: every world says it lives at `{origin}/w/{key}/`, and the image's default origin is `http://127.0.0.1:8143`, so without it a browser is given world addresses on port 8143 that do not answer. The container's start-up log has a line that names the origin it is using. Compose passes it for you.
+
+Inside the container only the frontend listens on a network address (`OSL_FRONTEND_HOST=0.0.0.0`); the world servers stay on 127.0.0.1 behind it. The container sets neither `OSL_BIND_HOST` nor `OSL_PLACEMENT_WRITES`, so placement writes are refused. Compose publishes on 127.0.0.1 only; change the left side of the port line to share it on a network.
+
+Container support is by Arjun Rai Gupta of VDC (`vdc-lab` on GitHub), taken from commit `3652e44ca6` of `vdc-lab/open-spatial-lab`, Apache-2.0. See `THIRD_PARTY_NOTICES.md`.
+
 ## Stop and clean up
 
 ```bash

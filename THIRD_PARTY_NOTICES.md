@@ -8,6 +8,10 @@ Open Spatial Lab source code is licensed under Apache-2.0. Media and dependency 
 - [three-vrm](https://github.com/pixiv/three-vrm), Copyright 2019–2024 pixiv Inc., MIT License.
 - Ajv, ajv-formats, js-yaml, and Puppeteer Core are used by local verification and retain their published package licenses.
 
+## Container support
+
+- `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `docker/entrypoint.sh` and the `OSL_FRONTEND_HOST` setting are by Arjun Rai Gupta of VDC ([vdc-lab/open-spatial-lab](https://github.com/vdc-lab/open-spatial-lab)), commit `3652e44ca6`, 2026-08-26, Apache-2.0 (the `LICENSE` of that repository at that commit, "Copyright 2026 Open Spatial Lab contributors"). Open Spatial Lab changed them to follow the worlds list, `OSL_PUBLIC_ORIGIN` and the local-only placement rule; see the commit that follows his.
+
 ## Fonts and interface icon
 
 - Space Grotesk — Copyright 2020 The Space Grotesk Project Authors; SIL Open Font License 1.1.

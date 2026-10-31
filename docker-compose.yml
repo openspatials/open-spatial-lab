@@ -1,8 +1,12 @@
 services:
   open-spatial-lab:
     build: .
+    environment:
+      # Lab adjustment: the worlds say they live at this origin, so it must name the published port.
+      OSL_PUBLIC_ORIGIN: "${OSL_PUBLIC_ORIGIN:-http://127.0.0.1:${OSL_FRONTEND_PORT:-8143}}"
     ports:
-      - "${OSL_FRONTEND_PORT:-8143}:8143"
+      # Lab adjustment: published on 127.0.0.1 only. Edit the left side to share it on a network.
+      - "127.0.0.1:${OSL_FRONTEND_PORT:-8143}:8143"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get({host:'127.0.0.1',port:process.env.OSL_FRONTEND_PORT,path:'/healthz',timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 10s

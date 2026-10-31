@@ -9,3 +9,9 @@ coverage
 .env.*
 *.pem
 *.key
+# Lab adjustment: working folders that must never enter an image
+**/.git
+**/.dev
+diagnostics
+evidence
+secrets

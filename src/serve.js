@@ -278,7 +278,10 @@ if (require.main === module) {
     process.exit(1);
   }
   const port = Number(process.argv[2]) || worlds.frontend.port;
-  createFrontendServer(port, { worlds }).catch((error) => {
+  // Lab adjustment: OSL_FRONTEND_HOST sets the frontend's bind address alone (a container sets 0.0.0.0 and keeps the
+  // world servers on 127.0.0.1); unset, it follows OSL_BIND_HOST as before.
+  const host = process.env.OSL_FRONTEND_HOST || undefined;
+  createFrontendServer(port, { worlds, host }).catch((error) => {
     console.error(`Open Spatial Lab frontend failed: ${error.message}`);
     process.exit(1);
   });
