@@ -2,10 +2,11 @@
 // work again, the source world holds the player again, and walking in again crosses. While it hangs the walk is short.
 // The requests are the page's own, taken over with Chrome's request interception.
 // Run: node tools/behavior/crossing-failure.check.mjs [--faults] [--only id,id]
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { CODE, plantFaults } from "../arch-i4/main-demo/lab.mjs";
 import { placeByApi, worldPortals } from "../arch-i4/main-demo/world-data.mjs";
-import { expect, faceYaw, fail, fixed, holdKeys, inRange, pageFacts, recordRequests, runBehavior, sleep, waitUntil, walkTo, worldRecord } from "./kit.mjs";
+import { expect, faceYaw, fail, fixed, holdKeys, inRange, pageFacts, recordRequests, runBehavior, sleep, untilClock, waitUntil, walkTo, worldRecord } from "./kit.mjs";
 import { lobbyUrl, portalNamed, walkInto } from "./crossing-walk.mjs";
 
 const EXIT_INTENT = "/portal/exit-intent";
@@ -16,6 +17,9 @@ const WALK_LIMIT_M = 1.25; // the controller's 1 m, from a crossing point up to 
 const STOOD_NEAR_PLANE_M = 0.5;
 const WALK_AWAY_M = [1.0, 1.7]; // over 0.6 s of the movement loop's time, at 2.35 m/s
 const STILL_HERE = /You are still here/;
+const LET_GO_S = 0.1; // of the movement loop's time: a finger on W lifts a moment after the refusal, never with it
+const SETTLE_MS = 1000; // long enough for a crossing begun by the last step to be refused
+const PICTURES = join(CODE, ".runtime", "behavior", "crossing-failure", "pictures");
 
 /**
  * Take over the page's requests. `set(match, action)` applies `action` to requests whose address `match` accepts:
@@ -78,6 +82,17 @@ async function walkToRefusal(page, place) {
   if (crossedAt === null) await page.keyboard.up("w");
   await sleep(600);
   return { after: await pageFacts(page), farthest, tookMs: Date.now() - (crossedAt ?? started) };
+}
+
+/** With W held, walk on until the page records one more refusal, and let go a moment later. */
+async function holdWIntoRefusal(page, known) {
+  await page.keyboard.down("w");
+  await waitUntil(async () => (await pageFacts(page)).refusals.length > known, `W did not bring refusal ${known + 1}`, { limitMs: REACH_PLANE_MS });
+  await untilClock(page, LET_GO_S);
+  await page.keyboard.up("w");
+  await waitUntil(async () => (await pageFacts(page)).phase !== WALKTHROUGH, "a crossing did not end after W was let go");
+  await sleep(SETTLE_MS);
+  return pageFacts(page);
 }
 
 const holds = (record, playerId) => record.avatars.some((avatar) => avatar.player_id === playerId);
@@ -167,6 +182,40 @@ const statements = [
       expect(control.held() > 0, "the check before leaving never asked where to arrive");
       return expectFreedThenRetry(ctx, page, place, refused, control);
     } },
+  { id: "offline-backing-away", says: "At an offline destination, S after the refusal walks away with no second refusal and no crossing, and walking in again, even from where the refusal left the walker, is refused again",
+    lab: (first) => ({ separate: "e", env: { OSL_PLACEMENT_WRITES: "1" }, extra: [{ key: "e", name: "Location E", port: first + 5, address: `http://127.0.0.1:${first + 5}/`, anchor: { lat: 47.7009, lon: -122.3, h: 11.5 }, room: "#c86bff", preview_radius_m: 10 }] }),
+    async run(ctx) {
+      ctx.pageErrors.length = 0;
+      const placed = await placeByApi(ctx.lab.address("lobby"), { x: 4.4, z: 1.4, label: "Portal to Location E", destination: ctx.lab.address("e") });
+      await ctx.lab.stopWorld("e");
+      const at = placed.node.localTransform;
+      const place = { position: [at[12], 0, at[14]], forward: placed.inward };
+      const page = await ctx.visit(lobbyUrl(ctx.lab));
+      await walkTo(page, at[12] + place.forward[0] * 1.4, at[14] + place.forward[2] * 1.4);
+      await faceYaw(page, Math.atan2(-place.forward[0], -place.forward[2]));
+      await sleep(400);
+      const refused = await holdWIntoRefusal(page, 0);
+      mkdirSync(PICTURES, { recursive: true });
+      await page.screenshot({ path: join(PICTURES, "after-refusal.png") });
+      const stood = pastPlane(place, refused);
+      expect(STILL_HERE.test(refused.toasts.at(-1)), `the reason gave way on screen to: ${refused.toasts.at(-1)}`);
+
+      const away = await holdKeys(page, ["s"], 0.6);
+      await sleep(SETTLE_MS);
+      const walked = await pageFacts(page);
+      expect(walked.location === "location-lobby", `S crossed: in ${walked.location}`);
+      expect(walked.refusals.length === refused.refusals.length, `S started another crossing: ${walked.refusals.length - refused.refusals.length} more refusals, phase ${walked.phase}`);
+      expect(inRange(away.distance, WALK_AWAY_M), `could not walk afterward: S moved ${fixed(away.distance)} m, not ${WALK_AWAY_M.join(" to ")} m`);
+      expect(stood < 0, `the refusal left the walker ${fixed(stood)} m past the portal, not on the side it came from`);
+
+      const again = await holdWIntoRefusal(page, walked.refusals.length);
+      expect(pastPlane(place, again) < 0, `the second refusal left the walker ${fixed(pastPlane(place, again))} m past the portal`);
+      const straightIn = await holdWIntoRefusal(page, again.refusals.length);
+      expect(straightIn.location === "location-lobby", `the walker left the Lobby: in ${straightIn.location}`);
+      expect(ctx.pageErrors.length === 0, `uncaught error: ${[...new Set(ctx.pageErrors)].slice(0, 3).join(" | ")}`);
+      await page.close();
+      return `stood ${fixed(-stood)} m in front of the portal; S walked ${fixed(away.distance)} m with no second refusal; W from there and W from where it was put back were each refused`;
+    } },
 ];
 
 const TRAVERSAL = "web/live-adapter-portal-traversal-controller.mjs";
@@ -174,6 +223,8 @@ const faults = [
   { statement: "exit-intent-hangs", name: "the exit-intent has no time limit", expect: /no refusal \d+ s after the plane/, edits: [{ file: TRAVERSAL, find: "packet = await withinLimit(posting, \"the exit-intent\");", replace: "packet = await posting;" }] },
   { statement: "exit-intent-hangs", name: "the walk during a crossing has no end", expect: /walked [\d.]+ m past the portal while the crossing hung/, edits: [{ file: TRAVERSAL, find: "Math.max(0, TRANSITION_WALK_LIMIT_M - walked)", replace: "Infinity" }] },
   { statement: "exit-intent-hangs", name: "the refused walker stays where the walk ended", expect: /stood [\d.]+ m past the portal after the refusal/, edits: [{ file: TRAVERSAL, find: "      host.avatar.position = clonePosition(crossingEntry.position, host.avatar.position);\n", replace: "" }] },
+  { statement: "offline-backing-away", name: "the refused walker goes back to the crossing point, on the portal's plane", expect: /S started another crossing/, edits: [{ file: TRAVERSAL, find: "position: (runtime && runtime.lastClearPosition) || entryTransform.position };", replace: "position: entryTransform.position };" }] },
+  { statement: "offline-backing-away", name: "the portal that refused announces itself over the reason", expect: /the reason gave way on screen/, edits: [{ file: TRAVERSAL, find: " && !ev.runtime.refused);", replace: ");" }] },
   { statement: "exit-intent-hangs", name: "a late exit-intent departs the player and nobody registers it again", expect: /the Lobby lost the player/, edits: [{ file: TRAVERSAL, find: "if (!handoffInFlight && !transition) registerAgain();", replace: "" }] },
   { statement: "exit-intent-errors", name: "a failed crossing says nothing", expect: /no refusal \d+ s after the plane/, edits: [{ file: TRAVERSAL, find: "    if (onCrossingRefused) onCrossingRefused({ kind: \"offline\", portal: crossingEntry && crossingEntry.portal, reason });\n", replace: "" }] },
   { statement: "exit-intent-malformed", name: "the crossing's failures go unhandled, as before", expect: /no refusal \d+ s after the plane/, edits: [{ file: TRAVERSAL, find: "    commitPortalHandoff().catch(crossingFailed);\n", replace: "    void commitPortalHandoff();\n" }] },

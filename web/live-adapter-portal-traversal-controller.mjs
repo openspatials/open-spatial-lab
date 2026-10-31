@@ -416,6 +416,7 @@ export function createPortalTraversalHandoffController(options) {
       ev.crossingEntrySide = ev.crossedPlaneFromFront ? "front" : ev.crossedPlaneFromBack ? "back" : null;
       ev.crossingCommitAllowed =
         ev.crossingEntrySide !== null && portalEntrySideAllowed(ev.traversal, ev.crossingEntrySide);
+      if (!ev.inside && !ev.crossedPlane) runtime.lastClearPosition = clonePosition(avatar.position, [0, 0, 0]);
       return ev;
     });
 
@@ -598,7 +599,8 @@ export function createPortalTraversalHandoffController(options) {
       }
     }
     let nextPhase = host.phase;
-    const anyPortalActive = evaluations.some((ev) => ev.inside && ev.entrySideAllowedNow);
+    // A portal that just refused does not announce itself over the reason.
+    const anyPortalActive = evaluations.some((ev) => ev.inside && ev.entrySideAllowedNow && !ev.runtime.refused);
     if (
       anyPortalActive &&
       rearmed &&
@@ -646,6 +648,7 @@ export function createPortalTraversalHandoffController(options) {
     if (!portal) return false;
     const portalKey = fabricPortalKey(portal);
     const runtime = portalRuntime[portalKey] || null;
+    if (runtime) runtime.refused = false;
     const entryTransform = validation.transformSnapshot(host.avatar);
     const entryLocal = portalLocalCoordinates(portal.frame, entryTransform.position);
     const entryCrossingDirection =
@@ -664,7 +667,7 @@ export function createPortalTraversalHandoffController(options) {
     transitionNoticeSent = false;
     portalPlaneCrossedAtMs = nowMs();
     crossingTimings = { plane_crossed_at: nowIso() };
-    crossingEntry = { portal, position: entryTransform.position };
+    crossingEntry = { portal, runtime, position: (runtime && runtime.lastClearPosition) || entryTransform.position };
     transition = {
       source: input.source || "operator",
       phase: PORTAL_TRANSITION_PHASES.WALKTHROUGH,
@@ -757,13 +760,15 @@ export function createPortalTraversalHandoffController(options) {
     return beginTransition({ source: "operator", portal });
   }
 
-  /** A crossing the check before leaving refused: the visitor stays, and must step out before it can fire again. */
+  /** A crossing the check before leaving refused: the visitor stays, and walking in again is what fires it again. */
   function refuseCrossing() {
     const host = mutableHost(readHostSnapshot);
-    // The walk has no ground check, and a walker off the ground cannot move, so it goes back to where the crossing began.
+    // The walk has no ground check, and a walker off the ground cannot move, so it goes back to the last place it stood clear
+    // of the portal, on the side it came from: from there S only walks away, and W walks in again. Being put back is no crossing.
     if (crossingEntry && host.avatar) {
       host.avatar.position = clonePosition(crossingEntry.position, host.avatar.position);
       patchHost({ avatar: host.avatar, avatarMode: "merge" });
+      if (crossingEntry.runtime) Object.assign(crossingEntry.runtime, { lastSignedDistance: null, refused: true });
     }
     transition = null;
     handoffInFlight = false;
