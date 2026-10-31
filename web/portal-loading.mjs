@@ -561,6 +561,7 @@ function buildNotificationRecord(dbg, destKey, base, key) {
 
 /** Fold the captured destination metaverse.portal.* content into the record. */
 function applyContentToRecord(rec) {
+  const c = tracker.capture && tracker.capture.content;
   const brand = contentValue("metaverse.portal.loadingBranding") || {};
   const instr = contentValue("metaverse.portal.loadingInstructions") || {};
   rec.title = enteringHeadline(tracker.capture ? tracker.capture.listedKey : null);
