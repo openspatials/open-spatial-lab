@@ -6,7 +6,9 @@ const viewsButton = document.getElementById("btn-views-home");
 const introPreference = parseIntroPreference(location.href);
 const url = new URL(location.href);
 const nonIntroParams = [...url.searchParams.keys()].filter((key) => key !== "intro");
-const isBareEntry = nonIntroParams.length === 0 && !url.hash;
+// A world's own page (/w/{key}/) is a world entry: visiting it joins that world.
+const isWorldPage = /\/w\/[a-z0-9-]+\/?$/.test(url.pathname);
+const isBareEntry = nonIntroParams.length === 0 && !url.hash && !isWorldPage;
 let teardownLauncher = null;
 let appStarted = false;
 

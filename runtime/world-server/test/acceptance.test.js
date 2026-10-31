@@ -270,10 +270,11 @@ async function main()
             assert.strictEqual(childR.json.id, childId, 'child node id matches');
             assert.strictEqual(childR.json.parent, 0, 'seeded child parent is root');
             // a portal seed node carries the labeled osl-portal: destination URI
-            const portalNodeR = await get(w.base + '/wow/spatial/' + w.spatial + '/node/'
-                + root.children[root.children.length - 1].id);
+            // the last portal seed child (iteration 4 appends the user and view placement nodes after it)
+            const lastPortal = root.children.slice().reverse().find(c => !(c.webofworlds_extension && /-placement$/.test(c.webofworlds_extension.role || '')));
+            const portalNodeR = await get(w.base + '/wow/spatial/' + w.spatial + '/node/' + lastPortal.id);
             assert.ok(/^osl-portal:/.test(portalNodeR.json.spatialAssetURI || ''),
-                'last seed child is a portal node with a labeled osl-portal URI');
+                'last seed child before the placements is a portal node with a labeled osl-portal URI');
 
             // (4) CREATE — POST child nodes under the root
             const created = await post(w.base + '/wow/spatial/' + w.spatial + '/node/0',

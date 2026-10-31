@@ -17,8 +17,27 @@ const { pathToFileURL } = require('url');
 const http = require('http');
 const { spawnSync } = require('child_process');
 
+// These proofs create and move nodes on their own worlds, on isolated loopback ports. Those writes are opt-in on a
+// running lab (runtime/world-server/src/local-only.js), so the proof's own process turns them on. No launch or deploy
+// file does.
+process.env.OSL_PLACEMENT_WRITES = '1';
+
 const ROOT = path.resolve(__dirname, '..', '..');
 const results = [];
+const loadAtStart = os.loadavg()[0];
+
+/*
+ * A planted fault whose edit no longer matches its code exactly once is STALE: it tests nothing. That is a
+ * harness error, never a red verdict. Every edit applier reports it here before it throws, so run() sees it
+ * even where a check catches the throw itself.
+ */
+const staleEdits = [];
+function staleEdit(where, from, count) {
+  const error = new Error('mutant edit matches ' + count + ' times in ' + where + ': ' + String(from).slice(0, 70));
+  error.staleEdit = true;
+  staleEdits.push(error.message);
+  return error;
+}
 
 function line(text) { process.stdout.write(text + '\n'); }
 
@@ -34,18 +53,20 @@ function line(text) { process.stdout.write(text + '\n'); }
 async function run(id, title, fn, impl, mutants) {
   const entry = { id, title, ok: true, detail: null, warnings: [], mutants: [] };
   let real;
-  entry.warnings = await withWarnings(async () => {
+  const runReal = async () => withWarnings(async () => {
     try { real = await fn(impl); } catch (error) { real = { ok: false, detail: 'threw: ' + (error && error.stack || error) }; }
   });
-  entry.detail = real.detail || null;
-  // A check that could not run here (the machine-load gate) is a deferral: never a pass, never a failure.
-  if (real.deferred) {
-    entry.deferred = true;
-    results.push(entry);
-    line('  DEFER ' + id + '  ' + title);
-    line('          ' + entry.detail);
-    return entry;
+  entry.warnings = await runReal();
+  // A real run that failed the way machine load makes a check fail (a timeout, or a check that says it is
+  // load sensitive) is run once more, and the second result counts. Planted faults are never re-run.
+  if (!real.ok && (/timed? ?out|timeout|exceeded/i.test(String(real.detail || '')) || real.loadSensitive === true)) {
+    const first = real.detail || null;
+    const load = os.loadavg()[0];
+    line('  re-run once after a failure load can cause (1-minute load ' + load.toFixed(2) + '): first try: ' + first);
+    entry.retry = { first_detail: first, load: Number(load.toFixed(2)) };
+    entry.warnings = await runReal();
   }
+  entry.detail = real.detail || null;
   if (!real.ok) entry.ok = false;
   // The real implementation must serve only what its own contract accepts. A validator line from the
   // real run is a defect, not noise; deliberate bad input belongs to a mutant or to a refused request.
@@ -56,9 +77,18 @@ async function run(id, title, fn, impl, mutants) {
   }
   for (const mutant of mutants || []) {
     let verdict;
+    const staleBefore = staleEdits.length;
     const warnings = await withWarnings(async () => {
       try { verdict = await fn(mutant.impl); } catch (error) { verdict = { ok: false, detail: 'threw: ' + (error && error.message || error) }; }
     });
+    const stale = staleEdits.slice(staleBefore);
+    if (stale.length) {
+      // Its edit did not apply, so the check never met the fault: a harness error that fails the proof.
+      entry.mutants.push({ name: mutant.name, red: false, stale: true, detail: stale.join('; '), warnings });
+      entry.ok = false;
+      entry.harness_error = true;
+      continue;
+    }
     const red = !verdict.ok;
     entry.mutants.push({ name: mutant.name, red, detail: verdict.detail || null, warnings });
     if (!red) entry.ok = false;
@@ -68,6 +98,11 @@ async function run(id, title, fn, impl, mutants) {
   if (real.detail) line('          ' + real.detail);
   for (const warning of entry.warnings) line('          real run warns: ' + warning);
   for (const m of entry.mutants) {
+    if (m.stale) {
+      line('          mutant STALE ' + m.name + '  <- HARNESS ERROR: its edit no longer matches the code, so it tests nothing');
+      line('            ' + m.detail);
+      continue;
+    }
     line('          mutant ' + (m.red ? 'red   ' : 'GREEN ') + m.name + (m.red ? '' : '  <- the check does not notice this break'));
     for (const warning of m.warnings) line('            it warns: ' + warning);
   }
@@ -102,7 +137,7 @@ function loadMutant(relativeFile, edits, overrides) {
   let source = fs.readFileSync(file, 'utf8');
   for (const [from, to] of edits) {
     const count = source.split(from).length - 1;
-    if (count !== 1) throw new Error('mutant edit matches ' + count + ' times in ' + relativeFile + ': ' + from.slice(0, 70));
+    if (count !== 1) throw staleEdit(relativeFile, from, count);
     source = source.replace(from, () => to);
   }
   const dir = path.dirname(file);
@@ -158,7 +193,7 @@ async function loadEsmMutant(relativeFile, edits, siblings) {
   let source = fs.readFileSync(file, 'utf8');
   for (const [from, to] of edits) {
     const count = source.split(from).length - 1;
-    if (count !== 1) throw new Error('mutant edit matches ' + count + ' times in ' + relativeFile + ': ' + from.slice(0, 70));
+    if (count !== 1) throw staleEdit(relativeFile, from, count);
     source = source.replace(from, () => to);
   }
   const dir = makeTempDir('esm');
@@ -211,11 +246,13 @@ function httpReq(method, port, requestPath, body, extraHeaders) {
 function finish(outputName, label) {
   label = label || 'iteration 1 proof';
   const failed = results.filter((r) => !r.ok);
-  const deferred = results.filter((r) => r.deferred);
-  const mutants = results.reduce((n, r) => n + r.mutants.length, 0);
+  const stale = results.reduce((n, r) => n + r.mutants.filter((m) => m.stale).length, 0);
+  const mutants = results.reduce((n, r) => n + r.mutants.length, 0) - stale;
   line('');
-  line((results.length - failed.length - deferred.length) + '/' + results.length + ' checks pass; ' + mutants + ' mutants, all red where the check holds'
-    + (deferred.length ? '; deferred: ' + deferred.map((r) => r.id).join(', ') : ''));
+  line((results.length - failed.length) + '/' + results.length + ' checks pass; ' + mutants + ' mutants, all red where the check holds'
+    + (stale ? '; ' + stale + ' stale (harness error: their edits no longer apply)' : ''));
+  line('1-minute load (information only, nothing is skipped for it): ' + loadAtStart.toFixed(2) + ' at the start, ' + os.loadavg()[0].toFixed(2) + ' at the end');
+  if (stale) line('HARNESS ERROR: stale planted faults in ' + results.filter((r) => r.harness_error).map((r) => r.id).join(', '));
   if (failed.length) line('FAILED: ' + failed.map((r) => r.id).join(', '));
   try {
     const dir = path.join(ROOT, 'diagnostics');
@@ -223,10 +260,8 @@ function finish(outputName, label) {
     fs.writeFileSync(path.join(dir, outputName), JSON.stringify({ generated_at: new Date().toISOString(), results }, null, 2) + '\n');
   } catch (error) { /* diagnostics are best effort */ }
   if (failed.length) line('FAIL: ' + label);
-  else if (deferred.length) line('DEFERRED: ' + label + ' (' + deferred.map((r) => r.id).join(', ') + ' not run; every other check passes)');
   else line('PASS: ' + label);
-  // 3, as the conformance runner uses it: nothing failed, but not everything ran.
-  process.exitCode = failed.length ? 1 : deferred.length ? 3 : 0;
+  process.exitCode = failed.length ? 1 : 0;
 }
 
-module.exports = { ROOT, results, line, run, runPlain, makeTempDir, loadMutant, loadEsmMutant, python, mulberry32, httpReq, finish };
+module.exports = { ROOT, results, staleEdits, staleEdit, line, run, runPlain, makeTempDir, loadMutant, loadEsmMutant, python, mulberry32, httpReq, finish };

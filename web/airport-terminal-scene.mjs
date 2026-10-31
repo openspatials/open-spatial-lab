@@ -235,7 +235,8 @@ export function mountAirportTerminalContent(graph, built, THREE, opts = {}) {
   const travelers = nodes.filter((node) => node && node.webofworlds_extension && node.webofworlds_extension.role === "npc-traveler");
   const staff = nodes.filter((node) => node && node.webofworlds_extension && node.webofworlds_extension.role === "store-staff");
   const gateNode = nodes.find((node) => node && node.webofworlds_extension && node.webofworlds_extension.role === "flight-gate");
-  if (stores.length !== 4 || travelers.length !== 5 || staff.length !== 4 || !gateNode) {
+  // A preview holds only the part of the terminal its world lets a portal show.
+  if (!opts.partial && (stores.length !== 4 || travelers.length !== 5 || staff.length !== 4 || !gateNode)) {
     throw new Error("airport terminal fixture requires 4 storefronts, 5 NPC travelers, 4 store staff, and one flight gate");
   }
 
@@ -298,13 +299,15 @@ export function mountAirportTerminalContent(graph, built, THREE, opts = {}) {
   entrySign.position.set(0, 4.8, 3.2);
   entrySign.rotation.y = Math.PI;
   group.add(entrySign);
-  const wayfinding = terminalSignMesh(THREE, opts.document, "GATES A10–A18  →", "#f4cf45", "#10243b", 8.5, 1.25);
-  wayfinding.position.set(0, 4.15, terminalNodePosition(gateNode)[2] - 4.5);
-  wayfinding.rotation.y = Math.PI;
-  group.add(wayfinding);
+  if (gateNode) {
+    const wayfinding = terminalSignMesh(THREE, opts.document, "GATES A10–A18  →", "#f4cf45", "#10243b", 8.5, 1.25);
+    wayfinding.position.set(0, 4.15, terminalNodePosition(gateNode)[2] - 4.5);
+    wayfinding.rotation.y = Math.PI;
+    group.add(wayfinding);
+  }
 
   for (const store of stores) group.add(terminalStorefront(THREE, opts.document, store, materials));
-  group.add(terminalGateArea(THREE, opts.document, gateNode, materials));
+  if (gateNode) group.add(terminalGateArea(THREE, opts.document, gateNode, materials));
 
   // The graph builder's blue wire cubes are a generic async-loading fallback.
   // Airport people have explicit cards and an honest no-avatar failure state, so
@@ -360,7 +363,7 @@ export function mountAirportTerminalContent(graph, built, THREE, opts = {}) {
     staff_count: staff.length,
     staff_labels: staff.map((node) => node.label),
     entity_manifests: entityRuntime ? built.render_summary.airport_entities : null,
-    gate: {
+    gate: gateNode ? {
       label: gateNode.label,
       gate: gateNode.webofworlds_extension.gate,
       flight: gateNode.webofworlds_extension.flight,
@@ -368,7 +371,7 @@ export function mountAirportTerminalContent(graph, built, THREE, opts = {}) {
       boarding: gateNode.webofworlds_extension.boarding
         ? JSON.parse(JSON.stringify(gateNode.webofworlds_extension.boarding))
         : null,
-    },
+    } : null,
     walkable_surface: {
       schema: walkableSurface.schema,
       source: walkableSurface.source,

@@ -173,9 +173,9 @@ assert.deepEqual(
 assert.equal(republishTimerCount(), 4, "reset after explicit zero must restore exactly one 100 ms timer");
 
 const portalResource = lobbyRuntime.getWowPortal("lobby-portal-c");
-assert.equal(portalResource.destination.target_location_id, "location-airport");
-assert.equal(portalResource.destination.target_world_id, "world-airport-terminal");
-assert.equal(portalResource.destination.target_base_url, "http://127.0.0.1:18154");
+assert.equal(portalResource.osl_destination.target_location_id, "location-airport");
+assert.equal(portalResource.osl_destination.target_world_id, "world-airport-terminal");
+assert.equal(portalResource.osl_destination.target_base_url, "http://127.0.0.1:18154");
 assert.equal(portalResource.webofworlds_extension.target_fixture, undefined);
 assert.equal(
   portalResource.webofworlds_extension.handoff_behavior,

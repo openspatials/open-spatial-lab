@@ -11,7 +11,7 @@ const net = require('net');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { pathToFileURL } = require('url');
-const { ROOT, httpReq, makeTempDir } = require('../arch-i1/lib');
+const { ROOT, httpReq, makeTempDir, staleEdit } = require('../arch-i1/lib');
 const w = require('../arch-i2/worlds');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -43,7 +43,7 @@ async function webModule(name, edits, target) {
   let source = fs.readFileSync(path.join(ROOT, 'web', name), 'utf8');
   for (const [from, to] of edits) {
     const count = source.split(from).length - 1;
-    if (count !== 1) throw new Error('mutant edit matches ' + count + ' times in web/' + name + ': ' + from.slice(0, 70));
+    if (count !== 1) throw staleEdit('web/' + name, from, count);
     source = source.replace(from, () => to);
   }
   fs.writeFileSync(path.join(dir, name), source);

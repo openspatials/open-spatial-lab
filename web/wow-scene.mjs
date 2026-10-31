@@ -46,14 +46,11 @@ const MAX_NODES = 20000; // safety cap against a pathological/cyclic graph
 // ---------------------------------------------------------------------------
 // the `SpatialFabricSubtree` contract, checked structurally.
 //
-// WHY THE CONSTANTS ARE RESTATED HERE AND NOT IMPORTED: this module's purity is
-// load-bearing (it is Node-safe and headless-provable, and app.js imports it into
-// the browser). `web/wow-fabric-transform.mjs` owns the refusal vocabulary and
-// `web/wow-fabric-backend.mjs` owns the placement->backend table, but the former
-// imports `matMul4` from OSL's spatial-fabric-viewer vendor surface — importing it
-// here would drag the compositor into the pure discovery path. So the vocabulary is DUPLICATED
-// DELIBERATELY and then PINNED: `wow-spec/proof/roundtrip.js` (part F) asserts these
-// constants are IDENTICAL to the ones in those two modules. A fork fails a test.
+// The contract's vocabulary is stated in this module, which imports only
+// ./wow-graph.mjs, so the module stays pure: it is Node-safe and headless-provable,
+// and app.js imports it into the browser. `wow-spec/proof/roundtrip.js` (part F)
+// checks that FABRIC_SUBTREE_MEMBERS matches the properties of the schema's
+// `SpatialFabricSubtree` exactly, so a fork of the member list fails a test.
 // ---------------------------------------------------------------------------
 
 /** `upAxis` is DECLARED, never sniffed, never defaulted (OSL-FAB-XFORM-1 §2). */
@@ -263,6 +260,10 @@ export function buildWowScene(graph, THREE, opts = {}) {
   // `bare`: the graph alone, with no floor, grid or lights. Content included from another world is
   // built this way and mounted under the including node; the host's stage stays the host's.
   const bare = !!opts.bare;
+  // A world whose graph carries its own room (a floor node) or its own lights (`osl-light:` nodes) is shown with
+  // those instead of this viewer's default floor, grid and lights.
+  const ownRoom = [...nodes.values()].some((n) => Array.isArray(n && n.names) && n.names.includes("room-floor"));
+  const ownLights = [...nodes.values()].some((n) => /^osl-light:/i.test(String((n && n.spatialAssetURI) || "")));
 
   // ---- floor + reference grid (ground the graph for a standalone M2 view) ----
   const floor = new THREE.Mesh(
@@ -276,10 +277,11 @@ export function buildWowScene(graph, THREE, opts = {}) {
     grid.material.transparent = true;
     grid.material.opacity = 0.4;
   }
-  if (!bare) {
+  if (!bare && !ownRoom) {
     root.add(floor);
     root.add(grid);
-
+  }
+  if (!bare && !ownLights) {
     // ---- lights (so placeholders are lit even without loaded materials) ----
     root.add(new THREE.AmbientLight(0xffffff, 0.6));
     const key = new THREE.DirectionalLight(0xffffff, 0.85);
@@ -297,15 +299,21 @@ export function buildWowScene(graph, THREE, opts = {}) {
     group_gizmos: 0,
     missing_children: 0,
     cycles_skipped: 0,
-    meshes: 1, // floor
+    meshes: !bare && !ownRoom ? 1 : 0, // the default floor
     // fabric-subtree nodes discovered, and how many were REFUSED outright
     // on their declared contract (before any fetch/verify — that is pass).
     fabric_placeholders: 0,
     fabric_contract_refused: 0,
+    // labeled OSL primitives (`osl-primitive:box|sphere?size_m=`) drawn as their shape, not loaded as glTF
+    osl_primitives: 0,
+    // labeled OSL lights (`osl-light:ambient|directional?intensity=&color=`) a shown world brings
+    osl_lights: 0,
   };
   const placements = []; // proof: { id, label, has_asset, local_translation, world_position }
   const nodeObjs = []; // { id, label, obj } for a post-walk world-position pass
   const assetNodes = []; // { id, label, uri, group, placeholder } for the async glTF ingest pass
+  // Every node's group, by node id (iteration 4: a portal is found by the node that places it).
+  const nodeGroups = new Map();
   const fabricNodes = []; // { node_id, uri, subtree, placeholder, world_matrix, contract } for the async fabric mount pass
   const unspecifiedContractWarnings = []; // .msf address with NO declared subtree contract
 
@@ -353,6 +361,30 @@ export function buildWowScene(graph, THREE, opts = {}) {
     return octa;
   }
 
+  function makeOslPrimitive(node, primitive) {
+    // The labeled OSL primitive the world declares, drawn as that shape at the node's origin (its center),
+    // in the color of its `osl-color:` appearance. It is a hosted primitive, not a glTF asset.
+    if (primitive.shape === "grid") {
+      const grid = new THREE.GridHelper(primitive.size_m, primitive.divisions, 0xffffff, 0x88aacc);
+      grid.material.transparent = true;
+      grid.material.opacity = 0.28;
+      grid.name = `wow-osl-grid:${node.label || node.id}`;
+      return grid;
+    }
+    const color = new THREE.Color(oslColorOf(node.appearanceURI) || "#8899aa");
+    // A room's floor and walls are matte, as the demo page draws them; other shapes keep their slight glow.
+    const room = node.webofworlds_extension && node.webofworlds_extension.role === "room";
+    const geometry = primitive.shape === "sphere"
+      ? new THREE.SphereGeometry(primitive.size_m / 2, 24, 18)
+      : new THREE.BoxGeometry(primitive.size_m, primitive.size_m, primitive.size_m);
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial(room
+      ? { color, roughness: 0.92 }
+      : { color, roughness: 0.55, metalness: 0.1, emissive: color.clone().multiplyScalar(0.18) }));
+    mesh.name = `wow-osl-primitive:${node.label || node.id}`;
+    counts.meshes += 1;
+    return mesh;
+  }
+
   let visited = 0;
   function walk(nodeId, parentObj, seen) {
     if (visited >= MAX_NODES) return;
@@ -380,10 +412,16 @@ export function buildWowScene(graph, THREE, opts = {}) {
     obj.matrixAutoUpdate = false;
     obj.matrix.fromArray(lt);
     parentObj.add(obj);
+    nodeGroups.set(Number(nodeId), obj);
     counts.rendered_nodes += 1;
 
     const label = node.label != null ? String(node.label) : String(node.id);
     const hasAsset = typeof node.spatialAssetURI === "string" && node.spatialAssetURI.length > 0;
+    // OSL's own labeled URIs are not glTF: a primitive is drawn as its shape, and a portal node is drawn by
+    // the portal layer (web/wow-portal-mount.mjs), so it keeps only the transform marker here.
+    const oslPrimitive = hasAsset ? parseOslPrimitive(node.spatialAssetURI) : null;
+    const oslPortal = hasAsset && /^osl-portal:/i.test(node.spatialAssetURI);
+    const oslLight = hasAsset ? parseOslLight(node.spatialAssetURI) : null;
 
     // THE DISCRIMINATOR. A node is a FABRIC node iff it carries the
     // LABELED contract `webofworlds_extension.spatial_fabric_subtree`. We do NOT
@@ -432,6 +470,23 @@ export function buildWowScene(graph, THREE, opts = {}) {
       // mountWowSceneAssets would hand the `.msf` URL to loadGltf, fail to parse it,
       // and mark it "asset unavailable" — turning a fabric into a broken glTF. That
       // exclusion is asserted by a test (wow-proof part G).
+    } else if (oslPrimitive) {
+      obj.add(makeOslPrimitive(node, oslPrimitive));
+      counts.osl_primitives += 1;
+    } else if (oslLight) {
+      // A world's own light lights this viewer's scene only when the world is the one shown: content shown inside
+      // a preview or an inclusion (bare) never lights its host.
+      if (!bare) {
+        const light = oslLight.kind === "ambient"
+          ? new THREE.AmbientLight(oslLight.color, oslLight.intensity)
+          : new THREE.DirectionalLight(oslLight.color, oslLight.intensity);
+        light.name = `wow-osl-light:${node.label || node.id}`;
+        obj.add(light);
+        counts.osl_lights += 1;
+      }
+    } else if (oslPortal) {
+      obj.add(makeGroupGizmo(node, isRoot));
+      counts.group_gizmos += 1;
     } else if (hasAsset) {
       const placeholder = makeAssetPlaceholder(node, isRoot);
       obj.add(placeholder);
@@ -465,6 +520,11 @@ export function buildWowScene(graph, THREE, opts = {}) {
             + "unavailable placeholder. Declare a SpatialFabricSubtree to transclude it.",
         });
       }
+    } else if (isRoot && ownRoom) {
+      // In a world that brings its own room, the root is the room's middle, not a thing to mark.
+    } else if (isPlacementNode(node)) {
+      // A node that places a user or a view (iteration 4) is where that user or camera is, not a thing
+      // in the world: it draws nothing.
     } else {
       obj.add(makeGroupGizmo(node, isRoot));
       counts.group_gizmos += 1;
@@ -574,6 +634,11 @@ export function buildWowScene(graph, THREE, opts = {}) {
   const camera = new THREE.PerspectiveCamera(50, width / Math.max(1, height), 0.1, 2000);
   camera.position.set(cx + dist * 0.85, cy + spread * 0.9 + 3.0, cz + dist);
   camera.lookAt(cx, Math.max(0.4, cy), cz);
+  // A world that carries the demo page's room opens where the demo page's camera stands in it.
+  if (ownRoom && !bare) {
+    camera.position.set(0, 6.2, 8.4);
+    camera.lookAt(0, 0, 0);
+  }
   camera.updateMatrixWorld(true);
 
   return {
@@ -586,6 +651,7 @@ export function buildWowScene(graph, THREE, opts = {}) {
     // placeholder. The four seam keys {scene,camera,root,render_summary} are
     // unchanged — callers that ignore `asset_nodes` behave exactly as before.
     asset_nodes: assetNodes,
+    node_groups: nodeGroups,
     // the nodes that
     // TRANSCLUDE a signed `.msf` fabric as a SUBTREE. Mirrors `asset_nodes`. The
     // async mount pass fetches + VERIFIES + composes + places each one;
@@ -921,6 +987,43 @@ function disposeObject3D(root) {
 // same kept-and-labeled placeholder, same userData flag — with a distinct name
 // prefix (`wow-fabric-refused:`) so a refused SUBTREE is never confused with an
 // unavailable glTF LEAF. One failure convention, not two.
+/**
+ * A node that places a user or a view, or a transform-only node of a room (`webofworlds_extension.role`
+ * user-placement, view-placement or room): it marks a place, not a thing, so it draws no marker.
+ */
+function isPlacementNode(node) {
+  const role = node && node.webofworlds_extension && node.webofworlds_extension.role;
+  return role === "user-placement" || role === "view-placement" || role === "room" || role === "portal-arrival";
+}
+
+/** `osl-primitive:box?size_m=0.8` -> { shape, size_m } (shape box, sphere or grid), or null for any other URI. */
+export function parseOslPrimitive(uri) {
+  const match = /^osl-primitive:([a-z]+)(?:\?(.*))?$/i.exec(String(uri || ""));
+  if (!match) return null;
+  const params = new URLSearchParams(match[2] || "");
+  const size = Number(params.get("size_m"));
+  const kind = match[1].toLowerCase();
+  const shape = kind === "sphere" || kind === "grid" ? kind : "box";
+  const divisions = Math.max(1, Math.round(Number(params.get("divisions")) || 10));
+  return { shape, size_m: Number.isFinite(size) && size > 0 ? size : 0.5, ...(shape === "grid" ? { divisions } : {}) };
+}
+
+/** `osl-light:directional?intensity=0.9&color=ffffff` -> { kind, intensity, color }, or null for any other URI. */
+export function parseOslLight(uri) {
+  const match = /^osl-light:(ambient|directional)(?:\?(.*))?$/i.exec(String(uri || ""));
+  if (!match) return null;
+  const params = new URLSearchParams(match[2] || "");
+  const intensity = Number(params.get("intensity"));
+  const color = /^[0-9a-f]{6}$/i.test(params.get("color") || "") ? parseInt(params.get("color"), 16) : 0xffffff;
+  return { kind: match[1].toLowerCase(), intensity: Number.isFinite(intensity) && intensity >= 0 ? intensity : 1, color };
+}
+
+/** `osl-color:2bd4ff` -> `#2bd4ff`, or null. */
+function oslColorOf(uri) {
+  const match = /^osl-color:#?([0-9a-f]{6})$/i.exec(String(uri || ""));
+  return match ? `#${match[1]}` : null;
+}
+
 function markPlaceholderUnavailable(placeholder, THREE, namePrefix = "wow-asset-unavailable") {
   if (!placeholder || typeof placeholder.traverse !== "function") return;
   placeholder.userData = placeholder.userData || {};

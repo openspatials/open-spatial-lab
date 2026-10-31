@@ -277,6 +277,28 @@ by observation (`properties.mirror`, `runtime/world-server/src/mirrors.js`, O6);
 environment of an included world typed through the context (O10); and the data-point dashboard
 (`web/wow-dashboard.html`, O8).
 
+### D12 — the iteration 4 overlay: portals and previews
+
+Each item is a proposed upstream edit (`wow-spec/overlays/iteration-4/`), proven by `npm run arch-i4-proof`:
+
+1. **`Portal.destination`**, the entry URL of the world it leads to, with an optional `#join=node.{id}` arrival
+   point. Crossing is navigation; an offline destination refuses with the reason; no destination does nothing
+   (checks P1, P2, P8).
+2. **`node` on Portal, User and View**, the node that places it, relative to the base URL. Their `geoPose` is
+   derived from that node's placement through the graph's anchor (P7). The hosted user and the player view
+   each have a node of graph 1, after the portals; a presence user gets one when it joins and loses it when
+   it leaves.
+3. **`World.preview`**: an arrival node, a radius and a preview URL (`{base}wow/preview` here), or an image. The
+   preview holds only the nodes within the radius, filtered by the read policy; a portal inside it shows
+   closed; previewing creates no user (P3 to P6).
+
+The demo's own target description of a portal moves from `destination` to the labeled `osl_destination`
+(`PortalDestination`); the demo client reads it there, and falls back to an older backend's `destination`
+object. OSL additions around them: portals added on a node (`addPortal`), the preview declaration
+(`setPreview`, or `preview` in the config), the portal client (`web/wow-portal.mjs`) and its rendering in the
+`?wow=` player (`web/wow-portal-mount.mjs`). The seamless crossing stays an optional profile; its proof is
+reported apart (P9).
+
 ## 10. Provenance — corrected 2026-07-11
 
 The previous version of this note and of `schema.yaml` claimed the contract was

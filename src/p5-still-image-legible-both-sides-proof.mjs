@@ -84,6 +84,7 @@ async function loadPreviewModule() {
   source = source.replace(browserThreeImport, `import * as THREE from ${JSON.stringify(threeUrl)};`);
   const tempModulePath = resolve(tempRoot, "portal-spatial-preview-production.mjs");
   await writeFile(tempModulePath, source);
+  await copyFile(resolve(repoRoot, "web/main-demo-window.mjs"), resolve(tempRoot, "main-demo-window.mjs"));
   await copyFile(
     resolve(repoRoot, "web/live-adapter-portal-geometry.mjs"),
     resolve(tempRoot, "live-adapter-portal-geometry.mjs"),

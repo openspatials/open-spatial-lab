@@ -21,7 +21,7 @@ function replaceOnce(source, before, after) {
 if (MUTATION === "get-accept-header") {
   transportSource = replaceOnce(
     transportSource,
-    'fetchImpl(url, { headers: { Accept: "application/json" } })',
+    'fetchImpl(url, { headers: { Accept: "application/json" }, cache: "no-store" })',
     "fetchImpl(url, { headers: {} })",
   );
 }
@@ -113,8 +113,8 @@ if (MUTATION === "sequence-on-completion") {
   );
   transportSource = replaceOnce(
     transportSource,
-    '      const response = await fetchImpl(url, { headers: { Accept: "application/json" } });\n      status = response.status;',
-    '      const response = await fetchImpl(url, { headers: { Accept: "application/json" } });\n      sequence = ++requestSequence;\n      status = response.status;',
+    '      const response = await fetchImpl(url, { headers: { Accept: "application/json" }, cache: "no-store" });\n      status = response.status;',
+    '      const response = await fetchImpl(url, { headers: { Accept: "application/json" }, cache: "no-store" });\n      sequence = ++requestSequence;\n      status = response.status;',
   );
 }
 if (MUTATION === "synthetic-second-sequence") {
@@ -246,7 +246,7 @@ await check("GET success preserves wire, parse-before-event, validation, labels,
   assert.equal(bus.events.length, 0, "success telemetry must wait for JSON parsing");
   gate.resolve();
   assert.deepEqual(await pending, { world_id: "w1" });
-  assert.deepEqual(calls, [["https://demo.test/wow/world?x=1", { headers: { Accept: "application/json" } }]]);
+  assert.deepEqual(calls, [["https://demo.test/wow/world?x=1", { headers: { Accept: "application/json" }, cache: "no-store" }]]);
   assert.deepEqual(bus.events[0].detail, {
     id: 1,
     method: "GET",

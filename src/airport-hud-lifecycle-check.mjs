@@ -15,7 +15,7 @@ const readText = async (relative) => (
 const sources = Object.freeze({
   overlay: await readText("web/hud/airport-hud-overlay.mjs"),
   scene: await readText("web/airport-terminal-scene.mjs"),
-  controller: await readText("web/scene-runtime-controller.mjs"),
+  controller: `${await readText("web/scene-runtime-controller.mjs")}\n${await readText("web/main-demo-preview.mjs")}`,
   tag: await readText("web/hud/glassline-entity-tag.mjs"),
   css: await readText("web/hud/glassline-hud.css"),
   entityRuntime: await readText("web/airport-entity-runtime.mjs"),
@@ -64,7 +64,7 @@ function assertContract(candidate) {
   assert.match(scene, /if \(opts\.hudOverlay !== false\) \{/);
   assert.match(
     controller,
-    /\{ document: documentTarget, motionPreference, hudOverlay: false \}/,
+    /\{ document: doc, motionPreference, hudOverlay: false, partial: true \}/,
     "Airport portal previews must not mount the page-level HUD over Lobby",
   );
   const hudDisposals = count(controller, /built\.airport_hud_overlay\?\.dispose\(\)/g);

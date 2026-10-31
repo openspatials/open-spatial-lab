@@ -78,6 +78,7 @@ export class FabricPrefetchController {
     readCacheCapFixture = () => null,
     getActiveBase = () => null,
     getAvatarPose = () => null,
+    destinationOccupancy = true,
   } = {}) {
     if (typeof getJson !== "function") throw new TypeError("fabric prefetch getJson is required");
     if (typeof resolveProxyBase !== "function") {
@@ -107,6 +108,7 @@ export class FabricPrefetchController {
     this._readCacheCapFixture = readCacheCapFixture;
     this._getActiveBase = getActiveBase;
     this._getAvatarPose = getAvatarPose;
+    this._destinationOccupancy = destinationOccupancy;
     Object.assign(this, DEFAULTS);
     this._world = null;
     this._clientMode = "observer";
@@ -1020,7 +1022,7 @@ export class FabricPrefetchController {
   _ensureLobbyOccupancyPoller() {
     this._stopLobbyOccupancyPoller();
     const portals = this._world && Array.isArray(this._world.portals) ? this._world.portals : [];
-    if (this._clientMode !== "player" || portals.length < 2) {
+    if (!this._destinationOccupancy || this._clientMode !== "player" || portals.length < 2) {
       this._lobbyOccupancy = null;
       return;
     }

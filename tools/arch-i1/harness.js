@@ -14,14 +14,15 @@ const { ROOT, loadMutant, makeTempDir } = require('./lib');
 const SRC = path.join('runtime', 'world-server', 'src');
 const abs = (name) => path.join(ROOT, SRC, name);
 
-/** The server module for a set of edits: { store, anchor, runtime, server, mirrors } are arrays of [from, to]. */
+/** The server module for a set of edits: { store, anchor, portalStandard, runtime, server, mirrors } are arrays of [from, to]. */
 function loadServerModule(edits) {
   edits = edits || {};
   const store = edits.store ? loadMutant(path.join(SRC, 'spatial-graph.js'), edits.store) : require(abs('spatial-graph.js'));
   const anchor = edits.anchor ? loadMutant(path.join(SRC, 'spatial-anchor.js'), edits.anchor) : require(abs('spatial-anchor.js'));
-  const changedRuntime = Boolean(edits.store || edits.anchor || edits.runtime);
+  const portalStandard = edits.portalStandard ? loadMutant(path.join(SRC, 'portal-standard.js'), edits.portalStandard) : require(abs('portal-standard.js'));
+  const changedRuntime = Boolean(edits.store || edits.anchor || edits.runtime || edits.portalStandard);
   const runtime = changedRuntime
-    ? loadMutant(path.join(SRC, 'runtime-state.js'), edits.runtime || [], { './spatial-graph': store, './spatial-anchor': anchor })
+    ? loadMutant(path.join(SRC, 'runtime-state.js'), edits.runtime || [], { './spatial-graph': store, './spatial-anchor': anchor, './portal-standard': portalStandard })
     : require(abs('runtime-state.js'));
   const mirrors = edits.mirrors ? loadMutant(path.join(SRC, 'mirrors.js'), edits.mirrors) : require(abs('mirrors.js'));
   if (!changedRuntime && !edits.server && !edits.mirrors) return require(abs('server.js'));

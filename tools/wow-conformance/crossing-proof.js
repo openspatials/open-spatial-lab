@@ -25,7 +25,7 @@
  *       The browser-side machinery (no-reload in-memory promotion, the
  *       (x,y,z)->(-x,y,-z) camera isometry) keeps a SOURCE TRIPWIRE, labeled as
  *       exactly that and no longer published as continuity evidence; its RUNTIME
- *       proof is the e2e-driver's (browser), DEFERRED to a load window /.
+ *       proof is the e2e-driver's (browser), tracked by runtime.
  *
  * Isolated ports ONLY (NEVER 8143 / 18151-18153 — the live local demo). Boots a
  * real 041 createServer instance pair (A + B) in-process; consumes the real
@@ -47,7 +47,6 @@ const HOST = '127.0.0.1';
 const FORBIDDEN_PORTS = new Set([ 8143, 18151, 18152, 18153, 3000 ]);
 const PORT_A = Number(process.env.OSL_CROSSING_PROOF_PORT_A || 18987);
 const PORT_B = Number(process.env.OSL_CROSSING_PROOF_PORT_B || 18988);
-const LOAD_GATE = 14; // the repo-wide browser-proof gate; this Node proof records it, never fakes it
 
 // The two kebab-case, POST-only crossing paths (§3.5.3 URL paths, §5.2.1 POST-only). These
 // are the IWPS ROLE NAMES for the two POSTs the crossing genuinely makes — Query first,
@@ -295,8 +294,7 @@ async function main() {
         if (FORBIDDEN_PORTS.has(p)) { console.error('REFUSING protected port ' + p); process.exit(2); }
     }
     const load1 = os.loadavg()[0];
-    console.log('1-min load average: ' + load1.toFixed(2) +
-        (load1 >= 14 ? '  (>=14: a Chrome e2e validation would false-fail — this is the deterministic Node validation; browser nav-count validation deferred)' : ''));
+    console.log('1-min load average: ' + load1.toFixed(2) + ' (information only; this proof never skips for load)');
 
     // The WoW render builder is Node-safe (THREE injected; no DOM/WebGL). Inject
     // the real three so "rendered via the WoW composition graph" is the ACTUAL
@@ -410,19 +408,19 @@ async function main() {
             note: 'render_summary.shape=wow-composition-graph; node counts+positions taken VERBATIM from /wow/spatial (buildWowScene), not the .msf child fabric.',
         };
 
-        // ===== (B) destination resolved from Portal.destination =====
+        // ===== (B) destination resolved from the labeled Portal.osl_destination (iteration 4: `destination` is the entry URL) =====
         const portalA = await getJson(baseA, '/wow/portal/1');
         const pa = portalA.json || {};
-        const dest = pa.destination && typeof pa.destination === 'object' ? pa.destination : {};
+        const dest = pa.osl_destination && typeof pa.osl_destination === 'object' ? pa.osl_destination : {};
         const paExt = pa.webofworlds_extension || {};
-        ok('A portal carries labeled Portal.destination', !!dest.target_world_id, dest.target_world_id);
+        ok('A portal carries labeled Portal.osl_destination', !!dest.target_world_id, dest.target_world_id);
         ok('destination is OFF the raw extension (SHRUNK: ext has no target_world_id)', !('target_world_id' in paExt));
-        ok('crossing destination (Portal.destination.target_world_id) == B spatialID', String(dest.target_world_id) === String(spB), dest.target_world_id + ' vs ' + spB);
+        ok('crossing destination (Portal.osl_destination.target_world_id) == B spatialID', String(dest.target_world_id) === String(spB), dest.target_world_id + ' vs ' + spB);
         const destResolve = await getJson(baseB, '/wow/spatial/' + encodeURIComponent(dest.target_world_id));
-        ok('Portal.destination resolves to a live root Node on the destination world (B, graph-sourced)',
+        ok('Portal.osl_destination resolves to a live root Node on the destination world (B, graph-sourced)',
             destResolve.status === 200 && destResolve.json && destResolve.json.id != null, 'status=' + destResolve.status);
         const portalStringId = (paExt.portal_id && typeof paExt.portal_id === 'string') ? paExt.portal_id : 'location-a-portal';
-        diagnostics.crossing.destination = { via: 'Portal.destination', target_world_id: dest.target_world_id, resolves_on_B: destResolve.status === 200, source_portal_string_id: portalStringId };
+        diagnostics.crossing.destination = { via: 'Portal.osl_destination', target_world_id: dest.target_world_id, resolves_on_B: destResolve.status === 200, source_portal_string_id: portalStringId };
 
         // ===== (C) IWPS handshake: Query = exit-intent, Teleport = arrival; handoff_id correlation =====
         await postJson(baseA, '/reset'); await postJson(baseB, '/reset');
@@ -799,12 +797,9 @@ async function main() {
             msf_dependency: msfHonest === true ? false : null,
             msf_dependency_source_asserted: msfHonest,
             runtime_navcount_proof: 'e2e-driver (browser) mainThreeWindowEvidence nav-count=1 / promotion_count=1 — '
-                + (load1 >= LOAD_GATE
-                    ? 'DEFERRED to a load window / runtime (1-min load ' + load1.toFixed(2) + ' >= gate ' + LOAD_GATE + ')'
-                    : 'NOT RUN HERE by design: this is the deterministic Node validation (1-min load ' + load1.toFixed(2)
-                      + ' < gate ' + LOAD_GATE + '; the browser validation is the e2e-driver\'s, tracked by runtime)'),
+                + 'NOT RUN HERE by design: this is the deterministic Node validation (1-min load ' + load1.toFixed(2)
+                + '; the browser validation is the e2e-driver\'s, tracked by runtime)',
             load_at_run: Number(load1.toFixed(2)),
-            load_gate: LOAD_GATE,
         };
     } finally {
         try { await a.closeAll(); } catch (e) {}

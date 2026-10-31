@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUN_DIR="$ROOT/.runtime"
+RUN_DIR="${OSL_RUN_DIR:-$ROOT/.runtime}"
 QUIET="${1:-}"
 
 owned_pid() {
@@ -41,7 +41,10 @@ for file in "$RUN_DIR/world-servers.pid" "$RUN_DIR/frontend.pid"; do
   rm -f "$file"
 done
 
-for port in "${OSL_FRONTEND_PORT:-8143}" "${OSL_BACKEND_A_PORT:-18151}" "${OSL_BACKEND_B_PORT:-18152}" "${OSL_BACKEND_LOBBY_PORT:-18153}" "${OSL_BACKEND_AIRPORT_PORT:-18154}"; do
+# The ports to report on are the configured ones (worlds.json, or OSL_WORLDS).
+CONFIGURED_PORTS="$(node "$ROOT/src/worlds-config.js" world-ports 2>/dev/null || true) $(node "$ROOT/src/worlds-config.js" frontend-port 2>/dev/null || true)"
+rm -f "$RUN_DIR/launched-worlds.json"
+for port in $CONFIGURED_PORTS; do
   if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
     printf 'WARNING: port %s remains occupied by a process not owned by this checkout.\n' "$port" >&2
   fi

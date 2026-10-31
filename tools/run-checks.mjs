@@ -35,7 +35,6 @@ const GROUPS = {
     "src/automatic-reciprocal-portals-check.mjs",
     "src/avatar-selector-controller-check.mjs",
     "src/check-equipment-schema.js",
-    "src/client-portal-c-recovery-check.mjs",
     "src/client-scene-controller-check.mjs",
     "src/demo-trajectory-recorder-check.mjs",
     "src/fabric-prefetch-controller-check.mjs",

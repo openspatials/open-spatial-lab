@@ -35,7 +35,7 @@ if (packageJson.name !== "open-spatial-lab" || packageJson.private !== true || p
 }
 for (const command of ["start", "stop", "verify"]) if (!packageJson.scripts?.[command]) throw new Error(`missing npm script: ${command}`);
 
-for (const world of ["location-a.json", "location-b.json"]) {
+for (const world of readdirSync(join(ROOT, "web", "worlds"))) {
   const text = readFileSync(join(ROOT, "web", "worlds", world), "utf8");
   if (/https:\/\/raw\.githubusercontent\.com/i.test(text)) throw new Error(`${world} still depends on remote models`);
 }
@@ -114,6 +114,8 @@ function resolveReference(specifier, referrer, context, kind) {
     return existingModule(resolve(ROOT, value));
   }
   if (kind !== "module") return existingModule(browserRoute(resolve(ROOT, "web", value)));
+  // A module check under Node reads the list directly; a browser never reaches this import (RUNS_IN_NODE).
+  if (value === "node:module" && relative(ROOT, referrer) === join("web", "worlds-list.mjs")) return null;
   const mapped = mappedBrowserImport(value);
   if (!mapped) throw new Error(`unmapped browser import: ${relative(ROOT, referrer)} -> ${value}`);
   return existingModule(browserRoute(resolve(ROOT, "web", cleanSpecifier(mapped))));

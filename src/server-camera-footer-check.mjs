@@ -10,7 +10,12 @@ const paths = {
   index: path.join(ROOT, "web", "index.html"),
   camera: path.join(ROOT, "web", "movement-camera-controller.mjs"),
   app: path.join(ROOT, "web", "app.js"),
+  launcher: path.join(ROOT, "web", "demo-launcher.mjs"),
+  dashboard: path.join(ROOT, "web", "wow-dashboard.html"),
+  noscript: path.join(ROOT, "web", "demo-launcher-preview.html"),
 };
+
+const ATTRIBUTION = "Open Spatial Lab by Grig Bilham, with contributors";
 
 function replaceOnce(value, before, after) {
   assert.ok(value.includes(before), `mutation target missing: ${before}`);
@@ -36,15 +41,26 @@ function validateSources(source) {
   assert.deepEqual(anchors, [
     {
       className: "footer-hosted-link",
-      href: "https://labs.peers.social/open-spatial-lab/",
-      label: "labs.peers.social/open-spatial-lab",
+      href: "https://lab.openspatials.com/",
+      label: "lab.openspatials.com",
     },
   ]);
+  assert.ok(footer.includes(`<span class="footer-attribution" data-testid="footer-attribution">${ATTRIBUTION}</span>`));
+  assert.ok(source.launcher.includes(`attribution.textContent = "${ATTRIBUTION}";`));
+  assert.ok(source.launcher.includes("dock.append(attribution, hostedLink);"));
+  assert.match(source.dashboard, new RegExp(`<footer>[^\\n]*${ATTRIBUTION}</footer>`));
+  assert.ok(source.noscript.includes(`<p>${ATTRIBUTION}</p>`));
+  assert.doesNotMatch(source.index + source.launcher, /labs\.peers\.social/);
   assert.doesNotMatch(footer, />_|↗|footer-github-mark|footer-github-link|github\.com\/grigb\/open-spatial-lab/);
   assert.doesNotMatch(source.index, /class="footer-github-mark"/);
   assert.match(source.index, /\.footer-links \{[^}]*width: 100%[^}]*justify-content: center/);
   assert.match(source.index, /\.footer-link \{[^}]*max-width: 100%[^}]*font-family: inherit[^}]*font-size: clamp\(17px, 5vw, 21px\)[^}]*font-weight: 600[^}]*line-height: 1\.2[^}]*overflow-wrap: anywhere[^}]*text-align: center/s);
   assert.doesNotMatch(source.index, /\.footer-(?:hosted|github)-link \{[^}]*margin-(?:left|right): auto/);
+  // The panel stands on the footer's measured height, and the footer's own min-height does not read it.
+  assert.match(source.index, /--osl-footer-height: max\(var\(--osl-shell-footer-height\), var\(--osl-footer-measured, 0px\)\)/);
+  assert.match(source.index, /--rail-h: min\(640px, calc\(var\(--osl-viewport-height\) - var\(--osl-panel-top\) - var\(--osl-footer-height\)/);
+  assert.match(source.index, /footer\.controls \{[^}]*min-height: var\(--osl-shell-footer-height\)/);
+  assert.match(source.app, /followFooterHeight\(document\);/);
 }
 
 const source = Object.fromEntries(await Promise.all(
@@ -67,7 +83,27 @@ const mutations = [
   })],
   ["hosted-footer-label-regresses", (value) => ({
     ...value,
-    index: replaceOnce(value.index, ">labs.peers.social/open-spatial-lab</a>", ">https://labs.peers.social/open-spatial-lab/</a>"),
+    index: replaceOnce(value.index, ">lab.openspatials.com</a>", ">https://lab.openspatials.com/</a>"),
+  })],
+  ["old-hosted-address-returns", (value) => ({
+    ...value,
+    launcher: replaceOnce(value.launcher, 'hostedLink.href = "https://lab.openspatials.com/";', 'hostedLink.href = "https://labs.peers.social/open-spatial-lab/";'),
+  })],
+  ["footer-attribution-removed", (value) => ({
+    ...value,
+    index: replaceOnce(value.index, ATTRIBUTION, "Open Spatial Lab"),
+  })],
+  ["launcher-attribution-not-in-dock", (value) => ({
+    ...value,
+    launcher: replaceOnce(value.launcher, "dock.append(attribution, hostedLink);", "dock.append(hostedLink);"),
+  })],
+  ["dashboard-attribution-removed", (value) => ({
+    ...value,
+    dashboard: replaceOnce(value.dashboard, ATTRIBUTION, "Open Spatial Lab"),
+  })],
+  ["noscript-attribution-removed", (value) => ({
+    ...value,
+    noscript: replaceOnce(value.noscript, ATTRIBUTION, "Open Spatial Lab"),
   })],
   ["footer-hosted-class-regresses", (value) => ({
     ...value,
@@ -96,6 +132,10 @@ const mutations = [
       "color: var(--launcher-cyan, #63d8ff); font-family: inherit;",
       "color: var(--launcher-cyan, #63d8ff); font-family: var(--launcher-mono, ui-monospace, Menlo, monospace);",
     ),
+  })],
+  ["panel-ignores-measured-footer", (value) => ({
+    ...value,
+    index: replaceOnce(value.index, "- var(--osl-panel-top) - var(--osl-footer-height) - var(--osl-glass-edge)));", "- var(--osl-panel-top) - var(--osl-shell-footer-height) - var(--osl-glass-edge)));"),
   })],
   ["footer-readable-size-regresses", (value) => ({
     ...value,

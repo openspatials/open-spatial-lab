@@ -643,7 +643,8 @@ async function main() {
     const puppeteer = require("puppeteer-core");
     browser = await puppeteer.launch({
       executablePath,
-      headless: false,
+      // Headless by default: no window opens. OSL_E2E_HEADED=1 shows one, only when a person is meant to watch.
+      headless: process.env.OSL_E2E_HEADED === "1" ? false : "new",
       userDataDir: profilePath,
       defaultViewport: null,
       args: [

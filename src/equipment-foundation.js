@@ -1,6 +1,6 @@
 'use strict';
 
-const DEFAULT_ASSET_BASE_URL = 'http://127.0.0.1:8143/assets';
+const DEFAULT_ASSET_BASE_URL = process.env.OSL_PUBLIC_ORIGIN ? process.env.OSL_PUBLIC_ORIGIN.replace(/\/$/, '') + '/assets' : 'http://127.0.0.1:8143/assets';
 
 const VRM_ATTACHMENT_POINTS = new Set([
     'hips',

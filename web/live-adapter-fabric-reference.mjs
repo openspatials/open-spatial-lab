@@ -19,15 +19,13 @@
  */
 
 import { applyBase } from "./base-path.mjs";
+import { WORLDS } from "./worlds-list.mjs";
 
-// Loopback backend origin -> same-origin proxy endpoint key. Mirrors the
-// ENDPOINTS[*].backend_base_url map in live-adapter.js (18151→a … 18154→airport).
-const LOOPBACK_ORIGIN_TO_ENDPOINT_KEY = Object.freeze([
-  [/^https?:\/\/(?:127\.0\.0\.1|localhost):18151/i, "a"],
-  [/^https?:\/\/(?:127\.0\.0\.1|localhost):18152/i, "b"],
-  [/^https?:\/\/(?:127\.0\.0\.1|localhost):18153/i, "lobby"],
-  [/^https?:\/\/(?:127\.0\.0\.1|localhost):18154/i, "airport"],
-]);
+// Loopback backend origin -> same-origin proxy endpoint key, one per listed world (web/worlds-list.mjs).
+const LOOPBACK_ORIGIN_TO_ENDPOINT_KEY = Object.freeze(WORLDS.map((world) => [
+  new RegExp(`^https?://(?:127\\.0\\.0\\.1|localhost):${world.port}(?![0-9])`, "i"),
+  world.key,
+]));
 
 /**
  * @param {string} base active public base path ("" root, "/open-spatial-lab" subpath).

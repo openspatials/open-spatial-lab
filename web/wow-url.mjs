@@ -45,6 +45,8 @@
 
 'use strict';
 
+import { WORLDS } from "./worlds-list.mjs";
+
 /** The three intents the fragment grammar can express. Spec-stated verbs. */
 export const WOW_INTENT = Object.freeze({
     JOIN    : 'join',
@@ -90,15 +92,15 @@ export const ASPECT_KIND = Object.freeze({
 });
 
 /**
- * OSL's worlds. Each is a distinct 041 backend; the frontend origin proxies them.
+ * OSL's worlds, from the one world list (web/worlds-list.mjs). Each is a distinct 041 backend; the frontend
+ * origin proxies them.
  * The `w` path segment is the world's stable, bookmarkable, spec-composable URL space
  * (see worldUrlFor / wowApiBase below).
  */
-export const OSL_WORLDS = Object.freeze({
-    lobby : Object.freeze({ key : 'lobby', apiBase : '/api/lobby', label : 'Lobby' }),
-    a     : Object.freeze({ key : 'a',     apiBase : '/api/a',     label : 'Location A' }),
-    b     : Object.freeze({ key : 'b',     apiBase : '/api/b',     label : 'Location B' }),
-});
+export const OSL_WORLDS = Object.freeze(Object.fromEntries(WORLDS.map((world) => [
+    world.key,
+    Object.freeze({ key : world.key, apiBase : '/api/' + world.key, label : world.name }),
+])));
 
 /** Legacy OSL entry: ?role=source|target|player already selects a world. Keep it working. */
 export const ROLE_TO_WORLD = Object.freeze({
@@ -397,7 +399,7 @@ export function parseWorldUrl(href, opts = {})
 
         if (active === 'target' || active === 'b') { worldKey = 'b'; worldSource = 'query:active'; }
         else if (active === 'source' || active === 'a') { worldKey = 'a'; worldSource = 'query:active'; }
-        else if (active === 'lobby') { worldKey = 'lobby'; worldSource = 'query:active'; }
+        else if (normalizeWorldKey(active)) { worldKey = normalizeWorldKey(active); worldSource = 'query:active'; }
         else if (role === 'player') { worldKey = 'lobby'; worldSource = 'query:role'; }
         else if (role === 'target') { worldKey = 'b'; worldSource = 'query:role'; }
         else { worldKey = DEFAULT_WORLD; worldSource = roleParam ? 'query:role' : 'default'; }

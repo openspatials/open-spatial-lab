@@ -14,36 +14,42 @@ import {
 } from "./live-adapter-portal-geometry.mjs";
 import {
   clientSceneLoadFieldsFromWowPortal,
-  recoverAirportLobbyPortalResources,
+  labeledPortalDestination,
 } from "./airport-lobby-transition.mjs";
+import { destinationOf } from "./main-demo-portals.mjs";
 
 export const LIVE_PROVENANCE = "live";
 
+/**
+ * A portal of the shown world, from its Web of Worlds resource: where it leads comes from its `destination`, and
+ * where it stands from the node that places it (`osl_placement`, web/main-demo-portals.mjs). A portal placed with the
+ * placement tool has nothing else; a world's configured portal adds the demo's labeled zones and fabric address.
+ */
 export function portalEntryFromWowPortal(wowPortal, locationId) {
   if (!wowPortal) return null;
   const portalExtension = wowPortal.webofworlds_extension
     ? wowPortal.webofworlds_extension
     : {};
-  const destination =
-    wowPortal.destination && typeof wowPortal.destination === "object"
-      ? wowPortal.destination
-      : {};
-  const targetLocationId = destination.target_location_id != null
-    ? destination.target_location_id
-    : portalExtension.target_location_id;
-  const targetWorldId = destination.target_world_id != null
-    ? destination.target_world_id
-    : portalExtension.target_world_id;
-  const targetBaseUrl = destination.target_base_url != null
-    ? destination.target_base_url
-    : portalExtension.target_base_url;
+  const standard = destinationOf(wowPortal.destination);
+  const listed = standard ? standard.world : null;
+  const labeled = labeledPortalDestination(wowPortal);
+  const targetLocationId = listed ? listed.location_id
+    : labeled.target_location_id != null ? labeled.target_location_id : portalExtension.target_location_id;
+  const targetWorldId = listed ? listed.world_id
+    : labeled.target_world_id != null ? labeled.target_world_id : portalExtension.target_world_id;
+  const targetBaseUrl = standard ? standard.base.replace(/\/$/, "")
+    : labeled.target_base_url != null ? labeled.target_base_url : portalExtension.target_base_url;
   const sceneLoadFields = clientSceneLoadFieldsFromWowPortal(wowPortal);
   const frameTargetLocationId = targetLocationId || sceneLoadFields.target_fixture?.spatial_id || null;
+  const placement = wowPortal.osl_placement || null;
   const trigger = portalExtension && portalExtension.trigger
     ? portalExtension.trigger
     : { position: [2.8, 0, -2.8], radius_m: 1.25 };
-  const triggerPosition = clonePosition(trigger.position, [2.8, 0, -2.8]);
+  const triggerPosition = placement
+    ? [placement.position[0], 0, placement.position[2]]
+    : clonePosition(trigger.position, [2.8, 0, -2.8]);
   const triggerRadius = Number(trigger.radius_m) || 1.25;
+  const nodeForward = placement ? placement.forward : portalExtension.traversal && portalExtension.traversal.frame_forward;
   const portalFrames = buildPortalFrameSet({
     portalId: wowPortal.id,
     locationId,
@@ -52,6 +58,7 @@ export function portalEntryFromWowPortal(wowPortal, locationId) {
     targetLocationId: frameTargetLocationId,
     targetWorldId,
     targetBaseUrl,
+    forward: nodeForward,
   });
   const traversal = normalizePortalTraversal(
     portalExtension.traversal || portalExtension.traversal_mode,
@@ -81,6 +88,14 @@ export function portalEntryFromWowPortal(wowPortal, locationId) {
     spatial_fabric_address: portalExtension.spatial_fabric_address || null,
     zones: portalExtension.zones || null,
     traversal,
+    // the standard resource itself: what a preview and a crossing read
+    destination: placement || standard ? wowPortal.destination || null : undefined,
+    wow_resource: placement || standard
+      ? { id: wowPortal.id, label: wowPortal.label || null, destination: wowPortal.destination || null, node: wowPortal.node || null }
+      : undefined,
+    node_id: placement ? placement.node_id : null,
+    placed: wowPortal.placed === true,
+    active_radius_m: Number(wowPortal.active_radius_m) > 0 ? Number(wowPortal.active_radius_m) : null,
   };
 }
 
@@ -183,6 +198,27 @@ export function wowWorldSpatialId(wowWorld) {
   );
 }
 
+/**
+ * How far from the portals' centre a Player starts: at least `minimum`, and outside every portal's loading circle by
+ * the avatar's body and a margin, so the first view is the portals with nothing of a destination loading. The world
+ * server's start pose follows the same rule (runtime/world-server/src/portal-standard.js).
+ */
+const START_CLEARANCE_M = 0.45 + 0.25;
+function startDistanceClearOfPortals(portals, centre, forward, minimum) {
+  let distance = minimum;
+  for (const portal of portals) {
+    const radius = Number(portal.zones && portal.zones.prefetch && portal.zones.prefetch.radius_m) || 0;
+    if (!radius) continue;
+    const dx = Number(portal.frame.ground_center[0]) - centre[0];
+    const dz = Number(portal.frame.ground_center[2]) - centre[2];
+    const reach = radius + START_CLEARANCE_M;
+    const along = dx * forward[0] + dz * forward[2];
+    const across = Math.hypot(dx - along * forward[0], dz - along * forward[2]);
+    if (across < reach) distance = Math.max(distance, along + Math.sqrt(reach * reach - across * across));
+  }
+  return distance;
+}
+
 export function worldFromLive(role, wowWorld, wowPortal, wowUser) {
   const isSource = role === "source" || role === "player";
   const location = wowWorld.location;
@@ -190,11 +226,7 @@ export function worldFromLive(role, wowWorld, wowPortal, wowUser) {
   const fetchedPortalList = (
     Array.isArray(wowPortal) ? wowPortal : [wowPortal]
   ).filter(Boolean);
-  const wowPortalList = recoverAirportLobbyPortalResources(
-    role,
-    wowWorld,
-    fetchedPortalList,
-  );
+  const wowPortalList = fetchedPortalList;
   const portals = wowPortalList
     .map((entry) => portalEntryFromWowPortal(entry, location.id))
     .filter(Boolean);
@@ -230,9 +262,14 @@ export function worldFromLive(role, wowWorld, wowPortal, wowUser) {
     ? addScaled3(
         clonePosition(spawnGround, triggerPosition),
         spawnFrame.forward,
-        Math.max(
-          2.4,
-          (Number(spawnFrame.trigger_depth_m) || PORTAL_TRIGGER_DEPTH_M) + 2.4,
+        startDistanceClearOfPortals(
+          portals,
+          spawnGround,
+          spawnFrame.forward,
+          Math.max(
+            2.4,
+            (Number(spawnFrame.trigger_depth_m) || PORTAL_TRIGGER_DEPTH_M) + 2.4,
+          ),
         ),
       )
     : [
@@ -250,10 +287,8 @@ export function worldFromLive(role, wowWorld, wowPortal, wowUser) {
     session_id: wowWorld.session.id,
     title: location.title,
     base_url: `http://127.0.0.1:${location.port}`,
-    color:
-      location.id === "location-lobby"
-        ? "#42d68a"
-        : isSource ? "#3aa0ff" : "#ff7a3a",
+    // The room's colour is the world's: the room a portal shows is the room a visitor arrives in.
+    color: (location.room && location.room.color) || (isSource ? "#3aa0ff" : "#ff7a3a"),
     claim_boundary: wowWorld.proof_boundary,
     portal: primary,
     portals,

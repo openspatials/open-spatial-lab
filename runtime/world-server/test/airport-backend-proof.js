@@ -86,8 +86,8 @@ assert.ok(spatialRoot.children.some(id => {
 }), 'Gate A12 resolves through the backend canonical spatial graph');
 
 assert.strictEqual(portal.webofworlds_extension.portal_id, 'airport-portal-lobby');
-assert.strictEqual(portal.destination.target_location_id, 'location-lobby');
-assert.strictEqual(portal.destination.target_world_id, 'demo-lobby');
+assert.strictEqual(portal.osl_destination.target_location_id, 'location-lobby');
+assert.strictEqual(portal.osl_destination.target_world_id, 'demo-lobby');
 assert.strictEqual(portal.webofworlds_extension.traversal_mode, 'bidirectional');
 assert.strictEqual(portal.proof_boundary.standards_conformance, false);
 

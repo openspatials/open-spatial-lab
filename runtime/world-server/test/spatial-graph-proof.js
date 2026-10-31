@@ -125,13 +125,16 @@ async function main()
         check('B2 root is a canonical Node (id 0, names carries world_id, 16-float localTransform)',
             root.id === 0 && Array.isArray(root.names) && root.names.indexOf('demo-room-a') !== -1
             && Array.isArray(root.localTransform) && root.localTransform.length === 16);
-        // node count must equal the world's real scene objects + portals
+        // node count must equal the world's real scene objects + portals + the nodes that place its
+        // users and its view (iteration 4: the hosted user and the player view each have one)
         const sceneObjs = (await GET(PORT_A, '/demo/scene-objects')).json.objects.length;
         const portalCount = (await GET(PORT_A, '/wow/world')).json.portals.portal_count;
-        check('B3 root populated from real scene data (children == primitives + portals)',
-            Array.isArray(root.children) && root.children.length === sceneObjs + portalCount
+        const placements = (root.children || []).filter(c => c && c.webofworlds_extension
+            && /-placement$/.test(c.webofworlds_extension.role || '')).length;
+        check('B3 root populated from real scene data (children == primitives + portals + user and view placements)',
+            Array.isArray(root.children) && placements >= 2 && root.children.length === sceneObjs + portalCount + placements
             && root.children.every(c => c && typeof c === 'object' && Number.isInteger(c.id)),
-            'children=' + (root.children || []).length + ' expected=' + (sceneObjs + portalCount));
+            'children=' + (root.children || []).length + ' expected=' + (sceneObjs + portalCount + placements) + ' (placements ' + placements + ')');
         // The canonical Node embeds its children and is what is served by default. The labeled
         // OSLFlatNode (children = integer ids) is served only when a request says `flat`; it is NOT
         // canonical, and the two checks below assert both halves.
@@ -151,7 +154,8 @@ async function main()
         // so the LAST child is now the lobby edge, asserted separately as B7b.
         const primNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[0].id)).json;
         const portalNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[sceneObjs].id)).json;
-        const lastNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[root.children.length - 1].id)).json;
+        // the last PORTAL child: the placement nodes of iteration 4 come after the portals
+        const lastNode = (await GET(PORT_A, '/wow/spatial/demo-room-a/node/' + root.children[sceneObjs + portalCount - 1].id)).json;
         check('B6 primitive seed node carries labeled osl-primitive: URI (NOT glTF)',
             /^osl-primitive:/.test(primNode.spatialAssetURI || ''), primNode.spatialAssetURI);
         check('B7 portal seed node carries labeled osl-portal: destination URI',

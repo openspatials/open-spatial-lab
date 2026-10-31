@@ -21,15 +21,9 @@ import { createOwnedBrowserTeardown, listExactProfileProcesses } from "./owned-b
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCENE_CORE = path.join(ROOT, "runtime", "scene-core");
-const diagnostics = process.env.feature_EVIDENCE_ROOT
+const evidenceDir = process.env.feature_EVIDENCE_ROOT
   ? path.resolve(process.env.feature_EVIDENCE_ROOT)
-  : path.join(
-    ROOT,
-    ".dev",
-    "ai",
-    "diagnostics",
-    "2026-07-18-14-11-55Z-runtime",
-  );
+  : path.join(ROOT, "diagnostics", "clean-webgl");
 const PORTS = Object.freeze({ frontend: 9193, a: 19191, b: 19192, lobby: 19193 });
 const BASE = `http://127.0.0.1:${PORTS.frontend}`;
 const VIEWPORTS = Object.freeze([
@@ -38,12 +32,12 @@ const VIEWPORTS = Object.freeze([
 ]);
 const ASSET_PREWARM_EXPECTED = Object.freeze({
   "/assets/avatars/glb/readyplayerme_cyberpunk.glb": Object.freeze({
-    bytes: 5613180,
-    sha256: "cde6cd4d6a92a5b604b08449165a97d3e52112295255543429b85fe144962306",
+    bytes: 5612900,
+    sha256: "1ed7b4b4eefeba3d379b101fe68e5e2826ea85d1048bf836f263ca5dc09ba88e",
   }),
-  "/assets/mocap/locomotion-mocap.derived.glb": Object.freeze({
-    bytes: 488324,
-    sha256: "22b30ba44b592af394f82e62f06036c67b51f68408cf22261bda44d911b22e67",
+  "/assets/mocap/locomotion-mocap.json": Object.freeze({
+    bytes: 153528,
+    sha256: "f36e7ac39bcfd7b109c6e2366c43a126bfe64e0a6024244515881114d60a2c26",
   }),
 });
 const EXPECTED_LOCOMOTION_STATES = Object.freeze(["idle", "walk", "run", "jump"]);
@@ -624,7 +618,7 @@ function uiProblems(records) {
     if (!record.no_horizontal_overflow) problems.push(`${prefix}: horizontal overflow`);
     if (!record.no_vertical_body_overflow) problems.push(`${prefix}: body overflow`);
     const expected = [
-      ["labs.peers.social/open-spatial-lab", "https://labs.peers.social/open-spatial-lab/"],
+      ["lab.openspatials.com", "https://lab.openspatials.com/"],
     ];
     if (JSON.stringify(record.footer_links.map((entry) => [entry.label, entry.href])) !== JSON.stringify(expected)) {
       problems.push(`${prefix}: footer order/hrefs differ`);
@@ -717,7 +711,7 @@ async function exerciseViewport(page, profile, runId) {
     reset.snapshot.preferred_size == null;
 
   await page.screenshot({
-    path: path.join(diagnostics, `${runId}-${profile.name}-ui.png`),
+    path: path.join(evidenceDir, `${runId}-${profile.name}-ui.png`),
     fullPage: false,
   });
   const problems = uiProblems(records);
@@ -752,7 +746,8 @@ async function runBrowserArm({ id, executablePath, forceFallback, serverPrewarm 
   try {
     browser = await puppeteer.launch({
       executablePath,
-      headless: false,
+      // Headless by default: no window opens. OSL_E2E_HEADED=1 shows one, only when a person is meant to watch.
+      headless: process.env.OSL_E2E_HEADED === "1" ? false : "new",
       timeout: 90_000,
       args: [
         "--no-sandbox",
@@ -818,7 +813,7 @@ async function runBrowserArm({ id, executablePath, forceFallback, serverPrewarm 
     } else {
       const fallbackProbe = await currentUiProbe(page, "fallback", "ready");
       run.viewports = [{ name: "fallback", ok: fallbackProbe.no_jump_in && fallbackProbe.footer_links.length === 1, records: [fallbackProbe], problems: [] }];
-      await page.screenshot({ path: path.join(diagnostics, `${id}-canvas2d-fallback.png`) });
+      await page.screenshot({ path: path.join(evidenceDir, `${id}-canvas2d-fallback.png`) });
     }
     await sleep(300);
     run.renderer.final = await rendererSample(page);
@@ -935,7 +930,7 @@ async function runBrowserArm({ id, executablePath, forceFallback, serverPrewarm 
 }
 
 async function main() {
-  await mkdir(diagnostics, { recursive: true });
+  await mkdir(evidenceDir, { recursive: true });
   const protectedBefore = protectedBrowserMains();
   const { startBackends } = require("./orchestrator.js");
   const backends = await startBackends({ log: console.log, backendPorts: { a: PORTS.a, b: PORTS.b, lobby: PORTS.lobby } });
@@ -959,7 +954,7 @@ async function main() {
       if (attempt === 79) throw new Error("isolated frontend did not become ready");
       await sleep(100);
     }
-    const { findBrowser } = await import(path.join(SCENE_CORE, "scripts", "find-browser.mjs"));
+    const { findBrowser } = await import(path.join(ROOT, "tools", "find-browser.mjs"));
     const executablePath = process.env.feature_BROWSER_EXECUTABLE
       ? path.resolve(process.env.feature_BROWSER_EXECUTABLE)
       : findBrowser();
@@ -1037,11 +1032,11 @@ async function main() {
     diagnostics.cleanup.protected_unchanged = diagnostics.protected_after === diagnostics.protected_before;
     if (!diagnostics.cleanup.protected_unchanged) primaryError ||= new Error("protected listeners changed");
     diagnostics.outcome = primaryError ? "FAIL" : "PASS";
-    await writeFile(path.join(diagnostics, "runtime-clean-webgl-ui-diagnostics.json"), `${JSON.stringify(diagnostics, null, 2)}\n`);
+    await writeFile(path.join(evidenceDir, "runtime-clean-webgl-ui-diagnostics.json"), `${JSON.stringify(diagnostics, null, 2)}\n`);
   }
   if (primaryError) throw primaryError;
   console.log(`feature_CLEAN_WEBGL PASS fresh_runs=2 fallback=PASS_AS_RESILIENCY_ONLY controls=${diagnostics.controls.length}`);
-  console.log(`diagnostics=${path.join(diagnostics, "runtime-clean-webgl-ui-diagnostics.json")}`);
+  console.log(`diagnostics=${path.join(evidenceDir, "runtime-clean-webgl-ui-diagnostics.json")}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

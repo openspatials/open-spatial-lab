@@ -132,7 +132,7 @@ function assertLobbyAirportPortalApproach(scene, portalC, spatialRoot, portalCou
     ], 'both Lobby benches remain byte-stable');
     assert.deepStrictEqual(portalC.webofworlds_extension.trigger.position, [ 0, 0, -4.4 ],
         'lobby-portal-c trigger remains at the airport approach');
-    assert.strictEqual(portalC.destination.target_location_id, 'location-airport',
+    assert.strictEqual(portalC.osl_destination.target_location_id, 'location-airport',
         'lobby-portal-c still targets the airport');
     assert.strictEqual(portalC.webofworlds_extension.shared_edge.counterpart.portal_id,
         'airport-portal-lobby', 'lobby-portal-c counterpart remains the airport portal');

@@ -47,6 +47,7 @@
 // like interfaces.mjs), so it can be smoke-tested headlessly.
 
 import { makeLoadingPointer, validateLoadingPointer } from "./manifest/interfaces.mjs";
+import { WORLDS } from "./worlds-list.mjs";
 
 // The agreed pointer names (TeleportVR/UM integration packet §pointers).
 export const METAVERSE_PORTAL_POINTER_NAMES = Object.freeze([
@@ -245,17 +246,32 @@ function $id(id) {
  * `to` location, then the player's pre-promotion preview key (the destination
  * before the fabric promotion flips the keys).
  */
-function resolveDestinationKey(dbg, adapter) {
+function listedWorld(key) {
+  return WORLDS.find((world) => world.key === key) || null;
+}
+
+/** The small toast and the record's title name the world from the one list, so they need no finished prefetch. */
+function enteringHeadline(key) {
+  const world = listedWorld(key);
+  return world ? `Entering ${world.name}` : "Entering destination…";
+}
+
+/** The listed world this crossing leads to, by the portal's own target or the live crossing record; else null. */
+function listedDestinationKey(dbg) {
   const fromLocation = (loc) => {
-    const m = /^location-([ab])$/.exec(String(loc || ""));
-    return m ? m[1] : null;
+    const listed = WORLDS.find((world) => world.location_id === loc);
+    return listed ? listed.key : null;
   };
   const targetLoc = dbg && dbg.controls ? dbg.controls.portal_target_location_id : null;
   const fromControls = fromLocation(targetLoc);
   if (fromControls) return fromControls;
   const liveCrossing = dbg && dbg.crossing && !dbg.crossing.completed_at ? dbg.crossing : null;
-  const fromCrossing = liveCrossing && liveCrossing.to ? fromLocation(liveCrossing.to.location_id) : null;
-  if (fromCrossing) return fromCrossing;
+  return liveCrossing && liveCrossing.to ? fromLocation(liveCrossing.to.location_id) : null;
+}
+
+function resolveDestinationKey(dbg, adapter) {
+  const listed = listedDestinationKey(dbg);
+  if (listed) return listed;
   if (adapter && adapter.previewEndpointKey) return adapter.previewEndpointKey;
   return adapter && adapter.activeEndpointKey === "a" ? "b" : "a";
 }
@@ -360,7 +376,8 @@ function beginTracking(dbg, key, opts) {
   const base =
     adapter && typeof adapter.demoProxyBase === "function" ? adapter.demoProxyBase(destKey) : "";
   const cached = tracker.readCachedLoadingContent ? tracker.readCachedLoadingContent(destKey) : null;
-  tracker.capture = { key: destKey, base, content: cached || null };
+  // Only a world the list names may be named: the key above can be a guess, for reading the loading content.
+  tracker.capture = { key: destKey, listedKey: listedDestinationKey(dbg), base, content: cached || null };
 
   tracker.record = buildNotificationRecord(dbg, destKey, base, key);
   if (tracker.publishNotification) tracker.publishNotification(tracker.record);
@@ -373,10 +390,9 @@ function beginTracking(dbg, key, opts) {
   // tick and would be stomped. The notification record is the deterministic
   // carrier either way; the ARRIVED toast also carries destination branding.
   if (opts && opts.inFlight && tracker.showToast) {
-    const screen = contentValue("metaverse.portal.loadingScreen") || {};
     const brand = contentValue("metaverse.portal.loadingBranding") || {};
     const title = escapeToastText(
-      screen.headline || (brand.world_title ? `Entering ${brand.world_title}` : "Entering destination…")
+      enteringHeadline(tracker.capture.listedKey)
     );
     const sub = escapeToastText(
       [brand.tagline || null, `${STEPS.length} background steps tracking`, "demonstration-only"]
@@ -520,7 +536,7 @@ function buildNotificationRecord(dbg, destKey, base, key) {
     updated_at: nowIso,
     completed_at: null,
     status: "in_progress",
-    title: "Entering destination…",
+    title: enteringHeadline(tracker.capture ? tracker.capture.listedKey : null),
     summary: `0/${STEPS.length} background steps`,
     source: {
       endpoint_key: tracker.adapter ? tracker.adapter.activeEndpointKey || null : null,
@@ -528,7 +544,7 @@ function buildNotificationRecord(dbg, destKey, base, key) {
     },
     destination: {
       endpoint_key: destKey,
-      location_id: `location-${destKey}`,
+      location_id: listedWorld(destKey) ? listedWorld(destKey).location_id : null,
       world_title: null,
       tagline: null,
       instructions: null,
@@ -561,13 +577,9 @@ function buildNotificationRecord(dbg, destKey, base, key) {
 
 /** Fold the captured destination metaverse.portal.* content into the record. */
 function applyContentToRecord(rec) {
-  const c = tracker.capture ? tracker.capture.content : null;
-  const screen = contentValue("metaverse.portal.loadingScreen") || {};
   const brand = contentValue("metaverse.portal.loadingBranding") || {};
   const instr = contentValue("metaverse.portal.loadingInstructions") || {};
-  rec.title = c
-    ? String(screen.headline || (brand.world_title ? `Entering ${brand.world_title}` : "Entering destination…"))
-    : "Entering destination…";
+  rec.title = enteringHeadline(tracker.capture ? tracker.capture.listedKey : null);
   rec.destination.world_title = brand.world_title ? String(brand.world_title) : rec.destination.world_title;
   rec.destination.tagline = brand.tagline ? String(brand.tagline) : rec.destination.tagline;
   rec.destination.location_id = brand.location_id ? String(brand.location_id) : rec.destination.location_id;
@@ -647,6 +659,7 @@ export function portalLoadingDriverApi() {
       toasts_shown: tracker.toastsShown,
       crossing_key: tracker.crossingKey,
       destination_key: tracker.capture ? tracker.capture.key : null,
+      destination_title: tracker.capture ? enteringHeadline(tracker.capture.listedKey) : null,
       destination_content_present: !!(tracker.capture && tracker.capture.content),
       pointer_names_present:
         tracker.capture && tracker.capture.content && tracker.capture.content.pointers

@@ -1,0 +1,81 @@
+--- a/specification/OpenSpatialWorld/API.yaml
++++ b/specification/OpenSpatialWorld/API.yaml
+@@ -9,7 +9,8 @@
+     Cross-origin access. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match.\n\n\
+     Events. A world's event stream is listed in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event adds revision (this world's count of its changes, one higher for each; it survives restarts, and the World resource reports the current one), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision). A write that leaves a representation unchanged creates no revision and no event. A client resumes with since=<revision>; a world that can no longer replay from there sends resync with its current revision, and the client re-reads.\n\n\
+     Stream authentication. A world that requires authorization for its stream expects as the stream's first message the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}, and closes a stream without a valid token within 5 seconds. It refuses a stream from an origin its policy does not allow. Tokens never go in URLs.\n\n\
+-    Data points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user."
++    Data points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user.\n\n\
++    Portals. A portal leads to a world: its destination is that world's entry URL, and the fragment #join=node.{id} names the node where a visitor arrives. Crossing is plain navigation to the destination; a client first checks that the destination answers and, if it does not, refuses with the reason and stays. Seamless crossing, with state carried across, is an optional profile. Portals, views and users are placed by a node (node, relative to the base URL), and a geoPose they give is derived from that node's placement. A portal shows its destination only as far as the destination's preview allows, and a portal inside a preview shows closed."
+   version: '0.0.1'
+ 
+ servers:
+@@ -518,6 +519,26 @@
+               type: integer
+               description: "Number of available portal with unique ID"
+               default: 1
++        preview:
++          type: object
++          description: >-
++            What a portal leading here shows: an arrival node, a radius and a preview URL, or an image URL,
++            or both. The preview URL returns a Node tree rooted at the arrival node. It holds only this
++            world's nodes within the radius of the arrival node, each relative to it, and only those the
++            reader may see. Reading it creates no user. URLs are relative to the world's base URL.
++          properties:
++            node:
++              type: string
++              description: The arrival node.
++            radius_m:
++              type: number
++              description: The radius around the arrival node, in meters.
++            url:
++              type: string
++              description: The preview URL.
++            image:
++              type: string
++              description: An image of this world.
+ 
+     User: 
+       type: object
+@@ -530,6 +551,11 @@
+           type: string
+         geoPose:
+           $ref: '#/components/schemas/GeoPose'
++        node:
++          type: string
++          description: >-
++            The node that places the user, relative to the world's base URL. A geoPose given here is derived
++            from that node's placement.
+ 
+     View: 
+       type: object
+@@ -538,6 +564,11 @@
+           type: number
+         geoPose:
+           $ref: '#/components/schemas/GeoPose'
++        node:
++          type: string
++          description: >-
++            The node that places the view, relative to the world's base URL. A geoPose given here is derived
++            from that node's placement.
+ 
+     Portal: 
+       type: object
+@@ -548,6 +579,17 @@
+ 
+         geoPose:
+           $ref: '#/components/schemas/GeoPose'
++        destination:
++          type: string
++          description: >-
++            The entry URL of the world the portal leads to. Its fragment may name where a visitor arrives:
++            #join=node.{id}, a node of that world. Crossing is navigation to this URL. A portal without a
++            destination leads nowhere.
++        node:
++          type: string
++          description: >-
++            The node that places the portal, relative to the world's base URL. A geoPose given here is derived
++            from that node's placement.
+ 
+     Spatial: 
+       type: object

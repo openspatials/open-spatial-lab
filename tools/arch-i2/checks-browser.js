@@ -7,12 +7,9 @@
  *        repeat with If-None-Match. B allows the read with Access-Control-Allow-Origin and exposes ETag,
  *        which a page could not read otherwise; the conditional repeat needs a preflight B answers.
  *
- * It runs in Chrome (found by tools/find-browser.mjs), behind the lab's machine-load gate: with the 1-minute
- * load at or above OSL_WOW_LOAD_GATE (14 by default) it is DEFERRED, never passed. Set
- * OSL_ARCH_I2_FORCE_BROWSER=1 to run it anyway.
+ * It runs in Chrome (found by tools/find-browser.mjs). It always runs; machine load never defers it.
  */
 
-const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { ROOT, run } = require('../arch-i1/lib');
@@ -20,13 +17,9 @@ const w = require('./worlds');
 
 async function browserChecks(ports) {
   const noCors = { serverEdits: { server: [["const CORS_POLICY = cfg.cors_allowed_origins === undefined ? '*' : cfg.cors_allowed_origins;", 'const CORS_POLICY = [];']] } };
-  const gate = Number(process.env.OSL_WOW_LOAD_GATE || 14);
-  const load1 = os.loadavg()[0];
-  const forced = process.env.OSL_ARCH_I2_FORCE_BROWSER === '1';
   let browser = null;
   try {
     await run('I11', 'a page served from A\'s origin reads B\'s Spatial across origins, reads its ETag, and gets 304 on a repeat', async (impl) => {
-      if (load1 >= gate && !forced) return { ok: true, deferred: true, detail: `DEFERRED by the machine-load gate: 1-minute load ${load1.toFixed(2)} >= ${gate}` };
       if (!browser) {
         const { findBrowser } = await import(pathToFileURL(path.join(ROOT, 'tools', 'find-browser.mjs')).href);
         const chrome = findBrowser();

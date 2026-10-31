@@ -33,6 +33,7 @@ try {
     "three",
   );
   mkdirSync(tempThreeDirectory, { recursive: true });
+  copyFileSync(path.join(ROOT, "web", "main-demo-window.mjs"), path.join(previewModuleRoot, "main-demo-window.mjs"));
   copyFileSync(
     path.join(ROOT, "web", "portal-spatial-preview.mjs"),
     tempPreviewPath,

@@ -24,7 +24,7 @@ const profilePath = process.env.feature_PROFILE_PATH || "/tmp/homepage-scroll-pr
 const chromePath = process.env.feature_BROWSER_EXECUTABLE
   ? path.resolve(process.env.feature_BROWSER_EXECUTABLE)
   : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const homepagePhase = process.env.feature_HOMEPAGE_PHASE || "step3";
+const homepagePhase = process.env.feature_HOMEPAGE_PHASE || "current";
 const ports = Object.freeze({ frontend: 19824, a: 19825, b: 19826, lobby: 19827, reserved: 19828, cdp: 20824 });
 const profiles = Object.freeze([
   { name: "desktop-1440x1000", width: 1440, height: 1000, mobile: false, capture: true },
@@ -38,6 +38,8 @@ const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 export const feature_HOMEPAGE_PHASE_ORDERS = Object.freeze({
   step2: Object.freeze(["canvas", "decorative-orbit", "header", "missions", "technologies", "live-region"]),
   step3: Object.freeze(["terrain", "decorative-orbit", "header", "missions", "technologies", "live-region"]),
+  // The launcher as it is now: the terrain canvas is gone.
+  current: Object.freeze(["decorative-orbit", "header", "missions", "technologies", "live-region"]),
 });
 
 export function assertHomepagePhaseOrder(actualOrder, phase) {
@@ -296,7 +298,9 @@ async function launcherOrderProof(page, surface) {
       missionCatalog.filter((mission) => mission.launcherGroup === group)
     ))
     : missionCatalog;
-  const expectedMissions = orderedMissionCatalog.map((mission) => ({
+  // The launcher draws its missions group by group.
+  const groupOrder = ["player","destinations","servers"];
+  const expectedMissions = [...orderedMissionCatalog].sort((x, y) => groupOrder.indexOf(x.launcherGroup) - groupOrder.indexOf(y.launcherGroup)).map((mission) => ({
     id: mission.id,
     group: mission.launcherGroup,
     label: mission.label,
@@ -328,7 +332,7 @@ async function launcherOrderProof(page, surface) {
   assert.deepEqual(dom.missions, expectedMissions);
   assert.deepEqual(dom.technologies, expectedTechnologies);
   assert.deepEqual(dom.footerLinks, [
-    { text: "labs.peers.social/open-spatial-lab", href: "https://labs.peers.social/open-spatial-lab/" },
+    { text: "lab.openspatials.com", href: "https://lab.openspatials.com/" },
   ]);
   assert.deepEqual(dom.headerSourceLinks, [
     {
@@ -718,6 +722,8 @@ async function main() {
       "--password-store=basic",
       "--use-mock-keychain",
       "--window-size=1440,1000",
+      // Headless unless a person asks for a window, as the lab's other browser scripts.
+      ...(process.env.OSL_E2E_HEADED === "1" ? [] : ["--headless=new"]),
       "about:blank",
     ], { stdio: ["ignore", "pipe", "pipe"] });
     chromeOutput.pid = chrome.pid;
@@ -767,7 +773,7 @@ async function main() {
       if (chrome.exitCode === null) chrome.kill("SIGKILL");
     }
     if (frontend) {
-      try { await frontend.closeAll(); diagnostics.cleanup.frontend = true; }
+      try { frontend.closeAllConnections(); await new Promise((done) => frontend.close(done)); diagnostics.cleanup.frontend = true; }
       catch (error) { cleanupErrors.push(`frontend: ${error.message}`); }
     } else diagnostics.cleanup.frontend = true;
     if (backends) {

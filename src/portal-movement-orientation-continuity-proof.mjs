@@ -167,6 +167,7 @@ function adoptedTargetFrame(entry, regionPortal) {
       triggerPosition: trigger,
       triggerRadius: Number(regionPortal.trigger_radius_m) || 1.25,
       targetLocationId: entry.source_location_id,
+      forward: regionPortal.forward,
     }),
     pose_source: "destination_region_portal_pose",
   };

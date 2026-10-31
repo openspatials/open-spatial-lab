@@ -7,13 +7,10 @@
  *        user count; each value shows its source world, its revision and its age, computed from the
  *        change's `time`, and follows B's changes
  *
- * It runs in Chrome (found by tools/find-browser.mjs), behind the lab's machine-load gate: with the 1-minute
- * load at or above OSL_WOW_LOAD_GATE (14 by default) it is DEFERRED, never passed. Set
- * OSL_ARCH_I3_FORCE_BROWSER=1 to run it anyway; the run is then recorded as forced.
+ * It runs in Chrome (found by tools/find-browser.mjs). It always runs; machine load never defers it.
  */
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const http = require('http');
 const { pathToFileURL } = require('url');
@@ -38,13 +35,9 @@ async function pageHost(port) {
 
 async function browserChecks(ports) {
   const noCors = { serverEdits: { server: [["const CORS_POLICY = cfg.cors_allowed_origins === undefined ? '*' : cfg.cors_allowed_origins;", 'const CORS_POLICY = [];']] } };
-  const gate = Number(process.env.OSL_WOW_LOAD_GATE || 14);
-  const load1 = os.loadavg()[0];
-  const forced = process.env.OSL_ARCH_I3_FORCE_BROWSER === '1';
   let browser = null;
   try {
     await run('O8', 'a static page from a third origin shows B\'s temperature and A\'s user count, each with its source world, revision and age (from `time`), and follows B\'s changes', async (impl) => {
-      if (load1 >= gate && !forced) return { ok: true, deferred: true, detail: `DEFERRED by the machine-load gate: 1-minute load ${load1.toFixed(2)} >= ${gate}` };
       if (!browser) {
         const { findBrowser } = await import(pathToFileURL(path.join(ROOT, 'tools', 'find-browser.mjs')).href);
         const chrome = findBrowser();
@@ -84,7 +77,7 @@ async function browserChecks(ports) {
           if (users.revision === '' || Number(users.revision) !== aRevision) failures.push(`A's revision on the page is "${users.revision}", A's World reports ${aRevision}`);
           if (!/ s$/.test(users.age)) failures.push('no age shown for A\'s value: ' + users.age);
         }
-        return { ok: failures.length === 0, detail: (forced && load1 >= gate ? `FORCED past the load gate (load ${load1.toFixed(2)}): ` : '') + (failures.length ? failures.join('; ') : `from ${pages.base}: ${temp.world.split(' · ')[0]} ${JSON.parse(temp.value)} at revision ${temp.revision}, age ${temp.age}; ${users.world.split(' · ')[0]} users ${users.value} at revision ${users.revision}, age ${users.age}`) };
+        return { ok: failures.length === 0, detail: (failures.length ? failures.join('; ') : `from ${pages.base}: ${temp.world.split(' · ')[0]} ${JSON.parse(temp.value)} at revision ${temp.revision}, age ${temp.age}; ${users.world.split(' · ')[0]} users ${users.value} at revision ${users.revision}, age ${users.age}`) };
       } finally {
         await page.close();
         await pages.close();

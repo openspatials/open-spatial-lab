@@ -61,7 +61,7 @@ async function treeChecks(ports) {
   ]);
 
   // ---- N2. Children are derived -------------------------------------------------------------------
-  const appliesChildren = { store: [['            if (!echo)\n            {\n                if (c.embedded.length)', '            if (false)\n            {\n                if (c.embedded.length)']] };
+  const appliesChildren = { store: [['                if (!echo)\n                {\n                    if (c.embedded.length)', '                if (false)\n                {\n                    if (c.embedded.length)']] };
   await run('N2', 'a PUT without children leaves them unchanged, a PUT that repeats them is accepted, and a PUT whose children differ is 422', async (impl) => {
     const s = await server(impl);
     try {
@@ -91,9 +91,10 @@ async function treeChecks(ports) {
   }, { edits: null }, [{ name: 'a store that lets a PUT through with different children', impl: { edits: appliesChildren } }]);
 
   // ---- N3. Ids are never reused -------------------------------------------------------------------
+  // Ids come from the world's id space (iteration 2): a counter that starts over issues from the store's own count.
   const resetsCounter = { store: [
-    ['const id = Math.max(nextId, highWater + 1);', 'const id = nextId;'],
-    ['        nextId = highWater + 1;\n    }', '        nextId = seedId + 1;\n    }'],
+    ['            const id = Math.max(highWater + 1, Number.isInteger(floor) ? floor : 0);', '            const id = Number.isInteger(floor) ? floor : highWater + 1;'],
+    ['        nextId = ids.highWater() + 1;\n    }', '        nextId = seedId + 1;\n    }'],
   ] };
   await run('N3', 'a deleted id answers 404 and is never issued again: not after other creates, not after POST /reset, not after a restart', async (impl) => {
     const first = await server(impl);
@@ -149,7 +150,10 @@ async function treeChecks(ports) {
       const failures = problems.slice();
       if (new Set(ids).size !== ids.length) failures.push('duplicate ids');
       const world = await require('./lib').httpReq('GET', s.port, '/wow/world');
-      const expected = (await require('./lib').httpReq('GET', s.port, '/demo/scene-objects')).json.objects.length + world.json.portals.portal_count + 1 + 4;
+      // primitives, portals, the root, the 4 made here, and (iteration 4) the nodes that place the hosted user and each
+      // view, and the node each portal's visitors arrive at
+      const placements = 1 + world.json.views.view_count + world.json.portals.portal_count;
+      const expected = (await require('./lib').httpReq('GET', s.port, '/demo/scene-objects')).json.objects.length + world.json.portals.portal_count + 1 + 4 + placements;
       if (nodes.size !== expected) failures.push('the walk found ' + nodes.size + ' nodes; the graph holds ' + expected);
       return { ok: failures.length === 0, detail: failures.length ? failures.slice(0, 4).join('; ') : `${nodes.size} nodes, each reached once through its own URL` };
     } finally { await s.close(); }

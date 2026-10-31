@@ -27,7 +27,8 @@
 // backing GET/POST/PUT/DELETE /wow/spatial/... (canonical WoW `Node`s). Vanilla
 // Node, additive; see spatial-graph.js for the store + env-gated persistence.
 const fs = require('fs');
-const { createSpatialGraphStore, translationMatrix } = require('./spatial-graph');
+const { createSpatialGraphStore, translationMatrix, multiplyMatrices, rotationYMatrix, rotationXMatrix } = require('./spatial-graph');
+const { ARRIVAL_ROLE, composedTransform, createPlacedPortals, createWorldPreview, portalArrivalSeeds, roomSeedNodes, startDistanceClearOfPortals } = require('./portal-standard');
 const { loadAnchors } = require('./spatial-anchor');
 const wowGeo = require('../../../web/wow-geopose.js');
 
@@ -469,6 +470,7 @@ function createRuntime(opts)
     const WORLD_ID = String(cfg.world_id);
     const SESSION_ID = String(cfg.session_id);
     const HTTP_PORT = Number(cfg.http_port);
+    const PUBLIC_BASE_URL = cfg.public_base_url || ('http://127.0.0.1:' + HTTP_PORT);
     const NODE_ROLE = String(cfg.node_role || 'node');
     const TITLE = String(cfg.title || LOCATION_ID);
     const AUTHORED_WOW_GRAPH = cfg.authored_wow_graph
@@ -841,12 +843,161 @@ function createRuntime(opts)
     {
         const p = Array.isArray(position) ? position : [ 0, 0, 0 ];
         const local = [ Number(p[0]) || 0, Number(p[1]) || 0, Number(p[2]) || 0 ];
-        const pose = wowGeo.localPoseToGeoPose(WORLD_ANCHOR, local, Number(yawRad) || 0, Number(pitchRad) || 0);
+        return roundedGeoPose(wowGeo.localPoseToGeoPose(WORLD_ANCHOR, local, Number(yawRad) || 0, Number(pitchRad) || 0));
+    }
+
+    function roundedGeoPose(pose)
+    {
         const round = (v, places) => Number(v.toFixed(places));
         return {
             position : { lat : round(pose.position.lat, 11), lon : round(pose.position.lon, 11), h : round(pose.position.h, 4) },
             angles : { yaw : round(pose.angles.yaw, 3), pitch : round(pose.angles.pitch, 3), roll : round(pose.angles.roll, 3) },
         };
+    }
+
+    // ---- Iteration 4: portals, users and views are placed by a node -----------------------------
+    //
+    // A Portal, a User and a View each name the node that places it (`node`, relative to the
+    // world's base URL), and its GeoPose is derived from that node: the node's position in its
+    // graph, turned into a GeoPose through the graph's anchor. A graph with no anchor is not on
+    // Earth, so a placement there has no GeoPose. The heading is the node's +Z axis, and the angles
+    // go through the same localPoseToGeoPose as every GeoPose here, so the rotation convention stays
+    // in one place.
+    const placementIds = { user : null, view : null }; // the hosted user's and the player view's nodes
+    const presencePlacements = new Map(); // a presence user's wow_user_id -> the node that places it
+    let portalJoinResolver = null; // portal -> the arrival node in its destination (linkPortalArrivals)
+
+    function storeOfNode(nodeId)
+    {
+        return graphStores.find(store => store.getNode(nodeId, { form : 'flat' })) || null;
+    }
+
+    function nodeRef(store, nodeId)
+    {
+        return 'wow/spatial/' + store.graphId + '/node/' + nodeId;
+    }
+
+    // Portals placed by a node, and what this world shows as a preview: portal-standard.js.
+    const placedPortals = createPlacedPortals({
+        configuredCount : () => state.portals.length,
+        resolvePortal : idOrAlias => resolveWowPortal(idOrAlias),
+        storeOfNode, nodeRef, geoPoseOfNode,
+        proofBoundary : () => getWowProofBoundary(),
+    });
+    const worldPreview = createWorldPreview({ storeOfNode, nodeRef, listNodes : () => spatialStore.listNodes() });
+
+    /** Where a node places what it carries: its graph, its composed transform, position, heading and pitch. */
+    function placementOf(nodeId)
+    {
+        const store = storeOfNode(nodeId);
+        if (!store) return null;
+        const m = composedTransform(store, nodeId);
+        const length = Math.hypot(m[8], m[9], m[10]);
+        const yaw = Math.hypot(m[8], m[10]) > 1e-12 ? Math.atan2(m[8], m[10]) : 0;
+        const pitch = length > 1e-12 ? Math.asin(Math.max(-1, Math.min(1, m[9] / length))) : 0;
+        return { store, graphId : store.graphId, matrix : m, position : [ m[12], m[13], m[14] ], yaw, pitch };
+    }
+
+    /** The GeoPose a node gives what it places, or undefined when the node or its graph's anchor is missing. */
+    function geoPoseOfNode(nodeId)
+    {
+        const at = nodeId == null ? null : placementOf(nodeId);
+        const anchor = at && SPATIAL_ANCHORS.get(at.graphId);
+        return anchor ? roundedGeoPose(wowGeo.localPoseToGeoPose(anchor, at.position, at.yaw, at.pitch)) : undefined;
+    }
+
+    /** A pose (position, heading, pitch) as the localTransform of the node that places it. */
+    function placementMatrix(position, yawRad, pitchRad)
+    {
+        return multiplyMatrices(translationMatrix(position),
+            multiplyMatrices(rotationYMatrix(Number(yawRad) || 0), rotationXMatrix(-(Number(pitchRad) || 0))));
+    }
+
+    /** The seeded node of graph 1 named `name`, if it is still there. */
+    function seededNodeId(name)
+    {
+        const hit = spatialStore.listNodes().find(node => Array.isArray(node.names) && node.names.indexOf(name) !== -1);
+        return hit ? hit.id : null;
+    }
+
+    function hostedUserPose()
+    {
+        const t = state.avatar.transform;
+        return { position : t.position.slice(), yaw : readNumber(t.rotation_y, 0), pitch : 0 };
+    }
+
+    /** The player view's camera, from the PlayerView rig: behind the avatar, looking at it. */
+    function playerViewPose()
+    {
+        const t = state.avatar.transform;
+        const yaw = readNumber(t.rotation_y, 0);
+        const p = t.position;
+        const rig = WOW_VIEW_CAMERA_RIG;
+        const forward = [ Math.sin(yaw), 0, Math.cos(yaw) ];
+        return {
+            position : [
+                (Number(p[0]) || 0) - forward[0] * rig.follow_distance_m,
+                (Number(p[1]) || 0) + rig.follow_height_m,
+                (Number(p[2]) || 0) - forward[2] * rig.follow_distance_m,
+            ],
+            yaw,
+            pitch : Math.atan2(rig.look_target_height_m - rig.follow_height_m, rig.follow_distance_m),
+        };
+    }
+
+    function placementSeed(kind, id, label, pose)
+    {
+        return {
+            label : label,
+            names : [ 'wow-' + kind + '-' + id, kind ],
+            localTransform : placementMatrix(pose.position, pose.yaw, pose.pitch),
+            webofworlds_extension : { role : kind + '-placement', resource : '/wow/' + kind + '/' + id },
+        };
+    }
+
+    /** Move a placement node to a pose; a pose it already has makes no change and no event. */
+    function movePlacement(nodeId, pose)
+    {
+        if (nodeId == null || !storeOfNode(nodeId)) return;
+        updateSpatialNode(String(SPATIAL_GRAPH_ID), nodeId, { localTransform : placementMatrix(pose.position, pose.yaw, pose.pitch) }, { form : 'flat' });
+    }
+
+    /** The hosted user's and the player view's nodes follow the hosted avatar (arrival, reset). */
+    function syncHostedPlacements()
+    {
+        movePlacement(placementIds.user, hostedUserPose());
+        movePlacement(placementIds.view, playerViewPose());
+    }
+
+    function presencePose(entry)
+    {
+        return {
+            position : Array.isArray(entry.position) ? entry.position.slice() : [ 0, 0, 0 ],
+            yaw : Number.isFinite(entry.rotation_y) ? entry.rotation_y : 0,
+            pitch : 0,
+        };
+    }
+
+    /** A presence user joins: a node of graph 1 places it, until it leaves. */
+    function placePresenceUser(entry)
+    {
+        if (presencePlacements.has(entry.wow_user_id)) return;
+        const r = createSpatialNodes(String(SPATIAL_GRAPH_ID), spatialStore.rootId,
+            [ placementSeed('user', entry.wow_user_id, 'User ' + entry.wow_user_id + ' (' + entry.display_name + ')', presencePose(entry)) ],
+            { form : 'flat' });
+        if (r.ok && r.value && r.value[0]) presencePlacements.set(entry.wow_user_id, r.value[0].id);
+    }
+
+    function movePresenceUser(entry)
+    {
+        movePlacement(presencePlacements.get(entry.wow_user_id), presencePose(entry));
+    }
+
+    function unplacePresenceUser(entry)
+    {
+        const nodeId = presencePlacements.get(entry.wow_user_id);
+        presencePlacements.delete(entry.wow_user_id);
+        if (nodeId != null && storeOfNode(nodeId)) deleteSpatialNode(String(SPATIAL_GRAPH_ID), nodeId);
     }
 
     /**
@@ -905,8 +1056,10 @@ function createRuntime(opts)
                 view_count : 1, // the PlayerView camera seat, GET /wow/view/1
             },
             portals : {
-                portal_count : state.portals.length,
+                portal_count : placedPortals.count(),
             },
+            // what this world shows as a preview (iteration 4), when it declares one
+            ...(worldPreview.ofWorld() ? { preview : worldPreview.ofWorld() } : {}),
             // ---- demo additional properties (legacy readers in 057 web client) ----
             id : state.world.world_id,
             location : {
@@ -914,6 +1067,8 @@ function createRuntime(opts)
                 title : state.location.title,
                 port : state.location.http_port,
                 node_role : state.location.node_role,
+                // the room a client draws around this world, when it has one
+                ...(cfg.room && cfg.room.color ? { room : { color : cfg.room.color } } : {}),
             },
             session : {
                 id : state.session.session_id,
@@ -978,7 +1133,7 @@ function createRuntime(opts)
             node_role : NODE_ROLE,
             world_id : WORLD_ID,
             session_id : SESSION_ID,
-            base_url : 'http://127.0.0.1:' + HTTP_PORT,
+            base_url : PUBLIC_BASE_URL,
             coordinate_frame : AUTHORED_WOW_GRAPH && AUTHORED_WOW_GRAPH.units
                 ? AUTHORED_WOW_GRAPH.units
                 : WOW_GEOPOSE_MAPPING.frame,
@@ -1011,7 +1166,7 @@ function createRuntime(opts)
         if (!AUTHORED_WOW_GRAPH) return null;
         const graph = clone(AUTHORED_WOW_GRAPH);
         graph.spatialID = WORLD_ID;
-        graph.base_url = 'http://127.0.0.1:' + HTTP_PORT;
+        graph.base_url = PUBLIC_BASE_URL;
         graph.spatial_composition_graph_endpoint = '/wow/graph';
         graph.world = Object.assign({}, graph.world || {}, {
             id : WORLD_ID,
@@ -1045,7 +1200,9 @@ function createRuntime(opts)
         {
             const index = Number(raw) - 1;
             const portal = state.portals[index];
-            return portal ? { portal, wowId : index + 1 } : null;
+            if (portal) return { portal, wowId : index + 1 };
+            const added = placedPortals.at(index - state.portals.length);
+            return added ? { added, wowId : index + 1 } : null;
         }
         const index = state.portals.findIndex(entry => entry.portal_id === raw);
         if (index === -1)
@@ -1065,6 +1222,37 @@ function createRuntime(opts)
      * (§2.B upstream note); until accepted it is an `x-osl-extension`, surfaced by
      * the conformance runner, and `standards_conformance` stays false.
      */
+    /**
+     * The canonical Portal.destination of a demo portal: the target world's URL (its base URL), with the arrival
+     * node of the portal's counterpart there when the worlds are linked (portal-standard.js, linkPortalArrivals).
+     */
+    function portalEntryUrl(portal)
+    {
+        if (!portal.target_base_url) return undefined;
+        const base = String(portal.target_base_url).replace(/\/*$/, '/');
+        const join = portalJoinResolver ? portalJoinResolver(portal) : null;
+        return Number.isInteger(join) ? base + '#join=node.' + join : base;
+    }
+
+    /** The node a visitor arrives at through this world's portal `portalId`, or null. */
+    function portalArrivalNodeId(portalId)
+    {
+        const hit = spatialStore.listNodes().find(node => node.webofworlds_extension
+            && node.webofworlds_extension.role === ARRIVAL_ROLE && node.webofworlds_extension.portal_id === portalId);
+        return hit ? hit.id : null;
+    }
+
+    function setPortalJoinResolver(resolver)
+    {
+        portalJoinResolver = typeof resolver === 'function' ? resolver : null;
+    }
+
+    /** A demo portal's node, if it is still in the graph. */
+    function demoPortalNodeId(wowId)
+    {
+        return seededNodeId('wow-portal-' + wowId);
+    }
+
     function portalDestination(portal)
     {
         const address = spatialFabricAddressForPortal(portal);
@@ -1519,6 +1707,7 @@ function createRuntime(opts)
             // TTL expiry is the ghost-free leave path ->
             // user_left per expired player on /events (the honesty-critical bit:
             // presence reflects REAL occupancy, no ghosts survive their TTL).
+            for (const entry of expiredEntries) unplacePresenceUser(entry);
             for (const entry of expiredEntries) emitWowEvent(wowUserEvent('user_left', entry));
             console.log('[Presence][' + LOCATION_ID + '] EXPIRED ' + JSON.stringify({
                 players : expired, reason : reason || 'ttl_sweep',
@@ -1604,6 +1793,7 @@ function createRuntime(opts)
         // A re-register of an already-present player (or a heartbeat-upsert of a
         // still-live player) emits no duplicate join (ghost-free, no self-dup).
         if (!previous) emitWowEvent(wowUserEvent('user_joined', entry));
+        if (!previous) placePresenceUser(entry); else movePresenceUser(entry);
         console.log('[Presence][' + LOCATION_ID + '] REGISTER ' + JSON.stringify({
             player_id : playerId, display_name : entry.display_name,
             via : entry.registered_via, ttl_ms : ttl, registry_size : presenceRegistry.size,
@@ -1673,6 +1863,7 @@ function createRuntime(opts)
         const position = presencePosition(input.position);
         if (position) entry.position = position;
         if (Number.isFinite(Number(input.rotation_y))) entry.rotation_y = Number(input.rotation_y);
+        movePresenceUser(entry);
         syncConnectedClients(now);
         return clone({
             ok : true,
@@ -1713,6 +1904,7 @@ function createRuntime(opts)
             state.debug.last_input_source = 'presence-depart:' + playerId.slice(0, 60);
             bumpRevision();
             notifySubscribers();
+            if (departingEntry) unplacePresenceUser(departingEntry);
             if (departingEntry) emitWowEvent(wowUserEvent('user_left', departingEntry));
             console.log('[Presence][' + LOCATION_ID + '] DEPART ' + JSON.stringify({
                 player_id : playerId,
@@ -2314,13 +2506,19 @@ function createRuntime(opts)
         const hit = resolveWowPortal(idOrAlias);
         if (!hit)
             return null;
+        if (hit.added) return placedPortals.resource(hit.added, hit.wowId);
         const { portal, wowId } = hit;
+        const nodeId = demoPortalNodeId(wowId);
+        const entry = portalEntryUrl(portal);
         return {
             id : wowId, // number, per WoW Portal schema
-            geoPose : wowGeoPoseFromLocal(portal.trigger.position, portalFrameYawRad(), 0),
+            // where it leads (the target world's URL), and the node that places it (iteration 4)
+            ...(entry ? { destination : entry } : {}),
+            ...(nodeId != null ? { node : nodeRef(spatialStore, nodeId) } : {}),
+            geoPose : geoPoseOfNode(nodeId) || wowGeoPoseFromLocal(portal.trigger.position, portalFrameYawRad(), 0),
             label : portal.label || ('Portal ' + portal.portal_id),
-            // LABELED, NON-CANONICAL Portal.destination.
-            destination : portalDestination(portal),
+            // LABELED, NON-CANONICAL: the demo's own target description.
+            osl_destination : portalDestination(portal),
             webofworlds_extension : wowPortalExtension(portal, wowId),
             proof_boundary : getWowProofBoundary(),
         };
@@ -2339,11 +2537,15 @@ function createRuntime(opts)
         if (/^\d+$/.test(String(portalId == null ? '' : portalId)))
             return getWowPortalResource(portalId); // spec domain -> strict shape
         const hit = resolveWowPortal(portalId);
-        if (!hit)
+        if (!hit || hit.added)
             return null;
         const { portal, wowId } = hit;
+        const nodeId = demoPortalNodeId(wowId);
+        const entry = portalEntryUrl(portal);
         return {
             id : portal.portal_id,
+            ...(entry ? { destination : entry } : {}),
+            ...(nodeId != null ? { node : nodeRef(spatialStore, nodeId) } : {}),
             label : portal.label || ('Portal ' + portal.portal_id),
             geoPose : {
                 position : {
@@ -2355,9 +2557,9 @@ function createRuntime(opts)
                 orientation : { x : 0, y : 0, z : 0, w : 1 },
                 radius_m : readNumber(portal.trigger.radius_m, 0),
             },
-            // LABELED, NON-CANONICAL Portal.destination
-            // (same labeled destination on the legacy string-alias projection).
-            destination : portalDestination(portal),
+            // LABELED, NON-CANONICAL: the demo's own target description
+            // (the same on the legacy string-alias projection).
+            osl_destination : portalDestination(portal),
             webofworlds_extension : wowPortalExtension(portal, wowId),
             proof_boundary : getWowProofBoundary(),
         };
@@ -2380,11 +2582,14 @@ function createRuntime(opts)
         if (!userId || accepted.indexOf(String(userId)) !== -1)
         {
             const t = a.transform;
+            const placed = placementIds.user != null && storeOfNode(placementIds.user) ? placementIds.user : null;
             return {
                 id : WOW_LOCAL_USER_ID, // number, per WoW User schema
                 name : a.display_name,
                 AvatarURI : '', // avatar is a client-side VRM/GLB; this node hosts no avatar asset
-                geoPose : wowGeoPoseFromLocal(t.position, t.rotation_y, 0),
+                // the node that places the user, and the GeoPose derived from it (iteration 4)
+                ...(placed != null ? { node : nodeRef(spatialStore, placed) } : {}),
+                geoPose : geoPoseOfNode(placed) || wowGeoPoseFromLocal(t.position, t.rotation_y, 0),
                 webofworlds_extension : {
                     avatar_id : a.avatar_id,
                     continuity_id : a.continuity_id,
@@ -2428,11 +2633,14 @@ function createRuntime(opts)
         if (!entry) return null;
         const pos = Array.isArray(entry.position) ? entry.position : [ 0, 0, 0 ];
         const yaw = Number.isFinite(entry.rotation_y) ? entry.rotation_y : 0;
+        const placed = presencePlacements.get(entry.wow_user_id);
+        const placedNode = placed != null && storeOfNode(placed) ? placed : null;
         return {
             id : entry.wow_user_id, // number, per WoW User schema
             name : entry.display_name,
             AvatarURI : '', // client-side VRM/GLB avatar; no hosted asset
-            geoPose : wowGeoPoseFromLocal(pos, yaw, 0),
+            ...(placedNode != null ? { node : nodeRef(spatialStore, placedNode) } : {}),
+            geoPose : geoPoseOfNode(placedNode) || wowGeoPoseFromLocal(pos, yaw, 0),
             webofworlds_extension : {
                 source : 'presence-registry',
                 player_id : entry.player_id,
@@ -2564,9 +2772,11 @@ function createRuntime(opts)
         // pitch from the actual rig geometry (slightly below horizontal).
         const pitchRad = Math.atan2(
             rig.look_target_height_m - rig.follow_height_m, rig.follow_distance_m);
+        const placed = placementIds.view != null && storeOfNode(placementIds.view) ? placementIds.view : null;
         return {
             id : WOW_PLAYER_VIEW_ID, // number, per WoW View schema
-            geoPose : wowGeoPoseFromLocal(cameraPosition, yaw, pitchRad),
+            ...(placed != null ? { node : nodeRef(spatialStore, placed) } : {}),
+            geoPose : geoPoseOfNode(placed) || wowGeoPoseFromLocal(cameraPosition, yaw, pitchRad),
             webofworlds_extension : {
                 view_kind : 'player-view-camera',
                 mode : rig.mode,
@@ -2645,7 +2855,8 @@ function createRuntime(opts)
             children.push({
                 label : portal.label || ('Portal ' + portal.portal_id),
                 names : [ portal.portal_id, 'portal', 'wow-portal-' + wowId ],
-                localTransform : translationMatrix(trigger.position),
+                // the portal's place and heading: GET /wow/portal/{id} derives its GeoPose from this node
+                localTransform : multiplyMatrices(translationMatrix(trigger.position), rotationYMatrix(portalFrameYawRad())),
                 spatialAssetURI : 'osl-portal:?' + [
                     'target_world_id=' + encodeURIComponent(portal.target_world_id || ''),
                     'target_location_id=' + encodeURIComponent(portal.target_location_id || ''),
@@ -2673,6 +2884,14 @@ function createRuntime(opts)
                 },
             });
         });
+        // (c) the hosted user and the player view, each placed by its own node (iteration 4).
+        children.push(placementSeed('user', WOW_LOCAL_USER_ID, 'User ' + WOW_LOCAL_USER_ID + ' (' + state.avatar.display_name + ')', hostedUserPose()));
+        children.push(placementSeed('view', WOW_PLAYER_VIEW_ID, 'View ' + WOW_PLAYER_VIEW_ID + ' (player camera)', playerViewPose()));
+        // (d) the room the demo page draws around this world (its floor, two walls, grid and light), when the world
+        // is configured with one, so a Web of Worlds client shows the same world as the demo page.
+        if (cfg.room && typeof cfg.room === 'object') for (const node of roomSeedNodes(cfg.room)) children.push(node);
+        // (e) where a visitor arrives through each of this world's portals (iteration 4).
+        for (const node of portalArrivalSeeds(state.portals, portalFrameYawRad(), AUTHORED_WOW_GRAPH)) children.push(node);
         return {
             root : {
                 label : TITLE + ' - spatial composition graph',
@@ -2708,6 +2927,8 @@ function createRuntime(opts)
             }),
         }));
     const graphStores = [ spatialStore ].concat(extraStores);
+    placementIds.user = seededNodeId('wow-user-' + WOW_LOCAL_USER_ID);
+    placementIds.view = seededNodeId('wow-view-' + WOW_PLAYER_VIEW_ID);
     loadRevision(spatialStore.ids.file.replace(/\.ids\.json$/, '.revision.json'));
 
     /** Every node of every graph, as { graphId, node } with the node in the flat form. */
@@ -2990,8 +3211,10 @@ function createRuntime(opts)
         const groundCenter = fabricRoundVec3([ trigger[0], 0, trigger[2] ], 4);
         // mirror: sourceSpawn = addScaled3(ground_center, forward,
         //                                  max(2.4, trigger_depth + 2.4)); y = 0
-        const spawnDistance = Math.max(
-            FABRIC_SPAWN_CLEARANCE_M, FABRIC_PORTAL_TRIGGER_DEPTH_M + FABRIC_SPAWN_CLEARANCE_M);
+        const spawnDistance = startDistanceClearOfPortals(
+            state.portals, groundCenter, forward,
+            Math.max(FABRIC_SPAWN_CLEARANCE_M, FABRIC_PORTAL_TRIGGER_DEPTH_M + FABRIC_SPAWN_CLEARANCE_M),
+            (entry) => readNumber(entry.spatial_fabric && entry.spatial_fabric.prefetch_radius_m, 2.5));
         const position = [
             groundCenter[0] + forward[0] * spawnDistance,
             groundCenter[1] + forward[1] * spawnDistance,
@@ -3132,14 +3355,35 @@ function createRuntime(opts)
         state.debug.last_input_source = String(input.source || 'movement_input').slice(0, 80);
         bumpRevision();
         notifySubscribers();
+        syncHostedPlacements();
         return getState();
     }
 
     // ---- Portal exit intent (SOURCE side) ------------------------------------
 
+    /** A portal placed by a node, in the shape the exit packet reads. It names only where it leads: the client that
+     *  crosses it knows that world and where it arrives. */
+    function placedPortalExitShape(added, wowId)
+    {
+        const at = placementOf(added.node_id);
+        const position = at ? at.position.slice() : [ 0, 0, 0 ];
+        return {
+            portal_id : String(wowId),
+            source_location_id : LOCATION_ID,
+            source_world_id : WORLD_ID,
+            target_location_id : null,
+            target_world_id : null,
+            target_base_url : added.destination || null,
+            trigger : { position : position, radius_m : 1.25 },
+            arrival : { position : position, rotation_y : at ? at.yaw : 0 },
+        };
+    }
+
     function recordPortalExitIntent(portalId, playerId)
     {
-        const portal = state.portals.find(entry => entry.portal_id === portalId) || state.portals[0];
+        const placed = resolveWowPortal(portalId);
+        const portal = placed && placed.added ? placedPortalExitShape(placed.added, placed.wowId)
+            : state.portals.find(entry => entry.portal_id === portalId) || state.portals[0];
         if (!portal)
             throw new Error('no portal configured on ' + LOCATION_ID);
         // THE EXIT-INTENT IS THE DEPART.
@@ -3176,7 +3420,7 @@ function createRuntime(opts)
                 location_id : LOCATION_ID,
                 world_id : WORLD_ID,
                 session_id : SESSION_ID,
-                base_url : 'http://127.0.0.1:' + HTTP_PORT,
+                base_url : PUBLIC_BASE_URL,
             },
             target : {
                 location_id : portal.target_location_id,
@@ -3270,6 +3514,7 @@ function createRuntime(opts)
         state.avatar.transform.position = arrivalPosition;
         state.avatar.transform.rotation_y = readNumber(target.arrival_rotation_y, Math.PI);
         state.avatar.transform.orientation = [ 0, 0, 0, 1 ];
+        syncHostedPlacements();
         state.avatar.handoff_context = {
             handoff_id : String(handoff.handoff_id || 'unknown').slice(0, 120),
             source_location_id : String((handoff.source && handoff.source.location_id) || '').slice(0, 80),
@@ -3504,6 +3749,11 @@ function createRuntime(opts)
                 demoClampMeters(p[2], DEMO_PORTAL_LIMIT_M, prev[2]),
             ],
         });
+        // The portal's node is where a Web of Worlds client finds it, so the drag moves the node as well.
+        const nodeId = demoPortalNodeId(1);
+        if (nodeId != null) updateSpatialNode(String(SPATIAL_GRAPH_ID), nodeId, {
+            localTransform : multiplyMatrices(translationMatrix(portal.trigger.position), rotationYMatrix(portalFrameYawRad())),
+        }, { form : 'flat' });
         state.debug.last_input_source = 'demo-portal-move';
         demoBumpAttachPoint('portal_moved:' + portal.portal_id);
         bumpRevision();
@@ -3688,6 +3938,9 @@ function createRuntime(opts)
         bumpRevision();
         notifySubscribers();
         for (const entry of resetPresenceEntries)
+            unplacePresenceUser(entry);
+        syncHostedPlacements();
+        for (const entry of resetPresenceEntries)
             emitWowEvent(wowUserEvent('user_left', entry));
         return getDebugState();
     }
@@ -3823,6 +4076,12 @@ function createRuntime(opts)
         }, demoExtensionBoundary()));
     }
 
+    // A presence user's node lasts only as long as its presence. A persisted graph brings such nodes back
+    // after a restart, with nobody present; remove them, so no placement outlives its user.
+    for (const node of spatialStore.listNodes())
+        if (node.id !== placementIds.user && node.webofworlds_extension && node.webofworlds_extension.role === 'user-placement')
+            deleteSpatialNode(String(SPATIAL_GRAPH_ID), node.id);
+    if (cfg.preview && typeof cfg.preview === 'object') worldPreview.set(cfg.preview);
     if (cfg.simulator && typeof cfg.simulator === 'object') startSimulator(cfg.simulator);
     startRepublishTimer();
 
@@ -3835,6 +4094,8 @@ function createRuntime(opts)
         // iteration 3: revisions, replay and change times; the server-side simulator.
         eventsSince, currentRevision, lastChangeOf,
         startSimulator, stopSimulator, getSimulatorLog, listSpatialNodes,
+        addPortal : placedPortals.add, updatePortal : placedPortals.update, setPreview : worldPreview.set, getPreview : worldPreview.get, placementOf,
+        portalArrivalNodeId, setPortalJoinResolver,
         getWowWorld, getWowLocation, getWowGraph,
         getWowPortal, getWowPortalResource, getWowUser, getWowView,
         // the signed OpenUserManifest identity (async).

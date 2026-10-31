@@ -19,6 +19,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// This smoke test creates and changes nodes. Those writes are opt-in on a running lab
+// (runtime/world-server/src/local-only.js), so it turns them on for the lab it starts itself.
+process.env.OSL_PLACEMENT_WRITES = "1";
 const BACKEND_PORTS = {
     a: Number(process.env.OSL_BACKEND_A_PORT) || 18151,
     b: Number(process.env.OSL_BACKEND_B_PORT) || 18152,
@@ -264,13 +267,13 @@ async function checkCrossServiceIntegration(world, openAssetId) {
         record("cross-service:world-to-asset", asset.status === 200 && !!asset.body?.asset, { status: asset.status });
     }
     const portal = await probe(`${BASE_A}/wow/portal/1`);
-    const destBase = portal.body?.destination?.target_base_url;
+    const destBase = portal.body?.osl_destination?.target_base_url;
     if (destBase) {
         const destHealth = await probe(`${destBase}/healthz`);
         record("cross-service:portal-to-destination-world-healthy", destHealth.status === 200 && destHealth.body?.ok === true, destHealth.body);
     }
     else {
-        record("cross-service:portal-to-destination-world-healthy", false, { reason: "portal 1 has no destination.target_base_url" });
+        record("cross-service:portal-to-destination-world-healthy", false, { reason: "portal 1 has no osl_destination.target_base_url" });
     }
     const manifest = await probe(`${BASE_A}/wow/user/1`);
     const manifestOk = manifest.status === 200 && !!manifest.body?.open_user_manifest?.signature?.value;
@@ -300,8 +303,8 @@ async function checkErrorHandling() {
 // ---- 8. Data consistency ----
 async function checkDataConsistency() {
     const portal = await probe(`${BASE_A}/wow/portal/1`);
-    const declaredLocationId = portal.body?.destination?.target_location_id;
-    const destBase = portal.body?.destination?.target_base_url;
+    const declaredLocationId = portal.body?.osl_destination?.target_location_id;
+    const destBase = portal.body?.osl_destination?.target_base_url;
     if (declaredLocationId && destBase) {
         const destHealth = await probe(`${destBase}/healthz`);
         record("consistency:portal-destination-location-id-matches", destHealth.body?.location_id === declaredLocationId, { declared: declaredLocationId, actual: destHealth.body?.location_id });

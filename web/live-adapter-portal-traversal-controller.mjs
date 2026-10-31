@@ -4,6 +4,7 @@ import {
   fabricPortalKey,
   mapCameraAcrossCrossing,
   mapTransformBetweenPortalFrames,
+  mapTransformToArrival,
   normalizePortalTraversal,
   portalCrossingDirection,
   portalEntrySideAllowed,
@@ -151,6 +152,10 @@ export function createPortalTraversalHandoffController(options) {
     movement,
     motionPreference = null,
     portalAtomicityOracle = null,
+    // Iteration 4: the check before leaving, and what a refused crossing tells the visitor.
+    crossingGate = null,
+    onCrossingRefused = null,
+    navigateTo = null,
   } = options || {};
 
   if (!HANDOFF_PHASES || !PROVENANCE) {
@@ -320,7 +325,7 @@ export function createPortalTraversalHandoffController(options) {
         portalCenter,
         portalRadius: Number(entry.trigger.radius_m || 0),
         sourceReady: !entry.source_location_id || entry.source_location_id === host.world.location_id,
-        targetReady: !!entry.target_location_id && !!entry.target_base_url,
+        targetReady: (!!entry.target_location_id && !!entry.target_base_url) || !!entry.destination,
         traversal: normalizePortalTraversal(entry.traversal),
         local: null,
         previousSignedZ: runtime.lastSignedDistance,
@@ -553,6 +558,10 @@ export function createPortalTraversalHandoffController(options) {
     ) {
       const crossingOrder = [focus, ...evaluations.filter((ev) => ev !== focus)];
       for (const ev of crossingOrder) {
+        // A portal with no destination does nothing, and says why (R4.3).
+        if (ev.crossedPlane && ev.sourceReady && !ev.targetReady && onCrossingRefused) {
+          onCrossingRefused({ kind: "no_destination", portal: ev.portal, reason: "no destination: this portal leads nowhere" });
+        }
         if (!ev.crossedPlane || !ev.sourceReady || !ev.targetReady) continue;
         if (ev.crossingCommitAllowed) {
           transitionRequest = { source: "plane_crossing", portal: ev.portal };
@@ -717,6 +726,23 @@ export function createPortalTraversalHandoffController(options) {
     return beginTransition({ source: "operator", portal });
   }
 
+  /** A crossing the check before leaving refused: the visitor stays, and must step out before it can fire again. */
+  function refuseCrossing() {
+    const host = mutableHost(readHostSnapshot);
+    transition = null;
+    handoffInFlight = false;
+    transitionCommitStarted = false;
+    rearmRequired = true;
+    exitedSinceArrival = false;
+    host.controls.enabled = true;
+    host.controls.moving = false;
+    host.controls.portal_transition_phase = "none";
+    host.controls.portal_transition_elapsed_s = 0;
+    patchHost({ phase: HANDOFF_PHASES.IDLE, controls: host.controls });
+    updatePortalStatus();
+    emitState();
+  }
+
   function denyCrossing(receipt) {
     const host = mutableHost(readHostSnapshot);
     log(
@@ -751,6 +777,34 @@ export function createPortalTraversalHandoffController(options) {
     const crossingPortalKey = fabricPortalKey(crossingPortal) || host.portalId;
     const timings = crossingTimings || (crossingTimings = {});
     const stageStart = nowMs();
+    // The check before leaving (R4.2): the destination must answer, and the node it arrives at must be there. Refused,
+    // the visitor stays and hears why. A standard portal lands where its destination says.
+    if (crossingGate && crossingPortal && crossingPortal.wow_resource) {
+      const gate = await crossingGate(crossingPortal);
+      timings.crossing_check_ms = nowMs() - stageStart;
+      if (!gate.ok) {
+        if (onCrossingRefused) onCrossingRefused({ ...gate, portal: crossingPortal });
+        refuseCrossing();
+        return;
+      }
+      if (gate.mode === "navigate") {
+        log(`crossing by plain navigation to ${gate.url}`);
+        if (navigateTo) navigateTo(gate.url);
+        return;
+      }
+      crossingPortal.target_frame = gate.frame;
+      crossingPortal.arrival_pose = gate.arrival;
+      if (transition) {
+        transition.portal_frame_mapping = mapTransformToArrival({
+          sourceFrame: crossingPortal.frame,
+          targetFrame: gate.frame,
+          entryTransform: transition.entry_transform,
+          entryLocal: transition.entry_portal_local,
+          arrival: gate.arrival,
+        });
+      }
+      host = mutableHost(readHostSnapshot);
+    }
     let packet;
     try {
       const registration = presence.snapshot();
@@ -788,6 +842,11 @@ export function createPortalTraversalHandoffController(options) {
     if (mappedExitTransform && packet.target) {
       packet.target.arrival_position = clonePosition(mappedExitTransform.position, packet.target.arrival_position);
       packet.target.arrival_rotation_y = mappedExitTransform.rotation_y;
+    }
+    // A placed portal's world names only where it leads; this client knows which world that is.
+    if (packet.target && crossingPortal && !packet.target.location_id) {
+      packet.target.location_id = crossingPortal.target_location_id || null;
+      packet.target.world_id = crossingPortal.target_world_id || null;
     }
     const equippedItems = Array.isArray(host.avatar.equippedItems)
       ? host.avatar.equippedItems
@@ -1644,6 +1703,8 @@ export function createPortalTraversalHandoffController(options) {
     markAutoHandoffObserved,
     triggerHandoff,
     inTransition: () => !!transition,
+    // A portal moved in the world's data is not a walk: the side a visitor stood on says nothing about its new place.
+    forgetPortalSides() { portalRuntime = {}; lastPortalSignedDistance = null; },
     inFlight: () => handoffInFlight,
     applyLegacyArrival,
     applyDepartureMirror,

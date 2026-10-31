@@ -1,3 +1,5 @@
+import { ringColorsOf } from "./worlds-list.mjs";
+
 const HOSTED_POINT_RELOAD_MS = 100;
 const CLIENT_READ_INTERVAL_MIN_MS = 100;
 const CLIENT_READ_INTERVAL_MAX_MS = 10000;
@@ -223,22 +225,8 @@ export function createPortalRenderController({
   function endpointKeys() {
     const live = portalHost();
     if (!live) return [];
-    if (!isPlayer) return [live.activeEndpointKey];
-    const keys = new Set([live.activeEndpointKey]);
-    if (live.previewEndpointKey) keys.add(live.previewEndpointKey);
-    const portals = Array.isArray(live.world?.portals)
-      ? live.world.portals
-      : live.world?.portal
-        ? [live.world.portal]
-        : [];
-    for (const entry of portals) {
-      const locationId = String(entry?.target_location_id || "");
-      const endpointKey = locationId.startsWith("location-")
-        ? locationId.slice("location-".length)
-        : locationId;
-      if (endpointKey) keys.add(endpointKey);
-    }
-    return [...keys];
+    // Only the world the visitor is in: a portal shows its destination through that world's preview.
+    return [live.activeEndpointKey];
   }
 
   function clearMeshMap(map, remove = false) {
@@ -255,11 +243,10 @@ export function createPortalRenderController({
     const frame = live.world?.portal?.frame;
     if (!Array.isArray(frame?.position)) return;
     if (!state.portalHandle || state.portalHandle.parent !== impl.scene) {
-      const sourceColored = !live.world || live.world.location_id !== "location-b";
       const handle = new THREE.Mesh(
         new THREE.CylinderGeometry(0.95, 0.95, 0.06, 40),
         new THREE.MeshBasicMaterial({
-          color: sourceColored ? 0x66e0ff : 0xffc266,
+          color: ringColorsOf(live.world && live.world.location_id).color,
           transparent: true,
           opacity: 0.32,
         })
@@ -402,7 +389,6 @@ export function createPortalRenderController({
     }
     writeDebugText("pi-attach-id", attachPoint ? String(attachPoint.attach_point_id || "—") : "—");
     writeDebugText("pi-version", attachPoint?.version != null ? String(attachPoint.version) : "—");
-    if (destinationKey) renderResolutionLadder("pi", destinationKey);
   }
 
   function openPortalInfoPanel() {
@@ -448,7 +434,8 @@ export function createPortalRenderController({
         });
       }
       const trigger = attachPoint.portal_pose?.trigger_position || null;
-      if (trigger && state.drag?.kind !== "portal" && typeof live.applyHostedPortalPose === "function") {
+      // A Player's portals stand where their nodes say; only the observer's drag view follows the hosted point.
+      if (!isPlayer && trigger && state.drag?.kind !== "portal" && typeof live.applyHostedPortalPose === "function") {
         const applied = live.applyHostedPortalPose(trigger);
         if (applied.changed) {
           setPortalVisualAlignment(alignPortalVisualToTrigger(activeScene, live.world));

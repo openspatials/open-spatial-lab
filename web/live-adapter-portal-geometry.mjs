@@ -23,12 +23,6 @@ export const PORTAL_EXIT_CLEARANCE_M = 0.25;
 export const PORTAL_EXIT_OFFSET_MIN_M = PORTAL_TRIGGER_DEPTH_M + PORTAL_EXIT_CLEARANCE_M;
 export const PORTAL_EXIT_OFFSET_MAX_M = PORTAL_EXIT_OFFSET_M;
 
-const PORTAL_FRAME_PRESETS = Object.freeze({
-  "location-a": { forward: [0, 0, 1] },
-  "location-b": { forward: [-1, 0, 0] },
-  "location-lobby": { forward: [0, 0, 1] },
-});
-
 export function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -159,26 +153,24 @@ export function mappedExitOffsetForApproach(approachSignedDistanceM, targetFrame
   );
 }
 
+/** A portal's frame. `forward` is the +Z of the node that places it (the way its front faces). */
 export function portalFrameForLocation({
   portalId,
   locationId,
   triggerPosition,
   triggerRadius,
   targetLocationId,
+  forward: nodeForward,
 }) {
-  const preset = PORTAL_FRAME_PRESETS[locationId] || {};
-  const forward = normalizeVec3(preset.forward || [0, 0, 1], [0, 0, 1]);
-  const baseUp = normalizeVec3(preset.up || [0, 1, 0], [0, 1, 0]);
-  const right = normalizeVec3(preset.right || cross3(baseUp, forward), [1, 0, 0]);
+  const forward = normalizeVec3(nodeForward || [0, 0, 1], [0, 0, 1]);
+  const baseUp = [0, 1, 0];
+  const right = normalizeVec3(cross3(baseUp, forward), [1, 0, 0]);
   const up = normalizeVec3(cross3(forward, right), baseUp);
   const ground = clonePosition(triggerPosition, [2.8, 0, -2.8]);
-  const width = Number(preset.width_m || PORTAL_FRAME_WIDTH_M);
-  const height = Number(preset.height_m || PORTAL_FRAME_HEIGHT_M);
-  const triggerDepth = Number(preset.trigger_depth_m || PORTAL_TRIGGER_DEPTH_M);
-  const exitOffset = Math.max(
-    triggerDepth + 0.45,
-    Number(preset.exit_offset_m || PORTAL_EXIT_OFFSET_M),
-  );
+  const width = PORTAL_FRAME_WIDTH_M;
+  const height = PORTAL_FRAME_HEIGHT_M;
+  const triggerDepth = PORTAL_TRIGGER_DEPTH_M;
+  const exitOffset = Math.max(triggerDepth + 0.45, PORTAL_EXIT_OFFSET_M);
   const frame = {
     portal_id: portalId || portalIdForLocation(locationId),
     location_id: locationId,
@@ -207,6 +199,7 @@ export function buildPortalFrameSet({
   targetLocationId,
   targetWorldId,
   targetBaseUrl,
+  forward,
 }) {
   const activeFrame = portalFrameForLocation({
     portalId,
@@ -214,6 +207,7 @@ export function buildPortalFrameSet({
     triggerPosition,
     triggerRadius,
     targetLocationId,
+    forward,
   });
   const targetFrame = portalFrameForLocation({
     portalId: portalIdForLocation(targetLocationId),
@@ -439,6 +433,31 @@ export function mapTransformBetweenPortalFrames({
     exit_yaw_radians: roundNumber(exitYaw, 6),
     mapped_exit_transform: mappedExitTransform,
     linked_target_portal_id: sourceFrame.linked_target_portal_id,
+  };
+}
+
+/**
+ * The crossing's map when the destination names where a visitor arrives: the mapped heading still continues the walk
+ * through the ring, but the landing is the arrival itself, whatever the visitor's offset in the ring was.
+ */
+export function mapTransformToArrival({ arrival, ...mapping }) {
+  const mapped = mapTransformBetweenPortalFrames(mapping);
+  if (!mapped || !arrival || !Array.isArray(arrival.position)) return mapped;
+  const local = portalLocalCoordinates(mapping.targetFrame, arrival.position);
+  const position = roundVec3(arrival.position, 4);
+  return {
+    ...mapped,
+    lateral_offset_m: 0,
+    mapped_lateral_offset_m: 0,
+    exit_offset_m: local ? local.signed_plane_distance_m : mapped.exit_offset_m,
+    arrival_node: arrival.node || null,
+    mapped_exit_transform: { ...mapped.mapped_exit_transform, position },
+    landing_policy: {
+      ...mapped.landing_policy,
+      source: "destination_arrival_node",
+      standoff_m: local ? local.signed_plane_distance_m : mapped.landing_policy.standoff_m,
+      rule: "the crossing lands at the node the portal's destination names (#join=node.{n})",
+    },
   };
 }
 

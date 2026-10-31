@@ -36,6 +36,11 @@ import {
 // loaded; labeled fallback on error), reusing the avatar GLTFLoader stack above.
 import { buildWowScene, mountWowSceneAssets } from "./wow-scene.mjs";
 import { mountLiveInclusions, environmentAwareClone } from "./wow-inclusion-mount.mjs";
+import { createMainDemoWiring } from "./main-demo-wiring.mjs";
+import { mountViewerPortals } from "./main-demo-viewer-portals.mjs";
+import { followFooterHeight } from "./main-demo-footer.mjs";
+import { ringColorsOf } from "./worlds-list.mjs";
+import { mountViewControls } from "./wow-view-controls.mjs";
 // optional airport content presentation mounted only when
 // a WoW fixture explicitly declares the labeled airport-terminal extension.
 import { mountAirportTerminalContent } from "./airport-terminal-scene.mjs";
@@ -95,10 +100,7 @@ import * as THREE from "three";
 // the WoW CORE REQUIREMENTS (join/follow/preview/persist/share) are
 // plain URL + hash-fragment semantics, not an API. web/wow-url.mjs is the pure grammar.
 import { parseWorldUrl } from "./wow-url.mjs";
-// one hardcoded same-origin proxy base ("/api/b") is built here rather than
-// through the LiveAdapter ENDPOINTS chokepoint; route it through the ONE base-path helper too so
-// the player's server-B aperture preview resolves beneath the public prefix. Root mode: identity.
-import { apiBase } from "./base-path.mjs";
+import { withBase } from "./base-path.mjs";
 import { reconcileKeyedHtml } from "./reconcile-keyed-html.mjs";
 import { NO_EQUIPMENT_CHOICE, applyNoEquipmentChoice } from "./no-equipment-choice.mjs";
 import { createPlayerSessionController } from "./player-session-controller.mjs";
@@ -855,9 +857,7 @@ function alignPortalVisualToTrigger(sceneInstance, world) {
     };
   }
   if (impl.portalGroup) impl.portalGroup.visible = false;
-  const sourceColored = !world || world.location_id !== "location-b";
-  const color = sourceColored ? 0x66e0ff : 0xffc266;
-  const fillColor = sourceColored ? 0x2bd4ff : 0xffb14d;
+  const { color, fill: fillColor } = ringColorsOf(world && world.location_id);
   if (!impl.directionalPortalGroup) {
     impl.directionalPortalGroup = new THREE.Group();
     impl.directionalPortalGroup.name = "directional-standing-oval-portal";
@@ -982,9 +982,7 @@ function alignPortalVisualToTrigger(sceneInstance, world) {
     if (!entry || !entryFrame || !entryKey) continue;
     wantedKeys.add(entryKey);
     let rec = impl.additionalPortalGroups[entryKey];
-    const destIsB = String(entry.target_location_id || "") === "location-b";
-    const entryColor = destIsB ? 0xffc266 : 0x66e0ff;
-    const entryFill = destIsB ? 0xffb14d : 0x2bd4ff;
+    const { color: entryColor, fill: entryFill } = ringColorsOf(entry.target_location_id);
     if (!rec) {
       const group = new THREE.Group();
       group.name = `directional-standing-oval-portal--${entryKey}`;
@@ -1523,48 +1521,8 @@ function drawLabeledPortalPreview(canvas, preview) {
 // same labeled rungs fed by its own keyed prefetch machine + per-portal
 // preview metadata. All existing fidelity modes stay intact underneath.
 //
-// P4 (#7): `serverBApertureMachine` is RETIRED as an
-// aperture machine. It was a synthetic always-warm substitute for
-// lobby-portal-b with no perimeter zone, so that portal's window never
-// reverted to the image and read as "arbitrary" next to its neighbours. Every
-// portal now renders from its OWN keyed prefetch machine under the ONE
-// deterministic perimeter gate. The boot-time load below is kept solely as
-// the `data-server-b-aperture-entities` reachability probe.
-let serverBApertureMachine = null;
 // P3: log the adopted-pose identity mismatch once, not per frame.
 let primaryEdgeMismatchLogged = false;
-
-async function loadBackendApertureMachine(proxyBase, anchorPortalId) {
-  try {
-    const response = await fetch(
-      `${proxyBase}/fabric/region?anchor_portal_id=${encodeURIComponent(anchorPortalId)}&radius_m=5`,
-      { cache: "no-store" }
-    );
-    if (!response.ok) return null;
-    const payload = await response.json();
-    if (!payload.ok || !Array.isArray(payload.entities) || !payload.entities.length) return null;
-    return {
-      supported: true,
-      status: "warm",
-      target_location_id: payload.location_id,
-      region: {
-        entities: payload.entities,
-        avatars: payload.avatars || { avatars: [] },
-        region: payload.region,
-        // The source aperture already supplies the one visible frame. Keeping
-        // the destination return ring would create a doubled-ring blemish.
-        destination_portal: null,
-        destination_spawn: payload.spawn || null,
-        totals: payload.totals || null,
-        source: "live destination /fabric/region",
-      },
-      presence: payload.presence || null,
-    };
-  } catch (error) {
-    console.warn("backend aperture content unavailable", error);
-    return null;
-  }
-}
 
 /** P4: the live camera's world position for viewer-side evidence
  *  (front/back face classification uses the same rule as the render gates). */
@@ -1613,16 +1571,17 @@ function worldPortalEntryForKey(key) {
  *  report when the spatial render took the aperture, else null (the caller
  *  falls through to the pre-011 ladder unchanged). */
 function trySpatialApertureSurface(portalKey, machine, apertureMesh) {
-  if (!sceneRuntimeController || !portalKey || !machine || !apertureMesh) return null;
+  if (!sceneRuntimeController || !portalKey || !apertureMesh) return null;
   const entry = worldPortalEntryForKey(portalKey);
-  if (!entry) return null;
+  if (!entry || (!machine && !entry.wow_resource)) return null;
   const surface = sceneRuntimeController.portalSurface(portalKey, machine, entry);
   if (!surface) return null;
   apertureMesh.material = surface.material;
   apertureMesh.position.z = 0.012;
+  mainDemo.syncPortalRing(portalKey, entry, surface);
   // Render acks keep stamping progressive chunks (render-before-
   // complete evidence) — the spatial rung paints the same accumulated set.
-  ackFabricChunksRendered(portalKey, machine);
+  if (machine) ackFabricChunksRendered(portalKey, machine);
   return surface;
 }
 
@@ -1662,10 +1621,7 @@ function updateAdditionalPortalPreviewSurfaces(debug) {
         side: THREE.DoubleSide,
       });
     }
-    // P4 (#7): every portal — lobby-portal-b included — renders from
-    // its OWN keyed prefetch machine; the always-warm serverBApertureMachine
-    // substitute is retired (see its declaration comment). One deterministic
-    // perimeter gate governs live-vs-image for all portals alike.
+    // Every portal has its own keyed machine: its perimeter truth and nothing else reaches the window.
     const machine = keyedMachines[key] || null;
     const entry = worldPortalEntryForKey(key);
     const liveGate = portalPerimeterLiveGate(machine);
@@ -1696,7 +1652,8 @@ function updateAdditionalPortalPreviewSurfaces(debug) {
     // the region rung also draws MID-STREAM — the chunk
     // pipeline surfaces accumulated entities while loading, so the near ring
     // renders before the far ring has even arrived (progressive rendering).
-    const regionBacked = !!(
+    // The prefetch never feeds a standard portal's preview.
+    const regionBacked = !(entry && entry.wow_resource) && !!(
       machine &&
       (machine.status === "warm" ||
         machine.status === "cooling" ||
@@ -1916,7 +1873,8 @@ function updatePrimaryPortalPreviewSurface(debug) {
   const fabricPrefetch = debug.fabric_prefetch || null;
   // the region rung also draws MID-STREAM (see the
   // additional-portal surface) — progressive rendering of the chunk pipeline.
-  const regionBacked = !!(
+  // The prefetch never feeds a standard portal's preview.
+  const regionBacked = !(adapter && adapter.world && adapter.world.portal && adapter.world.portal.wow_resource) && !!(
     fabricPrefetch &&
     (fabricPrefetch.status === "warm" ||
       fabricPrefetch.status === "cooling" ||
@@ -2528,17 +2486,19 @@ function renderOverlay(phase, dbg) {
         destContent && destContent.content && destContent.content.pointers
           ? destContent.content.pointers["metaverse.portal.loadingBranding"]
           : null;
-      const destTitle =
+      // The branding arrives with a finished prefetch; without it the world just entered still has its title.
+      const destTitleText =
         destBrandEntry && destBrandEntry.value && destBrandEntry.value.world_title
-          ? String(destBrandEntry.value.world_title).replace(/[<>&"]/g, "")
-          : null;
+          ? destBrandEntry.value.world_title
+          : adapter && adapter.world && adapter.world.title;
+      const destTitle = destTitleText ? String(destTitleText).replace(/[<>&"]/g, "") : null;
       const arrivalHeadline = isPlayer
         ? ["ARRIVED", destTitle, resumeMs != null ? `${resumeMs} MS` : null].filter(Boolean).join(" · ")
         : "ARRIVAL RECEIVED";
       showToast(
         arrivalHeadline,
         isPlayer
-          ? [prefetchText, "live crossing", "presence continues", "same context, no reload"]
+          ? [prefetchText, "live crossing", "same page, no reload"]
               .filter(Boolean)
               .join(" · ")
           : "arrival applied locally · return portal active",
@@ -2678,7 +2638,7 @@ function handleConnectionApiRequest(event) {
 }
 
 function handleOffline() {
-  setConnectionPresentation("disconnected", "This browser is offline. Reconnect, then reload and retry the current world.");
+  setConnectionPresentation("disconnected", "No connection. This browser is offline. Reconnect, then reload and retry the current world.");
 }
 
 listenAtRoot(API_EVENTS, "wow-api-request", handleConnectionApiRequest);
@@ -3788,9 +3748,13 @@ function mountClientSceneLoad(target) {
  * visible-pixels probe) for the entry proof.
  */
 async function mainWowRead() {
-  appEl.className = `role-${role} wow-read`;
+  appEl.className = `role-${role} wow-read rail-collapsed`;
   const roleChip = $("role-chip"); if (roleChip) roleChip.textContent = "WoW WORLD";
-  const titleEl = $("loc-title"); if (titleEl) titleEl.textContent = "WoW world — Spatial Composition Graph (M2)";
+  // The header names the world by its address (host and path, without the Spatial part).
+  const worldAddress = (() => {
+    try { const u = new URL(wowParam, location.href); return u.host + u.pathname.replace(/\/wow\/spatial\/.*$/, ""); } catch { return String(wowParam); }
+  })();
+  const titleEl = $("loc-title"); if (titleEl) titleEl.textContent = `World ${worldAddress}`;
   const metaEl = $("loc-meta"); if (metaEl) metaEl.textContent = `${wowParam} · WoW composition graph · client render (buildWowScene)`;
   const modeEl = $("mode-prov"); if (modeEl) modeEl.innerHTML = `<span class="prov">wow-graph</span>`;
   const lbEl = $("live-backend"); if (lbEl) { lbEl.textContent = "WoW composition graph (local-data-first; live via runtime)"; lbEl.style.color = "var(--muted, #9aa)"; }
@@ -3844,6 +3808,12 @@ async function mainWowRead() {
     renderState.asset_load = { status: "pending", requested: (built.asset_nodes || []).length };
     logLine(`M2 wow: built scene — rendered_nodes=${r.rendered_nodes} asset_placeholders=${r.asset_placeholders} group_gizmos=${r.group_gizmos} (glTF assets loading async — runtime)`);
     alternateRuntime = sceneRuntimeController.mountAlternateRenderer({ built, renderState, width, height });
+    // A person can look, move and click in this player: drag, W A S D or arrows, the wheel, a click on a portal.
+    const wowCanvas = alternateRuntime && alternateRuntime._impl && alternateRuntime._impl.renderer && alternateRuntime._impl.renderer.domElement;
+    const viewControls = wowCanvas
+      ? mountViewControls({ THREE, camera: built.camera, canvas: wowCanvas, document, window, onPick: (id) => window.__wowPortals?.cross?.(id) })
+      : null;
+    window.__wowViewControls = viewControls;
 
     // async-load the REAL glTF each `spatialAssetURI` node
     // references and mount it under the node's composed transform. Non-blocking —
@@ -3857,6 +3827,7 @@ async function mainWowRead() {
     // what remains are models, loaded below. A bundled fixture is not composed: its links are models.
     const graphHref = resolved.graph_url ? new URL(resolved.graph_url, location.href).href : null;
     const inclusionHost = resolved.source === "canonical-walk" && graphHref && /^https?:/i.test(graphHref) ? graphHref : null;
+    const fixtureOnThisOrigin = !inclusionHost && !!graphHref && (() => { try { return new URL(graphHref).origin === location.origin; } catch { return false; } })();
     // Iteration 3: the inclusions stay live. Each shown world's event stream (8 at most) re-composes on
     // a change, and the models of re-mounted content load through the same loader and cache.
     const mountIncludedModels = (nodes) => {
@@ -3865,7 +3836,9 @@ async function mainWowRead() {
         loadGltf: loadGltfSceneAsset,
         cloneScene: environmentAwareClone(cloneGltfSceneAsset),
         cache: sceneRuntimeController.destinationAssetCache(),
-        baseUrl: resolved.base_url || resolved.graph_url || location.href,
+        // A world file served by this page's own server (a bundled fixture) loads its models from here too, not
+        // from the address the file was written for: `/assets/...` then works on any host and port.
+        baseUrl: fixtureOnThisOrigin ? graphHref : (resolved.base_url || resolved.graph_url || location.href),
       });
     };
     const modelsReady = inclusionHost
@@ -3889,10 +3862,17 @@ async function mainWowRead() {
             return assetNodes;
           })
       : Promise.resolve(assetNodes);
+    if (inclusionHost) {
+      mountViewerPortals({
+        THREE, document, built, hostUrl: inclusionHost, buildWowScene, canvas: wowCanvas, viewControls, onModels: mountIncludedModels,
+        visitorPosition: () => isPlayer && adapter?.state?.avatar?.transform?.position,
+        logLine, listen: listenAtRoot,
+      });
+    }
     void modelsReady.then((modelNodes) => {
     document.body.setAttribute("data-wow-inclusions-ready", "1");
     if (modelNodes.length) {
-      const assetBaseUrl = resolved.base_url || resolved.graph_url || location.href;
+      const assetBaseUrl = fixtureOnThisOrigin ? graphHref : (resolved.base_url || resolved.graph_url || location.href);
       mountWowSceneAssets(modelNodes, THREE, {
         loadGltf: loadGltfSceneAsset,
         cloneScene: environmentAwareClone(cloneGltfSceneAsset),
@@ -4038,6 +4018,9 @@ async function mainWowRead() {
 
   const panelDebug = adapter && adapter.world ? adapter.debugState() : { proof_boundary: null };
   panelTruthChromeController.mount({ debug: panelDebug });
+  // A person walks this world, so the inspector starts closed here too; the header toggle opens it.
+  const wowPanelChrome = panelTruthChromeController.chromeDriver();
+  wowPanelChrome.close();
 
   // --- expose the single honest `wow` debug surface for the entry proof ---
   const wowSurface = {
@@ -4246,6 +4229,32 @@ function reframeAdapterCrossingHeading(detail) {
   return lastCrossingHeadingContinuity;
 }
 
+followFooterHeight(document);
+
+// Standard portals in the main demo: web/main-demo-wiring.mjs.
+const mainDemo = createMainDemoWiring({
+  THREE,
+  document,
+  getAdapter: () => adapter,
+  getScene: () => scene,
+  getSceneRuntime: () => sceneRuntimeController,
+  redrawPortals: () => {
+    if (scene) portalVisualAlignment = alignPortalVisualToTrigger(scene, adapter.world);
+    onState(adapter.debugState());
+  },
+  logLine,
+  publishNotification: publishNotificationRecord,
+  showToast,
+  isDeparted: (live) => live.state.phase === HANDOFF_PHASES.DEPARTED,
+  isDisposed: () => applicationDisposed,
+  isPlayer,
+  wantsPlacement: params.get("place") === "1",
+  keyOf: appPortalKey,
+  getMount: () => $("scene-mount"),
+  worldsUrl: withBase("/worlds.json"),
+  setCameraAzimuth: (azimuth) => movementCameraController.setRestoredCameraSeed({ azimuth }),
+});
+
 function handleAdapterCrossing(event) {
   const detail = event.detail || {};
   logLine(
@@ -4317,6 +4326,7 @@ function handleAdapterCrossing(event) {
   // Snapshot the newly active fabric and pose in sessionStorage without URL
   // or history mutation.
   movementCameraController.persistSession(true);
+  void mainDemo.mountPlacementForActiveWorld();
 }
 
 async function main() {
@@ -4352,15 +4362,11 @@ async function main() {
     noDefaultEquipment: noEquipParam,
     motionPreference,
     portalAtomicityOracle: portalAtomicityOracleParam,
+    crossingProfile: params.get("crossing"),
   });
   await adapter.init();
-  if (isPlayer && adapter.debugState().location_id === "location-lobby") {
-    serverBApertureMachine = await loadBackendApertureMachine(apiBase("b"), "location-b-portal");
-    document.body.setAttribute(
-      "data-server-b-aperture-entities",
-      String(serverBApertureMachine?.region?.entities?.length || 0)
-    );
-  }
+  adapter.addEventListener("portal-refused", (event) => mainDemo.handlePortalRefused(event.detail));
+  adapter.addEventListener("portal-navigate", (event) => window.location.assign(event.detail.url));
   adapter.listenForCrossWindow();
 
   // the fragment is live. Editing the hash (#preview <-> #join, or
@@ -4392,6 +4398,7 @@ async function main() {
         );
       }
     }
+    if (!restorable && wowUrlIntent) await mainDemo.arriveAtJoin(wowUrlIntent.aspectId);
   }
 
   const world = adapter.world;
@@ -4513,8 +4520,8 @@ async function main() {
   // collapsed default (static #app.rail-collapsed + the role-`${role} rail-collapsed`
   // className) keeps it closed during `await adapter.init()`; this close() keeps
   // it closed after mount. The manual #btn-rail-toggle stays the only opener.
-  // NOTE: the ?wow= / ?fabric= read modes (mainWowRead/mainMsfRead) deliberately
-  // do NOT close here — those inspection views default the panel open.
+  // NOTE: the ?wow= read mode (mainWowRead) closes it the same way after its own mount; the ?fabric=
+  // read mode (mainMsfRead) still defaults the panel open.
   panelTruthChromeController.chromeDriver().close();
 
   // ALL bottom control-bar buttons — "Debug: activate
@@ -4663,6 +4670,9 @@ async function main() {
     samplePortalApertureTexels: (portalKey, worldPoints) =>
       sceneRuntimeController.samplePortalApertureTexels(portalKey, worldPoints),
     equipmentReady: () => !equipmentLayer || equipmentLayer.isSettled(),
+    // what each portal's window shows, and the crossings refused so far (iteration 4)
+    portalPreviews: () => sceneRuntimeController.portalPreviewStates(),
+    portalRefusals: () => mainDemo.refusals(),
     // RENDERED peer-avatar layers (the actual co-present
     // player avatars this window draws), keyed by peer client_id. Proves a real
     // second avatar exists in the scene, distinct from this client's own.
@@ -4871,6 +4881,7 @@ async function main() {
     selected: () => notificationToastController.selected(),
     isOpen: () => notificationToastController.isOpen(),
   };
+  if (isPlayer) mainDemo.startPortalWatch();
   // `mission=denver-skyport` now opens the real lobby journey. Portal C is a
   // physical server-backed crossing; the launcher no longer bypasses its
   // prefetch, presence transfer, arrival, or reciprocal return contract.
@@ -4879,6 +4890,7 @@ async function main() {
   }
   document.body.setAttribute("data-assembly-ready", "1");
   mirrorDataset(window.__assembly.debugState());
+  void mainDemo.mountPlacementForActiveWorld();
   if (isPlayer) {
     const navigator = adapter.debugState().navigator;
     if (navigator && (navigator.status === "root_fabric_unavailable" || navigator.status === "child_fabric_unavailable")) {
@@ -5021,12 +5033,9 @@ function syncPeerAvatars(dbg) {
 }
 
 // the "Spatial fabric prefetch" HUD card + body dataset
-// mirror + the one-shot "Destination loaded" toast on idle->warm. Name-value
-// rows per the panel-layout guidance; player view only; never blocks.
+// mirror. Name-value rows per the panel-layout guidance; player view only; never blocks.
+// A finished prefetch is a notification record, not a toast: it now finishes as the visitor walks at the portal.
 let lastFabricPrefetchStatus = null;
-// per-portal warm-toast transition memory (the focus
-// projection can flip between machines; toasts key on real machine warmth).
-const lastFabricPrefetchStatusByPortal = {};
 // background-completion terminal-state memory. On the
 // running->complete transition a NOTIFICATION RECORD publishes (history +
 // click-through); deliberately NO toast — the single-slot toast stack is
@@ -5218,9 +5227,7 @@ function updateFabricPrefetchCard(dbg) {
   publishFabricCompletionNotification(fxCompletion);
   // notifications publish from EVERY keyed machine (a
   // single-portal world's keyed map is exactly its one machine, so pre-004
-  // behavior is unchanged), and the warm toast fires per MACHINE transition —
-  // the top-level focus projection can flip between machines as the player
-  // walks, which must never fake a "Destination loaded" beat.
+  // behavior is unchanged).
   const keyed = fp.keyed || null;
   const keyedMachines =
     keyed && keyed.machines && Object.keys(keyed.machines).length
@@ -5230,23 +5237,6 @@ function updateFabricPrefetchCard(dbg) {
     const machine = keyedMachines[machineKey];
     if (!machine || !machine.supported) continue;
     publishFabricPrefetchNotifications(machine);
-    const previousStatus = lastFabricPrefetchStatusByPortal[machineKey];
-    const machineTotals = machine.region ? machine.region.totals : null;
-    if (machine.status === "warm" && previousStatus !== "warm" && machineTotals) {
-      const machineOccupancy = machine.presence ? machine.presence.occupancy : null;
-      const readyNotificationId = latestNotificationIdByKind("fabric_prefetch_event");
-      showToast(
-        "Destination loaded",
-        `${machine.address ? machine.address.location_id : "destination"} · ${
-          machineTotals.region_entities
-        }/${machineTotals.fabric_entities} entities · ${
-          machineOccupancy ? (machineOccupancy.avatars || []).length : 0
-        } known present`,
-        "toast-arrived",
-        { notificationId: readyNotificationId }
-      );
-    }
-    lastFabricPrefetchStatusByPortal[machineKey] = machine.status;
   }
   lastFabricPrefetchStatus = fp.status;
   updateFabricPrefetchPortalList(keyed);
@@ -5429,12 +5419,13 @@ main()
   })
   .catch((err) => {
     const message = err && err.message ? err.message : String(err);
-    const disconnected = (err && err.name === "TypeError" && /fetch/i.test(message)) || navigator.onLine === false;
+    // A world that does not answer (the frontend's proxy says 502, 503 or 504) is no connection to it, not a broken page.
+    const disconnected = (err && err.name === "TypeError" && /fetch/i.test(message)) || /-> 50[234]$/.test(message) || navigator.onLine === false;
     const failedBootState = disconnected ? "disconnected" : "error";
     setConnectionPresentation(
       failedBootState === "error" ? "unavailable" : failedBootState,
       disconnected
-        ? "The local world services are not responding. Start them, then reload and retry this view."
+        ? "No connection. The local world services are not responding. Start them, then reload and retry this view."
         : `The live world could not finish loading: ${message}`,
       {
         kind: disconnected ? "boot_transport_disconnected" : "boot_runtime_unavailable",

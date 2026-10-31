@@ -64,7 +64,7 @@ async function main() {
     started_at: new Date().toISOString(),
     url: pageUrl,
     port,
-    headed: true,
+    headed: process.env.OSL_E2E_HEADED === "1",
     profiles: {},
     console: { warnings: [], errors: [], page_errors: [], request_failures: [] },
     identity: {},
@@ -77,12 +77,13 @@ async function main() {
     await waitForFrontend();
     const { findBrowser } = await import(path.join(root, "tools/find-browser.mjs"));
     const executablePath = findBrowser();
-    assert.ok(executablePath, "headed validation requires local Chrome/Chromium");
+    assert.ok(executablePath, "the browser validation requires local Chrome/Chromium");
     diagnostics.browser_executable = executablePath;
     const puppeteer = require("puppeteer-core");
     browser = await puppeteer.launch({
       executablePath,
-      headless: false,
+      // Headless by default: no window opens. OSL_E2E_HEADED=1 shows one, only when a person is meant to watch.
+      headless: process.env.OSL_E2E_HEADED === "1" ? false : "new",
       defaultViewport: { width: 1440, height: 900, deviceScaleFactor: 1 },
       args: [
         "--no-sandbox",
@@ -96,6 +97,9 @@ async function main() {
     });
     await writeFile(path.join(evidenceRoot, "headed-browser.pid"), `${browser.process()?.pid || "unknown"}\n`, "utf8");
     const page = await browser.newPage();
+    // A busy machine only makes this slower: the waits below are about what the page does, not how fast.
+    page.setDefaultTimeout(120000);
+    page.setDefaultNavigationTimeout(120000);
     page.on("console", (message) => {
       const type = message.type();
       if (type === "warning") diagnostics.console.warnings.push(message.text());
@@ -110,10 +114,9 @@ async function main() {
     await page.evaluateOnNewDocument(() => {
       sessionStorage.setItem("osl-floating-panel-size-v1", JSON.stringify({ width: 777, height: 666 }));
     });
-    await page.goto(pageUrl, { waitUntil: "networkidle0", timeout: 30000 });
+    await page.goto(pageUrl, { waitUntil: "networkidle0" });
     await page.waitForFunction(
       () => document.body.dataset.wowReady === "1" && window.__assembly?.chrome?.snapshot,
-      { timeout: 30000 },
     );
     await page.evaluate(() => {
       window.__wo232OwnerIdentity = window.__assembly.chrome.owner();
@@ -152,6 +155,10 @@ async function main() {
       };
     });
 
+    // A `?wow=` world starts with the inspector closed, as the live role pages do; its header toggle opens it.
+    assert.equal(await page.evaluate(() => window.__assembly.chrome.snapshot().open), false);
+    await page.click("#btn-rail-toggle");
+    await page.waitForFunction(() => window.__assembly.chrome.snapshot().open === true);
     const initial = await readTruth();
     assert.equal(initial.open, true);
     assert.equal(initial.size_mode, "auto");
@@ -355,11 +362,15 @@ async function main() {
     await page.mouse.down();
     await page.mouse.move(reloadDragStart.left - 90, reloadDragStart.top + 50, { steps: 6 });
     await page.mouse.up();
-    await page.reload({ waitUntil: "networkidle0", timeout: 30000 });
+    await page.reload({ waitUntil: "networkidle0" });
     await page.waitForFunction(
       () => document.body.dataset.wowReady === "1" && window.__assembly?.chrome?.snapshot,
       { timeout: 30000 },
     );
+    // After a reload the inspector starts closed again; reopened, it is back to its default size and dock.
+    assert.equal(await page.evaluate(() => window.__assembly.chrome.snapshot().open), false);
+    await page.click("#btn-rail-toggle");
+    await page.waitForFunction(() => window.__assembly.chrome.snapshot().open === true);
     const reloaded = await readTruth();
     assert.equal(reloaded.open, true);
     assert.equal(reloaded.size_mode, "auto");

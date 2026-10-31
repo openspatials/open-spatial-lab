@@ -2,7 +2,6 @@
   "_note": "runtime walkable airport-terminal composition graph extended by runtime shopping, runtime Gate A12 boarding, runtime qualified GLB travelers, and runtime compact commons staging plus authored airport-entity Universal Manifests/cards and non-lockstep idle metadata. Five qualified GLBs remain eligible; travelers retain distinct appearances and the four separately authored staff actors reuse four qualified appearances as separate live clones with distinct transforms. No general HUD, transaction overlay, AR handshaking, airline connectivity, real ticket or identity verification, security clearance, legal travel authorization, payments, completed purchases, destination flight world, or NPC AI/pathfinding.",
   "spatialID": "world-airport-terminal",
   "title": "Denver Skyport — Concourse A",
-  "base_url": "http://127.0.0.1:8143",
   "spatial_composition_graph_endpoint": "/worlds/denver-skyport.json",
   "units": "metres; demo-local tangent frame; y-up; entrant faces local +z down the concourse",
   "world": {

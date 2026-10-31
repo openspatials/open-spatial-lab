@@ -15,7 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { ROOT, run, python, makeTempDir } = require('../arch-i1/lib');
+const { ROOT, run, python, makeTempDir, staleEdit } = require('../arch-i1/lib');
 const w = require('./worlds');
 const { reference } = require('./scenario');
 
@@ -65,7 +65,7 @@ async function mountModule(edits) {
   const dir = makeTempDir('i12');
   let source = fs.readFileSync(path.join(ROOT, 'web', 'wow-inclusion.mjs'), 'utf8');
   for (const [from, to] of edits) {
-    if (source.split(from).length !== 2) throw new Error('mutant edit does not match once: ' + from.slice(0, 60));
+    if (source.split(from).length !== 2) throw staleEdit('web/wow-inclusion.mjs', from, source.split(from).length - 1);
     source = source.replace(from, () => to);
   }
   fs.writeFileSync(path.join(dir, 'wow-inclusion.mjs'), source);

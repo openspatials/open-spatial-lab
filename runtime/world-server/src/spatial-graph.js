@@ -256,6 +256,52 @@ function translationMatrix(position)
     ];
 }
 
+/** The product a·b of two column-major 4x4 matrices (b applied first). */
+function multiplyMatrices(a, b)
+{
+    const out = new Array(16).fill(0);
+    for (let column = 0; column < 4; column += 1)
+        for (let row = 0; row < 4; row += 1)
+        {
+            let sum = 0;
+            for (let k = 0; k < 4; k += 1) sum += a[k * 4 + row] * b[column * 4 + k];
+            out[column * 4 + row] = sum;
+        }
+    return out;
+}
+
+/** A turn about +Y by `radians` (from +Z toward +X), as a column-major 4x4 matrix. */
+function rotationYMatrix(radians)
+{
+    const c = Math.cos(radians), s = Math.sin(radians);
+    return [ c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1 ];
+}
+
+/** A turn about +X by `radians` (from +Y toward +Z), as a column-major 4x4 matrix. */
+function rotationXMatrix(radians)
+{
+    const c = Math.cos(radians), s = Math.sin(radians);
+    return [ 1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1 ];
+}
+
+/** The inverse of an affine column-major matrix (a node's placement, which has no shear). */
+function invertAffine(m)
+{
+    const a = m[0], b = m[4], c = m[8], d = m[1], e = m[5], f = m[9], g = m[2], h = m[6], i = m[10];
+    const det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    if (!det) return null;
+    const r = [
+        (e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det,
+        (f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det,
+        (d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det,
+    ];
+    const t = [ m[12], m[13], m[14] ];
+    return [
+        r[0], r[3], r[6], 0, r[1], r[4], r[7], 0, r[2], r[5], r[8], 0,
+        -(r[0] * t[0] + r[1] * t[1] + r[2] * t[2]), -(r[3] * t[0] + r[4] * t[1] + r[5] * t[2]), -(r[6] * t[0] + r[7] * t[1] + r[8] * t[2]), 1,
+    ];
+}
+
 function clone(value)
 {
     return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -897,6 +943,10 @@ module.exports = {
     createSpatialGraphStore,
     createIdSpace,
     translationMatrix,
+    multiplyMatrices,
+    rotationYMatrix,
+    rotationXMatrix,
+    invertAffine,
     ROOT_ID,
     // exported so the proof harnesses can assert the
     // classification directly, without an HTTP round-trip.

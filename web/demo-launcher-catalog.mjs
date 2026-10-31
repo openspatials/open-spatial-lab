@@ -1,10 +1,18 @@
-const SERVICE_PORTS = Object.freeze([18151, 18152, 18153]);
+import { WORLDS } from "./worlds-list.mjs";
 
-export const PRIMARY_MISSION_IDS = Object.freeze([
-  "player-lobby",
-  "server-a-observer",
-  "server-b-observer",
+const SERVICE_PORTS = Object.freeze(WORLDS.map((world) => world.port));
+
+// The launcher's own wording for each built-in world, which appears only when the world list names that world
+// (web/worlds-list.mjs). A listed world without wording here gets a plain mission of its own (genericWorldMissions).
+const PRIMARY_MISSIONS_BY_WORLD = Object.freeze([
+  ["lobby", "player-lobby"],
+  ["a", "server-a-observer"],
+  ["b", "server-b-observer"],
 ]);
+
+export const PRIMARY_MISSION_IDS = Object.freeze(
+  PRIMARY_MISSIONS_BY_WORLD.filter(([key]) => WORLDS.some((world) => world.key === key)).map(([, id]) => id),
+);
 
 const ALLOWED_VIEW_KINDS = Object.freeze([
   "player",
@@ -291,14 +299,15 @@ export function validateDemoLauncherCatalog(catalog) {
   }
 
   const expectedGroups = new Map([
-    ["player-lobby", "player"],
-    ["server-a-observer", "servers"],
-    ["server-b-observer", "servers"],
-    ["denver-skyport", "destinations"],
-    ["player-location-a", "destinations"],
-    ["player-location-b", "destinations"],
+    ["player-lobby", ["player", "lobby"]],
+    ["server-a-observer", ["servers", "a"]],
+    ["server-b-observer", ["servers", "b"]],
+    ["denver-skyport", ["destinations", "airport"]],
+    ["player-location-a", ["destinations", "a"]],
+    ["player-location-b", ["destinations", "b"]],
   ]);
-  for (const [id, group] of expectedGroups) {
+  for (const [id, [group, worldKey]] of expectedGroups) {
+    if (!WORLDS.some((world) => world.key === worldKey)) continue;
     if (catalog.find((mission) => mission.id === id)?.launcherGroup !== group) {
       throw new Error(`Mission ${id} must stay in the explicit ${group} launcher group.`);
     }
@@ -314,6 +323,34 @@ export function validateDemoLauncherCatalog(catalog) {
 }
 
 /**
+ * The missions of a listed world the launcher has no wording of its own for: start there as a player.
+ *
+ * @param {ReadonlyArray<object>} worlds - The world list.
+ * @returns {Array<object>} One destination mission per such world.
+ */
+function genericWorldMissions(worlds) {
+  return worlds.filter((world) => !world.built_in).map((world) => ({
+    id: `player-world-${world.key}`,
+    world: world.key,
+    label: `Start in ${world.name}`,
+    description: `Begin embodied in ${world.name}, a world added in the worlds file.`,
+    viewKind: "player",
+    launcherGroup: "destinations",
+    target: `index.html?role=player&active=${encodeURIComponent(world.key)}`,
+    backingNode: { label: world.name, serviceRole: "world server", port: world.port },
+    availability: "available",
+    capabilityBadge: "PLAYER",
+    who: "An embodied player",
+    where: world.name,
+    reality: "Player deep link to a world from the worlds file",
+    emblem: world.name.trim().charAt(0).toUpperCase() || "W",
+    accent: "server-a",
+    primary: false,
+    launchMode: "browser-route",
+  }));
+}
+
+/**
  * Build the one source of truth for launcher entries.
  *
  * Denver Skyport is unavailable by default. Phase B may pass
@@ -325,14 +362,18 @@ export function validateDemoLauncherCatalog(catalog) {
  */
 export function createDemoLauncherCatalog(options = {}) {
   const airportAvailable = options.airportAvailable === true;
+  const worlds = WORLDS;
+  const listed = new Set(worlds.map((world) => world.key));
+  const portOf = (key) => worlds.find((world) => world.key === key)?.port;
   const catalog = [
     {
       id: "player-lobby",
+      world: "lobby",
       label: "Enter as Player",
       viewKind: "player",
       launcherGroup: "player",
       target: "index.html?role=player",
-      backingNode: { label: "Lobby node", serviceRole: "player assignment lobby", port: 18153 },
+      backingNode: { label: "Lobby node", serviceRole: "player assignment lobby", port: portOf("lobby") },
       availability: "available",
       capabilityBadge: "LOBBY NODE",
       who: "An embodied player",
@@ -345,12 +386,13 @@ export function createDemoLauncherCatalog(options = {}) {
     },
     {
       id: "server-a-observer",
+      world: "a",
       label: "Observe Server A",
       description: "Watch Location A as an observer without becoming its player avatar.",
       viewKind: "observer",
       launcherGroup: "servers",
       target: "index.html?role=source",
-      backingNode: { label: "Location A", serviceRole: "world server", port: 18151 },
+      backingNode: { label: "Location A", serviceRole: "world server", port: portOf("a") },
       availability: "available",
       capabilityBadge: "SERVER VIEW",
       who: "A read-only observer",
@@ -363,12 +405,13 @@ export function createDemoLauncherCatalog(options = {}) {
     },
     {
       id: "server-b-observer",
+      world: "b",
       label: "Observe Server B",
       description: "Watch Location B and its amber arrival side as an observer.",
       viewKind: "observer",
       launcherGroup: "servers",
       target: "index.html?role=target",
-      backingNode: { label: "Location B", serviceRole: "world server", port: 18152 },
+      backingNode: { label: "Location B", serviceRole: "world server", port: portOf("b") },
       availability: "available",
       capabilityBadge: "SERVER VIEW",
       who: "A read-only observer",
@@ -381,6 +424,7 @@ export function createDemoLauncherCatalog(options = {}) {
     },
     {
       id: "denver-skyport",
+      world: "airport",
       label: "Denver Skyport",
       description: "A client-side airport destination entered through the real lobby and Portal C path.",
       viewKind: "destination",
@@ -402,12 +446,13 @@ export function createDemoLauncherCatalog(options = {}) {
     },
     {
       id: "player-location-a",
+      world: "a",
       label: "Start in Location A",
       description: "Skip lobby assignment and begin embodied on the source side.",
       viewKind: "player",
       launcherGroup: "destinations",
       target: "index.html?role=player&active=source",
-      backingNode: { label: "Location A", serviceRole: "world server", port: 18151 },
+      backingNode: { label: "Location A", serviceRole: "world server", port: portOf("a") },
       availability: "available",
       capabilityBadge: "PLAYER",
       who: "An embodied player",
@@ -420,12 +465,13 @@ export function createDemoLauncherCatalog(options = {}) {
     },
     {
       id: "player-location-b",
+      world: "b",
       label: "Start in Location B",
       description: "Skip lobby assignment and begin embodied on the target side.",
       viewKind: "player",
       launcherGroup: "destinations",
       target: "index.html?role=player&active=target",
-      backingNode: { label: "Location B", serviceRole: "world server", port: 18152 },
+      backingNode: { label: "Location B", serviceRole: "world server", port: portOf("b") },
       availability: "available",
       capabilityBadge: "PLAYER",
       who: "An embodied player",
@@ -436,10 +482,13 @@ export function createDemoLauncherCatalog(options = {}) {
       primary: false,
       launchMode: "browser-route",
     },
-  ].map((mission) => Object.freeze({
-    ...mission,
-    backingNode: mission.backingNode ? Object.freeze({ ...mission.backingNode }) : null,
-  }));
+  ]
+    .filter((mission) => listed.has(mission.world))
+    .concat(genericWorldMissions(worlds))
+    .map(({ world, ...mission }) => Object.freeze({
+      ...mission,
+      backingNode: mission.backingNode ? Object.freeze({ ...mission.backingNode }) : null,
+    }));
 
   validateDemoLauncherCatalog(catalog);
   return Object.freeze(catalog);

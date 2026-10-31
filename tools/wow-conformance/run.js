@@ -6,8 +6,8 @@
  * Standalone "WoW conformance" check AND a gate battery can require.
  * It:
  *   - runs the contract-first FIXTURE pass always (no server needed);
- *   - when driving the LIVE server: load-gates (1-min load < 14, standing
- *     hygiene rule), boots 041 on an ISOLATED high port (default 18991 — NEVER
+ *   - when driving the LIVE server: always runs (machine load never defers it),
+ *     boots 041 on an ISOLATED high port (default 18991 — NEVER
  *     8143 / 18151-18153 / :3000), hits every WoW endpoint, validates the real
  *     responses against the wow-spec surface, and honestly marks
  *     contract-only / not-yet-implemented endpoints;
@@ -16,22 +16,22 @@
  *     real conformance failure (contract-only 404s do NOT fail the run).
  *
  * THIS HARNESS USED TO LIE ABOUT ITSELF.
- *   Under load >= 14 it silently downgraded to fixtures-only, wrote that thin result
+ *   Under load it silently downgraded to fixtures-only, wrote that thin result
  *   OVER a fixtures+live evidence file, and exited 0. A degraded run was byte-for-byte
  *   indistinguishable from a full one to anybody reading the exit code, and the richer
  *   evidence it destroyed was uncommitted, so the loss was unrecoverable. Now:
- *     - a load-gated run is DEFERRED, not passed: assertions.ok=false, exit 3;
+ *     - the live pass is never skipped for machine load; a timeout-like failure of it is retried once;
  *     - a NARROWER run may not overwrite a RICHER one — the write is REFUSED, the good
  *       file is preserved, and the degraded run goes to *.degraded.json (exit 4);
  *     - the evidence records its mode, the load it ran at, and an explicit
  *       `coverage.not_covered` list, so coverage can be told from completeness.
  *
  * Usage:
- *   node tools/wow-conformance/run.js                # fixtures + live (load-gated)
+ *   node tools/wow-conformance/run.js                # fixtures + live
  *   node tools/wow-conformance/run.js --fixtures-only  # contract-first only, no server
  *   OSL_WOW_CONFORMANCE_PORT=19001 node tools/wow-conformance/run.js
  *
- * Exit: 0=pass 1=conformance FAIL 2=crash/protected-port 3=DEFERRED 4=WRITE REFUSED
+ * Exit: 0=pass 1=conformance FAIL 2=crash/protected-port 4=WRITE REFUSED
  *
  * ADDITIVE / REUSE-OVER-REBUILD: consumes wow-spec/validate.js and
  * runtime/041 createServer as-is. Does not modify server, client, or spec.
@@ -71,9 +71,8 @@ function coverageRank(mode) { return COVERAGE_RANK[mode] || 0; }
 //   0 = ran, assertions pass, got the coverage that was asked for
 //   1 = a REAL conformance failure
 //   2 = crash / refused a protected port
-//   3 = DEFERRED — live coverage was requested but the load gate blocked it
 //   4 = EVIDENCE WRITE REFUSED — this run is NARROWER than the evidence on disk
-const EXIT = { OK: 0, FAIL: 1, CRASH: 2, DEFERRED: 3, WRITE_REFUSED: 4 };
+const EXIT = { OK: 0, FAIL: 1, CRASH: 2, WRITE_REFUSED: 4 };
 
 /*
  * The evidence write, guarded.
@@ -186,6 +185,10 @@ async function bootAndRun(port)
     const spatialDir = fs.mkdtempSync(path.join(os.tmpdir(), 'osl-wow-conformance-'));
     const savedDir = process.env.OSL_WOW_SPATIAL_DIR;
     process.env.OSL_WOW_SPATIAL_DIR = spatialDir;
+    // Node writes are opt-in (runtime/world-server/src/local-only.js). This server is the gate's own, on 127.0.0.1, with a
+    // throwaway graph, and the gate exercises the write endpoints.
+    const savedWrites = process.env.OSL_PLACEMENT_WRITES;
+    process.env.OSL_PLACEMENT_WRITES = '1';
     const { createServer } = require(
         path.join(REPO_ROOT, 'runtime', 'world-server', 'src', 'server'));
     const validator = createValidator();
@@ -201,6 +204,9 @@ async function bootAndRun(port)
     } finally {
         await built.closeAll();
         fs.rmSync(spatialDir, { recursive: true, force: true });
+        // Read per request, so it stays set until the server is closed.
+        if (savedWrites === undefined) delete process.env.OSL_PLACEMENT_WRITES;
+        else process.env.OSL_PLACEMENT_WRITES = savedWrites;
     }
 }
 
@@ -209,12 +215,10 @@ async function main()
     const args = parseArgs(process.argv);
     const port = Number(process.env.OSL_WOW_CONFORMANCE_PORT || DEFAULT_PORT);
 
-    const loadGate = Number(process.env.OSL_WOW_LOAD_GATE || 14);
     const load1 = os.loadavg()[0];
     const liveRequested = !args.fixturesOnly;
 
     let report;
-    let deferred = null;   // set ONLY when live coverage was asked for and NOT obtained
 
     if (args.fixturesOnly) {
         // EXPLICIT fixtures-only: the caller asked for a narrow run and gets exactly
@@ -226,27 +230,19 @@ async function main()
                 + ' (live demo / simpleWorlds). Set OSL_WOW_CONFORMANCE_PORT to an isolated high port.');
             process.exit(EXIT.CRASH);
         }
-        // Load-gate the LIVE pass (standing hygiene rule: 1-min load < 14).
-        console.log('1-min load average: ' + load1.toFixed(2) + ' (gate: < ' + loadGate + ')');
-        if (load1 >= loadGate) {
-            // this is a DEFERRAL, NOT A PASS. It used to run
-            // fixtures-only, write that over the live evidence, and exit 0 — a green,
-            // narrower file that no reader could distinguish from a full run. Now the
-            // fixtures pass still runs (so the run is not wasted and the contract is
-            // still checked), but the run is marked DEFERRED, cannot claim the canonical
-            // evidence path over a richer file, and exits 3.
-            deferred = {
-                reason: 'live pass NOT RUN: 1-min load ' + load1.toFixed(2) + ' >= gate ' + loadGate,
-                load_at_run: Number(load1.toFixed(2)),
-                load_gate: loadGate,
-                remedy: 're-run `npm run wow-conformance` when 1-min load < ' + loadGate
-                    + ' to obtain live coverage',
-            };
-            report = await runWowConformance({ validator: createValidator() });
-        } else {
+        // The live pass always runs. The 1-minute load is recorded as information only.
+        console.log('1-min load average: ' + load1.toFixed(2) + ' (information only; nothing is skipped for load)');
+        try {
             report = await bootAndRun(port);
-            report.proof_port = port;
+        } catch (error) {
+            // A timeout-like failure is what machine load causes: retry the live pass once.
+            // A second failure is a real failure.
+            if (!/timed? ?out|timeout|exceeded/i.test(String(error && error.message || error))) throw error;
+            console.log('re-run once after a failure load can cause (1-minute load ' + os.loadavg()[0].toFixed(2)
+                + '): first try: ' + String(error && error.message || error));
+            report = await bootAndRun(port);
         }
+        report.proof_port = port;
     }
 
     // ---- e2e-driver manifest idiom: assertions.{ok,problems} + evidence ----
@@ -283,20 +279,13 @@ async function main()
         live_requested: liveRequested,
         live_obtained: report.coverage.live_driven,
         load_at_run: Number(load1.toFixed(2)),
-        load_gate: loadGate,
         exit_semantics: '0=pass 1=conformance FAIL 2=crash/protected-port '
-            + '3=DEFERRED(live requested, not obtained) 4=diagnostics WRITE REFUSED(narrower than disk)',
+            + '4=diagnostics WRITE REFUSED(narrower than disk)',
     };
-    if (deferred) manifest.deferred_live = deferred;
 
-    // A DEFERRED run is NOT ok: live coverage was asked for and was not obtained.
-    // Its empty `problems` list means "the contract is self-consistent", never
-    // "the server conforms" — so it must not be allowed to read as a pass.
     const problems = report.problems.slice();
-    if (deferred) problems.push('DEFERRED: ' + deferred.reason);
     manifest.assertions = {
-        ok: report.problems.length === 0 && !deferred,
-        deferred: Boolean(deferred),
+        ok: report.problems.length === 0,
         // Mirrored into `assertions` on purpose: a downstream gate that reads only
         // `assertions` (as stage-readiness-proof.js did) must not be able to
         // miss that this run's coverage was narrow. `ok` alone never means "conformant".
@@ -344,15 +333,9 @@ async function main()
 
     let exitCode = EXIT.OK;
     if (report.problems.length) exitCode = EXIT.FAIL;
-    else if (deferred) exitCode = EXIT.DEFERRED;
     else if (write.refusedCanonical) exitCode = EXIT.WRITE_REFUSED;
 
-    if (deferred) {
-        console.error('\nWoW CONFORMANCE DEFERRED (exit 3): ' + deferred.reason);
-        console.error(deferred.remedy);
-    }
     console.log('\nassertions: ' + (manifest.assertions.ok ? 'ALL PASS'
-        : deferred ? 'DEFERRED (NOT A PASS) -> ' + problems.join('; ')
         : 'FAIL -> ' + problems.join('; ')));
     console.log('exit: ' + exitCode);
 

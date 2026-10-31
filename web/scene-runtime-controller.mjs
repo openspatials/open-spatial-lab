@@ -1,8 +1,6 @@
 import { SpatialPortalPreviewManager } from "./portal-spatial-preview.mjs?v=meeting-critical-destination";
-import {
-  disposeHostedSceneObjectMeshes,
-  syncHostedSceneObjectMeshes,
-} from "./portal-render-controller.mjs";
+import { composeBoundedPreview } from "./main-demo-preview.mjs";
+import { ringColorsOf } from "./worlds-list.mjs";
 import { clampPixelRatio, renderQualityLevers } from "./render-quality-levers.mjs";
 
 /**
@@ -286,139 +284,26 @@ export function createSceneRuntimeController({
         }
         return capabilities.resolvePortalDestinationContent(entry);
       },
+      // A portal's window looks only into what its destination declared.
       composeDestinationContent: (content, context) => {
-        if (content?.kind === "legacy_world") {
-          const scene = new THREE.Scene();
-          scene.background = new THREE.Color(0x0b1020);
-          const inventory = mountCanonicalWorldContent(
-            scene,
-            THREE,
-            content.world,
-          );
-          const hostedMeshes = new Map();
-          const presentation = {
-            ...inventory,
-            hosted_objects: {
-              attach_point_id: null,
-              version: null,
-              refresh_owner: "PortalRenderController existing bounded client pull",
-              refresh_cadence_ms: 100,
-              streaming: false,
-              objects: [],
-            },
-          };
-          const composition = {
-            scene,
-            source: inventory.source,
-            revision: content.revision,
-            semantic_inventory: inventory.semantic_inventory,
-            inventory_revision: 0,
-            presentation,
-            update: null,
-            dispose: null,
-          };
-          const applyHostedPoint = (attachPoint) => {
-            if (!attachPoint || attachPoint.version === presentation.hosted_objects.version) return;
-            const synced = syncHostedSceneObjectMeshes({
-              THREE,
-              meshes: hostedMeshes,
-              parent: scene,
-              objects: attachPoint.value?.objects || [],
-              version: attachPoint.version,
-            });
-            if (synced.structure_changed) composition.inventory_revision += 1;
-            composition.revision =
-              `${content.location_id}:${content.world_id}:hosted-${attachPoint.version ?? "unknown"}`;
-            composition.semantic_inventory = [
-              ...inventory.semantic_inventory,
-              ...synced.object_ids.map((id) => `demo-scene-object-${id}`),
-            ];
-            presentation.hosted_objects = {
-              attach_point_id: attachPoint.attach_point_id || null,
-              version: attachPoint.version ?? null,
-              refresh_owner: "PortalRenderController existing bounded client pull",
-              refresh_cadence_ms: 100,
-              streaming: false,
-              objects: Array.from(hostedMeshes.values(), (mesh) => ({
-                ...mesh.userData.hostedSceneObject,
-                scene_name: mesh.name,
-                position: [mesh.position.x, mesh.position.y, mesh.position.z],
-                instance_count: 1,
-              })),
-            };
-          };
-          applyHostedPoint(content.hosted_point);
-          const unsubscribe = typeof content.subscribeHostedPoint === "function"
-            ? content.subscribeHostedPoint(applyHostedPoint)
-            : null;
-          composition.dispose = () => {
-            try { unsubscribe?.(); } catch {}
-            disposeHostedSceneObjectMeshes(hostedMeshes);
-          };
-          return composition;
-        }
-        if (content?.kind !== "authored_wow_graph" || !content.graph) {
-          throw new Error("portal destination has no canonical scene authority");
-        }
-        const width = Math.max(1, Number(context?.width) || 1);
-        const height = Math.max(1, Number(context?.height) || 1);
-        const built = buildWowScene(content.graph, THREE, {
-          width,
-          height,
-          source: "portal_canonical_authored_wow_graph",
-        });
-        const airportTerminal = mountAirportTerminalContent(
-          content.graph,
-          built,
+        if (content?.kind !== "wow_bounded_preview") throw new Error("a portal shows only its destination's bounded preview");
+        return composeBoundedPreview(content, context, {
           THREE,
-          { document: documentTarget, motionPreference, hudOverlay: false },
-        );
-        // buildWowScene's grid/gizmos are diagnostics, not authored content.
-        hideStageDebugVisuals(built.scene, true);
-        const assetState = {
-          status: built.asset_nodes?.length ? "pending" : "settled",
-          requested: built.asset_nodes?.length || 0,
-          loaded: 0,
-          failed: 0,
-        };
-        let disposed = false;
-        if (built.asset_nodes?.length) {
-          void mountWowSceneAssets(built.asset_nodes, THREE, {
-            loadGltf,
-            cloneScene,
-            cache: destinationAssetCache,
-            shouldMount: () => !disposed,
-            baseUrl: content.base_url || content.graph_url || locationHref,
-            onAsset: (item, model, assetRecord) => {
-              void built.airport_entity_runtime?.attachAsset(item, model, assetRecord);
-            },
-          }).then((summary) => Object.assign(assetState, summary, { status: "settled" }))
-            .catch((error) => Object.assign(assetState, {
-              status: "error",
-              error: error?.message || String(error),
-            }));
-        }
-        return {
-          scene: built.scene,
-          source: "shared_buildWowScene+mountAirportTerminalContent",
-          revision: content.revision,
-          semantic_inventory: Array.from(
-            built.scene.children || [],
-            (node) => node.name || node.type,
-          ),
-          presentation: {
-            graph_spatial_id: content.graph.spatialID || content.world_id,
-            airport_terminal: airportTerminal,
-            render_summary: built.render_summary,
-            assets: assetState,
-          },
-          update: (seconds, camera) => built.airport_entity_runtime?.update(seconds, camera),
-          dispose: () => {
-            disposed = true;
-            built.airport_hud_overlay?.dispose();
-            built.airport_entity_runtime?.dispose();
-          },
-        };
+          buildWowScene,
+          mountAirportTerminalContent,
+          mountWowSceneAssets,
+          loadGltf,
+          cloneScene,
+          cache: destinationAssetCache,
+          document: documentTarget,
+          motionPreference,
+        });
+      },
+      ringColorOf: (locationId) => ringColorsOf(locationId).color,
+      visitorPosition: () => {
+        const capabilities = runtime();
+        const avatar = capabilities && capabilities.state ? capabilities.state.avatar : null;
+        return avatar && Array.isArray(avatar.position) ? avatar.position : null;
       },
       controlledPlayerId: () => {
         const capabilities = runtime();
@@ -1201,6 +1086,8 @@ export function createSceneRuntimeController({
     disengagePortalTakeover: () => { if (previewManager) previewManager.disengageTakeover(); },
     portalTakeoverEngaged: () => !!(previewManager && previewManager.takeover.engaged),
     portalDebug: () => previewManager ? previewManager.debug() : null,
+    portalPreviewStates: () => previewManager ? previewManager.previewStates() : {},
+    forgetPortalPreview: (entry) => { if (previewManager) previewManager.forgetDestination(entry); },
     destinationAssetCache: () => destinationAssetCache,
     samplePortalApertureTexels: (key, points) => previewManager
       ? previewManager.sampleApertureTexels(key, points)

@@ -95,6 +95,7 @@ async function loadPreviewModule() {
   source = source.replace(browserThreeImport, `import * as THREE from ${JSON.stringify(threeUrl)};`);
   const tempModulePath = resolve(tempRoot, "portal-spatial-preview-production.mjs");
   await writeFile(tempModulePath, source);
+  await copyFile(resolve(repoRoot, "web/main-demo-window.mjs"), resolve(tempRoot, "main-demo-window.mjs"));
   await copyFile(
     resolve(repoRoot, "web/live-adapter-portal-geometry.mjs"),
     resolve(tempRoot, "live-adapter-portal-geometry.mjs"),
@@ -182,6 +183,7 @@ function adoptedTargetFrame(entry, regionPortal) {
       triggerPosition: trigger,
       triggerRadius: Number(regionPortal.trigger_radius_m) || 1.25,
       targetLocationId: entry.source_location_id,
+      forward: regionPortal.forward,
     }),
     pose_source: "destination_region_portal_pose",
   };

@@ -20,128 +20,14 @@ export const CLIENT_SCENE_LOAD_TRANSITION = "client_scene_load";
 export const CLIENT_SCENE_RETURN_TRANSITION = "client_scene_return";
 
 /**
- * Recover only the shipped player-lobby Portal C when a recognized pre-
- * backend still advertises the exact A/B pair. Fresh A/B/C backends and every
- * other input are returned by identity so this cannot mask general drift.
+ * The demo's own target description of a portal resource: the labeled `osl_destination`, or, from a
+ * backend older than iteration 4, the object it carried as `destination`. The canonical `destination`
+ * is now the entry URL string.
  */
-export function recoverAirportLobbyPortalResources(clientMode, wowWorld, wowPortals) {
-  if (clientMode !== "player" || !Array.isArray(wowPortals)) return wowPortals;
-  if (wowWorld?.id !== "demo-lobby" || wowWorld?.location?.id !== "location-lobby") {
-    return wowPortals;
-  }
-
-  const resourceIds = wowPortals.map((portal) => portal?.webofworlds_extension?.portal_id || null);
-  if (
-    resourceIds.length === 3 &&
-    resourceIds[0] === "lobby-portal-a" &&
-    resourceIds[1] === "lobby-portal-b" &&
-    resourceIds[2] === "lobby-portal-c"
-  ) {
-    return wowPortals;
-  }
-
-  const listed = wowWorld?.webofworlds_extension?.portals;
-  const listedIds = Array.isArray(listed) ? listed.map((portal) => portal?.portal_id || null) : [];
-  const expectedBackendTargets = [
-    [1, "lobby-portal-a", "location-a", "demo-room-a", "http://127.0.0.1:18151"],
-    [2, "lobby-portal-b", "location-b", "demo-room-b", "http://127.0.0.1:18152"],
-  ];
-  const exactStalePair =
-    resourceIds.length === 2 &&
-    resourceIds[0] === "lobby-portal-a" &&
-    resourceIds[1] === "lobby-portal-b" &&
-    listedIds.length === 2 &&
-    listedIds[0] === "lobby-portal-a" &&
-    listedIds[1] === "lobby-portal-b" &&
-    wowWorld?.portals?.portal_count === 2 &&
-    wowPortals.every((portal, index) => {
-      const ext = portal?.webofworlds_extension;
-      const destination = portal?.destination;
-      const expected = expectedBackendTargets[index];
-      return (
-        portal?.id === expected[0] &&
-        ext?.portal_id === expected[1] &&
-        ext?.source_location_id === "location-lobby" &&
-        ext?.source_world_id === "demo-lobby" &&
-        !ext?.target_fixture &&
-        destination?.target_location_id === expected[2] &&
-        destination?.target_world_id === expected[3] &&
-        destination?.target_base_url === expected[4]
-      );
-    });
-  if (!exactStalePair) return wowPortals;
-
-  return [...wowPortals, {
-    id: 3,
-    label: "Portal to Denver Skyport",
-    geoPose: {
-      position: { lat: 4.4, lon: 0, h: 0 },
-      angles: { yaw: 0, pitch: 0, roll: 0 },
-    },
-    destination: {},
-    webofworlds_extension: {
-      portal_id: "lobby-portal-c",
-      wow_id: 3,
-      wow_resource: "/wow/portal/3",
-      legacy_alias_endpoint: "/wow/portal/lobby-portal-c",
-      source_location_id: "location-lobby",
-      source_world_id: "demo-lobby",
-      target_fixture: {
-        spatial_id: "world-airport-terminal",
-        graph_endpoint: "/worlds/denver-skyport.json",
-      },
-      handoff_behavior: "client-scene-load (same browser/player; no application-level handoff)",
-      native_teleportxr_teleport: false,
-      trigger: { position: [0, 0, -4.4], radius_m: 1.25 },
-      arrival: { position: [0, 0, -3], rotation_y: 0 },
-      zones: {
-        prefetch: {
-          type: "portal_center_planar_radius",
-          radius_m: 3,
-          hysteresis_ratio: 1.15,
-          armed_entry_sides: ["front", "back"],
-        },
-        traversal: {
-          type: "oval_frame_plane_crossing",
-          width_m: 1.8,
-          height_m: 2.8,
-          trigger_depth_m: 0.8,
-          armed_entry_sides: ["front", "back"],
-        },
-        invariant: "prefetch.radius_m > width_m/2 + trigger_depth_m + 0.5",
-        invariant_min_prefetch_radius_m: 2.2,
-        invariant_ok: true,
-      },
-      traversal_mode: "bidirectional",
-      traversal: {
-        mode: "bidirectional",
-        transition: CLIENT_SCENE_LOAD_TRANSITION,
-        allowed_entry_side: "both",
-        blocked_entry_side: null,
-        side_reference: "portal_frame_forward",
-        frame_forward: [0, 0, 1],
-        validation: {
-          traversal_direction_standard_conformance: false,
-          application_level: true,
-        },
-      },
-      reciprocal: {
-        mode: "automatic",
-        validation: {
-          automatic_reciprocal_standard_conformance: false,
-          application_level: true,
-        },
-      },
-    },
-    proof_boundary: wowWorld.proof_boundary && typeof wowWorld.proof_boundary === "object"
-      ? { ...wowWorld.proof_boundary }
-      : {
-          application_level_handoff: true,
-          native_teleportxr_teleport: false,
-          first_party_teleportxr_browser_rendering: false,
-          standards_conformance: false,
-        },
-  }];
+export function labeledPortalDestination(wowPortal) {
+  if (wowPortal && wowPortal.osl_destination && typeof wowPortal.osl_destination === "object") return wowPortal.osl_destination;
+  if (wowPortal && wowPortal.destination && typeof wowPortal.destination === "object") return wowPortal.destination;
+  return {};
 }
 
 export function clientSceneLoadFieldsFromWowPortal(wowPortal) {
@@ -302,7 +188,7 @@ export function automaticReciprocalPortal({
     .filter((portal) => {
       const key = portalKey(portal);
       const targetPortalId = portal.target_portal_id || portal.frame?.linked_target_portal_id;
-      const targetLocationId = portal.target_location_id || portal.destination?.target_location_id;
+      const targetLocationId = portal.target_location_id || labeledPortalDestination(portal).target_location_id;
       const reciprocalOf = portal.derived_from?.source_portal_id || portal.reciprocal?.source_portal_id;
       return key === derivedId || reciprocalOf === sourcePortalId || (
         targetPortalId === sourcePortalId && targetLocationId === originWorld.location_id

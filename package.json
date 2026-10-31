@@ -26,6 +26,8 @@
     "arch-i1-proof": "node tools/arch-i1/proof.js",
     "arch-i2-proof": "node tools/arch-i2/proof.js",
     "arch-i3-proof": "node tools/arch-i3/proof.js",
+    "arch-i4-proof": "node tools/arch-i4/proof.js",
+    "arch-i4-main-proof": "node tools/arch-i4/main-demo/proof.mjs",
     "check:identity": "node tools/run-checks.mjs identity",
     "check:client": "node tools/run-checks.mjs client",
     "check:browser": "node tools/run-checks.mjs browser",
@@ -34,7 +36,11 @@
     "conformance:fixtures": "node wow-spec/conformance-fixtures/run.mjs",
     "wow-schema-json": "node wow-spec/build-schema-json.js",
     "smoke:wowapi": "node tools/verify-wowapi-smoke.mjs",
-    "check:request-target": "node tools/check-request-target.js"
+    "check:request-target": "node tools/check-request-target.js",
+    "check:worlds": "node tools/check-worlds.mjs",
+    "check:world-list": "node tools/placement/check-world-list.mjs",
+    "check:placement": "node tools/placement/run.mjs",
+    "check:local-only": "node tools/placement/check-local-only.mjs"
   },
   "dependencies": {
     "@pixiv/three-vrm": "3.3.3",

@@ -8,7 +8,7 @@
  *   I5-I8b   unreachable, refused, cycles, depth and budget  (tools/arch-i2/checks-failures.js)
  *   I9, I10  a whole world, and frames                      (tools/arch-i2/checks-world.js)
  *   I12      the included world's environment               (tools/arch-i2/checks-world.js)
- *   I11      a cross-origin browser read (load-gated)       (tools/arch-i2/checks-browser.js)
+ *   I11      a cross-origin browser read (in a browser)       (tools/arch-i2/checks-browser.js)
  *   O1, O2   the proposed Web of Worlds edits                (tools/arch-i2/checks-overlay.js)
  *
  * Headless, in Node, except I11. World A and world B are lab world servers on two local origins,

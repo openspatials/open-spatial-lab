@@ -117,6 +117,7 @@ async function loadPreviewModule() {
   source = source.replace(browserThreeImport, `import * as THREE from ${JSON.stringify(threeUrl)};`);
   const tempModulePath = resolve(tempRoot, "portal-spatial-preview-production.mjs");
   await writeFile(tempModulePath, source);
+  await copyFile(resolve(repoRoot, "web/main-demo-window.mjs"), resolve(tempRoot, "main-demo-window.mjs"));
   await copyFile(
     resolve(repoRoot, "web/live-adapter-portal-geometry.mjs"),
     resolve(tempRoot, "live-adapter-portal-geometry.mjs"),
@@ -191,6 +192,7 @@ function adoptedTargetFrame(entry, regionPortal) {
       triggerPosition: trigger,
       triggerRadius: Number(regionPortal.trigger_radius_m) || 1.25,
       targetLocationId: entry.source_location_id,
+      forward: regionPortal.forward,
     }),
     pose_source: "destination_region_portal_pose",
   };
@@ -447,12 +449,8 @@ async function main() {
 
     await check("E1i", "app.js no longer substitutes serverBApertureMachine for lobby-portal-b's aperture machine", async () => {
       const appSource = await readFile(resolve(repoRoot, "web/app.js"), "utf8");
-      assertOk(!/\?\s*serverBApertureMachine/.test(appSource),
-        "the serverBApertureMachine substitution ternary is back");
-      assertOk(/RETIRED as an\s*\n?\/\/ aperture machine/.test(appSource) || appSource.includes("RETIRED as an"),
-        "retirement documentation missing");
-      assertOk(appSource.includes("data-server-b-aperture-entities"),
-        "the boot-time reachability probe was removed (only the machine substitution should be retired)");
+      assertOk(!appSource.includes("serverBApertureMachine"), "the serverBApertureMachine substitution is back");
+      assertOk(!appSource.includes("data-server-b-aperture-entities"), "the boot-time read of Server B's region is back");
     });
 
     // ================= SECTION 2 — the REAL preview manager ================

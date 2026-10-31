@@ -771,6 +771,8 @@
   right: 0;
   bottom: 0;
   display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
   align-items: center;
   justify-content: center;
   min-height: 56px;
@@ -796,8 +798,9 @@
   text-decoration: none;
 }
 
-.demo-launcher-dock-hosted {
-  margin: 0 auto;
+.demo-launcher-dock-attribution {
+  font: 500 clamp(13px, 3.6vw, 15px)/1.2 var(--launcher-sans);
+  text-align: center;
 }
 
 .demo-launcher-dock-link:hover {

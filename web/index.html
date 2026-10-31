@@ -32,6 +32,8 @@
       --osl-viewport-top: 0px;
       --osl-shell-header-height: 56px;
       --osl-shell-footer-height: 44px;
+      /* What stands above the footer: its measured height (web/main-demo-footer.mjs), never less than the fixed one. */
+      --osl-footer-height: max(var(--osl-shell-footer-height), var(--osl-footer-measured, 0px));
       --osl-glass-edge: 12px;
       --osl-glass-gap: 12px;
       --osl-panel-top: calc(var(--osl-glass-edge) + var(--osl-shell-header-height) + var(--osl-glass-gap));
@@ -144,7 +146,7 @@
        position override these values only for the current open cycle. */
     :root {
       --rail-w: clamp(280px, 30vw, 420px);
-      --rail-h: min(640px, calc(var(--osl-viewport-height) - var(--osl-panel-top) - var(--osl-shell-footer-height) - var(--osl-glass-edge)));
+      --rail-h: min(640px, calc(var(--osl-viewport-height) - var(--osl-panel-top) - var(--osl-footer-height) - var(--osl-glass-edge)));
     }
     main { position: absolute; inset: 0; min-height: 0; min-width: 0; overflow: hidden; }
     /* when collapsed the rail column goes to zero width and the
@@ -581,7 +583,7 @@
       right: var(--rail-right, var(--osl-glass-edge)); left: var(--rail-left, auto);
       width: var(--rail-w); height: var(--rail-h);
       min-width: 0; min-height: 0; max-width: calc(100% - (2 * var(--osl-glass-edge)));
-      max-height: calc(100% - var(--osl-panel-top) - var(--osl-shell-footer-height) - var(--osl-glass-edge));
+      max-height: calc(100% - var(--osl-panel-top) - var(--osl-footer-height) - var(--osl-glass-edge));
       border: 1px solid var(--osl-glass-border); border-radius: var(--osl-glass-radius-panel);
       background: var(--osl-glass-fill-solid); box-shadow: var(--osl-glass-shadow);
       overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
@@ -683,7 +685,8 @@
       align-items: center; justify-content: stretch; background: var(--panel); }
     /* The hosted destination is the sole in-world footer link. It uses the same inherited
        system-sans family as .loc-title while retaining the launcher's cyan/focus tokens. */
-    .footer-links { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; }
+    .footer-links { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px 16px; }
+    .footer-attribution { color: #8fa4c0; font-size: clamp(13px, 3.6vw, 15px); font-weight: 500; line-height: 1.2; text-align: center; }
     .footer-link { display: inline-flex; max-width: 100%; align-items: center; justify-content: center;
       color: var(--launcher-cyan, #63d8ff); font-family: inherit;
       font-size: clamp(17px, 5vw, 21px); font-weight: 600; line-height: 1.2;
@@ -1080,6 +1083,20 @@
         </button>
       </div>
     </header>
+    <script>
+      // A `?wow=` page names the world it is loading from the first paint, instead of the default
+      // "Location A" header, while the app's modules load.
+      (function () {
+        var wow = new URLSearchParams(location.search).get("wow");
+        if (!wow) return;
+        var chip = document.getElementById("role-chip");
+        var title = document.getElementById("loc-title");
+        var host = wow;
+        try { var u = new URL(wow, location.href); host = u.host + u.pathname.replace(/\/wow\/spatial\/.*$/, ""); } catch (e) {}
+        if (chip) chip.textContent = "WoW world";
+        if (title) title.textContent = "Loading world " + host + "\u2026";
+      })();
+    </script>
 
     <main>
       <div id="scene-mount" tabindex="-1" aria-label="Interactive spatial world">
@@ -1552,6 +1569,7 @@
               <div class="kv"><span class="k">active world</span><span class="v" id="c-active">—</span></div>
               <div class="kv"><span class="k">preview world</span><span class="v" id="c-preview">—</span></div>
               <div class="kv"><span class="k">context marker</span><span class="v" id="c-marker">—</span></div>
+              <div class="kv"><span class="k">player presence</span><span class="v" id="c-presence-scope">same browser only (BroadcastChannel), until live presence is built: other tabs of this browser see your avatar; other browsers and machines do not</span></div>
               <div class="kv"><span class="k">camera</span><span class="v" id="c-camera">—</span></div>
               <div class="kv"><span class="k">source boundary</span><span class="v" id="c-validation">—</span></div>
               <div class="kv"><span class="k">navigator status</span><span class="v" id="n-status">—</span></div>
@@ -1689,8 +1707,9 @@
         <span>correlate by <b>handoff_id</b></span>
       </span>
       <span class="footer-links">
-        <a class="footer-link footer-hosted-link" href="https://labs.peers.social/open-spatial-lab/"
-           target="_blank" rel="noopener noreferrer">labs.peers.social/open-spatial-lab</a>
+        <span class="footer-attribution" data-testid="footer-attribution">Open Spatial Lab by Grig Bilham, with contributors</span>
+        <a class="footer-link footer-hosted-link" href="https://lab.openspatials.com/"
+           target="_blank" rel="noopener noreferrer">lab.openspatials.com</a>
       </span>
     </footer>
   </div>

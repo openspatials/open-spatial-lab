@@ -8,8 +8,15 @@ const ROOT = path.resolve(__dirname, '..');
 const WEB_ROOT = path.join(ROOT, 'web');
 const SCENE_CORE_ROOT = path.join(ROOT, 'runtime', 'scene-core', 'public');
 const NODE_MODULES = path.join(ROOT, 'node_modules');
-const DEFAULT_BACKEND_PORTS = Object.freeze({ a: 18151, b: 18152, lobby: 18153, airport: 18154 });
-const WORLD_KEYS = new Set(Object.keys(DEFAULT_BACKEND_PORTS));
+const { loadWorlds, publicWorlds, withPort } = require('./worlds-config.js');
+const localOnly = require('../runtime/world-server/src/local-only.js');
+const { asSeenFrom } = require('../runtime/world-server/src/request-address.js');
+
+// The worlds this frontend routes to (/w/{key}/, /api/{key}/, /wow on a world's page) come from the worlds
+// configuration (worlds.json, or OSL_WORLDS), so a new world needs no change here.
+function configuredWorlds() {
+  return loadWorlds({ strict: true });
+}
 
 const MIME = Object.freeze({
   '.css': 'text/css; charset=utf-8',
@@ -75,15 +82,31 @@ function backendHealth(key, port) {
   });
 }
 
-function proxyHttp(key, request, response, backendPorts) {
+function proxyHttp(key, request, response, backendPorts, frontend) {
   const prefix = `/api/${key}`;
   const targetPath = request.url.startsWith(prefix) ? request.url.slice(prefix.length) || '/' : request.url;
+  // The local-only switch (runtime/world-server/src/local-only.js), on the frontend too: a frontend that is not
+  // bound to 127.0.0.1 must not carry placement writes to a world server that is. Judged by this server's
+  // bound address, as the world server judges its own. A path that cannot be read is refused if it writes.
+  let targetPathname = null;
+  try { targetPathname = new URL(targetPath, 'http://127.0.0.1').pathname; } catch { targetPathname = null; }
+  const policy = localOnly.placementPolicy(frontend());
+  if (!policy.allowed) {
+    if (targetPathname === null ? !['GET', 'HEAD', 'OPTIONS'].includes(request.method) : localOnly.isPlacementWrite(request.method, targetPathname)) {
+      sendJson(response, 403, localOnly.refusalBody(policy, request.method, targetPathname || targetPath));
+      return;
+    }
+    if (request.method === 'GET' && targetPathname === '/placement') {
+      sendJson(response, 200, policy);
+      return;
+    }
+  }
   const proxy = http.request({
     hostname: '127.0.0.1',
     port: backendPorts[key],
     path: targetPath,
     method: request.method,
-    headers: { ...request.headers, host: `127.0.0.1:${backendPorts[key]}` },
+    headers: { ...request.headers, host: `127.0.0.1:${backendPorts[key]}`, 'x-forwarded-host': request.headers.host },
   }, (backendResponse) => {
     const headers = { ...backendResponse.headers };
     delete headers['access-control-allow-origin'];
@@ -101,8 +124,8 @@ function proxyWebSocket(request, clientSocket, head, backendPorts) {
     clientSocket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
     return;
   }
-  const match = parsed.pathname.match(/^\/api\/(a|b|lobby|airport)\/(runtime-state|events)$/);
-  if (!match) {
+  const match = parsed.pathname.match(/^\/api\/([a-z0-9-]+)\/(runtime-state|events)$/);
+  if (!match || !Object.prototype.hasOwnProperty.call(backendPorts, match[1])) {
     clientSocket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
     return;
   }
@@ -136,7 +159,10 @@ function proxyWebSocket(request, clientSocket, head, backendPorts) {
 }
 
 function createFrontendServer(port = 8143, options = {}) {
-  const backendPorts = { ...DEFAULT_BACKEND_PORTS, ...(options.backendPorts || {}) };
+  const config = options.worlds || configuredWorlds();
+  const configuredPorts = Object.fromEntries(config.worlds.map((world) => [world.key, world.port]));
+  const backendPorts = { ...configuredPorts, ...(options.backendPorts || {}) };
+  const isWorld = (key) => Object.prototype.hasOwnProperty.call(backendPorts, key);
   // A request target the handler cannot read is answered 400 and must never stop the process.
   const server = http.createServer((request, response) => {
     handleRequest(request, response).catch((error) => {
@@ -148,9 +174,9 @@ function createFrontendServer(port = 8143, options = {}) {
   async function handleRequest(request, response) {
     const parsed = new URL(request.url, 'http://127.0.0.1');
     let urlPath = parsed.pathname;
-    let worldKey = 'a';
-    const worldMatch = urlPath.match(/^\/w\/(a|b|lobby|airport)(\/.*)?$/);
-    if (worldMatch) {
+    let worldKey = config.worlds[0] ? config.worlds[0].key : 'a';
+    const worldMatch = urlPath.match(/^\/w\/([a-z0-9-]+)(\/.*)?$/);
+    if (worldMatch && isWorld(worldMatch[1])) {
       worldKey = worldMatch[1];
       if (!worldMatch[2]) {
         response.writeHead(301, { Location: `/w/${worldKey}/${parsed.search}`, 'Cache-Control': 'no-store' });
@@ -177,19 +203,30 @@ function createFrontendServer(port = 8143, options = {}) {
       response.end();
       return;
     }
+    // The list of worlds, for the browser client: the launcher, the player's endpoints and the placement tool.
+    if (request.method === 'GET' && urlPath === '/worlds.json') {
+      const listed = publicWorlds(config);
+      listed.worlds = listed.worlds.map((world) => ({
+        ...world,
+        port: backendPorts[world.key],
+        address: asSeenFrom(request, backendPorts[world.key] === world.port ? world.address : withPort(world.address, backendPorts[world.key])),
+      }));
+      sendJson(response, 200, listed);
+      return;
+    }
     if (request.method === 'GET' && urlPath === '/healthz') {
       const backends = await Promise.all(Object.entries(backendPorts).map(([key, backendPort]) => backendHealth(key, backendPort)));
       const ok = backends.every((backend) => backend.ok);
       sendJson(response, ok ? 200 : 503, { ok, frontend: { ok: true }, backends });
       return;
     }
-    if (urlPath === '/wow' || urlPath.startsWith('/wow/')) {
-      proxyHttp(worldKey, request, response, backendPorts);
+    if (urlPath === '/wow' || urlPath.startsWith('/wow/') || urlPath === '/placement') {
+      proxyHttp(worldKey, request, response, backendPorts, () => server);
       return;
     }
-    const apiMatch = urlPath.match(/^\/api\/(a|b|lobby|airport)(?:\/|$)/);
-    if (apiMatch) {
-      proxyHttp(apiMatch[1], request, response, backendPorts);
+    const apiMatch = urlPath.match(/^\/api\/([a-z0-9-]+)(?:\/|$)/);
+    if (apiMatch && isWorld(apiMatch[1])) {
+      proxyHttp(apiMatch[1], request, response, backendPorts, () => server);
       return;
     }
 
@@ -222,9 +259,10 @@ function createFrontendServer(port = 8143, options = {}) {
   server.on('upgrade', (request, socket, head) => proxyWebSocket(request, socket, head, backendPorts));
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, '127.0.0.1', () => {
+    const host = options.host || localOnly.bindHost();
+    server.listen(port, host, () => {
       server.removeListener('error', reject);
-      console.log(`[frontend] Open Spatial Lab listening on http://127.0.0.1:${port}`);
+      console.log(`[frontend] Open Spatial Lab listening on http://${host}:${port}`);
       resolve(server);
     });
   });
@@ -233,14 +271,14 @@ function createFrontendServer(port = 8143, options = {}) {
 module.exports = { createFrontendServer };
 
 if (require.main === module) {
-  const port = Number(process.argv[2]) || 8143;
-  const backendPorts = {
-    a: Number(process.env.BACKEND_A_PORT) || DEFAULT_BACKEND_PORTS.a,
-    b: Number(process.env.BACKEND_B_PORT) || DEFAULT_BACKEND_PORTS.b,
-    lobby: Number(process.env.BACKEND_LOBBY_PORT) || DEFAULT_BACKEND_PORTS.lobby,
-    airport: Number(process.env.BACKEND_AIRPORT_PORT) || DEFAULT_BACKEND_PORTS.airport,
-  };
-  createFrontendServer(port, { backendPorts }).catch((error) => {
+  let worlds;
+  try { worlds = configuredWorlds(); }
+  catch (error) {
+    console.error(`Open Spatial Lab frontend failed: ${error.message}`);
+    process.exit(1);
+  }
+  const port = Number(process.argv[2]) || worlds.frontend.port;
+  createFrontendServer(port, { worlds }).catch((error) => {
     console.error(`Open Spatial Lab frontend failed: ${error.message}`);
     process.exit(1);
   });

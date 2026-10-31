@@ -1,0 +1,14 @@
+{
+  "frontend": { "port": 8143 },
+  "worlds": [
+    { "key": "a", "name": "Location A", "port": 18151, "address": "http://127.0.0.1:18151/",
+      "anchor": { "lat": 47.7, "lon": -122.3, "h": 11.5 }, "room": "#3aa0ff", "preview_radius_m": 10 },
+    { "key": "b", "name": "Location B", "port": 18152, "address": "http://127.0.0.1:18152/",
+      "anchor": { "lat": 47.7, "lon": -122.2986676811, "h": 11.5 }, "room": "#ff7a3a", "preview_radius_m": 10,
+      "portal_ring": { "color": "#ffc266", "fill": "#ffb14d" } },
+    { "key": "lobby", "name": "Lobby", "port": 18153, "address": "http://127.0.0.1:18153/",
+      "anchor": { "lat": 47.7, "lon": -122.3013323189, "h": 11.5 }, "room": "#42d68a", "preview_radius_m": 10 },
+    { "key": "airport", "name": "Denver Skyport", "port": 18154, "address": "http://127.0.0.1:18154/",
+      "anchor": { "lat": 39.8561, "lon": -104.6737, "h": 1655.0 }, "preview_radius_m": 24 }
+  ]
+}

@@ -7,7 +7,7 @@
     "x-osl-source-of-truth": true,
     "x-osl-canonical-basis": "Canonical schemas (World/User/View/Portal/Node/Spatial) and the /wow/world, /wow/user, /wow/view, /wow/portal and /wow/spatial paths are transcribed from the OPEN OpenSpatialWorld API (github.com/WebOfWorlds/WoWAPI, specification/OpenSpatialWorld/API.yaml, openapi 3.0.4, info.version 0.0.1), pinned to upstream commit d39a1a0 (\"fixed node children type\", 2026-05-21).",
     "x-osl-provenance-correction": "CORRECTION (2026-07-11, runtime; supersedes the previous claim here that this file was \"NOT copied from the UNLICENSED simpleWorlds reference implementation\"). That sentence was NOT supportable and is withdrawn. Two things in the first transcription match the STALE spec copy vendored in the simpleWorlds reference implementation rather than the open spec: (1) `Node.children` was typed `integer`, where the open spec says `$ref: Node` (simpleWorlds packages/wow-spec/src/schema.yaml:425-428 types it `integer`; upstream has ONE commit, so NO published upstream state has ever said `integer`); and (2) the dotted operationIds (world.getWorld, user.getUser, user.deleteUser, view.getView, portal.getPortal) match simpleWorlds 5-for-5, where upstream uses getWorldStatus / getUserById / deleteUserById / getViewById / getPortalById. Sourcing was MIXED, not wholesale: the /wow/spatial/{spatialID}/node/{nodeId} path is the OPEN SPEC's, and OSL deliberately REJECTED simpleWorlds' /wow/scene/node divergence (PROP §9). `Node` is now restored VERBATIM from the open spec. What OSL served then (id-ref children) was the LABELED, non-canonical `OSLFlatNode` divergence — declared, never presented as the standard. Since iteration 1 OSL serves the canonical `Node` by default and the flat form only on explicit request. NO simpleWorlds SOURCE CODE is vendored in this repository; the schema typing and operationId NAMING above are the extent of the overlap, and the typing is corrected. LICENSING NOTE: simpleWorlds' license state is self-contradictory — the repo ships an Apache-2.0 LICENSE file while its package.json (root and packages/wow-spec) declares \"license\": \"UNLICENSED\". Because that is unresolved, OSL treats simpleWorlds as DO-NOT-COPY and single-sources the open spec.",
-    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema has NO destination field; OSL carries a portal\n    destination as a LABELED extension (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n\nFrames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\nMedia type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\nEntity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honor If-Match and answer 412 when it does not match (RFC 9110).\n\nCross-origin access. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match.\n\nEvents. A world's event stream is listed in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event adds revision (this world's count of its changes, one higher for each; it survives restarts, and the World resource reports the current one), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision). A write that leaves a representation unchanged creates no revision and no event. A client resumes with since=<revision>; a world that can no longer replay from there sends resync with its current revision, and the client re-reads.\n\nStream authentication. A world that requires authorization for its stream expects as the stream's first message the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}, and closes a stream without a valid token within 5 seconds. It refuses a stream from an origin its policy does not allow. Tokens never go in URLs.\n\nData points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user.\n"
+    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema at d39a1a0 has no destination field. The iteration 4 overlay proposes\n    `destination` (an entry URL) and `node`; the demo's own target description stays a LABELED\n    extension, `osl_destination` (`PortalDestination`).\n  * `WS /events` is a LABELED non-canonical realtime convention,\n    documented in the contract note, NOT in this HTTP contract.\n\nFrames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\nMedia type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\nEntity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honor If-Match and answer 412 when it does not match (RFC 9110).\n\nCross-origin access. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match.\n\nEvents. A world's event stream is listed in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event adds revision (this world's count of its changes, one higher for each; it survives restarts, and the World resource reports the current one), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision). A write that leaves a representation unchanged creates no revision and no event. A client resumes with since=<revision>; a world that can no longer replay from there sends resync with its current revision, and the client re-reads.\n\nStream authentication. A world that requires authorization for its stream expects as the stream's first message the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}, and closes a stream without a valid token within 5 seconds. It refuses a stream from an origin its policy does not allow. Tokens never go in URLs.\n\nData points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user.\n\nPortals. A portal leads to a world: its destination is that world's entry URL, and the fragment #join=node.{id} names the node where a visitor arrives. Crossing is plain navigation to the destination; a client first checks that the destination answers and, if it does not, refuses with the reason and stays. Seamless crossing, with state carried across, is an optional profile. Portals, views and users are placed by a node (node, relative to the base URL), and a geoPose they give is derived from that node's placement. A portal shows its destination only as far as the destination's preview allows, and a portal inside a preview shows closed.\n"
   },
   "servers": [
     {
@@ -180,7 +180,107 @@
         }
       }
     },
+    "/wow/portal": {
+      "post": {
+        "x-osl-overlay": "placement",
+        "operationId": "portal.placePortal",
+        "tags": [
+          "osl-extension"
+        ],
+        "summary": "Adds a portal placed by a node, with an optional destination and active radius.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OSLPortalPlacement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "the portal added (canonical Portal + labeled OSL extensions)",
+            "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSLPortalResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSLPortalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the body is not a JSON object"
+          },
+          "422": {
+            "description": "no node, a node that is not in this world, or an active radius out of range"
+          }
+        }
+      }
+    },
     "/wow/portal/{portalId}": {
+      "put": {
+        "x-osl-overlay": "placement",
+        "operationId": "portal.updatePortal",
+        "tags": [
+          "osl-extension"
+        ],
+        "summary": "Changes a placed portal's node, destination, label or active radius.",
+        "parameters": [
+          {
+            "name": "portalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OSLPortalPlacement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the portal as changed",
+            "content": {
+              "application/wow+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSLPortalResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSLPortalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the body is not a JSON object"
+          },
+          "404": {
+            "description": "portal not found"
+          },
+          "409": {
+            "description": "the portal comes from the world's configuration"
+          },
+          "422": {
+            "description": "a node that is not in this world, or an active radius out of range"
+          }
+        }
+      },
       "get": {
         "operationId": "portal.getPortal",
         "tags": [
@@ -921,6 +1021,29 @@
                 "default": 1
               }
             }
+          },
+          "preview": {
+            "x-osl-overlay": "iteration-4",
+            "type": "object",
+            "description": "What a portal leading here shows: an arrival node, a radius and a preview URL, or an image URL, or both. The preview URL returns a Node tree rooted at the arrival node. It holds only this world's nodes within the radius of the arrival node, each relative to it, and only those the reader may see. Reading it creates no user. URLs are relative to the world's base URL.",
+            "properties": {
+              "node": {
+                "type": "string",
+                "description": "The arrival node."
+              },
+              "radius_m": {
+                "type": "number",
+                "description": "The radius around the arrival node, in meters."
+              },
+              "url": {
+                "type": "string",
+                "description": "The preview URL."
+              },
+              "image": {
+                "type": "string",
+                "description": "An image of this world."
+              }
+            }
           }
         }
       },
@@ -938,6 +1061,11 @@
           },
           "geoPose": {
             "$ref": "#/components/schemas/GeoPose"
+          },
+          "node": {
+            "x-osl-overlay": "iteration-4",
+            "type": "string",
+            "description": "The node that places the user, relative to the world's base URL. A geoPose given here is derived from that node's placement."
           }
         }
       },
@@ -949,6 +1077,11 @@
           },
           "geoPose": {
             "$ref": "#/components/schemas/GeoPose"
+          },
+          "node": {
+            "x-osl-overlay": "iteration-4",
+            "type": "string",
+            "description": "The node that places the view, relative to the world's base URL. A geoPose given here is derived from that node's placement."
           }
         }
       },
@@ -960,6 +1093,16 @@
           },
           "geoPose": {
             "$ref": "#/components/schemas/GeoPose"
+          },
+          "destination": {
+            "x-osl-overlay": "iteration-4",
+            "type": "string",
+            "description": "The entry URL of the world the portal leads to. Its fragment may name where a visitor arrives: #join=node.{id}, a node of that world. Crossing is navigation to this URL. A portal without a destination leads nowhere."
+          },
+          "node": {
+            "x-osl-overlay": "iteration-4",
+            "type": "string",
+            "description": "The node that places the portal, relative to the world's base URL. A geoPose given here is derived from that node's placement."
           }
         }
       },
@@ -1406,6 +1549,33 @@
           }
         ]
       },
+      "OSLPortalPlacement": {
+        "x-osl-extension": true,
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "The node that places the portal, relative to the world's base URL (wow/spatial/{g}/node/{n})."
+          },
+          "destination": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The entry URL the portal leads to; null or absent leads nowhere."
+          },
+          "label": {
+            "type": "string"
+          },
+          "active_radius_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The distance, in meters on the floor, at which the portal wakes for a visitor and loads its preview. Above 0 and at most 100. Null or absent: always awake."
+          }
+        }
+      },
       "OSLPortalResponse": {
         "x-osl-extension": true,
         "allOf": [
@@ -1418,6 +1588,14 @@
               "proof_boundary"
             ],
             "properties": {
+              "active_radius_m": {
+                "type": "number",
+                "description": "The distance at which the portal wakes and loads its preview (placement tool)."
+              },
+              "placed": {
+                "type": "boolean",
+                "description": "True for a portal placed with the placement tool, which the tool may move and change; absent for a portal from the world's configuration."
+              },
               "label": {
                 "type": "string"
               },
@@ -1427,7 +1605,7 @@
               "webofworlds_extension": {
                 "$ref": "#/components/schemas/WebOfWorldsExtension"
               },
-              "destination": {
+              "osl_destination": {
                 "$ref": "#/components/schemas/PortalDestination"
               }
             }

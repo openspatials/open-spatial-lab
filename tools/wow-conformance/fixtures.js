@@ -100,8 +100,11 @@ function portalResponse()
             target_world_id: 'world-b',
             spatial_fabric_address: { profile: 'osl.spatial-fabric-address', value: 'fixture://world-b' },
         },
-        // lands portal destination on this labeled extension point:
-        destination: {
+        // where it leads (an entry URL) and the node that places it (iteration 4)
+        destination: 'http://127.0.0.1:18152/',
+        node: 'wow/spatial/1/node/4',
+        // the demo's own target description, on the labeled extension point beside it:
+        osl_destination: {
             target_world_id: 'world-b',
             target_base_url: 'http://127.0.0.1:18152',
             spatial_fabric_address: 'fixture://world-b',

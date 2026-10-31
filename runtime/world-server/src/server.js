@@ -64,6 +64,8 @@ const crypto = require('crypto');
 const { createRuntime } = require('./runtime-state');
 const { createMirrors } = require('./mirrors');
 const { makeConfig } = require('./config');
+const localOnly = require('./local-only');
+const { asSeenFrom } = require('./request-address');
 // the RENDERABLE authored scene that closes the publish
 // loop. getFabricManifest()'s live world-root (spawn+portal+trigger) VERIFIES
 // but draws nothing through the Filament compositor; this builds a NEW fabric
@@ -88,11 +90,6 @@ const { inspectIncomingForest, inspectIncomingTransforms } = require('./spatial-
 // backend builds before its first mutation. Increment this only when the
 // synchronous /reset snapshot contract below changes incompatibly.
 const FRESH_DEMO_RESET_CONTRACT_VERSION = 1;
-
-// signed-fabric material lives OUTSIDE the handler
-// (the handler shadows `path` with url.pathname, so file paths are precomputed
-// here with nodePath). The OSL dev CA is a labeled DEV/TEST trust anchor, not
-// public PKI (see secrets/osl-dev-ca/LABEL.txt).
 
 
 function createServer(role, extraOpts)
@@ -248,7 +245,7 @@ function createServer(role, extraOpts)
         opts = opts || {};
         wowAnnotateResponse(res, code, obj);
         const type = wowTypeFor(req);
-        const body = JSON.stringify(obj, null, 2);
+        const body = asSeenFrom(req, JSON.stringify(obj, null, 2));
         const headers = {
             'Content-Type' : type,
             'Content-Length' : Buffer.byteLength(body),
@@ -319,6 +316,31 @@ function createServer(role, extraOpts)
         res.setHeader('Access-Control-Allow-Origin', allow);
         res.setHeader('Access-Control-Expose-Headers', 'ETag, Last-Modified, X-OSL-WoW-Validation');
         return true;
+    }
+
+    // The models and images a world's graph names at its own address (`/assets/...`, as the airport's
+    // travelers do) are served read-only from the lab's web assets, with the world's cross-origin policy, so a
+    // page on another origin can load them.
+    const ASSET_ROOT = require('path').join(__dirname, '..', '..', '..', 'web', 'assets');
+    const ASSET_TYPES = {
+        '.glb' : 'model/gltf-binary', '.gltf' : 'model/gltf+json', '.bin' : 'application/octet-stream',
+        '.png' : 'image/png', '.jpg' : 'image/jpeg', '.jpeg' : 'image/jpeg', '.webp' : 'image/webp', '.ktx2' : 'image/ktx2',
+    };
+    function sendAsset(req, res, urlPath)
+    {
+        const nodePath = require('path');
+        const fs = require('fs');
+        let relative = null;
+        try { relative = decodeURIComponent(urlPath.slice('/assets/'.length)); } catch (e) { relative = null; }
+        const file = relative == null ? null : nodePath.resolve(ASSET_ROOT, relative);
+        const type = file ? ASSET_TYPES[nodePath.extname(file).toLowerCase()] : null;
+        const inside = file && file.startsWith(ASSET_ROOT + nodePath.sep);
+        const stat = inside && type && fs.existsSync(file) ? fs.statSync(file) : null;
+        if (!stat || !stat.isFile()) return sendJson(res, 404, { ok : false, error : 'not_found', path : urlPath });
+        applyCors(req, res);
+        res.writeHead(200, { 'Content-Type' : type, 'Content-Length' : stat.size, 'Cache-Control' : 'public, max-age=3600' });
+        if (req.method === 'HEAD') return res.end();
+        fs.createReadStream(file).pipe(res);
     }
 
     // Called by sendJson for EVERY JSON response. Non-/wow paths are untouched.
@@ -585,6 +607,9 @@ function createServer(role, extraOpts)
         const wowResourcePath = path === '/wow/world' || /^\/wow\/(spatial|portal|user|view)\//.test(path);
         const method = req.method === 'HEAD' && wowResourcePath ? 'GET' : req.method;
 
+        if ((req.method === 'GET' || req.method === 'HEAD') && path.startsWith('/assets/'))
+            return sendAsset(req, res, path);
+
         if (path.startsWith('/wow/'))
         {
             const allowed = applyCors(req, res);
@@ -601,6 +626,24 @@ function createServer(role, extraOpts)
                 res.end();
                 return;
             }
+        }
+
+        // The local-only switch (runtime/world-server/src/local-only.js): the routes the placement tool writes
+        // through answer only when this server is bound to 127.0.0.1, judged by the socket's bound address.
+        // Elsewhere they are refused with the reason. Answered before the contract layer: it is not a contract
+        // operation, and the same refusal serves every route of those families.
+        if (localOnly.isPlacementWrite(req.method, path))
+        {
+            const policy = localOnly.placementPolicy(server);
+            if (!policy.allowed)
+                return sendJson(res, 403, localOnly.refusalBody(policy, req.method, path));
+        }
+        // What this server offers a player: placement on or off, and why (read by the player before it shows
+        // placement mode). Not part of the Web of Worlds contract; readable from any page, like the world.
+        if ((req.method === 'GET' || req.method === 'HEAD') && path === '/placement')
+        {
+            applyCors(req, res);
+            return sendJson(res, 200, localOnly.placementPolicy(server));
         }
 
         // the ONE place the request identity is
@@ -625,6 +668,42 @@ function createServer(role, extraOpts)
         if (method === 'GET' && path === '/wow/world')
             return sendWow(req, res, 200, runtime.getWowWorld(), { tagged : true });
 
+        // The preview this world declares (iteration 4): a Node tree rooted at the arrival node, holding
+        // only the nodes of its graph within the radius, each relative to the arrival node, and only the
+        // nodes this reader may read. Reading it creates no user.
+        if ((method === 'GET' || req.method === 'HEAD') && path === '/wow/preview')
+        {
+            const preview = runtime.getPreview();
+            if (!preview) return sendJson(res, 404, { ok : false, error : 'no_preview_declared' });
+            if (refusesRead(preview.graphId, preview.arrivalId)) return sendJson(res, 403, { ok : false, error : 'forbidden' });
+            if (preview.hidden) return sendJson(res, 409, { ok : false, error : 'arrival_node_hidden' });
+            const shape = (entry) => {
+                const n = entry.node;
+                return {
+                    id : n.id,
+                    ...(n.label != null ? { label : n.label } : {}),
+                    ...(Array.isArray(n.names) ? { names : n.names } : {}),
+                    localTransform : entry.relative.map(v => (Math.abs(v) < 1e-12 ? 0 : v)),
+                    ...(n.spatialAssetURI ? { spatialAssetURI : n.spatialAssetURI } : {}),
+                    ...(n.appearanceURI ? { appearanceURI : n.appearanceURI } : {}),
+                    ...(n.properties ? { properties : n.properties } : {}),
+                    // the node's role (a room, a placement), so a client can tell a marked place from a thing;
+                    // a node of a world's authored content keeps all of it, because its content is its description
+                    ...(n.webofworlds_extension && n.webofworlds_extension.authored_wow_content
+                        ? { webofworlds_extension : n.webofworlds_extension }
+                        : n.webofworlds_extension && n.webofworlds_extension.role ? { webofworlds_extension : { role : n.webofworlds_extension.role } } : {}),
+                    children : [],
+                };
+            };
+            const readable = preview.nodes.filter(entry => !refusesRead(preview.graphId, entry.node.id));
+            const root = shape(readable.find(entry => entry.node.id === preview.arrivalId));
+            // where the arrival node stands in its graph, so a client can place the preview in the world's own frame
+            root.webofworlds_extension = { ...(root.webofworlds_extension || {}), world_transform : preview.worldTransform };
+            root.children = readable.filter(entry => entry.node.id !== preview.arrivalId)
+                .sort((x, y) => x.node.id - y.node.id).map(shape);
+            return sendWow(req, res, 200, root);
+        }
+
         // The JSON-LD context that types node `properties` (iteration 3). Its terms are provisional.
         if ((method === 'GET' || req.method === 'HEAD') && path === '/wow/context.jsonld')
         {
@@ -643,6 +722,41 @@ function createServer(role, extraOpts)
             if (!graph)
                 return sendJson(res, 404, { ok : false, error : 'authored_graph_not_configured' });
             return sendJson(res, 200, graph);
+        }
+
+        // Placing portals (the placement tool): a portal placed by a node of this world's graph.
+        //   POST /wow/portal       -> add one: { node, destination?, label?, active_radius_m? }
+        //   PUT  /wow/portal/{id}  -> change a placed one: any of the same fields
+        // `node` is the node's reference relative to this world's base URL (wow/spatial/{g}/node/{n}), as a
+        // portal names it. The node itself is created and moved with the node operations below.
+        if ((method === 'POST' && path === '/wow/portal') || (method === 'PUT' && /^\/wow\/portal\/\d+$/.test(path)))
+        {
+            return readBody(req, (err, body) => {
+                if (err) return sendBodyError(res, err);
+                if (!body || typeof body !== 'object' || Array.isArray(body))
+                    return sendJson(res, 400, { ok : false, error : 'expected_portal_object' });
+                const spec = {};
+                if (body.node !== undefined)
+                {
+                    const ref = /(?:^|\/)wow\/spatial\/(\d+)\/node\/(\d+)$/.exec(String(body.node || ''));
+                    if (!ref) return sendJson(res, 422, { ok : false, error : 'invalid_node_reference', node : body.node });
+                    spec.node_id = Number(ref[2]);
+                }
+                for (const key of [ 'destination', 'label', 'active_radius_m' ])
+                    if (body[key] !== undefined) spec[key] = body[key];
+                if (method === 'POST')
+                {
+                    if (spec.node_id === undefined) return sendJson(res, 422, { ok : false, error : 'node_required' });
+                    const added = runtime.addPortal(spec);
+                    if (!added.ok) return sendJson(res, 422, { ok : false, error : added.error });
+                    res.setHeader('Location', 'wow/portal/' + added.id);
+                    return sendWow(req, res, 201, runtime.getWowPortalResource(added.id));
+                }
+                const portalId = Number(path.slice('/wow/portal/'.length));
+                const r = runtime.updatePortal(portalId, spec);
+                if (!r.ok) return sendJson(res, r.status, { ok : false, error : r.error, ...(r.message ? { message : r.message } : {}) });
+                return sendWow(req, res, 200, runtime.getWowPortalResource(r.id));
+            });
         }
 
         if (method === 'GET' && path.startsWith('/wow/portal/'))
@@ -1313,9 +1427,10 @@ function start(role, extraOpts) {
     const { server, runtime, cfg } = built;
     const bindPort = Number(cfg.bind_port) || cfg.http_port;
     return new Promise((resolve) => {
-        server.listen(bindPort, '127.0.0.1', () => {
+        const host = localOnly.bindHost();
+        server.listen(bindPort, host, () => {
             built.bound_port = bindPort;
-            console.log('[node][' + runtime.LOCATION_ID + '] listening on http://127.0.0.1:' + bindPort);
+            console.log('[node][' + runtime.LOCATION_ID + '] listening on http://' + host + ':' + bindPort);
             resolve(built);
         });
     });

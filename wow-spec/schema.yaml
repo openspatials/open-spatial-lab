@@ -55,8 +55,9 @@ info:
         components.
       * `standards_conformance` stays `false` on every `/wow` response
         (validation-boundary honesty). No cosmetic conformance.
-      * The WoW `Portal` schema has NO destination field; OSL carries a portal
-        destination as a LABELED extension (`PortalDestination`).
+      * The WoW `Portal` schema at d39a1a0 has no destination field. The iteration 4 overlay proposes
+        `destination` (an entry URL) and `node`; the demo's own target description stays a LABELED
+        extension, `osl_destination` (`PortalDestination`).
       * `WS /events` is a LABELED non-canonical realtime convention,
         documented in the contract note, NOT in this HTTP contract.
 
@@ -73,6 +74,8 @@ info:
     Stream authentication. A world that requires authorization for its stream expects as the stream's first message the JSON text {"type": "auth", "token": "<access token>"}, and closes a stream without a valid token within 5 seconds. It refuses a stream from an origin its policy does not allow. Tokens never go in URLs.
 
     Data points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user.
+
+    Portals. A portal leads to a world: its destination is that world's entry URL, and the fragment #join=node.{id} names the node where a visitor arrives. Crossing is plain navigation to the destination; a client first checks that the destination answers and, if it does not, refuses with the reason and stays. Seamless crossing, with state carried across, is an optional profile. Portals, views and users are placed by a node (node, relative to the base URL), and a geoPose they give is derived from that node's placement. A portal shows its destination only as far as the destination's preview allows, and a portal inside a preview shows closed.
 
 servers:
   - url: http://127.0.0.1:18151
@@ -188,7 +191,72 @@ paths:
           description: view not found
 
   # --- Portal (canonical schema; destination is a LABELED OSL extension) ---
+  /wow/portal:
+    post:
+      # OVERLAY (placement tool, lab authoring): add a portal placed by a node of this world's graph.
+      x-osl-overlay: placement
+      operationId: portal.placePortal
+      tags: [osl-extension]
+      summary: Adds a portal placed by a node, with an optional destination and active radius.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OSLPortalPlacement'
+      responses:
+        '201':
+          description: the portal added (canonical Portal + labeled OSL extensions)
+          content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/OSLPortalResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLPortalResponse'
+        '400':
+          description: the body is not a JSON object
+        '422':
+          description: no node, a node that is not in this world, or an active radius out of range
+
   /wow/portal/{portalId}:
+    put:
+      # OVERLAY (placement tool, lab authoring): change a placed portal. A portal declared by the world's
+      # configuration answers 409.
+      x-osl-overlay: placement
+      operationId: portal.updatePortal
+      tags: [osl-extension]
+      summary: Changes a placed portal's node, destination, label or active radius.
+      parameters:
+        - name: portalId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OSLPortalPlacement'
+      responses:
+        '200':
+          description: the portal as changed
+          content:
+            application/wow+json:
+              schema:
+                $ref: '#/components/schemas/OSLPortalResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OSLPortalResponse'
+        '400':
+          description: the body is not a JSON object
+        '404':
+          description: portal not found
+        '409':
+          description: the portal comes from the world's configuration
+        '422':
+          description: a node that is not in this world, or an active radius out of range
     get:
       operationId: portal.getPortal
       tags: [canonical]
@@ -723,6 +791,28 @@ components:
             portal_count:
               type: integer
               default: 1
+        # OVERLAY (iteration 4, proposed upstream edit).
+        preview:
+          x-osl-overlay: iteration-4
+          type: object
+          description: >-
+            What a portal leading here shows: an arrival node, a radius and a preview URL, or an image URL,
+            or both. The preview URL returns a Node tree rooted at the arrival node. It holds only this
+            world's nodes within the radius of the arrival node, each relative to it, and only those the
+            reader may see. Reading it creates no user. URLs are relative to the world's base URL.
+          properties:
+            node:
+              type: string
+              description: The arrival node.
+            radius_m:
+              type: number
+              description: The radius around the arrival node, in meters.
+            url:
+              type: string
+              description: The preview URL.
+            image:
+              type: string
+              description: An image of this world.
 
     User:
       type: object
@@ -735,6 +825,12 @@ components:
           type: string
         geoPose:
           $ref: '#/components/schemas/GeoPose'
+        node:
+          x-osl-overlay: iteration-4
+          type: string
+          description: >-
+            The node that places the user, relative to the world's base URL. A geoPose given here is derived
+            from that node's placement.
 
     View:
       type: object
@@ -743,17 +839,36 @@ components:
           type: number
         geoPose:
           $ref: '#/components/schemas/GeoPose'
+        node:
+          x-osl-overlay: iteration-4
+          type: string
+          description: >-
+            The node that places the view, relative to the world's base URL. A geoPose given here is derived
+            from that node's placement.
 
     Portal:
-      # CANONICAL: a bare positioned anchor. NOTE: the standard's Portal has
-      # NO destination/target field — it cannot express "leads to world X".
-      # OSL supplies that as a LABELED extension (see PortalDestination).
+      # OVERLAY (iteration 4, proposed upstream edit): `destination` (where the portal leads, an entry URL
+      # with an optional #join=node.{id}) and `node` (the node that places it). The demo's own target
+      # description stays a LABELED extension, `osl_destination` (see PortalDestination).
       type: object
       properties:
         id:
           type: number
         geoPose:
           $ref: '#/components/schemas/GeoPose'
+        destination:
+          x-osl-overlay: iteration-4
+          type: string
+          description: >-
+            The entry URL of the world the portal leads to. Its fragment may name where a visitor arrives:
+            #join=node.{id}, a node of that world. Crossing is navigation to this URL. A portal without a
+            destination leads nowhere.
+        node:
+          x-osl-overlay: iteration-4
+          type: string
+          description: >-
+            The node that places the portal, relative to the world's base URL. A geoPose given here is derived
+            from that node's placement.
 
     Node:
       # OVERLAY (iteration 1, proposed upstream edit). The canonical scene-graph entity, from the open
@@ -1278,6 +1393,25 @@ components:
             webofworlds_extension:
               $ref: '#/components/schemas/WebOfWorldsExtension'
 
+    OSLPortalPlacement:
+      # OVERLAY (placement tool): what POST /wow/portal and PUT /wow/portal/{portalId} carry.
+      x-osl-extension: true
+      type: object
+      properties:
+        node:
+          type: string
+          description: The node that places the portal, relative to the world's base URL (wow/spatial/{g}/node/{n}).
+        destination:
+          type: [string, 'null']
+          description: The entry URL the portal leads to; null or absent leads nowhere.
+        label:
+          type: string
+        active_radius_m:
+          type: [number, 'null']
+          description: >-
+            The distance, in meters on the floor, at which the portal wakes for a visitor and loads its preview.
+            Above 0 and at most 100. Null or absent: always awake.
+
     OSLPortalResponse:
       x-osl-extension: true
       allOf:
@@ -1286,12 +1420,18 @@ components:
           required:
             - proof_boundary
           properties:
+            active_radius_m:
+              type: number
+              description: The distance at which the portal wakes and loads its preview (placement tool).
+            placed:
+              type: boolean
+              description: True for a portal placed with the placement tool, which the tool may move and change; absent for a portal from the world's configuration.
             label:
               type: string
             proof_boundary:
               $ref: '#/components/schemas/ProofBoundary'
             webofworlds_extension:
               $ref: '#/components/schemas/WebOfWorldsExtension'
-            # runtime lands portal destination on this labeled extension point:
-            destination:
+            # the demo's own target description, a labeled extension beside the canonical destination:
+            osl_destination:
               $ref: '#/components/schemas/PortalDestination'

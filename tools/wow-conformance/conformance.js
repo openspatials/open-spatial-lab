@@ -16,7 +16,7 @@
  * This module is IMPORTABLE as a gate: battery can
  *   require('tools/wow-conformance/conformance').runWowConformance({ baseUrl, validator })
  * against an already-running server. run.js is the standalone CLI wrapper
- * (boot + load-gate + evidence).
+ * (boot + evidence).
  *
  * ADDITIVE: it does not modify the server (Lane A), the client (Lane B), or the
  * wow-spec internals (Lane) — it only reads the contract + drives HTTP.

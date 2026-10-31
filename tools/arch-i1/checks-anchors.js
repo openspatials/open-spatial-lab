@@ -19,7 +19,8 @@ const GET = (port, p) => httpReq('GET', port, p);
 async function anchorChecks(ports) {
   // ---- F2 end to end. Role a is served G2 and role lobby G1, so a server that ignores its fixture is wrong.
   const ignoresFixture = { runtime: [['const SPATIAL_ANCHORS = loadAnchors(cfg.spatial_anchor_fixture !== undefined ? cfg.spatial_anchor_fixture : cfg.spatial_anchors);', 'const SPATIAL_ANCHORS = loadAnchors(cfg.spatial_anchors);']] };
-  const coarseAnchor = { runtime: [['            geoPose : clone(WORLD_ANCHOR), // the graph\'s anchor, as read from the fixture', '            geoPose : { position : { lat : WORLD_ANCHOR.position.lat, lon : Number(WORLD_ANCHOR.position.lon.toFixed(5)), h : WORLD_ANCHOR.position.h }, angles : WORLD_ANCHOR.angles },']] };
+  // The Spatial's geoPose is served per graph (iteration 2), from that graph's anchor.
+  const coarseAnchor = { runtime: [['            ...(anchor ? { geoPose : clone(anchor) } : {}),', '            ...(anchor ? { geoPose : { position : { lat : anchor.position.lat, lon : Number(anchor.position.lon.toFixed(5)), h : anchor.position.h }, angles : anchor.angles } } : {}),']] };
   await run('F2h', "two world servers, one anchor fixture each: the client reads both Spatial.geoPose values and finds G2 100.0000033 m east of G1, with the curvature", async (impl) => {
     const a = await boot('a', ports.next(), { edits: impl.edits, config: { spatial_anchor_fixture: path.join(FIXTURES, 'anchor-g2.json') } });
     const b = await boot('lobby', ports.next(), { edits: impl.edits, config: { spatial_anchor_fixture: path.join(FIXTURES, 'anchor-g1.json') } });
@@ -77,7 +78,12 @@ async function anchorChecks(ports) {
   }, { edits: null }, [{ name: 'a server that does not use the reader', impl: { edits: skipsReader } }]);
 
   // ---- G1. Every resource's GeoPose is its local position put through real geodesy ----------------------
-  const flatMapping = { runtime: [['        const pose = wowGeo.localPoseToGeoPose(WORLD_ANCHOR, local, Number(yawRad) || 0, Number(pitchRad) || 0);', '        const pose = { position : { lat : -local[2], lon : local[0], h : local[1] }, angles : { yaw : (Number(yawRad) || 0) * 180 / Math.PI, pitch : (Number(pitchRad) || 0) * 180 / Math.PI, roll : 0 } };']] };
+  // A portal's and the view's GeoPose come from the node that places them (iteration 4), or, without one, from the
+  // local position; the old mapping is planted in both.
+  const flatMapping = { runtime: [
+    ['        return roundedGeoPose(wowGeo.localPoseToGeoPose(WORLD_ANCHOR, local, Number(yawRad) || 0, Number(pitchRad) || 0));', '        return roundedGeoPose({ position : { lat : -local[2], lon : local[0], h : local[1] }, angles : { yaw : (Number(yawRad) || 0) * 180 / Math.PI, pitch : (Number(pitchRad) || 0) * 180 / Math.PI, roll : 0 } });'],
+    ['        return anchor ? roundedGeoPose(wowGeo.localPoseToGeoPose(anchor, at.position, at.yaw, at.pitch)) : undefined;', '        return anchor ? roundedGeoPose({ position : { lat : -at.position[2], lon : at.position[0], h : at.position[1] }, angles : { yaw : at.yaw * 180 / Math.PI, pitch : at.pitch * 180 / Math.PI, roll : 0 } }) : undefined;'],
+  ] };
   await run('G1', 'the GeoPose of a portal and of the view is its local position converted by real geodesy: converted back through EPSG 9837, it returns the local position to 0.2 mm', async (impl) => {
     const s = await boot('a', ports.next(), { edits: impl.edits, config: { spatial_anchor_fixture: path.join(FIXTURES, 'anchor-g1.json') } });
     try {

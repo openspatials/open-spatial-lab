@@ -114,7 +114,9 @@ export function createLiveAdapterTransport({
     let status = 0;
     let validation = null;
     try {
-      const response = await fetchImpl(url, { headers: { Accept: "application/json" } });
+      // A world's resources carry validators, and a browser may reuse them without asking. These reads are of what
+      // the world says now: a portal placed a moment ago must be there.
+      const response = await fetchImpl(url, { headers: { Accept: "application/json" }, cache: "no-store" });
       status = response.status;
       validation = recordWowContractValidation(url, response.headers.get("X-OSL-WoW-Validation"));
       if (!response.ok) throw new Error(`GET ${url} -> ${response.status}`);

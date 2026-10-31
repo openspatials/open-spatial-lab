@@ -27,21 +27,11 @@ assert.match(app, /const noEquipParam = params\.get\("noequip"\) !== "0"/);
 assert.match(app, /avatarSelectorRemoveAllEquipment/);
 assert.match(app, /applyNoEquipmentChoice/);
 
-// routed the same-origin proxy bases through the public
-// base-path helper, so the Server-B aperture load now uses apiBase("b").
-// NOTE (post-P5): the Server-B aperture machine is being retired by the active
-// P4 lane in web/app.js; if that call is removed, this B-aperture pair
-// (loadBackendApertureMachine + data-server-b-aperture-entities) belongs to that
-// lane to reconcile. Re-verify this whole check once app.js settles (load < 14).
-assert.match(app, /loadBackendApertureMachine\(apiBase\("b"\), "location-b-portal"\)/);
-// retired the same-browser airport aperture machine + its aperture-entity
-// attribute; the airport now renders from the live backend scene
-// (data-airport-backend-scene / live_backend_authored_wow_graph in the scene
-// layer). Assert the retired client-scene airport wiring stays gone.
+// A portal shows its destination through that world's own preview: the boot-time read of Server B's region, and the
+// airport aperture machine before it, stay gone (iteration 4).
+assert.doesNotMatch(app, /loadBackendApertureMachine/);
+assert.doesNotMatch(app, /data-server-b-aperture-entities/);
 assert.doesNotMatch(app, /loadAirportApertureMachine/);
-assert.match(app, /data-server-b-aperture-entities/);
 assert.doesNotMatch(app, /data-airport-aperture-entities/);
-assert.match(app, /suppressReturnPortal: true/);
-assert.match(app, /destination_portal: null/);
 
-console.log("MEETING_CRITICAL_VISUALS_CHECK PASS launcher=integrated equipment=empty portal-content=A+B+C(C=server-backed) airport-client-scene-aperture=retired duplicate-rings=suppressed");
+console.log("MEETING_CRITICAL_VISUALS_CHECK PASS launcher=integrated equipment=empty portal-content=A+B+C(C=server-backed) boot-time-destination-reads=retired");

@@ -379,11 +379,14 @@ export function mountDemoLauncher(root, options = {}) {
   dock.className = "demo-launcher-dock";
   const hostedLink = doc.createElement("a");
   hostedLink.className = "demo-launcher-dock-link demo-launcher-dock-hosted";
-  hostedLink.href = "https://labs.peers.social/open-spatial-lab/";
+  hostedLink.href = "https://lab.openspatials.com/";
   hostedLink.target = "_blank";
   hostedLink.rel = "noopener noreferrer";
-  hostedLink.textContent = "labs.peers.social/open-spatial-lab";
-  dock.append(hostedLink);
+  hostedLink.textContent = "lab.openspatials.com";
+  const attribution = doc.createElement("span");
+  attribution.className = "demo-launcher-dock-attribution";
+  attribution.textContent = "Open Spatial Lab by Grig Bilham, with contributors";
+  dock.append(attribution, hostedLink);
 
   shell.append(header, missionSection, technologySection, liveRegion);
   root.append(shell, dock);

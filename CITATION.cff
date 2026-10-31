@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Open Spatial Lab"
+authors:
+  - family-names: Bilham
+    given-names: Grig
+license: Apache-2.0
+repository-code: "https://github.com/openspatials/open-spatial-lab"

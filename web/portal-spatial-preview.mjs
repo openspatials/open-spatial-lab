@@ -1,3 +1,4 @@
+import { STANDARD_PORTAL_MACHINE, destinationKeyOf, windowEntryFrom, portalAsleep, sameBrowserAvatars, previewStatesOf } from "./main-demo-window.mjs";
 import * as THREE from "./vendor/scene-core/vendor/three/three.module.js";
 import {
   addScaled3,
@@ -52,12 +53,6 @@ import {
  * canonical content is available; they do not substitute an invented scene.
  */
 
-// The destination world's OWN portal-ring coloring (app.js standing-oval
-// rule: a location-b world colors its ring amber, every other world cyan) —
-// the ring seen through the aperture must match the ring arrival shows.
-function destWorldRingColor(locationId) {
-  return String(locationId || "") === "location-b" ? 0xffc266 : 0x66e0ff;
-}
 const PORTAL_FRAME_CENTER_Y = 1.35;
 const PEER_POSE_STALE_MS = 4000;
 // The pass-level size floor, in DEVICE pixels of projected aperture area.
@@ -90,6 +85,8 @@ function finiteVec3(value) {
  * accepted destination region/circle; pose and into-destination half-space
  * come from the reconciled target portal frame. */
 export function portalAwarenessVolume(machine, portalEntry) {
+  // A standard portal's window is bounded by what its destination declared.
+  if (portalEntry?.preview_awareness) return portalEntry.preview_awareness;
   const targetFrame = portalEntry?.target_frame;
   const circle = machine?.region?.avatars?.circle || machine?.region?.region || null;
   const authoredPortalRadius =
@@ -144,15 +141,16 @@ export function boundsIntersectPortalAwareness(bounds, volume) {
     return { eligible: false, reason: "outside_awareness_radius", distance_m: Math.sqrt(distanceSq) };
   }
   const forward = volume.forward;
+  const planePoint = volume.plane_point || center;
   const support = [
     Number(forward[0] >= 0 ? max[0] : min[0]),
     Number(forward[1] >= 0 ? max[1] : min[1]),
     Number(forward[2] >= 0 ? max[2] : min[2]),
   ];
   const forwardExtent =
-    (support[0] - center[0]) * forward[0] +
-    (support[1] - center[1]) * forward[1] +
-    (support[2] - center[2]) * forward[2];
+    (support[0] - planePoint[0]) * forward[0] +
+    (support[1] - planePoint[1]) * forward[1] +
+    (support[2] - planePoint[2]) * forward[2];
   if (forwardExtent < -volume.plane_setback_m) {
     return { eligible: false, reason: "outside_destination_half_space", forward_extent_m: forwardExtent };
   }
@@ -820,6 +818,8 @@ function applyPreviewClipping(root, clipPlanes) {
 export class SpatialPortalPreviewManager {
   constructor(opts = {}) {
     this.records = new Map(); // portalKey -> record
+    this.visitorPosition = typeof opts.visitorPosition === "function" ? opts.visitorPosition : () => null;
+    this.ringColorOf = typeof opts.ringColorOf === "function" ? opts.ringColorOf : () => 0x66e0ff;
     this.renderer = null;
     this.mainCamera = null;
     this.hostScene = null; // the live impl.scene (for the takeover quad)
@@ -993,7 +993,12 @@ export class SpatialPortalPreviewManager {
    *  left lingered. When the presence poll has not populated yet (the brief
    *  warm frame before the first poll) we fall back to the freshly captured
    *  snapshot so the frame is not blank. */
-  _destinationAvatars(machine) {
+  _destinationAvatars(machine, portalEntry) {
+    if (machine && machine.standard_portal) {
+      const heard = sameBrowserAvatars(this.peerPlayers.values(), portalEntry, this.controlledPlayerId());
+      this._lastIdentityFilter = heard.filter;
+      return heard.avatars;
+    }
     const region = machine && machine.region ? machine.region : null;
     const snapshot =
       region && region.avatars && Array.isArray(region.avatars.avatars) ? region.avatars.avatars : [];
@@ -1157,7 +1162,7 @@ export class SpatialPortalPreviewManager {
   _reconcileAvatarRepresentations(rec, machine, portalEntry) {
     if (!rec || !rec.scene) return;
     const now = this.nowMs();
-    const avatars = this._destinationAvatars(machine);
+    const avatars = this._destinationAvatars(machine, portalEntry);
     rec.identityFilter =
       (machine && this._identityFilterByMachine.get(machine)) || this._lastIdentityFilter;
     const liveIds = new Set();
@@ -1348,7 +1353,7 @@ export class SpatialPortalPreviewManager {
     rec.awarenessVolume = portalAwarenessVolume(machine, portalEntry);
     rec.clipPlanes = [];
 
-    if (rec.awarenessVolume.valid) {
+    if (rec.awarenessVolume.valid && !rec.awarenessVolume.flat) {
       const volume = rec.awarenessVolume;
       const center = new THREE.Vector3(...volume.center);
       const forward = new THREE.Vector3(...volume.forward).normalize();
@@ -1356,7 +1361,7 @@ export class SpatialPortalPreviewManager {
       // never changes which side of the destination is spatially eligible.
       rec.clipPlanes.push(new THREE.Plane(
         forward.clone(),
-        -forward.dot(center) + volume.plane_setback_m,
+        -forward.dot(new THREE.Vector3(...(volume.plane_point || volume.center))) + volume.plane_setback_m,
       ));
       for (let index = 0; index < RADIAL_CLIP_PLANE_COUNT; index += 1) {
         const y = 1 - (index / (RADIAL_CLIP_PLANE_COUNT - 1)) * 2;
@@ -1377,12 +1382,12 @@ export class SpatialPortalPreviewManager {
     // construction. Colored with the DESTINATION world's own ring rule (the
     // color arrival will show), not the source world's accent. The region
     // payload's own portal pose is recorded beside it for agreement evidence.
-    const destPortal = machine.region ? machine.region.destination_portal : null;
+    const destPortal = machine && machine.region ? machine.region.destination_portal : null;
     const targetFrame = portalEntry.target_frame || null;
     rec.destRing = null;
     rec.destRingMesh = null;
     if (destPortal && targetFrame && Array.isArray(targetFrame.position)) {
-      const ringColor = destWorldRingColor(portalEntry.target_location_id);
+      const ringColor = this.ringColorOf(portalEntry.target_location_id); // the ring arrival shows
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(1, 0.075, 18, 80),
         new THREE.MeshStandardMaterial({
@@ -1510,10 +1515,7 @@ export class SpatialPortalPreviewManager {
   }
 
   _requestDestinationContent(rec, portalEntry) {
-    const destinationKey = [
-      portalEntry?.target_location_id || "",
-      portalEntry?.target_world_id || "",
-    ].join("|");
+    const destinationKey = this._destinationKey(portalEntry);
     if (rec.destinationKey && rec.destinationKey !== destinationKey) {
       this._disposeAvatarRepresentations(rec);
       try { rec.composition?.dispose?.(); } catch {}
@@ -1540,6 +1542,7 @@ export class SpatialPortalPreviewManager {
             candidate.contentStatus = "ready";
             candidate.contentError = null;
             candidate.signature = null;
+            candidate.portalEntry = this._windowEntry(candidate.portalEntry);
             try {
               this._buildPreviewScene(candidate, candidate.machine, candidate.portalEntry);
               candidate.signature = this._signature(candidate.machine, candidate.portalEntry);
@@ -1691,8 +1694,12 @@ export class SpatialPortalPreviewManager {
    *
    *  Viewer-side eligibility and canonical destination resolution determine
    *  ownership. The perimeter verdict remains evidence/subscription truth. */
-  surfaceForPortal(portalKey, machine, portalEntry) {
-    const perimeter = portalPerimeterLiveGate(machine);
+  surfaceForPortal(portalKey, machineInput, portalEntryInput) {
+    const perimeter = portalPerimeterLiveGate(machineInput);
+    // A standard portal's window draws what its destination declared, whatever a prefetch machine holds or lacks.
+    const standard = !!(portalEntryInput && portalEntryInput.wow_resource);
+    const machine = standard ? STANDARD_PORTAL_MACHINE : machineInput;
+    const portalEntry = standard ? this._windowEntry(portalEntryInput) : portalEntryInput;
     const viewerSide = this._cameraViewerSide(portalEntry);
     const attempt = {
       portal_key: portalKey || null,
@@ -1720,6 +1727,13 @@ export class SpatialPortalPreviewManager {
     if (!this._cameraOnAllowedSide(portalEntry)) {
       return refuse("camera_on_blocked_side");
     }
+    if (standard && this._asleep(portalEntry)) {
+      attempt.reason = "asleep_until_a_visitor_is_near";
+      const asleep = this.records.get(portalKey);
+      if (asleep) asleep.active = false;
+      this._noteSurfaceGate(portalKey, false, attempt);
+      return { material: this._asleepMaterial(), record: null, asleep: true, debug: { portal_key: portalKey, asleep: true } };
+    }
     const rec = this._ensureRecord(portalKey, machine, portalEntry);
     rec.active = true;
     attempt.reason = rec.awarenessVolume && !rec.awarenessVolume.valid
@@ -1735,6 +1749,38 @@ export class SpatialPortalPreviewManager {
       record: rec,
       debug: this._recordDebug(rec),
     };
+  }
+
+  _destinationKey(portalEntry) {
+    return destinationKeyOf(portalEntry, fabricPortalKey);
+  }
+
+  _windowEntry(portalEntry) {
+    return windowEntryFrom(portalEntry, this.destinationSources.get(this._destinationKey(portalEntry)));
+  }
+
+  _asleep(portalEntry) {
+    return portalAsleep(portalEntry, this.visitorPosition());
+  }
+
+  _asleepMaterial() {
+    if (!this._asleepFace) this._asleepFace = new THREE.MeshBasicMaterial({ color: 0x0d141f, side: THREE.DoubleSide });
+    return this._asleepFace;
+  }
+
+  /** Forget a destination's preview, so the next look reads it again (a world back online). */
+  forgetDestination(portalEntry) {
+    const key = this._destinationKey(portalEntry);
+    this.destinationSources.delete(key);
+    for (const rec of this.records.values()) {
+      if (rec.destinationKey !== key) continue;
+      rec.destinationContent = null;
+      rec.signature = null;
+    }
+  }
+
+  previewStates() {
+    return previewStatesOf(this.records);
   }
 
   /** P4: per-portal live-vs-image gate ledger entry. */

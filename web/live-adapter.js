@@ -56,6 +56,7 @@ import { AVATAR_VARIANTS, DEFAULT_AVATAR_VARIANT } from "./avatar-equipment-laye
 // whole HTTP surface (every `${proxy_base}/…` fetch built from ENDPOINTS below) resolves beneath
 // the public prefix in subpath mode, and is byte-for-byte identical in root mode.
 import { withBase, BASE_PATH } from "./base-path.mjs";
+import { worldEndpoints } from "./worlds-list.mjs";
 // child/portal fabric sReference resolution routed through
 // the public base path (pure + Node-testable; unit-proven by the check).
 import { resolveFabricReference as resolveFabricReferenceForBase } from "./live-adapter-fabric-reference.mjs";
@@ -119,6 +120,14 @@ import {
   wowWorldSpatialId,
 } from "./live-adapter-world-projection.mjs";
 import {
+  checkCrossing,
+  poseOfMatrix,
+  portalSignature,
+  readPortalResources,
+  resolveBoundedPreview,
+} from "./main-demo-portals.mjs";
+import { arrivalAt } from "./wow-portal.mjs";
+import {
   createPresenceController,
   PRESENCE_TIMING,
 } from "./live-adapter-presence-controller.mjs";
@@ -139,8 +148,7 @@ import {
   resolveAirportGroundSurface,
 } from "./airport-walkable-surface.mjs";
 // Compatibility ownership trace: worldFromLive now consumes
-// clientSceneLoadFieldsFromWowPortal and
-// recoverAirportLobbyPortalResources(role, wowWorld, fetchedPortalList).
+// clientSceneLoadFieldsFromWowPortal.
 export {
   portalEntryFromWowNode,
   portalEntryFromWowPortal,
@@ -267,7 +275,7 @@ import {
 import { runFactoryFloorSomDemo, somGatingPanelRecord, feature_SOM_CONFORMANCE } from "./manifest/som-branch-auth.mjs";
 
 // Same-origin proxy paths served by src/serve.js (adds CORS, forwards to the
-// LIVE Lane 3 backends on 18151/18152 without altering payloads). Using the
+// LIVE Lane 3 backends without altering payloads). Using the
 // proxy avoids cross-origin CORS blocks against Lane 3 (which is intentionally
 // left unmodified — no auth/CORS by design).
 const BASE_A = withBase("/api/a");
@@ -283,45 +291,7 @@ const HOSTED_ATTACH_POINT_EVENT = "hostedattachpoint";
 // floor between two `runtime-state tick` console lines.
 // The stream itself is untouched; only how often its arrival is narrated is.
 const RUNTIME_STATE_LOG_INTERVAL_MS = 5000;
-const ENDPOINTS = Object.freeze({
-  a: {
-    endpoint_key: "a",
-    proxy_base: BASE_A,
-    backend_base_url: "http://127.0.0.1:18151",
-    location_id: "location-a",
-    world_id: "demo-room-a",
-    session_id: "local-session-a",
-    portal_id: "location-a-portal",
-  },
-  b: {
-    endpoint_key: "b",
-    proxy_base: BASE_B,
-    backend_base_url: "http://127.0.0.1:18152",
-    location_id: "location-b",
-    world_id: "demo-room-b",
-    session_id: "local-session-b",
-    portal_id: "location-b-portal",
-  },
-  lobby: {
-    endpoint_key: "lobby",
-    proxy_base: BASE_LOBBY,
-    backend_base_url: "http://127.0.0.1:18153",
-    location_id: "location-lobby",
-    world_id: "demo-lobby",
-    session_id: "local-session-lobby",
-    // primary portal (the lobby serves N portals; this is portals[0])
-    portal_id: "lobby-portal-a",
-  },
-  airport: {
-    endpoint_key: "airport",
-    proxy_base: BASE_AIRPORT,
-    backend_base_url: "http://127.0.0.1:18154",
-    location_id: "location-airport",
-    world_id: "world-airport-terminal",
-    session_id: "local-session-airport",
-    portal_id: "airport-portal-lobby",
-  },
-});
+const ENDPOINTS = worldEndpoints();
 const WORLD_LIMIT = 5.4;
 const MOVE_SPEED_MPS = 2.35;
 const RUN_MOVE_SPEED_MPS = 2.8;
@@ -378,8 +348,7 @@ function endpointKeyForRole(role, active) {
   const requested = String(active || "").toLowerCase();
   if (requested === "target" || requested === "b") return "b";
   if (requested === "source" || requested === "a") return "a";
-  if (requested === "lobby") return "lobby";
-  if (requested === "airport") return "airport";
+  if (ENDPOINTS[requested]) return requested;
   // a PLAYER with no assigned server starts in the LOBBY
   // ("when a character is started up and they haven't been assigned to
   // a server yet, they are in their own lobby"). An explicit-but-unknown
@@ -395,7 +364,8 @@ function endpointKeyForRole(role, active) {
 function oppositeEndpointKey(endpointKey) {
   if (endpointKey === "lobby") return null;
   if (endpointKey === "airport") return "lobby";
-  return endpointKey === "a" ? "b" : "a";
+  if (endpointKey === "a") return "b";
+  return endpointKey === "b" ? "a" : null;
 }
 
 /** resolve an ENDPOINTS key from a location_id (the
@@ -1406,6 +1376,8 @@ export class LiveAdapter extends EventTarget {
     // `_presence.supported` gate that every observer window already runs under (see below). No
     // new session mode is invented and no presence machinery is rebuilt.
     this.wowIntent = opts.wowIntent || null;
+    // `plain`: a portal crosses by plain web navigation instead of the seamless crossing (`&crossing=plain`).
+    this._crossingProfile = opts.crossingProfile || null;
     this._wowRegistersPresence = this.wowIntent ? this.wowIntent.registersPresence !== false : true;
     this.wowFollowTarget = this.wowIntent ? (this.wowIntent.followTarget || null) : null;
     this.activeEndpointKey = endpointKeyForRole(role, opts.active);
@@ -1635,6 +1607,8 @@ export class LiveAdapter extends EventTarget {
       },
       getActiveBase: () => this.base,
       getAvatarPose: () => (this.state ? this.state.avatar : null),
+      // No read of a destination before a visitor nears its portal (iteration 4).
+      destinationOccupancy: false,
     });
     const fabricCompatibilityViews = {
       _fabricPrefetchMachines: "machines",
@@ -1820,6 +1794,12 @@ export class LiveAdapter extends EventTarget {
         abort: (input) => this.abortVisualTransition(input),
       },
       portalAtomicityOracle: this._portalAtomicityOracle,
+      crossingGate: (portal) => this._checkCrossing(portal),
+      onCrossingRefused: (refusal) => {
+        this._log(`crossing refused: ${refusal.reason}`);
+        this.dispatchEvent(new CustomEvent("portal-refused", { detail: refusal }));
+      },
+      navigateTo: (url) => this.dispatchEvent(new CustomEvent("portal-navigate", { detail: { url } })),
       log: (message) => this._log(message),
       presence: {
         controlledIdentity: () => ({
@@ -2130,6 +2110,7 @@ export class LiveAdapter extends EventTarget {
     this._adoptPortalFrameId(wowPortal);
 
     this.world = worldFromLive(this.role, wowWorld, wowPortals, wowUser);
+    this._lastPortalSignature = portalSignature(wowPortals);
 
     // verify the SIGNED OpenUserManifest identity fronted on
     // /wow/user (real Ed25519 / JCS-RFC8785 / did:key) and stash the HONEST result
@@ -2456,58 +2437,56 @@ export class LiveAdapter extends EventTarget {
     return this._clientSceneController.resolve(target);
   }
 
-  /** Resolve the destination's canonical composition authority without
-   * changing the active world. Authored destinations return their exact
-   * backend /wow/graph document; legacy worlds return the same plain world
-   * descriptor consumed by the direct Scene builder. */
+  /** What a portal shows of its destination: only what the destination's World resource declares. Does not change
+   * the active world, reads no other node of the destination and creates no user there. */
   async resolvePortalDestinationContent(portalEntry) {
-    const endpointKey = endpointKeyForLocation(portalEntry?.target_location_id);
-    const endpoint = endpointKey ? ENDPOINTS[endpointKey] : null;
-    if (!endpoint) throw new Error("portal destination endpoint is unavailable");
-    const wowWorld = await this._transport.getJson(`${endpoint.proxy_base}/wow/world`);
-    const authored = wowWorld?.webofworlds_extension?.authored_graph;
-    if (authored?.endpoint) {
-      const endpointPath = String(authored.endpoint);
-      if (!endpointPath.startsWith("/")) {
-        throw new Error("portal destination authored graph endpoint must be root-relative");
-      }
-      const graphUrl = `${endpoint.proxy_base}${endpointPath}`;
-      const graph = await this._transport.getJson(graphUrl);
-      return {
-        kind: "authored_wow_graph",
-        location_id: endpoint.location_id,
-        world_id: endpoint.world_id,
-        graph,
-        graph_url: graphUrl,
-        base_url: endpoint.proxy_base,
-        revision: `${graph?.spatialID || endpoint.world_id}:${Object.keys(graph?.nodes || {}).length}`,
-      };
-    }
-    const hostedPoint = await this.demoReadAttachPoint(endpointKey);
-    return {
-      kind: "legacy_world",
-      location_id: endpoint.location_id,
-      world_id: endpoint.world_id,
-      revision:
-        `${endpoint.location_id}:${wowWorld?.content?.version ?? "live"}:` +
-        `hosted-${hostedPoint?.version ?? "unknown"}`,
-      world: {
-        location_id: endpoint.location_id,
-        world_id: endpoint.world_id,
-        title: wowWorld?.location?.title || wowWorld?.content?.label || endpoint.location_id,
-        color: endpoint.location_id === "location-lobby" ? "#42d68a" : "#3aa0ff",
-      },
-      hosted_point: hostedPoint,
-      subscribeHostedPoint: (listener) => {
-        if (typeof listener !== "function") return () => {};
-        const handler = (event) => {
-          if (event?.detail?.endpoint_key !== endpointKey) return;
-          listener(event.detail.attach_point);
-        };
-        this.addEventListener(HOSTED_ATTACH_POINT_EVENT, handler);
-        return () => this.removeEventListener(HOSTED_ATTACH_POINT_EVENT, handler);
-      },
-    };
+    const content = await resolveBoundedPreview(portalEntry, { fetch: (url, init) => fetch(url, init) });
+    // A preview in the world's own frame also says where this portal arrives, before anyone crosses.
+    if (content.world_frame_known && portalEntry) portalEntry.target_frame = content.window_frame;
+    return content;
+  }
+
+  /** The check before leaving, for the traversal controller (web/main-demo-portals.mjs, checkCrossing). */
+  _checkCrossing(portal) {
+    return checkCrossing(portal, {
+      fetch: (url, init) => fetch(url, init),
+      plain: this._crossingProfile === "plain",
+      pageUrl: typeof window !== "undefined" && window.location ? window.location.href : null,
+      frontBase: typeof window !== "undefined" && window.location ? `${window.location.origin}${BASE_PATH}/` : null,
+    });
+  }
+
+  /** Put the embodied player at node `nodeId` of the active world (a page opened at `#join=node.{n}`). */
+  async applyJoinArrival(nodeId) {
+    const address = this.endpoint && this.endpoint.backend_base_url ? `${this.endpoint.backend_base_url}/` : null;
+    const arrival = address ? await arrivalAt(address, Number(nodeId), { fetch: (url, init) => fetch(url, init) }).catch(() => null) : null;
+    if (!arrival) return { arrived: false, reason: `arrival node ${nodeId} not found` };
+    const pose = poseOfMatrix(arrival.matrix);
+    return { arrived: this.applyRestoredPose({ position: pose.position, rotation_y: pose.yaw }), node: arrival.node, ...pose };
+  }
+
+  /** True when the active world's portals differ from the portals shown (web/main-demo-portals.mjs, portalSignature). */
+  async portalsChanged() {
+    const ep = this._wowEndpoints;
+    if (!ep || !ep.world || !this.world) return false;
+    const wowWorld = await this._transport.getJson(ep.world.path);
+    return portalSignature(await this._fetchWowPortals(ep, wowWorld)) !== this._lastPortalSignature;
+  }
+
+  /** Read the active world's portals again and show the difference, as a visit to the world would. */
+  async refreshWorldPortals() {
+    const ep = await this._resolveWowEndpoints();
+    const wowWorld = await this._transport.getJson(ep.world.path);
+    const wowPortals = await this._fetchWowPortals(ep, wowWorld);
+    const projected = worldFromLive(this.role, wowWorld, wowPortals, null);
+    this.world.portal = projected.portal;
+    this.world.portals = projected.portals;
+    this._portalTraversalController.forgetPortalSides();
+    this._lastPortalSignature = portalSignature(wowPortals);
+    await this._initPlayerPreview();
+    this._updatePortalStatus();
+    this._emit();
+    return this.world.portals;
   }
 
   /**
@@ -2533,57 +2512,42 @@ export class LiveAdapter extends EventTarget {
     // (aperture ladder, HUD card, debug) keeps working unchanged.
     const portals =
       this.world && Array.isArray(this.world.portals) ? this.world.portals : [];
-    if (portals.length > 1) {
-      this.state.portal_previews = {};
-      for (const portal of portals) {
-        const key = fabricPortalKey(portal);
-        const epKey = endpointKeyForLocation(portal.target_location_id);
-        const endpoint = epKey ? ENDPOINTS[epKey] : null;
-        if (!key || !endpoint) continue;
-        this.state.portal_previews[key] = await this._buildEndpointPreview(endpoint, {
-          // The primary portal's preview also carries the read-only debug
-          // bookkeeping, exactly like a single-portal world's preview.
-          applyReadOnlyDebug: portal === portals[0],
-        });
-      }
-      const primaryKey = fabricPortalKey(portals[0]);
-      this.state.preview =
-        (primaryKey && this.state.portal_previews[primaryKey]) || null;
-      return;
+    this.state.portal_previews = {};
+    for (const portal of portals) {
+      const key = fabricPortalKey(portal);
+      if (key) this.state.portal_previews[key] = this._buildEndpointPreview(portal);
     }
-    this.state.portal_previews = null;
-    if (!this.previewEndpoint) return;
-    this.state.preview = await this._buildEndpointPreview(this.previewEndpoint, {
-      applyReadOnlyDebug: true,
-    });
+    const primaryKey = portals[0] ? fabricPortalKey(portals[0]) : null;
+    this.state.preview = (primaryKey && this.state.portal_previews[primaryKey]) || null;
   }
 
-  /** Build ONE destination preview object against `endpoint` (the exact
-   *  pre-004 _initPlayerPreview body, parameterized by endpoint so the lobby
-   *  can build one per portal). */
-  async _buildEndpointPreview(endpoint, opts = {}) {
+  /** The record of what one portal previews. It reads nothing from the destination: the see-through view comes
+   *  from the destination's own preview (resolvePortalDestinationContent). */
+  _buildEndpointPreview(portal) {
+    const epKey = endpointKeyForLocation(portal && portal.target_location_id);
+    const endpoint = epKey ? ENDPOINTS[epKey] : {};
     const preview = {
-      state: "fallback",
-      source_type: "target_static_placeholder_labeled",
-      preview_source_type: "target_static_placeholder_labeled",
+      state: "bounded_preview",
+      source_type: "wow_bounded_preview",
+      preview_source_type: "wow_bounded_preview",
       readonly: true,
       preview_readonly: true,
-      endpoint_key: endpoint.endpoint_key,
-      proxy_base: endpoint.proxy_base,
-      backend_base_url: endpoint.backend_base_url,
-      location_id: endpoint.location_id,
-      preview_target_location_id: endpoint.location_id,
-      world_id: endpoint.world_id,
-      preview_target_world_id: endpoint.world_id,
-      session_id: endpoint.session_id,
-      target_portal_id: endpoint.portal_id,
-      preview_target_portal_id: endpoint.portal_id,
+      endpoint_key: endpoint.endpoint_key || null,
+      proxy_base: endpoint.proxy_base || null,
+      backend_base_url: endpoint.backend_base_url || null,
+      location_id: endpoint.location_id || null,
+      preview_target_location_id: endpoint.location_id || null,
+      world_id: endpoint.world_id || null,
+      preview_target_world_id: endpoint.world_id || null,
+      session_id: endpoint.session_id || null,
+      target_portal_id: endpoint.portal_id || null,
+      preview_target_portal_id: endpoint.portal_id || null,
       linked_source_portal_id: this.endpoint.portal_id,
       freshness_ms: 0,
       preview_freshness_ms: 0,
       captured_at: null,
-      fallback_reason: "live target render texture is not implemented in this local fallback verifier; showing a labeled target placeholder from read-only target metadata",
-      preview_fallback_reason: "live target render texture is not implemented in this local fallback verifier; showing a labeled target placeholder from read-only target metadata",
+      fallback_reason: null,
+      preview_fallback_reason: null,
       projection_frame_source: "source_portal_frame+target_portal_frame",
       target_arrival_count_before_preview: null,
       target_arrival_count_current: null,
@@ -2598,52 +2562,7 @@ export class LiveAdapter extends EventTarget {
       target_preview_camera_transform: {},
       preview_projection_transform: {},
     };
-    try {
-      // resolve the TARGET world's WoW endpoints from ITS OWN fabric
-      // services[] (fetched against the preview base), then read world + portal
-      // via the spec integer routes it advertises — no hardcoded base + string
-      // alias. The portal LABEL stays the string frame id (from the response's
-      // webofworlds_extension.portal_id), so the preview caption is unchanged.
-      const targetFabric = await this._transport.getJson(`${endpoint.proxy_base}/fabric.json`).catch(() => null);
-      const targetEp = resolveWowEndpoints(targetFabric, endpoint.proxy_base).endpoints;
-      const [wowWorld, wowPortal, debugState] = await Promise.all([
-        this._transport.getJson(targetEp.world.path),
-        this._transport.getJson(targetEp.portal.path),
-        this._transport.getJson(`${endpoint.proxy_base}/debug/state`),
-      ]);
-      const arrivalCount = Number(debugState && debugState.session && debugState.session.arrival_count) || 0;
-      preview.location_id = wowWorld && wowWorld.location && wowWorld.location.id
-        ? wowWorld.location.id
-        : endpoint.location_id;
-      preview.world_id = wowWorld && wowWorld.id ? wowWorld.id : endpoint.world_id;
-      preview.session_id = wowWorld && wowWorld.session && wowWorld.session.id
-        ? wowWorld.session.id
-        : endpoint.session_id;
-      const portalExt = wowPortal && wowPortal.webofworlds_extension ? wowPortal.webofworlds_extension : null;
-      preview.target_portal_id = portalExt && typeof portalExt.portal_id === "string"
-        ? portalExt.portal_id
-        : endpoint.portal_id;
-      preview.preview_target_location_id = preview.location_id;
-      preview.preview_target_world_id = preview.world_id;
-      preview.preview_target_portal_id = preview.target_portal_id;
-      preview.captured_at = new Date().toISOString();
-      preview.freshness_ms = 0;
-      preview.preview_freshness_ms = 0;
-      if (opts.applyReadOnlyDebug) {
-        // _applyPreviewReadOnlyDebug reads this.state.preview — assign first
-        // (the pre-004 ordering; the caller's assignment is then idempotent).
-        this.state.preview = preview;
-        this._applyPreviewReadOnlyDebug(debugState, { initialize: true });
-      }
-      return preview;
-    } catch (err) {
-      preview.state = "error";
-      preview.source_type = "none";
-      preview.preview_source_type = "none";
-      preview.fallback_reason = `target preview metadata unavailable: ${err.message}`;
-      preview.preview_fallback_reason = preview.fallback_reason;
-      return preview;
-    }
+    return preview;
   }
 
   /**
@@ -3378,34 +3297,12 @@ export class LiveAdapter extends EventTarget {
    * pre-004 single fetch of ep.portal.path.
    */
   async _fetchWowPortals(ep, wowWorld) {
-    const listed =
-      wowWorld &&
-      wowWorld.webofworlds_extension &&
-      Array.isArray(wowWorld.webofworlds_extension.portals)
-        ? wowWorld.webofworlds_extension.portals
-        : [];
-    if (listed.length <= 1) {
-      try {
-        const single = await this._transport.getJson(ep.portal.path);
-        return single ? [single] : [];
-      } catch (e) {
-        /* portal projection optional */
-        return [];
-      }
-    }
-    const portals = [];
-    for (const entry of listed) {
-      const wowId = Number(entry && entry.id);
-      if (!Number.isFinite(wowId) || wowId < 1) continue;
-      const path = ep.portal.path.replace(/\/[^/]+$/, `/${wowId}`);
-      try {
-        const resource = await this._transport.getJson(path);
-        if (resource) portals.push(resource);
-      } catch (e) {
-        /* a single unreadable portal must not sink the world load */
-      }
-    }
-    return portals;
+    return readPortalResources({
+      getJson: (url) => this._transport.getJson(url),
+      base: this.base,
+      wowWorld,
+      onSkip: (resource, why) => this._log(`portal ${resource.id} not shown: ${why}`),
+    });
   }
 
   /**
@@ -3631,60 +3528,11 @@ export class LiveAdapter extends EventTarget {
         : null,
     };
 
-    if (!childUrl) {
-      navigator.status = "portal_node_missing_reference";
-      navigator.child_render = { active: false, reason: "portal_node_has_no_fabric_reference" };
-      this._updateMarkerFromNavigator();
-      return;
-    }
-    try {
-      const childFabric = await this._transport.getJson(childUrl);
-      navigator.child_fabric = {
-        ...fabricSummary(childUrl, childFabric),
-        fabric_role: "child",
-        resolved_from: `root portal node ${navigator.portal_attachment.node_id} sReference`,
-        attached_at_portal_node: navigator.portal_attachment.node_id,
-        attachment_transform_position: portalNodePosition,
-        child_portal_node: (() => {
-          const back = findFabricPortalAttachmentNode(childFabric);
-          return back
-            ? {
-                node_id: fabricNodeId(back),
-                name: back.Name || null,
-                position: roundVec3(fabricNodePosition(back), 4),
-                sReference: back.Resource ? back.Resource.sReference : null,
-              }
-            : null;
-        })(),
-        child_spawn_node: (() => {
-          const sp = findFabricSpawnNode(childFabric);
-          return sp
-            ? {
-                node_id: fabricNodeId(sp),
-                name: sp.Name || null,
-                position: roundVec3(fabricNodePosition(sp), 4),
-              }
-            : null;
-        })(),
-      };
-      this._childFabricManifest = childFabric;
-      navigator.status = "both_fabrics_loaded_one_context";
-      navigator.child_render = { active: false, reason: "awaiting_renderer_attachment" };
-    } catch (err) {
-      navigator.status = "child_fabric_unavailable";
-      navigator.child_fabric = {
-        url: childUrl,
-        status: "error",
-        fabric_role: "child",
-        error: `child fabric manifest unavailable: ${err.message}`,
-      };
-      navigator.child_render = { active: false, reason: "child_fabric_unavailable" };
-      if (this.state.preview) {
-        this.state.preview.fallback_reason =
-          `child fabric manifest unavailable (${err.message}); showing labeled target placeholder`;
-        this.state.preview.preview_fallback_reason = this.state.preview.fallback_reason;
-      }
-    }
+    // A portal shows its destination through that world's own preview, so no child fabric is loaded here: the
+    // destination is not read at all until the visitor nears its portal.
+    this._childFabricManifest = null;
+    navigator.status = "root_fabric_loaded_destinations_previewed_by_their_own_data";
+    navigator.child_render = { active: false, reason: "destination_shown_by_its_bounded_preview" };
     this._updateMarkerFromNavigator();
     this._log(
       `world-navigator: ${navigator.status} root=${navigator.root_fabric.container || "?"} child=${
@@ -4063,6 +3911,7 @@ export class LiveAdapter extends EventTarget {
       triggerPosition: next,
       triggerRadius: radius,
       targetLocationId: portal.target_location_id,
+      forward: portal.frame ? portal.frame.forward : undefined,
     });
     portal.frame = {
       ...rebuilt,
@@ -4096,6 +3945,7 @@ export class LiveAdapter extends EventTarget {
       triggerPosition: next,
       triggerRadius: Number(portal.trigger && portal.trigger.radius_m) || 1.25,
       targetLocationId: this.world.location_id,
+      forward: portal.target_frame.forward,
     });
     portal.target_frame = {
       ...rebuilt,
@@ -4139,6 +3989,8 @@ export class LiveAdapter extends EventTarget {
           : [];
     const entry = entries.find((p) => fabricPortalKey(p) === machine.portal_key) || null;
     if (!entry || !entry.target_frame) return { changed: false, frame: null };
+    // A standard portal's arrival comes from its destination's node. The prefetch never feeds it.
+    if (entry.wow_resource) return { changed: false, frame: entry.target_frame };
     const next = clonePosition(portalPose.trigger_position, null);
     if (!next) return { changed: false, frame: entry.target_frame };
     next[1] = 0;
@@ -4164,6 +4016,7 @@ export class LiveAdapter extends EventTarget {
         Number(entry.trigger && entry.trigger.radius_m) ||
         1.25,
       targetLocationId: this.world.location_id,
+      forward: Array.isArray(portalPose.forward) ? portalPose.forward : tf.forward,
     });
     entry.target_frame = {
       ...rebuilt,
@@ -4481,7 +4334,8 @@ export class LiveAdapter extends EventTarget {
     let receipt;
     try {
       const nav = this._navigatorDebug();
-      const section = nav ? buildRp1Section(nav, demoModeToRp1Options(mode) || {}) : null;
+      // A world with no fabric attachment (one with only placed portals) has no parent->child scope to authorize.
+      const section = nav && (nav.portal_attachment || mode !== "off") ? buildRp1Section(nav, demoModeToRp1Options(mode) || {}) : null;
       if (!section) {
         receipt =
           mode === "off"
@@ -4582,6 +4436,7 @@ export class LiveAdapter extends EventTarget {
     const wowPortal = wowPortals[0] || null;
     this._adoptPortalFrameId(wowPortal);
     this.world = worldFromLive(this.role, wowWorld, wowPortals, null);
+    this._lastPortalSignature = portalSignature(wowPortals);
     // re-source the PROMOTED (destination) world's SCENE
     // from its OWN WoW Spatial Composition Graph (/wow/spatial/{id}) — the
     // crossing's scene source of record, REPLACING the prefetched .msf
@@ -4603,12 +4458,6 @@ export class LiveAdapter extends EventTarget {
     });
     this._adoptLiveAirportScenePhysics(this._wowResolved);
     this._lastCrossingSceneSource = promotedSceneSource;
-    this.world.color =
-      this.activeEndpointKey === "b"
-        ? "#ff7a3a"
-        : this.activeEndpointKey === "lobby"
-          ? "#42d68a"
-          : "#3aa0ff";
     const check = validateProofBoundary(this.world.claim_boundary);
     this._boundaryOk = check.ok;
     this._boundaryProblems = check.problems;
@@ -4981,12 +4830,6 @@ export class LiveAdapter extends EventTarget {
         this.world = worldFromLive(this.role, wowWorld, wowPortals, null);
         this._airportWalkableSurface = null;
         this._movementBounds = null;
-        this.world.color =
-          this.activeEndpointKey === "b"
-            ? "#ff7a3a"
-            : this.activeEndpointKey === "lobby"
-              ? "#42d68a"
-              : "#3aa0ff";
         const check = validateProofBoundary(this.world.claim_boundary);
         this._boundaryOk = check.ok;
         this._boundaryProblems = check.problems;
@@ -5163,9 +5006,9 @@ export class LiveAdapter extends EventTarget {
       const wowPortals = await this._fetchWowPortals(ep, wowWorld);
       this._adoptPortalFrameId(wowPortals[0] || null);
       this.world = worldFromLive(this.role, wowWorld, wowPortals, null);
+      this._lastPortalSignature = portalSignature(wowPortals);
       this._airportWalkableSurface = null;
       this._movementBounds = null;
-      this.world.color = "#42d68a";
       const check = validateProofBoundary(this.world.claim_boundary);
       this._boundaryOk = check.ok;
       this._boundaryProblems = check.problems;
@@ -6127,24 +5970,8 @@ export class LiveAdapter extends EventTarget {
 
   _presenceEventEndpointKeys() {
     if (this._clientSceneController.active() || this._wowLocalWalk) return [];
-    const keys = new Set();
-    if (ENDPOINTS[this.activeEndpointKey]) keys.add(this.activeEndpointKey);
-    if (ENDPOINTS[this.previewEndpointKey]) keys.add(this.previewEndpointKey);
-    const portals =
-      this.world && Array.isArray(this.world.portals) && this.world.portals.length
-        ? this.world.portals
-        : this.world && this.world.portal
-          ? [this.world.portal]
-          : [];
-    for (const portal of portals) {
-      const key = endpointKeyForLocation(portal && portal.target_location_id);
-      if (key) keys.add(key);
-    }
-    for (const target of this._fabricPrefetchController.destinationTargets()) {
-      const key = endpointKeyForLocation(target && target.target_location_id);
-      if (key) keys.add(key);
-    }
-    return Array.from(keys).sort();
+    // Only the world the visitor is in: a destination is not read until its portal is neared.
+    return ENDPOINTS[this.activeEndpointKey] ? [this.activeEndpointKey] : [];
   }
 
   _closePresenceEventStream(endpointKey) {

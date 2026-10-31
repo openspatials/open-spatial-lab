@@ -12,7 +12,9 @@ This repository is where Open Spatial Lab is developed. Issues and pull requests
 - Local world servers and a one-command launcher
 - A generated player avatar with selectable equipment
 - Included models, textures, motion-capture animation, and runtime assets
+- Portals from each world's Web of Worlds data: each stands at the node that places it, and its see-through view draws only what its destination declares
 - Portal navigation and player-state continuity
+- Player presence over a same-browser channel (`BroadcastChannel`), until live presence is built: other tabs of the same browser see your avatar; other browsers and other machines do not
 - Web of Worlds protocol proofs, a conformance runner, and browser verification
 
 ## Requirements
@@ -23,7 +25,8 @@ The tested setup is macOS 13 or newer with:
 - Node.js 22.x
 - npm 10.x
 - Bash, `curl`, and `lsof`
-- A current Google Chrome, Chromium, Brave, or Microsoft Edge browser
+- A current Google Chrome, Chromium, Brave, or Microsoft Edge browser to use the demo
+- Chrome for Testing for the browser checks (`npm run verify`, `check:browser` and the browser checks in the proofs); they use no other browser
 
 Check the required command-line tools before cloning:
 
@@ -57,7 +60,7 @@ npm ci
 npm start
 ```
 
-No build step or configuration file is required. Startup completes with a receipt similar to:
+No build step is required. The worlds, their ports and addresses are listed in `worlds.json`; to add a world, follow `ADD-A-WORLD-CHECKLIST.md` and run `npm run check:worlds`. Startup completes with a receipt similar to:
 
 ```text
 Open Spatial Lab is ready.
@@ -114,6 +117,7 @@ npm run proof:acceptance      # world-server exit and arrival acceptance tests
 npm run arch-i1-proof        # frames, GeoPose anchors, transforms and the node tree, with a mutant for every check
 npm run arch-i2-proof        # one world including another world's graph, node or whole world, with planted faults for every check
 npm run arch-i3-proof        # worlds that change with nobody present, observed without users, live inclusion; about 4 minutes
+npm run arch-i4-proof        # portals by node with previews the destination allows, crossing by navigation; about 4 minutes
 npm run check:identity       # Universal Manifest, RP1 and trust attack-vector tests, and the signing test vectors
 npm run check:client         # checks of the browser client's controllers and scene code, run in Node
 npm run check:browser        # browser checks that drive Chrome
@@ -125,9 +129,17 @@ npm run smoke:wowapi          # Web of Worlds API smoke test over HTTP
 
 The API smoke test starts and stops the local topology itself, so it stops a running demo. Set `OSL_FRONTEND_PORT` and `OSL_BACKEND_{A,B,LOBBY,AIRPORT}_PORT` to run it on other ports.
 
-The conformance runner exits with code 3 without running when the one-minute load average is 14 or higher. That is a deferral, not a failure.
+No check is skipped because the machine is busy. A check that fails with a timeout is run once more, and the second result counts.
 
 Known issues: `runtime/world-server/test/airport-backend-proof.js` and check E11 of `runtime/world-server/test/p1-shared-edge-portal-identity-proof.js` fail on the current code. The round-trip proof (`wow-spec/proof/roundtrip.js`) stops at its spatial-fabric section, because the fabric modules are not in this repository yet.
+
+### Worlds and portal placement
+
+The lab has one list of worlds: `worlds.json` (or the file named by `OSL_WORLDS`). The launch script, the world servers, the frontend and the browser all read it; the browser reads it at `/worlds.json`. A world added to that file appears in the launcher and the frontend routes with no other edit. `npm run check:worlds` checks a running lab against the list, and `npm run check:world-list` proves the rule.
+
+The servers bind to 127.0.0.1 unless `OSL_BIND_HOST` says otherwise. With `OSL_BIND_HOST=0.0.0.0` and no `OSL_PUBLIC_ORIGIN`, a browser on another machine can use the lab: `/worlds.json` and each world's resources then name the host the browser used in its request, not 127.0.0.1, so its portals read online. A live public lab sets `OSL_PUBLIC_ORIGIN` instead: every world then says it lives at `{origin}/w/{key}/`. Placement stays off whenever the servers are not bound to 127.0.0.1.
+
+Placing portals is off by default. It works only on a lab bound to 127.0.0.1 and started with `OSL_PLACEMENT_WRITES=1`, for example `OSL_PLACEMENT_WRITES=1 npm start`; then `&place=1` opens placement mode, on a `?wow=` player link and in the main demo as a Player (`index.html?role=player&place=1`). Without both conditions the write routes answer 403 with the reason, and placed portals are shown read-only. Never set this in a deploy file. `npm run check:placement` and `npm run check:local-only` prove this. Like every check that starts a browser, they need a headless Chrome for Testing, which `tools/find-browser.mjs` finds.
 
 ## Stop and clean up
 
@@ -151,14 +163,14 @@ npm start
 - **A port is occupied:** run `npm stop`. If the message identifies an unrelated process, stop that application or choose another machine.
 - **A page looks stale:** perform a hard refresh in the browser.
 - **A service is not ready:** run `npm stop`, then `npm start` and use the newly printed URLs. The supported topology has exactly five listeners: frontend `8143` and world servers `18151`–`18154`.
-- **Browser verification cannot find Chrome:** set `PUPPETEER_EXECUTABLE_PATH` to a compatible browser executable and rerun `npm run verify`.
+- **Browser verification cannot find Chrome for Testing:** install Chrome for Testing, or set `PUPPETEER_EXECUTABLE_PATH` to a Chrome for Testing binary, and rerun `npm run verify`. The checks never fall back to another browser.
 
 ## Planned improvements
 
 These are future enhancements, not additional setup steps for the current demo, and no delivery dates are promised.
 
 - Smoother continuous portal transitions and automatic two-way return paths
-- Deeper Denver Skyport continuity and multi-world presence
+- Deeper Denver Skyport continuity, and live presence across browsers and machines (today player presence stays inside one browser)
 - Clearer navigation, a more focused home launcher, and a spatial avatar carousel
 - User, avatar, and storefront identity profiles with previews and proximity exchange
 - Richer airport experiences, including interactive storefronts, a Gate A12 journey, and moving travelers

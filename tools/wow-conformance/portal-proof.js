@@ -99,20 +99,20 @@ async function main() {
         checks: [], portal_resource: null, portal_node: null, extension_inventory: null };
 
     try {
-        // (a) portal resource + Portal.destination -------------------------------
+        // (a) portal resource + the labeled Portal.osl_destination (iteration 4: `destination` is the entry URL) -------------------------------
         const pr = await getJson(baseA, '/wow/portal/1');
         ok('portal resource GET 200', pr.status === 200, 'status=' + pr.status);
         const portal = pr.json || {};
         const rv = validator.validateResponse('portal', portal);
         ok('portal validates OSLPortalResponse', rv.valid, rv.errorsText);
-        ok('portal carries labeled Portal.destination', portal.destination && typeof portal.destination === 'object');
-        const dv = validator.validate('PortalDestination', portal.destination || {});
+        ok('portal carries labeled Portal.osl_destination', portal.osl_destination && typeof portal.osl_destination === 'object');
+        const dv = validator.validate('PortalDestination', portal.osl_destination || {});
         ok('destination validates canonical PortalDestination', dv.valid, dv.errorsText);
-        ok('destination.target_world_id present', !!(portal.destination && portal.destination.target_world_id),
-            portal.destination && portal.destination.target_world_id);
-        ok('destination.target_base_url present', !!(portal.destination && portal.destination.target_base_url));
+        ok('destination.target_world_id present', !!(portal.osl_destination && portal.osl_destination.target_world_id),
+            portal.osl_destination && portal.osl_destination.target_world_id);
+        ok('destination.target_base_url present', !!(portal.osl_destination && portal.osl_destination.target_base_url));
         ok('destination.spatial_fabric_address present (flat string)',
-            typeof (portal.destination && portal.destination.spatial_fabric_address) === 'string');
+            typeof (portal.osl_destination && portal.osl_destination.spatial_fabric_address) === 'string');
         ok('proof_boundary.standards_conformance is false (no cosmetic green)',
             portal.proof_boundary && portal.proof_boundary.standards_conformance === false);
         ok('proof_boundary.native_teleportxr_teleport is false',
@@ -130,7 +130,7 @@ async function main() {
         ok('RESIDUAL: ext keeps structured spatial_fabric_address object', ext.spatial_fabric_address && typeof ext.spatial_fabric_address === 'object');
         ok('RESIDUAL: ext keeps zones (OSL-native)', !!ext.zones);
         ok('RESIDUAL: ext keeps traversal (OSL-native)', !!ext.traversal);
-        diagnostics.portal_resource = { id: portal.id, label: portal.label, destination: portal.destination,
+        diagnostics.portal_resource = { id: portal.id, label: portal.label, destination: portal.destination, osl_destination: portal.osl_destination,
             ext_keys: Object.keys(ext).sort() };
 
         // (c) portal NODE in the composition graph -------------------------------
@@ -171,8 +171,8 @@ async function main() {
             webofworlds_extension: pnode.webofworlds_extension };
 
         // (b) RESOLVABLE destination — resolve the graph ref on the ISOLATED sibling
-        const targetGraphPath = portal.destination && portal.destination.target_world_id
-            ? '/wow/spatial/' + encodeURIComponent(portal.destination.target_world_id) : null;
+        const targetGraphPath = portal.osl_destination && portal.osl_destination.target_world_id
+            ? '/wow/spatial/' + encodeURIComponent(portal.osl_destination.target_world_id) : null;
         ok('destination graph path derivable', !!targetGraphPath, targetGraphPath);
         const targetResolve = await getJson(baseB, targetGraphPath); // isolated B, NOT the live 18152 authority
         ok('destination RESOLVES to a live Spatial on isolated sibling (B), pointing at its root node',
@@ -190,10 +190,10 @@ async function main() {
         const fromDestination = derivePortalEntry(portal, locId);
         // synthesize an OLD-backend portal: target fields back in the extension, no destination
         const oldStyle = JSON.parse(JSON.stringify(portal));
-        oldStyle.webofworlds_extension.target_world_id = portal.destination.target_world_id;
-        oldStyle.webofworlds_extension.target_location_id = portal.destination.target_location_id;
-        oldStyle.webofworlds_extension.target_base_url = portal.destination.target_base_url;
-        delete oldStyle.destination;
+        oldStyle.webofworlds_extension.target_world_id = portal.osl_destination.target_world_id;
+        oldStyle.webofworlds_extension.target_location_id = portal.osl_destination.target_location_id;
+        oldStyle.webofworlds_extension.target_base_url = portal.osl_destination.target_base_url;
+        delete oldStyle.osl_destination;
         const fromExtension = derivePortalEntry(oldStyle, locId);
         ok('DERIVED SHAPE byte-stable: destination path === legacy extension path', eq(fromDestination, fromExtension),
             'target_world_id ' + fromDestination.target_world_id + ' vs ' + fromExtension.target_world_id);
