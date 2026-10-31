@@ -84,7 +84,8 @@ export function nodeChecks(title) {
       } else if (!planted) {
         console.log(`${title}: ${ran.passed} checks pass, ${ran.failed} fail`);
       }
-      process.exitCode = code;
+      // A module under test may leave a timer running, which would keep this process alive for ever.
+      process.exit(code);
     },
   };
 }
