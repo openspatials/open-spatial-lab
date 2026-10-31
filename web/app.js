@@ -3987,8 +3987,8 @@ let lastObservedPhase = null;
 
 // the traversed-edge geometry now owns the final landing
 // standoff before visual commit. This historical P3 seam remains as a
-// fail-closed compatibility guard only: it may observe at most 0.05 m of
-// dispatch drift and never moves the avatar or translates the camera mapping.
+// compatibility guard only: it reports more than 0.05 m of dispatch drift
+// and never moves the avatar or translates the camera mapping.
 let lastExitPoseParity = null;
 
 function applyExitPoseParity(detail) {
@@ -4055,18 +4055,15 @@ function applyExitPoseParity(detail) {
       landing_policy: policy,
     };
     if (!record.parity.supported) {
-      throw new Error("portal landing guard: canonical traversed-edge policy unavailable");
-    }
-    if (correctionM > 0.05) {
-      throw new Error(`portal landing guard: dispatch drift ${correctionM.toFixed(4)} m exceeds 0.05 m`);
-    }
-    if (standoffM + 1e-6 < safeMinimumM) {
-      throw new Error(
+      record.guard_failure = "portal landing guard: canonical traversed-edge policy unavailable";
+    } else if (correctionM > 0.05) {
+      record.guard_failure = `portal landing guard: dispatch drift ${correctionM.toFixed(4)} m exceeds 0.05 m`;
+    } else if (standoffM + 1e-6 < safeMinimumM) {
+      record.guard_failure =
         `portal landing guard: ${standoffM.toFixed(4)} m is inside the ` +
-          `${safeMinimumM.toFixed(4)} m trigger-plus-clearance boundary`,
-      );
+        `${safeMinimumM.toFixed(4)} m trigger-plus-clearance boundary`;
     }
-    record.reason = "canonical_exit_pose_verified";
+    record.reason = record.guard_failure ? "landing_guard_failed" : "canonical_exit_pose_verified";
   }
   lastExitPoseParity = record;
   const body = document.body;
@@ -4096,8 +4093,8 @@ function applyExitPoseParity(detail) {
 
 // the traversal controller now derives camera, heading,
 // and movement-basis continuity from the packet's exact traversed edge. Keep
-// the historical consumer seam as a fail-closed validation only. It
-// recomputes the expected transform but never corrects the crossing record.
+// the historical consumer seam as a validation only. It recomputes the
+// expected transform but never corrects the crossing record.
 let lastCrossingHeadingContinuity = null;
 
 function reframeAdapterCrossingHeading(detail) {
@@ -4137,11 +4134,10 @@ function reframeAdapterCrossingHeading(detail) {
     camera_yaw_after: null,
   };
   if (!record || !record.validated || record.changed) {
-    throw new Error(
+    lastCrossingHeadingContinuity.guard_failure =
       `crossing heading guard: ${record ? record.reason : "validation unavailable"} ` +
-        `for ${record && record.source_portal_id ? record.source_portal_id : "?"} -> ` +
-        `${record && record.target_portal_id ? record.target_portal_id : "?"}`
-    );
+      `for ${record && record.source_portal_id ? record.source_portal_id : "?"} -> ` +
+      `${record && record.target_portal_id ? record.target_portal_id : "?"}`;
   }
   return lastCrossingHeadingContinuity;
 }
@@ -4172,6 +4168,32 @@ const mainDemo = createMainDemoWiring({
   setCameraAzimuth: (azimuth) => movementCameraController.setRestoredCameraSeed({ azimuth }),
 });
 
+// The guards run after the adapter has moved, so they cannot undo a crossing. What
+// they find is recorded and shown, and the screen still follows the adapter.
+const crossingGuardFailures = [];
+
+function runCrossingGuard(guard, detail, failures) {
+  try {
+    const record = guard(detail);
+    if (record && record.guard_failure) failures.push(record.guard_failure);
+    return record;
+  } catch (error) {
+    failures.push(`${guard.name} broke: ${error.message}`);
+    return null;
+  }
+}
+
+function reportCrossingGuardFailures(detail, failures) {
+  const at = new Date().toISOString();
+  crossingGuardFailures.push({ at, handoff_id: detail.handoff_id || null, failures });
+  logLine(`crossing check failed: ${failures.join("; ")}`);
+  const place = (adapter.world && adapter.world.title) || "the destination";
+  const sentence = `You are in ${place}. Your place or view may be slightly off.`;
+  const notificationId = `crossing-check-failed-${crossingGuardFailures.length}`;
+  publishNotificationRecord({ id: notificationId, kind: "crossing_check_failed", status: "failed", title: "Crossing check failed", summary: `${sentence} ${failures.join("; ")}`, created_at: at });
+  showToast("Crossing check failed", sentence, "failed", { notificationId });
+}
+
 function handleAdapterCrossing(event) {
   const detail = event.detail || {};
   logLine(
@@ -4180,10 +4202,11 @@ function handleAdapterCrossing(event) {
       : `world-navigator: child fabric PROMOTED to root (handoff ${detail.handoff_id || "?"}); ` +
           `exit-intent/arrival were server-side notifications only`
   );
+  const guardFailures = [];
   // source-mapping guard first; it is a no-op on the valid packet.
-  const headingReframe = reframeAdapterCrossingHeading(detail);
+  const headingReframe = runCrossingGuard(reframeAdapterCrossingHeading, detail, guardFailures);
   // source-landing guard; it is also a no-op on the valid packet.
-  const exitParity = applyExitPoseParity(detail);
+  const exitParity = runCrossingGuard(applyExitPoseParity, detail, guardFailures);
   if (exitParity && exitParity.applied) {
     logLine(
       `exit parity: stepped out ${exitParity.parity.parity_standoff_m} m from the portal ` +
@@ -4240,6 +4263,8 @@ function handleAdapterCrossing(event) {
   }
   recomposeActiveWorldScene(detail.kind || "crossing");
   onState(adapter.debugState());
+  // After onState, whose arrival toast would replace this one.
+  if (guardFailures.length > 0) reportCrossingGuardFailures(detail, guardFailures);
   // Snapshot the newly active fabric and pose in sessionStorage without URL
   // or history mutation.
   movementCameraController.persistSession(true);
@@ -4557,6 +4582,7 @@ async function main() {
     // last crossing (traversed-edge reframe record, heading contract, and the
     // measured post-seed movement basis + camera yaw).
     crossingHeadingContinuity: () => lastCrossingHeadingContinuity,
+    crossingGuardFailures: () => crossingGuardFailures.map((entry) => ({ ...entry })),
     // P4: the handoff phases this window actually observed (one entry
     // per transition; the departed-tick truth for the takeover oracle).
     phaseLog: () => observedPhaseLog.map((entry) => ({ ...entry })),
