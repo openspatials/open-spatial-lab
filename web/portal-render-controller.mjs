@@ -1,6 +1,13 @@
 import { ringColorsOf } from "./worlds-list.mjs";
 
-const HOSTED_POINT_RELOAD_MS = 100;
+// Hosted objects read well at one re-read a second; ten a second queued in the browser on any slow link, in front of
+// the requests a crossing needs.
+const CLIENT_READ_INTERVAL_DEFAULT_MS = 1000;
+const SERVER_REPUBLISH_DEFAULT_MS = 100;
+// How often the pull looks for a new world to read: looking asks the network nothing.
+const POLL_LOOK_MS = 100;
+// A read that never answers must not stop its world being read for good.
+const READ_GIVE_UP_MS = 10000;
 const CLIENT_READ_INTERVAL_MIN_MS = 100;
 const CLIENT_READ_INTERVAL_MAX_MS = 10000;
 const DRAG_POST_THROTTLE_MS = 120;
@@ -150,6 +157,9 @@ export function createPortalRenderController({
     versions: { a: -1, b: -1 },
     reloadCounts: { a: 0, b: 0 },
     lastReloadAt: null,
+    readsInFlight: new Map(),
+    lastPollAt: -Infinity,
+    polledWorld: null,
     rootMeshes: new Map(),
     rootSceneImpl: null,
     childMeshes: new Map(),
@@ -164,8 +174,8 @@ export function createPortalRenderController({
     ladderFetchSeq: 0,
     settings: {
       mode: "auto",
-      clientIntervalMs: HOSTED_POINT_RELOAD_MS,
-      serverRepublishMs: HOSTED_POINT_RELOAD_MS,
+      clientIntervalMs: CLIENT_READ_INTERVAL_DEFAULT_MS,
+      serverRepublishMs: SERVER_REPUBLISH_DEFAULT_MS,
     },
     intervalHandle: null,
   };
@@ -465,18 +475,29 @@ export function createPortalRenderController({
   async function reloadHostedAttachPoint(key) {
     const live = portalHost();
     if (!live || typeof live.demoReadAttachPoint !== "function") return null;
-    const attachPoint = await live.demoReadAttachPoint(key);
-    state.reloadCounts[key] = (state.reloadCounts[key] || 0) + 1;
-    state.lastReloadAt = nowIso();
-    state.cache[key] = attachPoint;
-    const version = Number(attachPoint?.version);
-    if (Number.isFinite(version) && version !== state.versions[key]) {
-      state.versions[key] = version;
-      applyHostedPointToView(key, attachPoint);
-    } else if (!isPlayer && key === live.activeEndpointKey) {
-      writeDebugText("pv-reloads", `${state.reloadCounts[key] || 0} (client re-reads; no server push)`);
+    const read = { startedAt: nowMs() };
+    state.readsInFlight.set(key, read);
+    try {
+      const attachPoint = await live.demoReadAttachPoint(key);
+      state.reloadCounts[key] = (state.reloadCounts[key] || 0) + 1;
+      state.lastReloadAt = nowIso();
+      state.cache[key] = attachPoint;
+      const version = Number(attachPoint?.version);
+      if (Number.isFinite(version) && version !== state.versions[key]) {
+        state.versions[key] = version;
+        applyHostedPointToView(key, attachPoint);
+      } else if (!isPlayer && key === live.activeEndpointKey) {
+        writeDebugText("pv-reloads", `${state.reloadCounts[key] || 0} (client re-reads; no server push)`);
+      }
+      return attachPoint;
+    } finally {
+      if (state.readsInFlight.get(key) === read) state.readsInFlight.delete(key);
     }
-    return attachPoint;
+  }
+
+  function readInFlight(key) {
+    const read = state.readsInFlight.get(key);
+    return !!read && nowMs() - read.startedAt < READ_GIVE_UP_MS;
   }
 
   function refresh() {
@@ -499,11 +520,20 @@ export function createPortalRenderController({
       if (live.previewEndpointKey) state.versions[live.previewEndpointKey] = -1;
     }
     if (state.portalHandle) state.portalHandle.visible = getServerViewMode() === "top_down";
-    return endpointKeys().map((key) => reloadHostedAttachPoint(key));
+    state.lastPollAt = nowMs();
+    state.polledWorld = live.activeEndpointKey;
+    return endpointKeys().filter((key) => !readInFlight(key)).map((key) => reloadHostedAttachPoint(key));
   }
 
   function refreshContained() {
     for (const request of refresh()) request.catch(() => {});
+  }
+
+  // A world just arrived in is read at once: its hosted objects must not wait out the interval.
+  function pollIfDue() {
+    const worldChanged = portalHost()?.activeEndpointKey !== state.polledWorld || (scene()?._impl || null) !== state.rootSceneImpl;
+    if (!worldChanged && nowMs() - state.lastPollAt < state.settings.clientIntervalMs) return;
+    refreshContained();
   }
 
   function pointerNdc(event) {
@@ -667,7 +697,7 @@ export function createPortalRenderController({
       return;
     }
     body.setAttribute("data-portal-refresh-hidden-paused", "false");
-    state.intervalHandle = windowTarget.setInterval(refreshContained, state.settings.clientIntervalMs);
+    state.intervalHandle = windowTarget.setInterval(pollIfDue, POLL_LOOK_MS);
   }
 
   function handleVisibilityChange() {
