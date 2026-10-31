@@ -58,6 +58,30 @@ function withPort(address, port) {
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /**
+* `x3d_portals`: portals that exist only on the X3D paths (`?renderer=x3dom`, `?renderer=x_ite`). Each stands in the
+* listed world `world`, at `position` on its floor, and opens the X3D JSON world `x3d_world` from web/x3d-worlds/.
+* No world server knows it, and the three.js path does not show it.
+*/
+function readX3dPortals(raw, worldKeys, problems) {
+  const out = [];
+  for (const entry of Array.isArray(raw) ? raw : []) {
+    const id = String((entry && entry.portal_id) || '');
+    const label = 'x3d portal "' + id + '"';
+    if (!id) problems.push('an x3d portal has no portal_id');
+    if (!worldKeys.has(String(entry && entry.world))) problems.push(label + ': world "' + (entry && entry.world) + '" is not listed');
+    if (!/^[A-Za-z0-9._-]+\.json$/.test(String(entry && entry.x3d_world))) problems.push(label + ': x3d_world must be a file name in web/x3d-worlds/');
+    const position = entry && entry.position;
+    if (!Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)) problems.push(label + ': position needs x, y and z numbers');
+    const color = String((entry && entry.color) || '');
+    if (!HEX_COLOR.test(color)) problems.push(label + ': color must be #rrggbb');
+    const radius = Number(entry && entry.radius_m);
+    if (!(radius > 0)) problems.push(label + ': radius_m must be a positive number');
+    out.push({ portal_id: id, label: String((entry && entry.label) || id), world: String(entry && entry.world), x3d_world: String(entry && entry.x3d_world), position, radius_m: radius, color });
+  }
+  return out;
+}
+
+/**
 * Read and check the configuration. Returns { file, frontend: { port }, worlds: [...], problems: [...] }.
 * Each problem is a sentence that names the world. With `strict`, any problem throws.
 */
@@ -114,7 +138,8 @@ function loadWorlds(opts = {}) {
     });
   }
   if (!worlds.length) problems.push(file + ': lists no worlds');
-  const loaded = { file, frontend: { port: frontendPort }, worlds, problems };
+  const x3dPortals = readX3dPortals(doc.x3d_portals, seenKeys, problems);
+  const loaded = { file, frontend: { port: frontendPort }, worlds, x3d_portals: x3dPortals, problems };
   if (opts.strict && problems.length)
     throw new Error('the worlds configuration ' + file + ' has problems:\n  - ' + problems.join('\n  - '));
   return loaded;
@@ -150,6 +175,7 @@ function publicWorlds(loaded, env = process.env) {
         portal_ring: w.portal_ring,
       };
     }),
+    x3d_portals: loaded.x3d_portals,
   };
 }
 

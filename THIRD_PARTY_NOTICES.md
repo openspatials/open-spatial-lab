@@ -12,6 +12,48 @@ Open Spatial Lab source code is licensed under Apache-2.0. Media and dependency 
 
 - `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `docker/entrypoint.sh` and the `OSL_FRONTEND_HOST` setting are by Arjun Rai Gupta of VDC ([vdc-lab/open-spatial-lab](https://github.com/vdc-lab/open-spatial-lab)), commit `3652e44ca6`, 2026-08-26, Apache-2.0 (the `LICENSE` of that repository at that commit, "Copyright 2026 Open Spatial Lab contributors"). Open Spatial Lab changed them to follow the worlds list, `OSL_PUBLIC_ORIGIN` and the local-only placement rule; see the commit that follows his.
 
+## Code from other projects inside X3DOM
+
+`runtime/scene-core/public/vendor/x3dom/x3dom-full.js` is X3DOM 1.8.3 as published on npm (the package's `x3dom.js`), Copyright (c) 2009-2020 X3DOM, dual licensed under MIT and GPL, with its `LICENSE.md` beside it; the lab takes MIT. The built file carries no notices for the code from other projects inside it, so `vendor/x3dom/THIRD-PARTY-IN-BUNDLES.md`, beside it, names that code and says how it was found. The two libraries, with their licence texts:
+
+- [earcut](https://github.com/mapbox/earcut), X3DOM's `x3dom.EarCut`, taken into X3DOM in November 2015, when earcut's latest release was v2.0.7. Copyright (c) 2015, Mapbox. ISC, from its `LICENSE` at tag `v2.0.7`:
+
+      Copyright (c) 2015, Mapbox
+
+      Permission to use, copy, modify, and/or distribute this software for any purpose
+      with or without fee is hereby granted, provided that the above copyright notice
+      and this permission notice appear in all copies.
+
+      THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+      REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+      FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+      INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+      OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+      TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+      THIS SOFTWARE.
+
+- [es6-promise](https://github.com/stefanpenner/es6-promise) 4.2.4, X3DOM's Promise polyfill. Copyright (c) 2014 Yehuda Katz, Tom Dale, Stefan Penner and contributors. MIT, from its `LICENSE` at tag `v4.2.4`:
+
+      Copyright (c) 2014 Yehuda Katz, Tom Dale, Stefan Penner and contributors
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy of
+      this software and associated documentation files (the "Software"), to deal in
+      the Software without restriction, including without limitation the rights to
+      use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+      of the Software, and to permit persons to whom the Software is furnished to do
+      so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.
+
 ## Fonts and interface icon
 
 - Space Grotesk — Copyright 2020 The Space Grotesk Project Authors; SIL Open Font License 1.1.

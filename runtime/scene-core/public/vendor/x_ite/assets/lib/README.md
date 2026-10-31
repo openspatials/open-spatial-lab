@@ -1,0 +1,26 @@
+# References
+
+## Look Up Table Images
+
+* https://github.com/KhronosGroup/glTF-Sample-Viewer
+* https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/assets/images/lut_charlie.png
+* https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/assets/images/lut_ggx.png
+* https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/assets/images/lut_sheen_E.png
+
+## KTX
+
+* https://github.com/KhronosGroup/KTX-Software/releases/
+* https://github.khronos.org/KTX-Software/ktxjswrappers/index.html
+* https://github.com/KhronosGroup/glTF-Sample-Environments
+
+## Draco
+
+* https://github.com/google/draco/blob/main/javascript/draco_decoder_gltf.js
+
+## meshoptimizer
+
+* https://github.com/zeux/meshoptimizer/blob/master/js/meshopt_decoder.mjs
+
+## mkkellogg-sort.worker.js
+
+* https://github.com/mkkellogg/GaussianSplats3D/tree/main/src/worker

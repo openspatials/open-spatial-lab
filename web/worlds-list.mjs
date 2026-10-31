@@ -51,6 +51,9 @@ const list = await readWorldList();
 /** Every listed world, in the file's order: { key, name, port, address, built_in, location_id, world_id, session_id, portal_id, portal_ring }. */
 export const WORLDS = Object.freeze(list.worlds.map((world) => Object.freeze({ ...world })));
 
+/** Portals that only the X3D paths show (`x3d_portals` in the worlds file). Nothing on the three.js path reads this. */
+export const X3D_PORTALS = Object.freeze((list.x3d_portals || []).map((portal) => Object.freeze({ ...portal })));
+
 const DEFAULT_RING = Object.freeze({ color: 0x66e0ff, fill: 0x2bd4ff });
 const hexNumber = (hex) => parseInt(String(hex).slice(1), 16);
 

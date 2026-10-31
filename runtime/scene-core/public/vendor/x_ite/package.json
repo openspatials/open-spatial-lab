@@ -1,0 +1,149 @@
+{
+  "name": "x_ite",
+  "version": "16.6.0",
+  "description": "X_ITE X3D Browser and VRML Viewer — View and Manipulate X3D, VRML, glTF and Other 3D Sources in HTML",
+  "main": "dist/x_ite.js",
+  "module": "dist/x_ite.mjs",
+  "exports": {
+    ".": {
+      "require": "./dist/x_ite.js",
+      "import": "./dist/x_ite.mjs",
+      "types": "./dist/x_ite.d.ts"
+    },
+    "./x_ite.js": "./dist/x_ite.js",
+    "./x_ite.min.js": "./dist/x_ite.min.js",
+    "./x_ite.mjs": "./dist/x_ite.mjs",
+    "./x_ite.min.mjs": "./dist/x_ite.min.mjs",
+    "./x_ite.d.ts": "./dist/x_ite.d.ts",
+    "./X3DUOM.xml": "./dist/X3DUOM.xml"
+  },
+  "files": [
+    "dist/*",
+    "LICENSES/*"
+  ],
+  "scripts": {
+    "test": "cd ../x_ite-tests && npm test",
+    "test:release": "cd ../x_ite-tests && npm run test:release",
+    "lint": "eslint src",
+    "dist": "node build/bin/dist.js",
+    "release": "node build/bin/release.js",
+    "ts": "node build/bin/ts.js",
+    "predocs:server": "rm -f -r docs/_site/",
+    "docs:server": "cd docs && bundle exec jekyll serve --ssl-key ssl/server.key --ssl-cert ssl/server.crt --incremental --host=`ipconfig getifaddr en0`",
+    "predocs:install": "cd docs && ln -s -f ../../ssl ./",
+    "docs:install": "cd docs && gem install bundler && bundle install",
+    "docs:update": "cd docs && bundle update --all",
+    "docs:components": "node build/docs/components.js",
+    "docs:nodes": "perl build/docs/nodes.pl",
+    "docs:compatibility": "node build/docs/compatibility.js",
+    "docs:reference": "node build/docs/reference.js",
+    "docs:table": "node build/docs/table.js",
+    "glTF:samples": "perl build/docs/glTF-samples.pl",
+    "glTF:teaser": "node build/docs/glTF-teaser.js",
+    "merge:development": "sh build/bin/merge-development.sh",
+    "make:tests": "perl build/bin/tests.pl"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/create3000/x_ite.git"
+  },
+  "keywords": [
+    "3D",
+    "3DGS",
+    "Browser",
+    "Electron",
+    "Framework",
+    "Gaussian-Splatting",
+    "GLB",
+    "glTF2",
+    "JavaScript",
+    "JSON",
+    "Model",
+    "Node",
+    "Parser",
+    "PLY",
+    "SOG",
+    "SPZ",
+    "STL",
+    "SVG",
+    "Viewer",
+    "VRM",
+    "VRML",
+    "Wavefront-OBJ",
+    "WebGL",
+    "wrl",
+    "x_ite",
+    "X3D",
+    "XML"
+  ],
+  "author": "Holger Seelig <holger.seelig@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/create3000/x_ite/issues"
+  },
+  "homepage": "https://create3000.github.io/x_ite/",
+  "contributors": [
+    {
+      "name": "Holger Seelig",
+      "email": "holger.seelig@gmail.com",
+      "url": "https://github.com/create3000"
+    },
+    {
+      "name": "Andreas Plesch",
+      "email": "andreasplesch@gmail.com",
+      "url": "https://github.com/andreasplesch"
+    },
+    {
+      "name": "John Carlson",
+      "email": "yottzumm@gmail.com",
+      "url": "https://github.com/coderextreme"
+    },
+    {
+      "name": "Simon Place",
+      "url": "https://github.com/splace"
+    },
+    {
+      "name": "Glen Whitney",
+      "url": "https://github.com/gwhitney"
+    },
+    {
+      "name": "Elmar",
+      "url": "https://github.com/krisutofu"
+    }
+  ],
+  "funding": {
+    "type": "patreon",
+    "url": "https://patreon.com/X_ITE"
+  },
+  "devDependencies": {
+    "@create3000/libgif": "^0.0.5",
+    "@eslint/js": "^10.0.1",
+    "ammojs": "^0.0.2",
+    "apng-js": "^1.1.5",
+    "CharLS.js": "^2.0.1",
+    "dicom-parser": "^1.8.21",
+    "draco3d": "^1.5.9",
+    "eslint": "^10.13.0",
+    "fast-xml-parser": "^5.11.2",
+    "globals": "^17.13.0",
+    "jpeg-js": "^0.4.4",
+    "jpeg-lossless-decoder-js": "2.1.2",
+    "libtess": "^1.2.2",
+    "madge": "^8.0.0",
+    "meshoptimizer": "^1.3.0",
+    "mikktspace": "^1.1.1",
+    "nurbs": "^1.1.1",
+    "OpenJPEG.js": "^0.10.2",
+    "opentype.js": "^2.0.0",
+    "shell-tools": "^1.1.9",
+    "string-replace-webpack-plugin": "^0.1.3",
+    "terser": "5.51.2",
+    "terser-webpack-plugin": "^5.6.1",
+    "webpack": "^5.112.0",
+    "webpack-cli": "^7.2.3",
+    "webpack-shell-plugin-next": "^2.3.3",
+    "woff2-encoder": "^2.0.0",
+    "wrapper-webpack-plugin": "^2.2.2",
+    "yargs": "^18.2.0"
+  }
+}

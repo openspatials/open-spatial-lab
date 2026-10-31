@@ -1100,6 +1100,30 @@
 
     <main>
       <div id="scene-mount" tabindex="-1" aria-label="Interactive spatial world">
+        <!-- ?renderer=x3dom only (after Nicholas Polys, npolys/open-spatial-lab at 99175b4b6).
+             X3DOM's Inline only loads reliably when it is part of the page's first parse, so the host and
+             the slot pool are written here by document.write. The three scripts do nothing for any other renderer. -->
+        <script>
+          window.__x3domPage = new URLSearchParams(location.search).get("renderer") === "x3dom";
+          window.__x3dBase = "./vendor/scene-core/";
+          if (window.__x3domPage) {
+            document.write(`<link rel="stylesheet" href="${window.__x3dBase}vendor/x3dom/x3dom.css">`);
+            document.write(`<script src="${window.__x3dBase}vendor/x3dom/x3dom-full.js"><\/script>`);
+          }
+        </script>
+        <script>
+          if (window.__x3domPage) {
+            document.write('<x3d id="x3dom-host" showStat="false" showLog="false" showProgress="false" ' +
+              'style="position:absolute;inset:0;width:100%;height:100%;display:block;border:0;"><scene>' +
+              '<navigationinfo type="none" headlight="false"></navigationinfo>' +
+              '<environment gammaCorrectionDefault="none"></environment>' +
+              '<viewpoint id="x3dom-viewpoint" fieldOfView="0.8727" zNear="0.05" zFar="300"></viewpoint>' +
+              `<script src="${window.__x3dBase}render-adapter/x3dom-inline-pool.js"><\/script>`);
+          }
+        </script>
+        <script>
+          if (window.__x3domPage) document.write('</scene></x3d>');
+        </script>
         <div class="state-overlay" id="state-overlay"></div>
         <button class="boarding-journey-affordance" id="boarding-journey-affordance"
                 type="button" data-testid="boarding-journey-affordance"

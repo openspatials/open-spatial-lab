@@ -62,6 +62,20 @@ async function startApp() {
   if (appStarted) return;
   appStarted = true;
   hideLauncher();
+  // ?renderer= is read only when it is there: with no switch the page loads what it always loaded.
+  // X3DOM and X_ITE take their own boot path, after Nicholas Polys (npolys/open-spatial-lab), and app.js does not
+  // load. This must not wait for that path to finish: X3DOM starts at DOMContentLoaded, which waits for this module.
+  if (url.searchParams.has("renderer")) {
+    const boundary = await import("./vendor/scene-core/render-adapter/render-adapter.mjs");
+    const choice = boundary.chooseRendererAtBoot(location.search);
+    if (choice.active.kind !== "three") {
+      const module = await import(choice.active.kind === "x3dom" ? "./x3dom-live-mode.mjs" : "./x-ite-live-mode.mjs");
+      void module.startLiveMode();
+      return;
+    }
+    window.__renderAdapter = boundary.describeRenderAdapterChoice(choice);
+    boundary.mountRenderAdapterNotice(document, choice);
+  }
   await import("./app.js?v=1");
 }
 
