@@ -27,6 +27,32 @@ const PORTAL_TRANSITION_PHASES = Object.freeze({
   WALKTHROUGH: "portal_walkthrough",
 });
 
+// A loaded machine answers in seconds, so this is well past any answer that is only slow.
+const CROSSING_ANSWER_LIMIT_MS = 15000;
+const TRANSITION_WALK_LIMIT_M = 1;
+
+function crossingFailure(how, message) {
+  return Object.assign(new Error(message), { how });
+}
+
+/** The answer to a step of a crossing, or a failure that says it never came. The work itself cannot be cancelled here. */
+function withinLimit(work, what) {
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(crossingFailure(`no answer in ${CROSSING_ANSWER_LIMIT_MS / 1000} s`, `${what} did not answer`)),
+      CROSSING_ANSWER_LIMIT_MS,
+    );
+  });
+  return Promise.race([work, limit]).finally(() => clearTimeout(timer));
+}
+
+function isExitPacket(packet) {
+  return !!packet && typeof packet === "object" &&
+    typeof packet.handoff_id === "string" && packet.handoff_id !== "" &&
+    !!packet.target && typeof packet.target === "object";
+}
+
 function copiedCrossing(crossing) {
   if (!crossing) return null;
   return {
@@ -173,6 +199,7 @@ export function createPortalTraversalHandoffController(options) {
   let transition = null;
   let transitionCommitStarted = false;
   let transitionNoticeSent = false;
+  let crossingEntry = null;
   let portalRuntime = {};
   let lastPortalSignedDistance = null;
   let portalLastCrossingDirection = null;
@@ -637,6 +664,7 @@ export function createPortalTraversalHandoffController(options) {
     transitionNoticeSent = false;
     portalPlaneCrossedAtMs = nowMs();
     crossingTimings = { plane_crossed_at: nowIso() };
+    crossingEntry = { portal, position: entryTransform.position };
     transition = {
       source: input.source || "operator",
       phase: PORTAL_TRANSITION_PHASES.WALKTHROUGH,
@@ -662,7 +690,7 @@ export function createPortalTraversalHandoffController(options) {
     host.controls.mapped_exit_yaw = frameMapping && frameMapping.exit_yaw_radians;
     patchHost({ phase: PORTAL_TRANSITION_PHASES.WALKTHROUGH, controls: host.controls });
     emitState();
-    void commitPortalHandoff();
+    commitPortalHandoff().catch(crossingFailed);
     return true;
   }
 
@@ -671,7 +699,10 @@ export function createPortalTraversalHandoffController(options) {
     if (!transition || !host.avatar) return { controls: host.controls, moved: false };
     const dt = Number(input.deltaSeconds ?? input) || 0;
     transition.elapsed += dt;
-    if (motionPreference?.isReduced?.() === true) {
+    const entry = transition.entry_transform.position;
+    const walked = Math.hypot(Number(host.avatar.position[0]) - entry[0], Number(host.avatar.position[2]) - entry[2]);
+    const stride = Math.min(movement.speedMps * dt, Math.max(0, TRANSITION_WALK_LIMIT_M - walked));
+    if (motionPreference?.isReduced?.() === true || stride <= 0) {
       host.controls.enabled = true;
       host.controls.moving = false;
       host.controls.movement_direction = "none";
@@ -685,8 +716,8 @@ export function createPortalTraversalHandoffController(options) {
       return { controls: host.controls, moved: false };
     }
     const yaw = Number(host.avatar.rotation_y) || 0;
-    const dx = Math.sin(yaw) * movement.speedMps * dt;
-    const dz = Math.cos(yaw) * movement.speedMps * dt;
+    const dx = Math.sin(yaw) * stride;
+    const dz = Math.cos(yaw) * stride;
     const position = clonePosition(host.avatar.position, [0, 0, 0]);
     position[0] += dx;
     position[2] += dz;
@@ -729,6 +760,11 @@ export function createPortalTraversalHandoffController(options) {
   /** A crossing the check before leaving refused: the visitor stays, and must step out before it can fire again. */
   function refuseCrossing() {
     const host = mutableHost(readHostSnapshot);
+    // The walk has no ground check, and a walker off the ground cannot move, so it goes back to where the crossing began.
+    if (crossingEntry && host.avatar) {
+      host.avatar.position = clonePosition(crossingEntry.position, host.avatar.position);
+      patchHost({ avatar: host.avatar, avatarMode: "merge" });
+    }
     transition = null;
     handoffInFlight = false;
     transitionCommitStarted = false;
@@ -763,6 +799,42 @@ export function createPortalTraversalHandoffController(options) {
     emitState();
   }
 
+  // The exit-intent is the source's depart, and heartbeats stop during a crossing: only a register puts the player back.
+  function registerAgain() {
+    void presence.registerPresence({ spawnReason: "crossing_refused" });
+  }
+
+  /** Any failure before the walker is in the destination ends as a refusal: the visitor stays, hears why, and can walk. */
+  function crossingFailed(error) {
+    const how = error.how || "the crossing could not finish";
+    const reason = `the crossing failed (${how}): ${error.message}`;
+    log(reason);
+    if (visualTransition && typeof visualTransition.abort === "function") {
+      visualTransition.abort({ restore: true });
+    }
+    refuseCrossing();
+    if (onCrossingRefused) onCrossingRefused({ kind: "offline", portal: crossingEntry && crossingEntry.portal, reason });
+    registerAgain();
+  }
+
+  async function postExitIntent(url, body) {
+    const posting = transport.postJson(url, body);
+    let packet;
+    try {
+      packet = await withinLimit(posting, "the exit-intent");
+    } catch (error) {
+      if (error.how) {
+        // A late answer means the source let the player go after this refusal.
+        posting.then(() => { if (!handoffInFlight && !transition) registerAgain(); }, () => {});
+      } else {
+        error.how = / -> \d+$/.test(error.message) ? "exit refused" : "no connection";
+      }
+      throw error;
+    }
+    if (!isExitPacket(packet)) throw crossingFailure("unreadable answer", "the exit-intent answered with no handoff");
+    return packet;
+  }
+
   async function commitPortalHandoff() {
     let host = mutableHost(readHostSnapshot);
     if (!host.avatar || handoffInFlight || transitionCommitStarted) return;
@@ -780,7 +852,7 @@ export function createPortalTraversalHandoffController(options) {
     // The check before leaving (R4.2): the destination must answer, and the node it arrives at must be there. Refused,
     // the visitor stays and hears why. A standard portal lands where its destination says.
     if (crossingGate && crossingPortal && crossingPortal.wow_resource) {
-      const gate = await crossingGate(crossingPortal);
+      const gate = await withinLimit(crossingGate(crossingPortal), "the check before leaving");
       timings.crossing_check_ms = nowMs() - stageStart;
       if (!gate.ok) {
         if (onCrossingRefused) onCrossingRefused({ ...gate, portal: crossingPortal });
@@ -805,29 +877,15 @@ export function createPortalTraversalHandoffController(options) {
       }
       host = mutableHost(readHostSnapshot);
     }
-    let packet;
-    try {
-      const registration = presence.snapshot();
-      const identity = presence.controlledIdentity();
-      packet = await transport.postJson(`${host.base}/portal/exit-intent`, {
-        portal_id: crossingPortalKey,
-        ...(registration && registration.supported && identity && identity.player_id
-          ? { player_id: identity.player_id }
-          : {}),
-      });
-      timings.exit_intent_ms = nowMs() - stageStart;
-    } catch (error) {
-      log(`exit-intent failed: ${error.message}`);
-      handoffInFlight = false;
-      transitionCommitStarted = false;
-      transition = null;
-      host.controls.portal_transition_phase = "none";
-      host.controls.portal_transition_elapsed_s = 0;
-      patchHost({ phase: HANDOFF_PHASES.IDLE, controls: host.controls });
-      updatePortalStatus();
-      emitState();
-      return;
-    }
+    const registration = presence.snapshot();
+    const exiting = presence.controlledIdentity();
+    const packet = await postExitIntent(`${host.base}/portal/exit-intent`, {
+      portal_id: crossingPortalKey,
+      ...(registration && registration.supported && exiting && exiting.player_id
+        ? { player_id: exiting.player_id }
+        : {}),
+    });
+    timings.exit_intent_ms = nowMs() - stageStart;
 
     const commitIso = nowIso();
     const activeTransition = transition || {};
@@ -972,7 +1030,7 @@ export function createPortalTraversalHandoffController(options) {
     if (host.clientMode === "player") {
       pushCrossingPhase("source_exit_committed");
       updatePortalStatus();
-      void _completePlayerCrossing(packet);
+      _completePlayerCrossing(packet).catch(crossingFailed);
       return;
     }
     if (visualTransition && typeof visualTransition.commit === "function") {
@@ -1285,6 +1343,10 @@ export function createPortalTraversalHandoffController(options) {
       if (crossing) {
         crossing.phase = "failed";
         crossing.error = error.message;
+      }
+      if (!crossing || !crossing.active_endpoint_switched) {
+        crossingFailed(error);
+        return;
       }
       handoffInFlight = false;
       transitionCommitStarted = false;
