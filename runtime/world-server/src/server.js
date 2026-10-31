@@ -530,16 +530,18 @@ function createServer(role, extraOpts)
     // Reads a JSON request body and settles exactly once: an empty body is {}, invalid JSON
     // or a broken stream is an error, and a body over MAX_BODY_BYTES is an error with status
     // 413. The rest of an oversized body is discarded, not buffered; the 413 answer closes
-    // the connection (sendBodyError).
+    // the connection (sendBodyError). The handler runs from the request stream's own events,
+    // outside the try in createServer, so a throw from it is answered here with `res`.
     const MAX_BODY_BYTES = 1e6;
-    function readBody(req, cb)
+    function readBody(req, res, cb)
     {
         let data = '';
         let settled = false;
         const finish = (err, value) => {
             if (settled) return;
             settled = true;
-            cb(err, value);
+            try { cb(err, value); }
+            catch (failure) { rejectUnreadableRequest(res, failure); }
         };
         req.on('data', chunk => {
             if (settled) return;
@@ -552,8 +554,10 @@ function createServer(role, extraOpts)
         });
         req.on('end', () => {
             if (!data) return finish(null, {});
-            try { finish(null, JSON.parse(data)); }
-            catch (err) { finish(err, null); }
+            let parsed;
+            try { parsed = JSON.parse(data); }
+            catch (err) { return finish(err, null); }
+            finish(null, parsed);
         });
         req.on('error', err => finish(err, null));
     }
@@ -576,8 +580,11 @@ function createServer(role, extraOpts)
     });
     function rejectUnreadableRequest(res, err)
     {
-        if (res.headersSent) { res.destroy(); return; }
         const unreadable = err instanceof URIError || (err && err.code === 'ERR_INVALID_URL');
+        if (!unreadable)
+            console.error('[node][' + runtime.LOCATION_ID + '] ' + res.req.method + ' ' + String(res.req.url).slice(0, 200)
+                + ' threw: ' + (err && err.stack || err));
+        if (res.headersSent) { res.destroy(); return; }
         return sendJson(res, unreadable ? 400 : 500, { ok : false, error : unreadable ? 'bad_request_target' : 'internal_error' });
     }
     function handleRequest(req, res)
@@ -722,7 +729,7 @@ function createServer(role, extraOpts)
         // portal names it. The node itself is created and moved with the node operations below.
         if ((method === 'POST' && path === '/wow/portal') || (method === 'PUT' && /^\/wow\/portal\/\d+$/.test(path)))
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 if (!body || typeof body !== 'object' || Array.isArray(body))
                     return sendJson(res, 400, { ok : false, error : 'expected_portal_object' });
@@ -870,7 +877,7 @@ function createServer(role, extraOpts)
 
             if (method === 'POST')
             {
-                return readBody(req, (err, body) => {
+                return readBody(req, res, (err, body) => {
                     if (err) return sendBodyError(res, err);
                     try {
                         if (!Array.isArray(body))
@@ -920,7 +927,7 @@ function createServer(role, extraOpts)
 
             if (method === 'PUT')
             {
-                return readBody(req, (err, body) => {
+                return readBody(req, res, (err, body) => {
                     if (err) return sendBodyError(res, err);
                     try {
                         if (!body || typeof body !== 'object' || Array.isArray(body))
@@ -1075,7 +1082,7 @@ function createServer(role, extraOpts)
 
         if (method === 'POST' && path === '/demo/scene-objects/move')
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 try {
                     const obj = runtime.moveSceneObject(body && body.object_id, body && body.position);
@@ -1088,7 +1095,7 @@ function createServer(role, extraOpts)
 
         if (method === 'POST' && path === '/demo/portal/move')
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 try {
                     const portal = runtime.movePortal(body && body.position);
@@ -1108,7 +1115,7 @@ function createServer(role, extraOpts)
 
         if (method === 'POST' && path === '/demo/republish-rate')
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 try {
                     const out = runtime.setRepublishRate(body && body.republish_rate_ms);
@@ -1126,7 +1133,7 @@ function createServer(role, extraOpts)
         // heartbeats/departs only with its OWN currently-active server.
         if (method === 'POST' && path === '/fabric/presence/register')
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 try {
                     return sendJson(res, 201, runtime.registerPresence(body || {}));
@@ -1138,7 +1145,7 @@ function createServer(role, extraOpts)
 
         if (method === 'POST' && path === '/fabric/presence/heartbeat')
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 try {
                     return sendJson(res, 200, runtime.heartbeatPresence(body || {}));
@@ -1150,7 +1157,7 @@ function createServer(role, extraOpts)
 
         if (method === 'POST' && path === '/fabric/presence/depart')
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 try {
                     return sendJson(res, 200, runtime.departPresence(body || {}));
@@ -1162,7 +1169,7 @@ function createServer(role, extraOpts)
 
         if (method === 'POST' && (path === '/portal/exit-intent' || path === '/wow/portal/exit'))
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 try {
                     const portalId = (body && body.portal_id) || (runtime.getState().portals[0] || {}).portal_id;
@@ -1182,7 +1189,7 @@ function createServer(role, extraOpts)
 
         if (method === 'POST' && (path === '/portal/arrival' || path === '/wow/portal/arrival'))
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 try {
                     const out = runtime.recordPortalArrival(body || {});
@@ -1195,7 +1202,7 @@ function createServer(role, extraOpts)
 
         if (method === 'POST' && path === '/movement')
         {
-            return readBody(req, (err, body) => {
+            return readBody(req, res, (err, body) => {
                 if (err) return sendBodyError(res, err);
                 const out = runtime.applyMovement(body || {});
                 return sendJson(res, 200, { ok : true, avatar : out.avatar });
