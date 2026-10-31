@@ -9,7 +9,6 @@ const sourcePaths = {
   index: "web/index.html",
   launcher: "web/demo-shell-bootstrap.mjs",
   destinations: "web/semantic-destinations-controller.mjs",
-  app: "web/app.js",
   e2e: "src/header-navigation-e2e.mjs",
 };
 const sources = Object.fromEntries(await Promise.all(Object.entries(sourcePaths).map(async ([key, relativePath]) => [
@@ -24,7 +23,6 @@ const mutations = {
   "views-borderless": () => { sources.index = sources.index.replace("border-color: transparent; border-radius: 0;", "border-color: var(--line); border-radius: 12px;"); },
   "views-click-target": () => { sources.launcher = sources.launcher.replace('getElementById("btn-views-home")', 'getElementById("btn-views-home-mutated")'); },
   "destinations-click-target": () => { sources.destinations = sources.destinations.replace('lookup("btn-semantic-destinations"), "click"', 'lookup("btn-semantic-destinations-mutated"), "click"'); },
-  "lobby-click-target": () => { sources.app = sources.app.replace('listenAtRoot(btn, "click", handleReturnLobbyClick);', 'listenAtRoot(btn, "click", () => {});'); },
   "accessible-names": () => { sources.index = sources.index.replace('aria-label="Open mission views"', 'aria-label=""'); },
   "destinations-expanded": () => { sources.destinations = sources.destinations.replace('String(openState)', 'String(false)'); },
   "stale-visible-layer": () => { sources.index = sources.index.replace('</svg>\n        </button>', '</svg><span>Views</span>\n        </button>'); },
@@ -46,7 +44,7 @@ const mutations = {
     sources.index = sources.index.replace('aria-hidden="true" tabindex="-1" hidden', "hidden");
   },
   "protected-port-use": () => {
-    sources.e2e = sources.e2e.replace("airport: 18933", "airport: 18154");
+    sources.e2e = sources.e2e.replace("airport: PORT_BASE + 4", "airport: 18154");
   },
   "pass-artifact-nonterminal-parent": () => {
     sources.e2e = sources.e2e.replace(/main\(\)\.then\([\s\S]*?\n\);\s*$/, "await main();\n");
@@ -108,12 +106,6 @@ await check("Views keeps exactly one existing launcher click owner", () => {
 await check("hidden Destinations compatibility control keeps exactly one toggle click owner", () => {
   assert.equal((sources.destinations.match(/listen\(lookup\("btn-semantic-destinations"\), "click"/g) || []).length, 1);
   assert.match(sources.destinations, /openState \? close\(\) : open\(\)/);
-});
-
-await check("lobby return keeps exactly one existing guarded click owner", () => {
-  assert.equal((sources.app.match(/listenAtRoot\(btn, "click", handleReturnLobbyClick\);/g) || []).length, 1);
-  assert.match(sources.app, /btn\.dataset\.returnLobbyWired === "1"/);
-  assert.match(sources.app, /if \(!adapter \|\| returnToLobbyInFlight\) return;/);
 });
 
 await check("names, tooltips, ids, test ids, and controls relationship remain exact", () => {
@@ -185,7 +177,8 @@ await check("headed driver documents and reaches the complete source/server sequ
 });
 
 await check("headed driver owns every backend and never connects to protected ports", () => {
-  assert.match(sources.e2e, /const ports = Object\.freeze\(\{ frontend: 18929, a: 18930, b: 18931, lobby: 18932, airport: 18933 \}\);/);
+  assert.match(sources.e2e, /const PORT_BASE = Number\(process\.env\.OSL_HEADER_NAV_PORT\) \|\| 18929;/);
+  assert.match(sources.e2e, /const ports = Object\.freeze\(\{ frontend: PORT_BASE, a: PORT_BASE \+ 1, b: PORT_BASE \+ 2, lobby: PORT_BASE \+ 3, airport: PORT_BASE \+ 4 \}\);/);
   assert.match(sources.e2e, /assertNotLiveDemoPorts\(\{ a: ports\.a, b: ports\.b, lobby: ports\.lobby, airport: ports\.airport \}\);/);
   assert.match(sources.e2e, /startBackends\(\{[\s\S]*?airport: ports\.airport[\s\S]*?includeAirport: true/);
   assert.match(sources.e2e, /createFrontendServer\(ports\.frontend, \{[\s\S]*?airport: ports\.airport[\s\S]*?includeAirport: true/);

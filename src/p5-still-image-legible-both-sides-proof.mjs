@@ -394,6 +394,8 @@ async function main() {
     });
 
     // ================= SECTION 4 — source wiring =============================
+    // The still-image rung is not drawn for any portal of the lab's worlds (the live window owns every aperture),
+    // so this wiring is read from the source: update it when this code moves.
     await check("L7", "source wiring: app.js flips ONLY the 2D-rung textures keyed on viewer side (primary + additional), sets the page-truth attributes, and never flips the spatial/child rungs", async () => {
       const appSrc = await readFile(resolve(repoRoot, "web/app.js"), "utf8");
       const pspSrc = await readFile(resolve(repoRoot, "web/portal-spatial-preview.mjs"), "utf8");

@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
-import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const execFileAsync = promisify(execFile);
+/** Runs a command and returns its output; a non-zero exit rejects. The browser guard replaces execFile, so it is not used here. */
+async function execFileAsync(file, args, options = {}) {
+  const result = spawnSync(file, args, { encoding: "utf8", ...options });
+  if (result.error || result.status !== 0) {
+    throw Object.assign(new Error(`${file} exited ${result.status}`), { stdout: result.stdout, stderr: result.stderr, code: result.status });
+  }
+  return { stdout: result.stdout, stderr: result.stderr };
+}
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const evidenceRoot = path.join(
   root,
@@ -17,7 +23,8 @@ const evidenceRoot = path.join(
 );
 const profilePath = path.join(evidenceRoot, "headed-worker-profile");
 const evidencePath = path.join(evidenceRoot, "headed-diagnostics.json");
-const ports = Object.freeze({ frontend: 18929, a: 18930, b: 18931, lobby: 18932, airport: 18933 });
+const PORT_BASE = Number(process.env.OSL_HEADER_NAV_PORT) || 18929;
+const ports = Object.freeze({ frontend: PORT_BASE, a: PORT_BASE + 1, b: PORT_BASE + 2, lobby: PORT_BASE + 3, airport: PORT_BASE + 4 });
 const protectedPorts = Object.freeze([8143, 4101, 4102, 4103, 18151, 18152, 18153, 18154]);
 const profiles = Object.freeze([
   { name: "desktop-1698", width: 1698, height: 900, minHit: 40, minGap: 7 },
@@ -672,7 +679,7 @@ async function main() {
       catch (error) { cleanupErrors.push(`browser: ${error.message}`); }
     } else diagnostics.cleanup.browser = true;
     if (frontend) {
-      try { await frontend.closeAll(); diagnostics.cleanup.frontend = true; }
+      try { frontend.closeAllConnections(); await new Promise((done) => frontend.close(done)); diagnostics.cleanup.frontend = true; }
       catch (error) { cleanupErrors.push(`frontend: ${error.message}`); }
     } else diagnostics.cleanup.frontend = true;
     if (backends) {

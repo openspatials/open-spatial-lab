@@ -28,7 +28,8 @@
  *   - Falsifiable ORACLE TEETH (E3): the RETIRED fabric-first-node derivation,
  *     reconstructed from the actual served manifest + centroid, lands 5.6 m from
  *     the counterpart — so a revert to that anchor FAILS the counterpart
- *     criterion. E6 is a source tripwire: removing the fix breaks it.
+ *     criterion. In the page, tools/behavior/crossing.check.mjs (arrives-at-node,
+ *     walks-back, airport-and-back) checks where the live crossing lands.
  *
  * ISOLATED PORTS ONLY (19341-19344). 8143 / 18151-18154 (the live local demo)
  * are NEVER bound. No git. Claim boundary unchanged: local application-level
@@ -37,7 +38,7 @@
 
 import { createRequire } from "node:module";
 import { mkdtemp, readFile, rm, writeFile, copyFile } from "node:fs/promises";
-import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -399,31 +400,6 @@ async function main() {
       assertOk(standoff > 0, "return landing must be on lobby-portal-a's FRONT side (in front of the aperture)");
       assertOk(toEntered <= (Number(lobbyPortalA.trigger.radius_m) || 1.25) + 0.6, `return landing ${toEntered.toFixed(3)} m from lobby-portal-a (must be inside its aperture standoff)`);
       assertOk(toOther > 2.0, `return landing only ${toOther.toFixed(3)} m from lobby-portal-b (must be > 2.0 — not the other portal)`);
-    });
-
-    // ---- E6: SOURCE TRIPWIRE — the fix is present and the app.js #5 tripwire
-    // source string is intact (a revert to fabric-node-primary breaks this) ---
-    await check("E6", "live-adapter.js resolves the exit from the frame-mapping counterpart before the fabric-node path; fallback tripwire string intact", () => {
-      const src = readFileSync(resolve(repoRoot, "web/live-adapter.js"), "utf8");
-      const primaryIdx = src.indexOf("this._counterpartExitPoseFromFrameMapping(frameMapping, mapped, root)");
-      const helperIdx = src.indexOf('source: "traversed_edge_counterpart_frame_mapping"');
-      const fabricNodeIdx = src.indexOf("const portalBack = root ? findFabricPortalAttachmentNode(root) : null;");
-      assertOk(primaryIdx > 0, "primary counterpart branch missing from _fabricDerivedExitPose");
-      assertOk(helperIdx > 0, "counterpart exit method does not return the traversed_edge_counterpart_frame_mapping source");
-      assertOk(fabricNodeIdx > 0, "fabric-node fallback path unexpectedly absent");
-      assertOk(primaryIdx < fabricNodeIdx, "counterpart branch must run BEFORE the fabric-first-node path (else the defect returns)");
-      const methodIdx = src.indexOf("_counterpartExitPoseFromFrameMapping(frameMapping, mapped, root) {");
-      assertOk(methodIdx > 0, "counterpart exit method definition missing");
-      const methodBody = src.slice(methodIdx, methodIdx + 2000);
-      assertOk(
-        methodBody.includes("mapped.position") && methodBody.includes("target_portal_frame"),
-        "counterpart method must derive the exit from the frame mapping's mapped_exit_transform position + target_portal_frame",
-      );
-      // app.js #5 tripwire keys on this exact fallback source string.
-      assertOk(
-        src.includes('source: "portal_frame_mapping_fallback"'),
-        "the world.arrival fallback source string (app.js exit-arrival-fallback tripwire) must remain intact",
-      );
     });
   } finally {
     for (const server of servers) {

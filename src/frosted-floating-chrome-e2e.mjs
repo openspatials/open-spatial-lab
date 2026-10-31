@@ -8,7 +8,7 @@ import path from "node:path";
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const port = 18332;
+const port = Number(process.env.OSL_FROSTED_CHROME_PORT) || 18332;
 const base = `http://127.0.0.1:${port}`;
 const evidenceRoot = path.join(
   root,

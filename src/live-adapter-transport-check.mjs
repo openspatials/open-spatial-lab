@@ -8,10 +8,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TRANSPORT_PATH = join(ROOT, "web/live-adapter-transport.mjs");
-const ADAPTER_PATH = join(ROOT, "web/live-adapter.js");
 const MUTATION = process.env.feature_TRANSPORT_MUTATION || "";
 let transportSource = readFileSync(TRANSPORT_PATH, "utf8");
-let adapterSource = readFileSync(ADAPTER_PATH, "utf8");
 
 function replaceOnce(source, before, after) {
   assert.equal(source.includes(before), true, `mutation anchor missing: ${before}`);
@@ -128,11 +126,6 @@ if (MUTATION === "synthetic-second-sequence") {
     "    const detail = { id: ++requestSequence, at: nowIso(), ...record };",
     "    const detail = { id: ++syntheticRequestSequence, at: nowIso(), ...record };",
   );
-  adapterSource = replaceOnce(
-    adapterSource,
-    'export { API_EVENTS } from "./live-adapter-transport.mjs";',
-    "export const API_EVENTS = new EventTarget();",
-  );
 }
 if (MUTATION === "unguarded-http-event") {
   transportSource = replaceOnce(
@@ -140,22 +133,12 @@ if (MUTATION === "unguarded-http-event") {
     "    } catch (error) {\n      /* telemetry must never break a request */\n    }",
     "    } catch (error) {\n      throw error;\n    }",
   );
-  adapterSource = replaceOnce(
-    adapterSource,
-    'export { API_EVENTS } from "./live-adapter-transport.mjs";',
-    'export { API_EVENTS } from "./missing-transport.mjs";',
-  );
 }
 if (MUTATION === "instrument-raw-fetch") {
   transportSource = replaceOnce(
     transportSource,
     "  function rawFetch(url, options) {\n    return fetchImpl(url, options);\n  }",
     '  function rawFetch(url, options) {\n    emitSyntheticApiRequest({ method: "RAW", url, path: displayPath(url) });\n    return fetchImpl(url, options);\n  }',
-  );
-  adapterSource = replaceOnce(
-    adapterSource,
-    "this._transport.rawFetch(`${this.demoProxyBase(endpointKey)}/demo/um/attach-point`",
-    "this._transport.getJson(`${this.demoProxyBase(endpointKey)}/demo/um/attach-point`",
   );
 }
 
@@ -463,7 +446,7 @@ await check("HTTP telemetry failures stay contained without normalizing request 
   assert.deepEqual(caught?.body, { error: "bad" });
 });
 
-await check("raw exclusions, singleton identity, direct re-export, injection, and dependency direction are canonical", async () => {
+await check("raw exclusions, singleton identity, injection, and dependency direction are canonical", async () => {
   const calls = [];
   const { bus, transport } = harness({
     fetchImpl: async (...args) => { calls.push(args); return response({ validation: "pass:World", value: { ok: true } }); },
@@ -476,14 +459,6 @@ await check("raw exclusions, singleton identity, direct re-export, injection, an
   assert.equal(bus.events[0].detail.id, 1);
   assert.equal(production.DEFAULT_LIVE_ADAPTER_TRANSPORT.apiEvents, production.API_EVENTS);
 
-  assert.match(adapterSource, /export \{ API_EVENTS \} from "\.\/live-adapter-transport\.mjs";/);
-  assert.match(adapterSource, /this\._transport = opts\.transport \|\| DEFAULT_LIVE_ADAPTER_TRANSPORT;/);
-  assert.match(adapterSource, /featureSignManifestOntoPacket\(packet, world, transport\)/);
-  assert.match(adapterSource, /featureSignManifestOntoPacket\(packet, this\.world, this\._transport\)/);
-  assert.equal(adapterSource.match(/this\._transport\.rawFetch\(/g)?.length, 7);
-  assert.equal(adapterSource.match(/transport\.emitSyntheticApiRequest\(/g)?.length, 5);
-  assert.doesNotMatch(adapterSource, /\bawait\s+fetch\s*\(/);
-  assert.doesNotMatch(adapterSource, /function (?:getJson|postJson|recordWowContractValidation)\b|\b_apiRequestSeq\b|new EventTarget\(\)/);
   assert.doesNotMatch(transportSource, /^import\s/m);
   assert.doesNotMatch(transportSource, /from ["']\.\/(?:app|live-adapter|panel|portal-render|manifest)/);
   assert.doesNotMatch(transportSource, /\/api\/(?:a|b|lobby)|\/demo\/|fabric\/presence|client_scene|document\.|window\./);

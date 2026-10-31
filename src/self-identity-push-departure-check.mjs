@@ -319,7 +319,6 @@ const SELF_FILTER_SOURCE_ANCHOR =
   "    isHandoffInFlight: () => adapter._portalTraversalController?.inFlight?.() === true,\n" +
   "    controlledPlayerId: () => adapter.controlledIdentity().player_id,\n";
 const appSource = readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
-const adapterSource = readFileSync(path.join(ROOT, "web", "live-adapter.js"), "utf8");
 const runtimeStreamSource = readFileSync(
   path.join(ROOT, "web", "live-adapter-runtime-stream-controller.mjs"),
   "utf8",
@@ -329,21 +328,13 @@ const peerPresenceSource = readFileSync(
   "utf8",
 );
 
-check("production app wires the adapter's stable player_id into proxy creation", () => {
-  assert.match(appSource, /controlledPlayerId:\s*\(\) => adapter\.controlledIdentity\(\)\.player_id/);
-  assert.match(adapterSource, /controlled_identity:\s*this\.controlledIdentity\(\)/);
-  assert.match(adapterSource, /player_id:\s*this\.controlledIdentity\(\)\.player_id/);
-});
-
-check("production browser consumes user_left and exposes targeted push diagnostics", () => {
+check("the runtime stream hands user_left to the departure consumer", () => {
   assert.match(runtimeStreamSource, /message\.type === "user_left"/);
   assert.match(runtimeStreamSource, /onPresenceDeparture\(endpointKey, message\)/);
   assert.match(peerPresenceSource, /function removeDepartedPlayer\(input = \{\}\)/);
-  assert.match(adapterSource, /this\._peers\.removeDepartedPlayer/);
-  assert.match(adapterSource, /presence_user_left_push/);
-  assert.match(adapterSource, /presence_push:\s*this\._presencePushDebug\(\)/);
 });
 
+// The mutation arms edit served source at these anchors: update the anchors when this code moves.
 check("source mutation arms apply and the self-filter anchor fails closed", () => {
   const prior = process.env.OSL_SOURCE_MUTATION;
   try {

@@ -45,6 +45,9 @@ const HOST = '127.0.0.1';
 
 // Exercise the ACTUAL wired validation path (additive; body never altered).
 process.env.OSL_WOW_VALIDATE = '1';
+// Creating nodes and resetting state are placement writes, which a server refuses unless OSL_PLACEMENT_WRITES=1
+// is set (and it is bound to 127.0.0.1). This proof runs its own servers on 127.0.0.1 and opts in.
+process.env.OSL_PLACEMENT_WRITES = '1';
 
 const { createValidator } = require(path.join(REPO_ROOT, 'wow-spec', 'validate'));
 const { createServer } = require(path.join(__dirname, '..', 'src', 'server'));
@@ -126,11 +129,11 @@ async function main()
             root.id === 0 && Array.isArray(root.names) && root.names.indexOf('demo-room-a') !== -1
             && Array.isArray(root.localTransform) && root.localTransform.length === 16);
         // node count must equal the world's real scene objects + portals + the nodes that place its
-        // users and its view (iteration 4: the hosted user and the player view each have one)
+        // users and its view, and each portal's arrival (the hosted user and the player view each have one)
         const sceneObjs = (await GET(PORT_A, '/demo/scene-objects')).json.objects.length;
         const portalCount = (await GET(PORT_A, '/wow/world')).json.portals.portal_count;
         const placements = (root.children || []).filter(c => c && c.webofworlds_extension
-            && /-placement$/.test(c.webofworlds_extension.role || '')).length;
+            && /-placement$|^portal-arrival$/.test(c.webofworlds_extension.role || '')).length;
         check('B3 root populated from real scene data (children == primitives + portals + user and view placements)',
             Array.isArray(root.children) && placements >= 2 && root.children.length === sceneObjs + portalCount + placements
             && root.children.every(c => c && typeof c === 'object' && Number.isInteger(c.id)),

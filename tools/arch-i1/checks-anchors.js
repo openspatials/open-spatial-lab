@@ -114,7 +114,7 @@ async function anchorChecks(ports) {
     graph.world.geoPose = { position: { lat: 0, lan: 0, h: 0 }, angles: { yaw: 0, pitch: 0, roll: 0 } };
     return graph;
   };
-  const authoredWins = { edits: { runtime: [['            // The anchor fixture is the one source of the world\'s location. Authored data does not set it.\n            geoPose : projected.geoPose,\n', '']] }, airportAuthored: placeholderAuthored };
+  const authoredWins = { edits: { runtime: [['            geoPose : projected.geoPose,\n', '']] }, airportAuthored: placeholderAuthored };
   const { SPATIAL_ANCHORS } = require(path.join(ROOT, 'runtime', 'world-server', 'src', 'config.js'));
   const { createValidator } = require(path.join(ROOT, 'wow-spec', 'validate'));
   const validator = createValidator();

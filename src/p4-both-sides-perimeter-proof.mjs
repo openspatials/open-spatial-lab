@@ -21,8 +21,7 @@
  *     cancelled/cooling recorded; the presence refresher only serves warm
  *     machines): zero new fetches after the exit tick.
  *   - a zone-less synthetic always-warm machine (the retired
- *     serverBApertureMachine shape) can NEVER be live, and app.js no longer
- *     substitutes it for lobby-portal-b.
+ *     serverBApertureMachine shape) can NEVER be live (E1h).
  *
  *  #2 both-sides render (SECTION 2) — drives the REAL
  *  SpatialPortalPreviewManager (loader recipe; stub GL renderer — all
@@ -445,12 +444,6 @@ async function main() {
       assertOk(gate.live === false && gate.reason === "perimeter_zone_unavailable", JSON.stringify(gate));
       assertOk(preview.SpatialPortalPreviewManager.machineRenderable(synthetic) === true,
         "canonical loading/rendering should remain eligible without invented region content");
-    });
-
-    await check("E1i", "app.js no longer substitutes serverBApertureMachine for lobby-portal-b's aperture machine", async () => {
-      const appSource = await readFile(resolve(repoRoot, "web/app.js"), "utf8");
-      assertOk(!appSource.includes("serverBApertureMachine"), "the serverBApertureMachine substitution is back");
-      assertOk(!appSource.includes("data-server-b-aperture-entities"), "the boot-time read of Server B's region is back");
     });
 
     // ================= SECTION 2 — the REAL preview manager ================

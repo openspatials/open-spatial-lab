@@ -131,7 +131,17 @@ The API smoke test starts and stops the local topology itself, so it stops a run
 
 No check is skipped because the machine is busy. A check that fails with a timeout is run once more, and the second result counts.
 
-Known issues: `runtime/world-server/test/airport-backend-proof.js` and check E11 of `runtime/world-server/test/p1-shared-edge-portal-identity-proof.js` fail on the current code. The round-trip proof (`wow-spec/proof/roundtrip.js`) stops at its spatial-fabric section, because the fabric modules are not in this repository yet.
+### One command for all checks
+
+```bash
+npm test             # every check and proof that can run by itself, one line per step
+npm run test:fast    # the steps that need no browser and no running lab
+npm run check:behavior   # a crossing and movement in the main demo, driven as a person drives it (add `-- --faults` for their planted faults)
+```
+
+Each step runs with a time limit and the run goes on after a failure. A line says PASS, FAIL, KNOWN-RED (red today, with its reason and the phase that takes it) or SKIP (with its reason; a skip is not a pass). Each step's output is in `diagnostics/test/`. The command exits 1 when any step fails. A KNOWN-RED step that passes counts as a failure until it is taken off the list in `tools/run-checks-lists.mjs`. Steps that drive a browser use Chrome for Testing, found by `tools/find-browser.mjs`; without it they print SKIP. Every step takes its ports from `OSL_TEST_PORT_BASE` (default 36400) and the 99 numbers after it. A file named `tools/behavior/*.check.mjs` joins `npm test` on its own, and `--faults` also runs its planted faults. `node tools/run-checks.mjs --self-check` shows that the runner itself turns red for a failing step.
+
+Known red: the round-trip proof (`wow-spec/proof/roundtrip.js`) stops at its spatial-fabric section, because the fabric modules are not in this repository.
 
 ### Worlds and portal placement
 

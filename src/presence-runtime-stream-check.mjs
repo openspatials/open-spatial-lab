@@ -13,7 +13,6 @@ import { createPeerPresenceReducer } from "../web/live-adapter-peer-presence-red
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mutation = process.env.feature_P13_MUTATION || "";
-let adapterSource = readFileSync(path.join(ROOT, "web/live-adapter.js"), "utf8");
 let presenceSource = readFileSync(path.join(ROOT, "web/live-adapter-presence-controller.mjs"), "utf8");
 let runtimeSource = readFileSync(path.join(ROOT, "web/live-adapter-runtime-stream-controller.mjs"), "utf8");
 let peerSource = readFileSync(path.join(ROOT, "web/live-adapter-peer-presence-reducer.mjs"), "utf8");
@@ -39,8 +38,6 @@ const mutations = {
   "self-filter": () => { peerSource = replaceOnce(peerSource, "if (clientMode === \"player\" && playerId === controlledIdentity().player_id) return;", "if (false) return;"); },
   "targeted-departure": () => { peerSource = replaceOnce(peerSource, "          stalePruneDueAtMs = pose.received_at + PEER_PLAYER_POSE_STALE_MS;\n          delete peerPlayerPoses[peerClientId];\n          removed += 1;", "          void pose;\n          void peerClientId;\n          removed += 0;"); },
   "reference-restore": () => { peerSource = replaceOnce(peerSource, "    peerPlayerPoses = saved.peerPlayerPoses || {};", "    peerPlayerPoses = { ...(saved.peerPlayerPoses || {}) };"); },
-  "debug-drift": () => { adapterSource = replaceOnce(adapterSource, "presence_registration: this._presenceDebug(),", "registration: this._presenceDebug(),"); },
-  "private-bypass": () => { adapterSource = replaceOnce(adapterSource, "return this._presenceController.registerPresence({ spawnReason: reason });", "return this._transport.postJson(reason, {});"); },
   "source-mutation-route": () => { peerSource = replaceOnce(peerSource, "  function removeDepartedPlayer(input = {}) {", "  function ignoreDepartedPlayer(input = {}) {"); },
 };
 if (mutation) mutations[mutation]();
@@ -75,9 +72,6 @@ function fakeTarget() {
 }
 
 await check("source ownership and dependency direction are explicit", () => {
-  assert.match(adapterSource, /createPresenceController\(\{/);
-  assert.match(adapterSource, /createRuntimeStreamController\(\{/);
-  assert.match(adapterSource, /createPeerPresenceReducer\(\{/);
   assert.doesNotMatch(presenceSource, /live-adapter\.js|app\.js|WebSocket|BroadcastChannel/);
   assert.doesNotMatch(runtimeSource, /live-adapter\.js|app\.js|fetch\(/);
   assert.doesNotMatch(peerSource, /live-adapter\.js|app\.js|fetch\(/);
@@ -102,8 +96,6 @@ await check("source ownership and dependency direction are explicit", () => {
     "          stalePruneDueAtMs = pose.received_at + PEER_PLAYER_POSE_STALE_MS;\n          delete peerPlayerPoses[peerClientId];\n          removed += 1;",
     "    peerPlayerPoses = saved.peerPlayerPoses || {};",
   ]) assert.equal(peerSource.includes(token), true, `peer owner token missing: ${token}`);
-  assert.match(adapterSource, /presence_registration: this\._presenceDebug\(\),/);
-  assert.match(adapterSource, /return this\._presenceController\.registerPresence\(\{ spawnReason: reason \}\);/);
 });
 
 await check("presence identity, role inertness, register, retry timer, and clear transition", async () => {
@@ -333,18 +325,6 @@ await check("targeted departure and BroadcastChannel routing retain distinct deb
   fixture.channels[0].onmessage({ data: { type: "player-pose-request", client_id: "other" } });
   assert.equal(fixture.sent.some((message) => message.type === "player-pose"), true);
   assert.notDeepEqual(fixture.reducer.visibilityDebug(), fixture.reducer.peerPlayersDebug());
-});
-
-await check("facade delegates all Patch 15 lifecycle seams without mutable private bypasses", () => {
-  for (const token of [
-    "departPresence(input = {})", "stopPresenceHeartbeat()", "registerPresence(input = {})",
-    "presenceSnapshot()", "clearPresenceRegistration()", "closeRuntimeStream()",
-    "connectRuntimeStream(endpointKey)", "syncPresenceEventStreams(endpointKeys)",
-    "peerPresenceSnapshot()", "clearPeerPresence()", "restorePeerPresence(snapshot)",
-    "broadcastPlayerPose({ force = false } = {})",
-  ]) assert.equal(adapterSource.includes(token), true, `facade seam missing: ${token}`);
-  assert.match(adapterSource, /presence_registration: this\._presenceDebug\(\)/);
-  assert.match(adapterSource, /presence_push: this\._presencePushDebug\(\)/);
 });
 
 if (!mutation) {

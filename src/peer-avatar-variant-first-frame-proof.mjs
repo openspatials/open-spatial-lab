@@ -44,12 +44,13 @@
  *     load on construct, invisible rig, switch-without-reveal, setAvatar-reveals)
  *     is SOURCE-PINNED against web/avatar-equipment-layer.js — the fake used
  *     here fails to build if those lines drift.
- *   - The FIXED reveal order run here is SOURCE-PINNED against the exact shipped
- *     app.js statements (switch-before-reveal + __variantPrimed gate + the
- *     removal of the immediate `layer.avatar = peerAvatar` prime). Reverting the
- *     fix in app.js turns this proof RED.
+ *   - The FIXED reveal order run here models the shipped app.js (switch-before-reveal
+ *     + __variantPrimed gate). The shipped page is checked by
+ *     tools/behavior/crossing-views.check.mjs: a watcher draws a crosser in the
+ *     crosser's own avatar from the first frame.
  *   - The data-availability claim (variant known at frame 0, ruling out a/b) is
- *     SOURCE-PINNED against the reducer + traversal-controller.
+ *     SOURCE-PINNED against the reducer; that the crossing packet carries it is
+ *     checked in the page by the same statement.
  *   - CONTROLLED RED (oracle teeth): the reconstructed pre-fix reveal order —
  *     immediate prime + reveal-then-switch — REPRODUCES the
  *     default-first frame and FAILS the frame-0 criterion. A criterion that
@@ -67,10 +68,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
 
-const APP = readFileSync(resolve(repoRoot, "web/app.js"), "utf8");
 const LAYER = readFileSync(resolve(repoRoot, "web/avatar-equipment-layer.js"), "utf8");
 const REDUCER = readFileSync(resolve(repoRoot, "web/live-adapter-peer-presence-reducer.mjs"), "utf8");
-const TRAVERSAL = readFileSync(resolve(repoRoot, "web/live-adapter-portal-traversal-controller.mjs"), "utf8");
 
 const failures = [];
 const pins = [];
@@ -131,25 +130,8 @@ pin("(a-ruled-out) reducer records peer avatar_variant from the pose stream",
   REDUCER.includes("avatar_variant: message.avatar_variant || defaultAvatarVariant,"));
 pin("(a-ruled-out) reducer exposes peer avatar_variant in the co-present debug view",
   REDUCER.includes("avatar_variant: pose.avatar_variant,"));
-pin("(b-ruled-out) crossing EXIT packet carries avatar_context.avatar_variant",
-  TRAVERSAL.includes("avatar_variant: host.avatar.avatar_variant || assets.defaultAvatarVariant,"));
-pin("(b-ruled-out) crossing ARRIVAL rebuild restores avatar_variant from the packet",
-  TRAVERSAL.includes("avatar_variant: packet.avatar_context.avatar_variant || assets.defaultAvatarVariant,"));
-
-// A6. THE FIX IS SHIPPED IN app.js (revert => this proof goes RED).
-pin("app.js: peer layer starts NOT primed (__variantPrimed = false)",
-  APP.includes("layer.__variantPrimed = false;"));
-pin("app.js: on ready, SWITCH to the peer's own variant BEFORE revealing",
-  APP.includes("await layer.switchAvatarVariant(wantVariant);"));
-pin("app.js: reveal (setAvatar) only after priming; mark primed",
-  APP.includes("layer.__variantPrimed = true;") &&
-  APP.includes("layer.setAvatar(layer.__latestPeerAvatar || peerAvatar);"));
-pin("app.js: per-tick reveal gated behind __variantPrimed",
-  APP.includes("if (layer.__variantPrimed && layer.isSettled && layer.isSettled()) layer.setAvatar(peerAvatar);"));
-// The pre-fix flicker line — an immediate `layer.avatar = peerAvatar;` inside
-// the peer instantiation block — must be GONE.
-pin("app.js: the pre-fix immediate-prime `layer.avatar = peerAvatar;` is removed",
-  !APP.includes("layer.avatar = peerAvatar;"));
+// The crossing packet carrying the variant, and the fix in app.js, are checked in the page by
+// tools/behavior/crossing-views.check.mjs (watcher-sees-crosser-in-its-own-avatar).
 
 // A known set of valid variant keys (pinned to the module) — the fix guards its
 // switch with `AVATAR_VARIANTS[wantVariant]`, so the harness models that lookup.

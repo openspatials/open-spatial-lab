@@ -126,18 +126,35 @@ function assertLobbyAirportPortalApproach(scene, portalC, spatialRoot, portalCou
     const objects = scene.objects || [];
     assert.ok(!objects.some(obj => obj.object_id === 'obj-lobby-marker-1'),
         'Lobby source must not include removed obj-lobby-marker-1');
-    assert.deepStrictEqual(objects.filter(obj => /^obj-lobby-bench-[12]$/.test(obj.object_id)), [
+    // The server drifts hosted objects by at most 0.35 m around their authored place while its republish
+    // timer runs (on by default), so a bench keeps its shape, size, colour and height and stays within that
+    // radius of where it was authored.
+    const DRIFT_RADIUS_M = 0.35;
+    const authoredBenches = [
         { object_id : 'obj-lobby-bench-1', shape : 'box', size_m : 0.6, color : '#9fb0d0', position : [ -4.4, 0.3, 1.6 ] },
         { object_id : 'obj-lobby-bench-2', shape : 'box', size_m : 0.6, color : '#9fb0d0', position : [ 4.4, 0.3, 1.6 ] },
-    ], 'both Lobby benches remain byte-stable');
+    ];
+    const benches = objects.filter(obj => /^obj-lobby-bench-[12]$/.test(obj.object_id));
+    assert.deepStrictEqual(benches.map(bench => ({ ...bench, position : null })),
+        authoredBenches.map(bench => ({ ...bench, position : null })),
+        'both Lobby benches keep their shape, size and colour');
+    benches.forEach((bench, i) => {
+        assert.strictEqual(bench.position[1], authoredBenches[i].position[1], bench.object_id + ' keeps its resting height');
+        assert.ok(planarDistance(bench.position, authoredBenches[i].position) <= DRIFT_RADIUS_M + 1e-9,
+            bench.object_id + ' stays within the drift radius of its authored place');
+    });
     assert.deepStrictEqual(portalC.webofworlds_extension.trigger.position, [ 0, 0, -4.4 ],
         'lobby-portal-c trigger remains at the airport approach');
     assert.strictEqual(portalC.osl_destination.target_location_id, 'location-airport',
         'lobby-portal-c still targets the airport');
     assert.strictEqual(portalC.webofworlds_extension.shared_edge.counterpart.portal_id,
         'airport-portal-lobby', 'lobby-portal-c counterpart remains the airport portal');
-    assert.strictEqual(spatialRoot.children.length, objects.length + portalCount,
-        'Lobby graph children derive from remaining primitives plus portals');
+    // The root is the canonical node; besides primitives and portals it carries the nodes that place users, the view
+    // and each portal's arrival.
+    const placements = spatialRoot.children.filter(child => child && child.webofworlds_extension
+        && /-placement$|^portal-arrival$/.test(child.webofworlds_extension.role || '')).length;
+    assert.strictEqual(spatialRoot.children.length, objects.length + portalCount + placements,
+        'Lobby graph children derive from remaining primitives plus portals plus placements');
 }
 
 async function portalByStringId(locationId, portalId)
@@ -412,7 +429,7 @@ async function main()
         const scene = (await get(BASE['location-lobby'] + '/demo/scene-objects')).json;
         const world = (await get(BASE['location-lobby'] + '/wow/world')).json;
         const portalC = await portalByStringId('location-lobby', 'lobby-portal-c');
-        const spatialRoot = (await get(BASE['location-lobby'] + '/wow/spatial/demo-lobby')).json;
+        const spatialRoot = (await get(BASE['location-lobby'] + '/wow/spatial/demo-lobby?form=node')).json;
         assertLobbyAirportPortalApproach(scene, portalC, spatialRoot, world.portals.portal_count);
     });
 
@@ -457,7 +474,7 @@ async function main()
         }) });
         const world = (await get(BASE['location-lobby'] + '/wow/world')).json;
         const portalC = await portalByStringId('location-lobby', 'lobby-portal-c');
-        const spatialRoot = (await get(BASE['location-lobby'] + '/wow/spatial/demo-lobby')).json;
+        const spatialRoot = (await get(BASE['location-lobby'] + '/wow/spatial/demo-lobby?form=node')).json;
         assert.throws(() => assertLobbyAirportPortalApproach(
             mutated, portalC, spatialRoot, world.portals.portal_count),
         /must not include removed obj-lobby-marker-1/,

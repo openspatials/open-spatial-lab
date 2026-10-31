@@ -22,8 +22,14 @@ export async function recordRequests(page, { worlds, front }) {
     }
     return { world: null, path: url, external: true };
   };
-  const push = (kind, url, method) => entries.push({ kind, method, url, at: Date.now(), ...classify(url) });
-  client.on("Network.requestWillBeSent", (e) => push("http", e.request.url, e.request.method));
+  const byRequest = new Map();
+  const push = (kind, url, method) => {
+    const entry = { kind, method, url, at: Date.now(), ...classify(url) };
+    entries.push(entry);
+    return entry;
+  };
+  client.on("Network.requestWillBeSent", (e) => byRequest.set(e.requestId, push("http", e.request.url, e.request.method)));
+  client.on("Network.responseReceived", (e) => { if (byRequest.has(e.requestId)) byRequest.get(e.requestId).status = e.response.status; });
   client.on("Network.webSocketCreated", (e) => push("ws", e.url, "WS"));
   return {
     entries,

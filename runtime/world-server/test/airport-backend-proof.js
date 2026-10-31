@@ -6,6 +6,13 @@ const { spawnSync } = require('child_process');
 const { makeConfig } = require('../src/config');
 const { createRuntime } = require('../src/runtime-state');
 
+// What the airport world file authors (the scene objects leave out its internal root); the counts below follow it, so adding a
+// traveller to the file does not turn this proof red, while a node the runtime drops or invents still does.
+const AUTHORED = require('../../../web/worlds/denver-skyport.json').nodes;
+const authoredWithRole = role => AUTHORED.filter(node =>
+    node.webofworlds_extension && node.webofworlds_extension.role === role).length;
+const AUTHORED_HOSTED = AUTHORED.filter(node => node.label !== '__wow_internal_root');
+
 const airportConfig = makeConfig('airport');
 assert.strictEqual(airportConfig.location_id, 'location-airport');
 assert.strictEqual(airportConfig.world_id, 'world-airport-terminal');
@@ -63,25 +70,26 @@ assert.match(location.coordinate_frame, /demo-local tangent frame/);
 assert.strictEqual(location.resources.authored_graph, '/wow/graph');
 
 assert.strictEqual(graph.spatialID, 'world-airport-terminal');
-assert.strictEqual(graph.nodes.length, 14);
+assert.strictEqual(graph.nodes.length, AUTHORED.length);
 assert.strictEqual(graph.backend_contract.client_cutover, false);
 assert.strictEqual(graph.backend_contract.public_deployment, false);
 assert.strictEqual(graph.world.portals.portal_count, 1);
 assert.ok(graph.nodes.some(node => node.label === 'Gate A12 — Flight 482 to Seattle'));
 assert.strictEqual(graph.nodes.filter(node =>
-    node.webofworlds_extension && node.webofworlds_extension.role === 'storefront').length, 4);
+    node.webofworlds_extension && node.webofworlds_extension.role === 'storefront').length, authoredWithRole('storefront'));
 assert.strictEqual(graph.nodes.filter(node =>
-    node.webofworlds_extension && node.webofworlds_extension.role === 'npc-traveler').length, 6);
+    node.webofworlds_extension && node.webofworlds_extension.role === 'npc-traveler').length, authoredWithRole('npc-traveler'));
 assert.deepStrictEqual(
     graph.nodes.find(node => node.label === 'Denver Skyport — Concourse A')
         .webofworlds_extension.airport_terminal.entry_spawn.position_m,
     [ 0, 0, -3 ]);
 
-assert.strictEqual(scene.objects.length, 13);
+assert.strictEqual(scene.objects.length, AUTHORED_HOSTED.length);
 assert.ok(scene.objects.some(entry => entry.label === 'Gate A12 — Flight 482 to Seattle'));
-assert.ok(spatialRoot.children.length >= 14, 'canonical spatial graph carries authored nodes plus portal');
-assert.ok(spatialRoot.children.some(id => {
-    const node = runtime.getSpatialNode('world-airport-terminal', id);
+assert.ok(spatialRoot.children.length >= AUTHORED.length, 'canonical spatial graph carries authored nodes plus portal');
+// The canonical root carries its children as nodes, not as ids.
+assert.ok(spatialRoot.children.some(child => {
+    const node = child && runtime.getSpatialNode('world-airport-terminal', child.id);
     return node && node.label === 'Gate A12 — Flight 482 to Seattle';
 }), 'Gate A12 resolves through the backend canonical spatial graph');
 

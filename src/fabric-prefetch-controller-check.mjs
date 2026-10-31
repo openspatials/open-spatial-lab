@@ -810,11 +810,14 @@ await check("debug/validation fields, bounded windows, and compatibility referen
   assert.strictEqual(compatibility.scheduler, env.state().scheduler);
 });
 
+// Kept as text: the adapter's tick cannot be run in Node here. The pattern ignores comments and spacing, so a comment-only
+// change to the adapter does not turn it red; update it when this code moves.
+const PREFETCH_GUARD = /try \{\s*this\._updateFabricPrefetch\(avatar, evaluations\);\s*\} catch \(e\) \{\s*(?:\/\*[^]*?\*\/\s*)?\}/;
+
 function assertFacadeContainment(source) {
   const traversalIndex = source.indexOf('this._beginPortalTransition("plane_crossing", ev.portal);');
-  const prefetchTryIndex = source.indexOf("try {\n        this._updateFabricPrefetch(avatar, evaluations);");
-  const prefetchCatchIndex = source.indexOf("/* prefetch is additive — a prefetch fault must never break the tick */");
-  assert.ok(traversalIndex >= 0 && prefetchTryIndex > traversalIndex && prefetchCatchIndex > prefetchTryIndex);
+  const guard = PREFETCH_GUARD.exec(source);
+  assert.ok(traversalIndex >= 0 && guard && guard.index > traversalIndex);
 }
 
 await check("facade contains injected prefetch exceptions after traversal evaluation and grants no traversal authority", async () => {
@@ -955,12 +958,8 @@ async function catchMutation(name, fn) {
 }
 
 await catchMutation("prefetch-exception-escapes", async () => {
-  const mutated = replaceOnce(
-    ADAPTER_SOURCE,
-    "      try {\n        this._updateFabricPrefetch(avatar, evaluations);\n      } catch (e) {\n        /* prefetch is additive — a prefetch fault must never break the tick */\n      }",
-    "      this._updateFabricPrefetch(avatar, evaluations);",
-    "prefetch-exception-escapes",
-  );
+  assert.match(ADAPTER_SOURCE, PREFETCH_GUARD, "prefetch-exception-escapes: mutation anchor missing");
+  const mutated = ADAPTER_SOURCE.replace(PREFETCH_GUARD, "this._updateFabricPrefetch(avatar, evaluations);");
   assertFacadeContainment(mutated);
 });
 

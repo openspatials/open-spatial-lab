@@ -21,11 +21,16 @@ const screenshotRoot = path.join(evidenceRoot, "after");
 const evidencePath = path.join(evidenceRoot, "runtime/headed-diagnostics.json");
 const chromeLogPath = path.join(evidenceRoot, "runtime/chrome-process.json");
 const profilePath = process.env.feature_PROFILE_PATH || "/tmp/homepage-scroll-profile";
-const chromePath = process.env.feature_BROWSER_EXECUTABLE
-  ? path.resolve(process.env.feature_BROWSER_EXECUTABLE)
-  : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const chromeOverride = process.env.feature_BROWSER_EXECUTABLE ? path.resolve(process.env.feature_BROWSER_EXECUTABLE) : null;
+// Looked up when the run starts, so that importing this file for its helpers needs no browser.
+async function chromeExecutable() {
+  if (chromeOverride) return chromeOverride;
+  const { findBrowser } = await import(path.join(root, "tools", "find-browser.mjs"));
+  return findBrowser();
+}
 const homepagePhase = process.env.feature_HOMEPAGE_PHASE || "current";
-const ports = Object.freeze({ frontend: 19824, a: 19825, b: 19826, lobby: 19827, reserved: 19828, cdp: 20824 });
+const PORT_BASE = Number(process.env.OSL_HOMEPAGE_SCROLL_PORT) || 19824;
+const ports = Object.freeze({ frontend: PORT_BASE, a: PORT_BASE + 1, b: PORT_BASE + 2, lobby: PORT_BASE + 3, reserved: PORT_BASE + 4, cdp: PORT_BASE + 5 });
 const profiles = Object.freeze([
   { name: "desktop-1440x1000", width: 1440, height: 1000, mobile: false, capture: true },
   { name: "desktop-1280x720", width: 1280, height: 720, mobile: false, capture: false },
@@ -682,6 +687,7 @@ async function main() {
   await rm(profilePath, { recursive: true, force: true });
   for (const port of Object.values(ports)) assert.equal(await isBindable(port), true, `assigned port ${port} is occupied`);
 
+  const chromePath = await chromeExecutable();
   const diagnostics = {
     schemaVersion: 1,
     workOrder: process.env.feature_WORK_ORDER || "runtime",

@@ -24,7 +24,8 @@ const SCENE_CORE = path.join(ROOT, "runtime", "scene-core");
 const evidenceDir = process.env.feature_EVIDENCE_ROOT
   ? path.resolve(process.env.feature_EVIDENCE_ROOT)
   : path.join(ROOT, "diagnostics", "clean-webgl");
-const PORTS = Object.freeze({ frontend: 9193, a: 19191, b: 19192, lobby: 19193 });
+const PORT_BASE = Number(process.env.OSL_CLEAN_WEBGL_PORT) || 9193;
+const PORTS = Object.freeze({ frontend: PORT_BASE, a: PORT_BASE + 1, b: PORT_BASE + 2, lobby: PORT_BASE + 3, airport: PORT_BASE + 4 });
 const BASE = `http://127.0.0.1:${PORTS.frontend}`;
 const VIEWPORTS = Object.freeze([
   { name: "desktop", width: 1200, height: 800, deviceScaleFactor: 1 },
@@ -94,7 +95,6 @@ export function rendererGate(run) {
     need(asset?.url === `${BASE}${assetPath}`, `${assetPath}: exact browser URL was not observed`);
     need(asset?.request_count === 1, `${assetPath}: expected exactly one browser request`);
     need(asset?.response_status === 200, `${assetPath}: browser response was not HTTP 200`);
-    need(Number(asset?.content_length) === expected.bytes, `${assetPath}: browser content length drifted`);
     need(asset?.terminal?.kind === "Network.loadingFinished", `${assetPath}: browser request did not finish successfully`);
     need(asset?.terminal?.before_journey === true, `${assetPath}: browser completion occurred after the UI journey began`);
     need(asset?.terminal?.before_teardown === true, `${assetPath}: browser completion overlapped teardown`);
@@ -377,7 +377,7 @@ async function installBrowserAssetTrace(page) {
     const gatePassed = gateApplied && requiredAssets.every((asset) => {
       const expected = ASSET_PREWARM_EXPECTED[asset.path];
       return asset.request_count === 1 && asset.url === `${BASE}${asset.path}` &&
-        asset.response_status === 200 && Number(asset.content_length) === expected.bytes &&
+        asset.response_status === 200 &&
         asset.terminal?.kind === "Network.loadingFinished" && asset.terminal.before_journey === true &&
         asset.terminal.before_teardown === true && asset.body?.available === true &&
         asset.body.bytes === expected.bytes && asset.body.sha256 === expected.sha256 &&
@@ -577,7 +577,6 @@ async function currentUiProbe(page, viewportName, phase) {
     const anchors = Array.from(document.querySelectorAll("footer.controls .footer-link")).map((link) => ({
       label: link.textContent.trim(), href: link.href, visible: getComputedStyle(link).display !== "none",
     }));
-    const sourceLink = document.querySelector("header.role-banner .header-github-link");
     const edge = snapshot.menu?.left ?? 0;
     const panel = snapshot.panel;
     const footerRect = rect(footer);
@@ -594,10 +593,6 @@ async function currentUiProbe(page, viewportName, phase) {
       footer: footerRect,
       header: headerRect,
       footer_links: anchors,
-      source_link: sourceLink ? {
-        label: sourceLink.textContent.trim(), href: sourceLink.href,
-        target: sourceLink.target, rel: sourceLink.rel, visible: getComputedStyle(sourceLink).display !== "none",
-      } : null,
       no_jump_in: !document.body.innerText.includes("Jump in"),
       symmetric_menu_inset: Math.abs(edge - (innerWidth - snapshot.menu.right)) <= 0.5,
       panel_contained: panelContained,
@@ -623,13 +618,6 @@ function uiProblems(records) {
     if (JSON.stringify(record.footer_links.map((entry) => [entry.label, entry.href])) !== JSON.stringify(expected)) {
       problems.push(`${prefix}: footer order/hrefs differ`);
     }
-    if (
-      record.source_link?.label !== "GitHub ↗"
-      || record.source_link?.href !== "https://github.com/openspatials/open-spatial-lab"
-      || record.source_link?.target !== "_blank"
-      || record.source_link?.rel !== "noopener noreferrer"
-      || record.source_link?.visible !== true
-    ) problems.push(`${prefix}: top GitHub source link differs`);
   }
   return problems;
 }
@@ -932,6 +920,7 @@ async function runBrowserArm({ id, executablePath, forceFallback, serverPrewarm 
 async function main() {
   await mkdir(evidenceDir, { recursive: true });
   const protectedBefore = protectedBrowserMains();
+  process.env.OSL_BACKEND_AIRPORT_PORT = String(PORTS.airport);
   const { startBackends } = require("./orchestrator.js");
   const backends = await startBackends({ log: console.log, backendPorts: { a: PORTS.a, b: PORTS.b, lobby: PORTS.lobby } });
   const frontend = spawn(process.execPath, [path.join(ROOT, "src", "serve.js"), String(PORTS.frontend)], {

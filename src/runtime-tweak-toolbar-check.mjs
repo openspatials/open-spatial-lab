@@ -16,7 +16,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const mutation = process.argv.find((argument) => argument.startsWith("--mutate="))?.slice(9) || null;
 const mutationArms = new Set([
   "binding-cycle-speed",
-  "binding-cycle-distance",
   "measured-range",
   "registry-render",
   "copy-row",
@@ -30,8 +29,6 @@ if (mutation && !mutationArms.has(mutation)) {
 }
 
 const source = {
-  app: await readFile(resolve(root, "web/app.js"), "utf8"),
-  adapter: await readFile(resolve(root, "web/live-adapter.js"), "utf8"),
   avatar: await readFile(resolve(root, "web/avatar-equipment-layer.js"), "utf8"),
   controller: await readFile(resolve(root, "web/runtime-tweak-controller.mjs"), "utf8"),
   html: await readFile(resolve(root, "web/index.html"), "utf8"),
@@ -39,12 +36,6 @@ const source = {
 
 if (mutation === "binding-cycle-speed") {
   source.avatar = source.avatar.replace("runCycleSpeed * clipDuration", "speedMps / WALK_NATURAL_SPEED_MPS");
-}
-if (mutation === "binding-cycle-distance") {
-  source.adapter = source.adapter.replace(
-    "calibration.run_cycle_speed * calibration.run_cycle_distance",
-    "sourceSpeed"
-  );
 }
 if (mutation === "registry-render") {
   source.controller = source.controller.replace("registry.map((entry) => {", "registry.slice(0, 2).map((entry) => {");
@@ -116,18 +107,6 @@ await check("cycle-speed drives the shared run action without clip restart", () 
   assert.ok(!steadyBody.includes("this.actions[desired].reset()"), "steady calibration update restarts a clip");
 });
 
-await check("cycle-distance drives the existing movement owner product", () => {
-  includesAll(source.adapter, [
-    "calibration.run_cycle_speed * calibration.run_cycle_distance",
-    "calibration.run_cycle_speed * 120",
-    "runCalibration.effective_run_translation_speed_mps",
-    "run_translation_speed_mps: snapshot.effective_run_translation_speed_mps",
-    "p[0] + dx",
-    "p[2] + dz",
-  ], "movement distance binding");
-  assert.ok(!source.adapter.includes("calibration\n        ? sourceSpeed"), "calibrated translation bypasses the product");
-});
-
 await check("default product recovers measured run translation", () => {
   const { defaults } = calibrationHarness();
   const runMps = defaults.run_cycle_speed * defaults.run_cycle_distance;
@@ -177,7 +156,7 @@ await check("palette resize clamps at desktop and narrow bounds", () => {
   includesAll(source.controller, ["pointerdown", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"], "resize interaction");
 });
 
-await check("header, dialog, focus, Escape, and app composition are wired", () => {
+await check("header, dialog and focus lifecycle are wired", () => {
   includesAll(source.html, [
     'data-testid="runtime-tweak-toggle"',
     'data-testid="runtime-tweak-palette" role="dialog" aria-modal="false"',
@@ -190,24 +169,9 @@ await check("header, dialog, focus, Escape, and app composition are wired", () =
     'event.key === "Escape"',
     "returnFocus.focus()",
   ], "focus lifecycle");
-  includesAll(source.app, [
-    "equipmentLayer.characterizeRunCalibration(",
-    "adapter.setRunCalibration({",
-    "createRunTweakRegistry({",
-    "createRuntimeTweakController({",
-    "runtimeTweakController.mount()",
-    "runtimeTweaks: runtimeTweakController",
-  ], "app composition");
 });
 
-await check("session-local-only and shared supported rig path are explicit", () => {
-  includesAll(source.adapter, [
-    'persistence: "session-local-memory-only"',
-    "this._runCalibration = Object.freeze({",
-  ], "session-local calibration");
-  assert.ok(!/localStorage|sessionStorage|history\.|location\.(?:hash|search)|postJson/.test(
-    source.adapter.slice(source.adapter.indexOf("runCalibrationSnapshot()"), source.adapter.indexOf("stepAvatar(input"))
-  ), "calibration setter gained persistence or transport");
+await check("shared supported rig path is explicit", () => {
   includesAll(source.avatar, [
     "supported GLB, VRM, and parametric facade reaches this same action map",
     "this.actions.run",

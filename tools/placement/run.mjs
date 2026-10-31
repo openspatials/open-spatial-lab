@@ -3,7 +3,7 @@
 // Run:  npm run -s check:placement
 //
 // It starts its own copy of the lab (launchOpenSpatialLab.sh) from its own worlds file, on ports
-// 33460-33466, drives headless Chrome with real mouse and keyboard input, and stops its servers at the end.
+// 33460-33466 (or the port in OSL_PLACEMENT_PORT and the six after it), drives headless Chrome with real mouse and keyboard input, and stops its servers at the end.
 // Each visual step is a numbered PNG in screens/ under OSL_PROOF_DIR (default .runtime/placement-proof).
 // Exits 0 only when every step passes.
 //
@@ -40,8 +40,8 @@ const puppeteer = require("puppeteer-core");
 const { findBrowser } = await import(pathToFileURL(join(CODE, "tools", "find-browser.mjs")).href);
 const { placePortal } = await import(pathToFileURL(join(CODE, "web", "wow-portal.mjs")).href);
 
-const FRONT_PORT = 33460;
-const PORT = { a: 33461, b: 33462, lobby: 33463, airport: 33464, e: 33465, f: 33466 };
+const FRONT_PORT = Number(process.env.OSL_PLACEMENT_PORT) || 33460;
+const PORT = { a: FRONT_PORT + 1, b: FRONT_PORT + 2, lobby: FRONT_PORT + 3, airport: FRONT_PORT + 4, e: FRONT_PORT + 5, f: FRONT_PORT + 6 };
 const FRONT = `http://127.0.0.1:${FRONT_PORT}`;
 const addr = (key) => `http://127.0.0.1:${PORT[key]}/`;
 // OSL_PLACEMENT_WRITES=1 is the explicit opt-in for placement writes (off by default); this proof's own lab turns it on.
@@ -151,7 +151,7 @@ async function main() {
   writeWorlds([]);
   sh("stopOpenSpatialLab.sh", ["--quiet"]);
   const launch = sh("launchOpenSpatialLab.sh");
-  step("the lab launches from the proof's worlds file (4 worlds, ports 33460-33464)", launch.status === 0 && /Open Spatial Lab is ready/.test(launch.out), launch.status === 0 ? "" : launch.out.slice(-600));
+  step("the lab launches from the proof's worlds file (4 worlds)", launch.status === 0 && /Open Spatial Lab is ready/.test(launch.out), launch.status === 0 ? "" : launch.out.slice(-600));
   if (launch.status !== 0) return;
 
   const browser = await puppeteer.launch({
@@ -300,11 +300,11 @@ async function main() {
     const stop1 = sh("stopOpenSpatialLab.sh"); // step 3: restart
     const relaunch = sh("launchOpenSpatialLab.sh");
     step("checklist step 3: after adding Location E's entry, the lab restarts and its receipt lists Location E",
-      stop1.status === 0 && relaunch.status === 0 && /Location E:\s+http:\/\/127\.0\.0\.1:33465\//.test(relaunch.out), relaunch.status === 0 ? "" : relaunch.out.slice(-600));
+      stop1.status === 0 && relaunch.status === 0 && new RegExp(`Location E:\\s+http://127\\.0\\.0\\.1:${PORT.e}/`).test(relaunch.out), relaunch.status === 0 ? "" : relaunch.out.slice(-600));
     const goodCheck = check(); // step 4: the check
     writeFileSync(join(OUT, "check-after-adding-e.txt"), goodCheck.out);
     step("checklist step 4: the check exits 0 and names Location E as launched and answering",
-      goodCheck.status === 0 && /OK {3}Location E \(e\) port 33465/.test(goodCheck.out), `exit ${goodCheck.status}; output in check-after-adding-e.txt`);
+      goodCheck.status === 0 && new RegExp(`OK {3}Location E \\(e\\) port ${PORT.e}`).test(goodCheck.out), `exit ${goodCheck.status}; output in check-after-adding-e.txt`);
     const listed = await getJson(`${FRONT}/worlds.json`);
     const health = await getJson(`${FRONT}/api/e/healthz`);
     step("the frontend lists Location E and routes to it (/worlds.json, /api/e/healthz)",
@@ -314,7 +314,7 @@ async function main() {
     await openPlayer(page, player("e"));
     const eShown = await page.evaluate(() => ({ title: document.getElementById("loc-title")?.textContent || "", frames: document.body.dataset.wowAssetNodes }));
     await shot(page, "location-e-player");
-    step("checklist step 5: Location E's player opens and draws its world", /127\.0\.0\.1:33465/.test(eShown.title), eShown.title);
+    step("checklist step 5: Location E's player opens and draws its world", eShown.title.includes(`127.0.0.1:${PORT.e}`), eShown.title);
 
     await openPlayer(page, player("a", "&place=1"));
     const options = await page.evaluate(() => [...document.querySelectorAll("#wow-place-destination option")].map((o) => o.textContent));
@@ -351,10 +351,10 @@ async function main() {
     writeFileSync(join(OUT, "check-missing-port.txt"), badCheck.out);
     console.log(badCheck.out.split("\n").filter((l) => /Location F|FAIL/.test(l)).map((l) => `     check: ${l}`).join("\n"));
     step("the check exits 1 and names Location F's missing port: missing from the launch, and not answering",
-      badCheck.status === 1 && /FAIL Location F \(f\) port 33466/.test(badCheck.out) && /port 33466 is missing from the launch/.test(badCheck.out) && /does not answer at http:\/\/127\.0\.0\.1:33466\//.test(badCheck.out),
+      badCheck.status === 1 && badCheck.out.includes(`FAIL Location F (f) port ${PORT.f}`) && badCheck.out.includes(`port ${PORT.f} is missing from the launch`) && badCheck.out.includes(`does not answer at http://127.0.0.1:${PORT.f}/`),
       `exit ${badCheck.status}; output in check-missing-port.txt`);
     step("the check names the portal into Location F that would wake but not deliver",
-      new RegExp(`portal ${placedF.portal.id} "To Location F" in Location A leads to Location F \\(port 33466\\), which does not answer`).test(badCheck.out));
+      new RegExp(`portal ${placedF.portal.id} "To Location F" in Location A leads to Location F \\(port ${PORT.f}\\), which does not answer`).test(badCheck.out));
     await openPlayer(page, player("a"));
     const fPoint = await page.evaluate((pid) => window.__wowPortals.screenPoint(pid), placedF.portal.id);
     const urlA = page.url();

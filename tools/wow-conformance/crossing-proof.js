@@ -181,14 +181,8 @@ function ok(name, cond, detail) {
 // (UNKNOWN) and raises an EVIDENCE INTEGRITY problem — never `true`, never quietly `false`.
 // ---------------------------------------------------------------------------
 const C = {
-    NO_RELOAD_DOC:   'NO-RELOAD invariant intact: crossing documents "never location.reload()"',
-    NO_RELOAD_MECH:  'NO-RELOAD invariant intact: in-memory promotion mechanism string present',
-    MACH_COMPLETE:   'MACHINERY: _completePlayerCrossing present (promotion/continuity entrypoint)',
-    MACH_PROMOTE:    'MACHINERY: _promoteActiveEndpoint present (in-memory root-swap)',
     ISO_X:           'ISOMETRY source tripwire: canonical proper local helper negates x and mapCameraAcrossCrossing consumes it',
     ISO_Z:           'ISOMETRY source tripwire: canonical proper local helper negates z and mapCameraAcrossCrossing consumes it',
-    RESRC_WIRED:     'RE-SOURCE wired: _resolveWowSceneGraph added (WoW graph = scene source of record)',
-    RESRC_PROMO:     'RE-SOURCE wired into promotion: destination_scene_source recorded on the crossing',
     RESRC_HONEST:    'RE-SOURCE honest: scene source records msf_dependency:false',
 };
 
@@ -621,10 +615,8 @@ async function main() {
         //
         // WHAT THIS USED TO BE, AND WHY IT WAS A FRAUD:
         //
-        //     const laSrc = fs.readFileSync('web/live-adapter.js', 'utf8');
-        //     ok(C.ISO_X, /frame\.right\[0\]\s*\*\s*-v\.x/.test(laSrc));
-        //     ...
-        //     evidence.continuity_static = { isometry_x_and_z_negated: derived(C.ISO_X, C.ISO_Z), ... };
+        // It read web/live-adapter.js, matched the isometry with a regex and published the match as
+        // continuity evidence.
         //
         // The PUBLISHED CONTINUITY EVIDENCE WAS DERIVED FROM REGEX HITS ON A SOURCE FILE. It
         // asserted that certain characters appear in live-adapter.js. Continuity — the one thing a
@@ -756,44 +748,30 @@ async function main() {
         };
 
         // ===== (F2) CLIENT-side crossing MACHINERY — a SOURCE TRIPWIRE, and labeled as one =====
-        // These regexes are NOT a continuity proof and are no longer published as one. They are a
-        // regression tripwire on the browser-side machinery (no-reload in-memory promotion, the
-        // (x,y,z)->(-x,y,-z) portal isometry, the WoW re-source) that this Node proof genuinely
-        // CANNOT execute: the adapter/controller are browser ES modules in a CommonJS package and do
-        // not load under Node. Deleting that machinery must still break something, so the tripwire stays
-        // — but it is filed under what it actually is (source presence), NOT under continuity, and
-        // the RUNTIME proof of it is the browser e2e-driver's, not this file's.
+        // These regexes are NOT a continuity proof. What remains: the (x,y,z)->(-x,y,-z) portal isometry
+        // (web/live-adapter-portal-geometry.mjs, not moving) and the msf_dependency:false record, which
+        // goes with the .msf path in phase 2. That the page crosses without a reload, and builds the
+        // destination's scene from the destination's own graph, is run in the page by
+        // tools/behavior/crossing-views.check.mjs.
         const adapterSrc = fs.readFileSync(path.join(REPO_ROOT, 'web', 'live-adapter.js'), 'utf8');
-        const traversalSrc = fs.readFileSync(
-            path.join(REPO_ROOT, 'web', 'live-adapter-portal-traversal-controller.mjs'), 'utf8');
         const geometrySrc = fs.readFileSync(
             path.join(REPO_ROOT, 'web', 'live-adapter-portal-geometry.mjs'), 'utf8');
-        ok(C.MACH_COMPLETE, /_completePlayerCrossing\s*\(/.test(traversalSrc));
-        ok(C.MACH_PROMOTE, /_promoteActiveEndpoint\s*\(/.test(adapterSrc));
-        ok(C.NO_RELOAD_DOC, /never\s+.?location\.reload\(\)/.test(traversalSrc));
-        ok(C.NO_RELOAD_MECH, /promoted to the root frame of the SAME context/.test(adapterSrc));
         ok(C.ISO_X,
             /x:\s*-\(Number\(local\s*&&\s*local\.x\)\s*\|\|\s*0\)/.test(geometrySrc) &&
             /properPortalLocalRotation\(localOffset\)/.test(geometrySrc));
         ok(C.ISO_Z,
             /z:\s*-\(Number\(local\s*&&\s*local\.z\)\s*\|\|\s*0\)/.test(geometrySrc) &&
             /properPortalLocalRotation\(localForward\)/.test(geometrySrc));
-        ok(C.RESRC_WIRED, /_resolveWowSceneGraph\s*\(/.test(adapterSrc));
-        ok(C.RESRC_PROMO, /destination_scene_source\s*=\s*promoted\.destinationSceneSource/.test(traversalSrc));
         ok(C.RESRC_HONEST, /msf_dependency:\s*false/.test(adapterSrc));
 
         const msfHonest = derived(C.RESRC_HONEST);
         diagnostics.client_machinery_source_tripwire = {
             proof_class: 'SOURCE-PRESENCE TRIPWIRE — NOT a behavioural validation and NOT diagnostics of continuity. '
-                + 'It asserts the browser-side crossing completion still EXISTS in the canonical traversal '
-                + 'controller, broad promotion/re-source still EXISTS in web/live-adapter.js, and the proper '
-                + 'local isometry still exists in web/live-adapter-portal-geometry.mjs. '
+                + 'It asserts the scene source still records msf_dependency:false in web/live-adapter.js, and the '
+                + 'proper local isometry still exists in web/live-adapter-portal-geometry.mjs. '
                 + 'The continuity CLAIM is proven behaviourally in diagnostics.continuity; the runtime validation of '
                 + 'THIS machinery (nav-count=1 / in-memory promotion / camera isometry) is the browser e2e-driver\'s.',
-            no_reload_source_present: derived(C.NO_RELOAD_DOC, C.NO_RELOAD_MECH),
-            in_memory_promotion_source_present: derived(C.MACH_COMPLETE, C.MACH_PROMOTE),
             isometry_x_and_z_negated_source_present: derived(C.ISO_X, C.ISO_Z),
-            resource_wired_into_promotion_source_present: derived(C.RESRC_WIRED, C.RESRC_PROMO),
             msf_dependency: msfHonest === true ? false : null,
             msf_dependency_source_asserted: msfHonest,
             runtime_navcount_proof: 'e2e-driver (browser) mainThreeWindowEvidence nav-count=1 / promotion_count=1 — '

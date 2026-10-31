@@ -21,9 +21,9 @@ const require = createRequire(join(CODE, "package.json"));
 const puppeteer = require("puppeteer-core");
 const { findBrowser } = await import(pathToFileURL(join(CODE, "tools", "find-browser.mjs")).href);
 
-const FRONT = 33490;
-const SECOND_FRONT = 33496;
-const PORT = { a: 33491, b: 33492, lobby: 33493, airport: 33494, e: 33495 };
+const FRONT = Number(process.env.OSL_WORLD_LIST_PORT) || 33490;
+const SECOND_FRONT = FRONT + 6;
+const PORT = { a: FRONT + 1, b: FRONT + 2, lobby: FRONT + 3, airport: FRONT + 4, e: FRONT + 5 };
 const addr = (key) => `http://127.0.0.1:${PORT[key]}/`;
 const WORLD_E = { key: "e", name: "Location E", port: PORT.e, address: addr("e"), anchor: { lat: 47.7009, lon: -122.3, h: 11.5 }, room: "#c86bff", preview_radius_m: 8 };
 const BASE = [
@@ -168,7 +168,7 @@ writeFileSync(WORLDS_FILE, `${JSON.stringify({ frontend: { port: FRONT }, worlds
 let exitOk = false;
 const launch = sh("launchOpenSpatialLab.sh");
 try {
-  step("the lab launches from a temporary worlds file with an added world, with no other edit", launch.status === 0 && /Location E:\s+http:\/\/127\.0\.0\.1:33495\//.test(launch.out), `exit ${launch.status}${launch.status ? `: ${launch.out.slice(-300)}` : ""}`);
+  step("the lab launches from a temporary worlds file with an added world, with no other edit", launch.status === 0 && new RegExp(`Location E:\\s+http://127\\.0\\.0\\.1:${PORT.e}/`).test(launch.out), `exit ${launch.status}${launch.status ? `: ${launch.out.slice(-300)}` : ""}`);
   await routeStatements(FRONT);
 
   const scan = scanFolder(join(CODE, "web"));

@@ -8,9 +8,7 @@ import { NO_EQUIPMENT_CHOICE, applyNoEquipmentChoice } from "../web/no-equipment
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const CONTROLLER_PATH = path.join(ROOT, "web", "avatar-selector-controller.mjs");
-const APP_PATH = path.join(ROOT, "web", "app.js");
 const controllerSource = fs.readFileSync(CONTROLLER_PATH, "utf8");
-const appSource = fs.readFileSync(APP_PATH, "utf8");
 const { createAvatarSelectorController } = await import(pathToFileURL(CONTROLLER_PATH));
 
 class FakeEventTarget {
@@ -380,18 +378,7 @@ await check("dispose is idempotent and remount restores exactly one lifecycle", 
   assert.equal(env.previewLayers.length, 2);
 });
 
-await check("app is composition-only and preserves both compatibility publications", () => {
-  assert.match(appSource, /import \{ createAvatarSelectorController \} from "\.\/avatar-selector-controller\.mjs";/);
-  assert.match(appSource, /avatarSelectorController = createAvatarSelectorController\(\{/);
-  assert.match(appSource, /getRuntime: \(\) => adapter[\s\S]*applyEquipment:[\s\S]*_maybeBroadcastPlayerPose[\s\S]*_emit/);
-  assert.match(appSource, /avatarSelectorController\.mount\(\);/);
-  assert.match(appSource, /avatarSelectorRemoveAllEquipment = \(\) => avatarSelectorController\.removeAllEquipment\(\)/);
-  assert.match(appSource, /\.\.\.avatarSelectorController\.selectorDriver\(\)/);
-  assert.match(appSource, /inventory: avatarSelectorController\.inventoryDriver\(\)/);
-  for (const duplicate of [
-    "const avatarSelectorState", "function avatarSelectorRender", "function openAvatarSelectorModal",
-    "function setInventorySlotItem", "function wireInventoryPanel",
-  ]) assert.equal(appSource.includes(duplicate), false, `duplicate app owner ${duplicate}`);
+await check("controller is the only owner and imports no app, adapter or network", () => {
   assert.equal((controllerSource.match(/export function createAvatarSelectorController/g) || []).length, 1);
   for (const forbidden of ["from \"./app.js\"", "LiveAdapter", "import { AvatarEquipmentLayer", "fetch("]) {
     assert.equal(controllerSource.includes(forbidden), false, `forbidden dependency ${forbidden}`);

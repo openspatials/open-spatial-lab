@@ -55,19 +55,24 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 // the env var the old layer needed is DELETED for this entire run.
 delete process.env.OSL_WOW_VALIDATE;
 
+// Creating nodes and resetting state are placement writes, which a server refuses unless OSL_PLACEMENT_WRITES=1
+// is set (and it is bound to 127.0.0.1). This proof runs its own servers on 127.0.0.1 and opts in.
+process.env.OSL_PLACEMENT_WRITES = '1';
+
 const { createServer } = require(path.join(LANE_SRC, 'server'));
 const { createContractEnforcer } = require(path.join(LANE_SRC, 'wow-contract-enforcer'));
 const { createValidator } = require(path.join(REPO_ROOT, 'wow-spec', 'validate'));
 const CONTRACT = require(path.join(REPO_ROOT, 'wow-spec', 'generated', 'schema.json'));
 
 const SPATIAL_ID = 'demo-room-a';
+const PORT_BASE = Number(process.env.OSL_CONTRACT_PROOF_PORT) || 19341;
 const PORT = {
-    alwaysOn : 19341,
-    envOff : 19342,
-    tighten : 19343,
-    loosen : 19344,
-    removeOp : 19345,
-    rename : 19346,
+    alwaysOn : PORT_BASE,
+    envOff : PORT_BASE + 1,
+    tighten : PORT_BASE + 2,
+    loosen : PORT_BASE + 3,
+    removeOp : PORT_BASE + 4,
+    rename : PORT_BASE + 5,
 };
 
 const results = [];

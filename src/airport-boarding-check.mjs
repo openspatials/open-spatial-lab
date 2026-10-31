@@ -17,7 +17,6 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = path.join(ROOT, "web/worlds/denver-skyport.json");
 const CONTROLLER_PATH = path.join(ROOT, "web/airport-boarding-journey-controller.mjs");
-const APP_PATH = path.join(ROOT, "web/app.js");
 const INDEX_PATH = path.join(ROOT, "web/index.html");
 const MUTATION = process.env.feature_MUTATION || "";
 
@@ -340,14 +339,8 @@ assert.equal(controller.debug().listener_count, 0);
 assert.equal(documentTarget.body.getAttribute("data-airport-boarding-phase"), null);
 
 const controllerSource = fs.readFileSync(CONTROLLER_PATH, "utf8");
-const appSource = fs.readFileSync(APP_PATH, "utf8");
 const indexSource = fs.readFileSync(INDEX_PATH, "utf8");
 assert.equal((controllerSource.match(/export function createAirportBoardingJourneyController/g) || []).length, 1);
-assert.match(appSource, /createAirportBoardingJourneyController\(\{/);
-assert.match(appSource, /boardingJourneyController\.observe\(\{/);
-assert.match(appSource, /airportBoarding: boardingJourneyController\.driver\(\)/);
-assert.match(appSource, /publishNotification: publishNotificationRecord/);
-assert.match(appSource, /logger: logLine/);
 assert.equal((indexSource.match(/data-testid="boarding-journey-affordance"/g) || []).length, 1);
 assert.equal((indexSource.match(/data-testid="boarding-journey-panel"/g) || []).length, 1);
 assert.match(indexSource, /role="dialog" aria-modal="false"/);

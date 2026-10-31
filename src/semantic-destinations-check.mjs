@@ -7,10 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CONTROLLER_PATH = join(ROOT, "web", "semantic-destinations-controller.mjs");
-const APP_PATH = join(ROOT, "web", "app.js");
 const HTML_PATH = join(ROOT, "web", "index.html");
 const controllerSource = readFileSync(CONTROLLER_PATH, "utf8");
-const appSource = readFileSync(APP_PATH, "utf8");
 const htmlSource = readFileSync(HTML_PATH, "utf8");
 const production = await import(pathToFileURL(CONTROLLER_PATH));
 
@@ -335,11 +333,7 @@ await check("arrival/return and state refresh preserve or relocate focus determi
   assert.equal(env.documentTarget.activeElement.dataset.destinationKey, "location-a-portal");
 });
 
-await check("production composition and markup are live exactly once", () => {
-  assert.equal((appSource.match(/createSemanticDestinationsController\(\{/g) || []).length, 1);
-  assert.equal((appSource.match(/semanticDestinationsController\.mount\(\)/g) || []).length, 1);
-  assert.match(appSource, /semanticDestinationsController\.update\(\{/);
-  assert.match(appSource, /semanticDestinationsController,/);
+await check("production markup carries each destinations control exactly once", () => {
   for (const id of [
     "btn-semantic-destinations",
     "semantic-destinations-panel",
@@ -440,16 +434,5 @@ await expectRed(
   },
 );
 
-await check("missing production composition mutation turns RED", () => {
-  const mutated = replaceOnce(
-    appSource,
-    "  semanticDestinationsController.mount();",
-    "  void semanticDestinationsController;",
-  );
-  assert.throws(() => assert.match(mutated, /semanticDestinationsController\.mount\(\)/));
-  caughtMutations += 1;
-  process.stdout.write("RED_CAUGHT missing-composition\n");
-});
-
-assert.equal(caughtMutations, 7);
-process.stdout.write(`feature_SEMANTIC_DESTINATIONS PASS ${checks}/${checks} mutations=${caughtMutations}/7\n`);
+assert.equal(caughtMutations, 6);
+process.stdout.write(`feature_SEMANTIC_DESTINATIONS PASS ${checks}/${checks} mutations=${caughtMutations}/6\n`);

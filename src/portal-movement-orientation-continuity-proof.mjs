@@ -22,8 +22,10 @@
  *     browser executes), driving its real crossing handler and reading the
  *     REAL `movementBasisYaw()` plus the `camera_yaw` it hands the adapter on
  *     the first post-crossing movement tick.
- *   - The held-forward world vector uses the adapter's own basis formula,
- *     SOURCE-PINNED against web/live-adapter.js (E-pins fail if it drifts).
+ *   - The held-forward world vector uses the adapter's own basis formula; the
+ *     page's behavior for it is tools/behavior/movement.check.mjs (W, S, A, D
+ *     walk along and across the facing direction) and tools/behavior/crossing-views.check.mjs
+ *     (W after a turning crossing walks into the room).
  *   - CONTROLLED RED (oracle teeth): the SHIPPED pre-fix pipeline — the
  *     portals[0] camera mapping reconstructed byte-for-byte from the pinned
  *     `_completePlayerCrossing` recipe, and the stale-basis null-mapping case
@@ -37,7 +39,7 @@
  */
 
 import { createRequire } from "node:module";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as THREE from "three";
@@ -327,7 +329,7 @@ function runControllerCrossing({ detail, entryAzimuth, entryPosition, exitPositi
 }
 
 /** The adapter's held-forward world direction for a basis yaw (f=1, s=0) —
- *  formula source-pinned against web/live-adapter.js in E-pins. */
+ *  formula checked in the page by tools/behavior/movement.check.mjs. */
 function heldForwardWorld(basisYaw) {
   return [Math.sin(basisYaw), 0, Math.cos(basisYaw)];
 }
@@ -375,7 +377,7 @@ function buildLeg({ legId, sourceProjection, destProjection, targetLocationId, a
   };
 
   // The TRAVERSED edge's frame mapping — what beginTransition arms and the
-  // exit pose consumes (source-pinned in E-pins).
+  // exit pose consumes.
   const frameMapping = mapTransformBetweenPortalFrames({
     sourceFrame: frame,
     targetFrame: traversedTargetFrame,
@@ -714,35 +716,6 @@ async function main() {
         close(run.first_tick_camera_yaw, run.basis_after, 1e-9, "first-tick camera_yaw vs movementBasisYaw");
       });
     }
-
-    // ---- E-pins: the seams this proof mirrors must stay what it mirrors ----
-    await check("E-pins", "source pins: traversed-edge source ownership, consumer validation order, and adapter basis formula", () => {
-      const controllerSrc = readFileSync(resolve(repoRoot, "web/live-adapter-portal-traversal-controller.mjs"), "utf8");
-      assertOk(!controllerSrc.includes("const crossingPortal = fromWorld.portal || null;"),
-        "traversal controller restored the retired first-portal camera owner");
-      assertOk(controllerSrc.includes("sourceFrame: traversedSourceFrame,") && controllerSrc.includes("targetFrame: traversedTargetFrame,"),
-        "traversal controller no longer maps the camera from the packet traversed edge");
-      assertOk(controllerSrc.includes('frame_source: "packet.avatar_context.portal_frame_transform"'),
-        "source mapping does not name its packet frame owner");
-      const adapterSrc = readFileSync(resolve(repoRoot, "web/live-adapter.js"), "utf8");
-      assertOk(adapterSrc.includes("const basisYaw = Number.isFinite(Number(controls.camera_yaw))"),
-        "adapter movement basis source changed");
-      assertOk(adapterSrc.includes("dx = (f * sinB - s * cosB)") && adapterSrc.includes("dz = (f * cosB + s * sinB)"),
-        "adapter held-key basis formula changed — update heldForwardWorld");
-      const appSrc = readFileSync(resolve(repoRoot, "web/app.js"), "utf8");
-      const reframeAt = appSrc.indexOf("reframeAdapterCrossingHeading(detail)");
-      const parityAt = appSrc.indexOf("applyExitPoseParity(detail);", reframeAt);
-      const remapAt = appSrc.indexOf("movementCameraController.handleCrossing(detail)", reframeAt);
-      assertOk(reframeAt > 0 && parityAt > reframeAt && remapAt > parityAt,
-        "app.js crossing listener must run reframe -> parity -> camera remap in that order");
-      assertOk(appSrc.includes("source_portal_frame: portalInfo.source_portal_frame"),
-        "app.js reframe must consume the profile's traversed-edge frames");
-      const mccSrc = readFileSync(resolve(repoRoot, "web/movement-camera-controller.mjs"), "utf8");
-      assertOk(mccSrc.includes("return applyCrossingHeadingDelta(detail);"),
-        "controller no-mapping path must fall back to the atomic heading delta");
-      assertOk(mccSrc.includes("source_mapping_validated") && !mccSrc.includes("mapping.position = remapped.position"),
-        "runtime consumer must validate without rewriting source mapping values");
-    });
   } finally {
     for (const server of servers) {
       try {

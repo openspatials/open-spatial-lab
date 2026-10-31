@@ -36,6 +36,10 @@ const { start } = require('../src/server');
 const { makeConfig } = require('../src/config');
 const { get, post, put, del } = require('../src/http-client');
 
+// Creating nodes and resetting state are placement writes, which a server refuses unless OSL_PLACEMENT_WRITES=1
+// is set (and it is bound to 127.0.0.1). This proof runs its own servers on 127.0.0.1 and opts in.
+process.env.OSL_PLACEMENT_WRITES = '1';
+
 // Isolated bind ports. NEVER 8143 / 18151-18153.
 const PORT_A = Number(process.env.WORLD_SERVER_ACCEPTANCE_A_PORT) || 19201;
 const PORT_B = Number(process.env.WORLD_SERVER_ACCEPTANCE_B_PORT) || 19202;
@@ -270,8 +274,8 @@ async function main()
             assert.strictEqual(childR.json.id, childId, 'child node id matches');
             assert.strictEqual(childR.json.parent, 0, 'seeded child parent is root');
             // a portal seed node carries the labeled osl-portal: destination URI
-            // the last portal seed child (iteration 4 appends the user and view placement nodes after it)
-            const lastPortal = root.children.slice().reverse().find(c => !(c.webofworlds_extension && /-placement$/.test(c.webofworlds_extension.role || '')));
+            // the last portal seed child (the user and view placement nodes and the portal arrivals come after it)
+            const lastPortal = root.children.slice().reverse().find(c => !(c.webofworlds_extension && /-placement$|^portal-arrival$/.test(c.webofworlds_extension.role || '')));
             const portalNodeR = await get(w.base + '/wow/spatial/' + w.spatial + '/node/' + lastPortal.id);
             assert.ok(/^osl-portal:/.test(portalNodeR.json.spatialAssetURI || ''),
                 'last seed child before the placements is a portal node with a labeled osl-portal URI');

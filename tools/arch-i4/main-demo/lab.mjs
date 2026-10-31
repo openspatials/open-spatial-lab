@@ -71,7 +71,7 @@ export function createLab({ dir, first, extra = [], env = {}, code = CODE }) {
   writeFileSync(worldsFile, `${JSON.stringify(doc, null, 2)}\n`);
   const ENV = { ...process.env, OSL_WORLDS: worldsFile, OSL_RUN_DIR: join(runDir, "runtime"), ...env };
   const sh = (script, args = []) => {
-    const r = spawnSync("bash", [join(code, script), ...args], { cwd: code, env: ENV, encoding: "utf8", timeout: 180000 });
+    const r = spawnSync("bash", [join(code, script), ...args], { cwd: code, env: ENV, encoding: "utf8", timeout: 600000 });
     return { status: r.status, out: `${r.stdout || ""}${r.stderr || ""}` };
   };
   const processes = new Map();

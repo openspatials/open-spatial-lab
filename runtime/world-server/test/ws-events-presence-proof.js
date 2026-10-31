@@ -30,6 +30,10 @@ const net = require('net');
 const { start } = require('../src/server');
 const { get, post, put, del } = require('../src/http-client');
 
+// Creating nodes and resetting state are placement writes, which a server refuses unless OSL_PLACEMENT_WRITES=1
+// is set (and it is bound to 127.0.0.1). This proof runs its own servers on 127.0.0.1 and opts in.
+process.env.OSL_PLACEMENT_WRITES = '1';
+
 const PORT = Number(process.env.PROOF_PORT || 19715);
 const BASE = 'http://127.0.0.1:' + PORT;
 const EVENT_TYPES = new Set([ 'user_joined', 'user_left', 'node_created', 'node_updated', 'node_deleted' ]);

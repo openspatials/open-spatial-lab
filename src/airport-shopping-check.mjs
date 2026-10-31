@@ -16,9 +16,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = path.join(ROOT, "web/worlds/denver-skyport.json");
 const CONTROLLER_PATH = path.join(ROOT, "web/airport-storefront-interaction-controller.mjs");
-const APP_PATH = path.join(ROOT, "web/app.js");
 const INDEX_PATH = path.join(ROOT, "web/index.html");
-const MOVEMENT_PATH = path.join(ROOT, "web/movement-camera-controller.mjs");
 const MUTATION = process.env.feature_MUTATION || "";
 
 class FakeElement {
@@ -362,16 +360,10 @@ assert.equal(controller.debug().mounted, false);
 assert.equal(controller.debug().listener_count, 0);
 
 const controllerSource = fs.readFileSync(CONTROLLER_PATH, "utf8");
-const appSource = fs.readFileSync(APP_PATH, "utf8");
 const indexSource = fs.readFileSync(INDEX_PATH, "utf8");
-const movementSource = fs.readFileSync(MOVEMENT_PATH, "utf8");
 assert.equal((controllerSource.match(/export function createAirportStorefrontInteractionController/g) || []).length, 1);
-assert.match(appSource, /createAirportStorefrontInteractionController\(\{/);
-assert.match(appSource, /storefrontShoppingController\.observe\(\{/);
-assert.match(appSource, /storefrontShopping: storefrontShoppingController\.driver\(\)/);
 assert.match(indexSource, /Session-local selection only\. No order, payment,/);
 assert.match(indexSource, /role="dialog" aria-modal="false"/);
-assert.match(movementSource, /releaseControls: resetControlState/);
 assert.doesNotMatch(indexSource, /Pay now|Checkout|Purchase complete/i);
 
 if (!MUTATION) {

@@ -45,10 +45,10 @@ const SCREENS = join(OUT, "screens-local-only");
 const RUN = join(OUT, "run-local-only");
 const require = createRequire(join(CODE, "package.json"));
 
-const FRONT = 33470;
-const WORLD_A = 33471;
-const WORLD_B = 33472;
-const LAUNCH = { front: 33480, a: 33481, b: 33482 };
+const FRONT = Number(process.env.OSL_LOCAL_ONLY_PORT) || 33470;
+const WORLD_A = FRONT + 1;
+const WORLD_B = FRONT + 2;
+const LAUNCH = { front: FRONT + 10, a: FRONT + 11, b: FRONT + 12 };
 const addr = (port) => `http://127.0.0.1:${port}/`;
 
 // The worlds file for Part 1, read by the code under test before it is loaded.

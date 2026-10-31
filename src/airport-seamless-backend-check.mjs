@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { runPlantedFaults } from "../tools/behavior/planted-node.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -19,48 +20,25 @@ const RUNTIME_PATH = path.join(
 const { createRuntime } = require(RUNTIME_PATH);
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), "utf8");
 const mutation = process.env.feature_MUTATION || "";
-const runtimeSource = fs.readFileSync(RUNTIME_PATH, "utf8");
 
-function assertRepublishSource(source) {
-  const resetSource = source.match(/    function reset\(\)\n    \{[\s\S]*?\n    \}\n\n    function tick\(\)/)?.[0] || "";
-  const startSource = source.match(/    function startRepublishTimer\(\)\n    \{[\s\S]*?\n    \}\n\n    \/\*\*[\s\S]*?function setRepublishRate/)?.[0] || "";
-  const setterSource = source.match(/    function setRepublishRate\(rateMs\)\n    \{[\s\S]*?\n    \}/)?.[0] || "";
-  assert.match(source, /const DEMO_REPUBLISH_RATE_DEFAULT_MS = 100;/);
-  assert.match(source, /state\.republish_rate_ms = DEMO_REPUBLISH_RATE_DEFAULT_MS;\n    let republishTimer = null;/);
-  assert.match(resetSource, /state\.republish_rate_ms = DEMO_REPUBLISH_RATE_DEFAULT_MS;[\s\S]*?startRepublishTimer\(\);/);
-  assert.match(startSource, /stopRepublishTimer\(\);[\s\S]*?republishTimer = setInterval\(republishApplyAmbientDrift, rate\);/);
-  assert.match(setterSource, /let applied = 0;[\s\S]*?Number\.isFinite\(raw\) && raw > 0/);
-  assert.match(source, /    startRepublishTimer\(\);\n\n    return \{/);
+const RUNTIME = "runtime/world-server/src/runtime-state.js";
+const REPUBLISH_FAULTS = [
+  { name: "the boot rate is zero", expect: /four 100 ms republish timers/, edits: [{ file: RUNTIME, find: "const DEMO_REPUBLISH_RATE_DEFAULT_MS = 100;", replace: "const DEMO_REPUBLISH_RATE_DEFAULT_MS = 0;" }] },
+  { name: "a reset starts a second timer", expect: /replace, not duplicate/, edits: [{ file: RUNTIME, find: "    function startRepublishTimer()\n    {\n        stopRepublishTimer();", replace: "    function startRepublishTimer()\n    {\n        void republishTimer;" }] },
+  { name: "a reset leaves the timer off", expect: /reset must leave the republish timer running/, edits: [{ file: RUNTIME, find: "        state.republish_rate_ms = DEMO_REPUBLISH_RATE_DEFAULT_MS;\n        startRepublishTimer();", replace: "        state.republish_rate_ms = 0;\n        stopRepublishTimer();" }] },
+  { name: "a rate below zero is taken as a rate", expect: /an invalid rate \(-5\) turns the republish timer off/, edits: [{ file: RUNTIME, find: "if (Number.isFinite(raw) && raw > 0)", replace: "if (Number.isFinite(raw) && raw !== 0)" }] },
+  { name: "an explicit zero is replaced by the default", expect: /explicit zero turns the republish timer off/, edits: [{ file: RUNTIME, find: "        let applied = 0;", replace: "        let applied = DEMO_REPUBLISH_RATE_DEFAULT_MS;" }] },
+];
+if (process.argv.includes("--faults")) {
+  runPlantedFaults({ file: "src/airport-seamless-backend-check.mjs", faults: REPUBLISH_FAULTS });
+  process.exit();
 }
-
-assertRepublishSource(runtimeSource);
-for (const [label, mutateSource] of [
-  ["boot-default-zero", (source) => source.replace(
-    "const DEMO_REPUBLISH_RATE_DEFAULT_MS = 100;",
-    "const DEMO_REPUBLISH_RATE_DEFAULT_MS = 0;",
-  )],
-  ["duplicate-reset-timer", (source) => source.replace(
-    "    function startRepublishTimer()\n    {\n        stopRepublishTimer();",
-    "    function startRepublishTimer()\n    {\n        void republishTimer;",
-  )],
-  ["reset-default-off", (source) => source.replace(
-    "        state.republish_rate_ms = DEMO_REPUBLISH_RATE_DEFAULT_MS;\n        startRepublishTimer();",
-    "        state.republish_rate_ms = 0;\n        stopRepublishTimer();",
-  )],
-  ["explicit-zero-broken", (source) => source.replace(
-    "        let applied = 0;",
-    "        let applied = DEMO_REPUBLISH_RATE_DEFAULT_MS;",
-  )],
-]) {
-  const mutated = mutateSource(runtimeSource);
-  assert.notEqual(mutated, runtimeSource, `${label} mutation target missing`);
-  let red = false;
-  try { assertRepublishSource(mutated); }
-  catch { red = true; }
-  assert.equal(red, true, `${label} mutation stayed GREEN`);
-  console.log(`RED_CAUGHT ${label}`);
+let statements = 0;
+function statement(name, run) {
+  run();
+  statements += 1;
+  console.log(`PASS ${name}`);
 }
-
 const lobbyConfig = makeConfig("lobby");
 const airportConfig = makeConfig("airport");
 let portalC = structuredClone(
@@ -134,43 +112,33 @@ const namedRuntimes = [
   ["airport", airportRuntime],
 ];
 
-assert.equal(republishTimerCount(), 4, "fresh four-backend boot must own exactly four 100 ms republish timers");
-for (const [name, runtime] of namedRuntimes) {
-  assert.deepEqual(
-    Object.fromEntries(Object.entries(runtime.getRepublishRate()).filter(([key]) => [
-      "republish_rate_ms", "enabled", "running",
-    ].includes(key))),
-    { republish_rate_ms: 100, enabled: true, running: true },
-    `${name} boot republish truth`,
-  );
-}
+const rateOf = (rate) => Object.fromEntries(Object.entries(rate).filter(([key]) => ["republish_rate_ms", "enabled", "running"].includes(key)));
+const ON = { republish_rate_ms: 100, enabled: true, running: true };
+const OFF = { republish_rate_ms: 0, enabled: false, running: false };
+let republishAfterReset;
 
-lobbyRuntime.reset();
-lobbyRuntime.reset();
-assert.equal(republishTimerCount(), 4, "repeated reset must replace, not duplicate, the lobby timer");
-assert.deepEqual(
-  Object.fromEntries(Object.entries(lobbyRuntime.getRepublishRate()).filter(([key]) => [
-    "republish_rate_ms", "enabled", "running",
-  ].includes(key))),
-  { republish_rate_ms: 100, enabled: true, running: true },
-);
-const republishAfterExplicitZero = lobbyRuntime.setRepublishRate(0);
-assert.deepEqual(
-  Object.fromEntries(Object.entries(republishAfterExplicitZero).filter(([key]) => [
-    "republish_rate_ms", "enabled", "running",
-  ].includes(key))),
-  { republish_rate_ms: 0, enabled: false, running: false },
-);
-assert.equal(republishTimerCount(), 3, "explicit zero must stop only the selected backend timer");
-lobbyRuntime.reset();
-const republishAfterReset = lobbyRuntime.getRepublishRate();
-assert.deepEqual(
-  Object.fromEntries(Object.entries(republishAfterReset).filter(([key]) => [
-    "republish_rate_ms", "enabled", "running",
-  ].includes(key))),
-  { republish_rate_ms: 100, enabled: true, running: true },
-);
-assert.equal(republishTimerCount(), 4, "reset after explicit zero must restore exactly one 100 ms timer");
+statement("republish-defaults", () => {
+  assert.equal(republishTimerCount(), 4, "fresh four-backend boot must own exactly four 100 ms republish timers");
+  for (const [name, runtime] of namedRuntimes) assert.deepEqual(rateOf(runtime.getRepublishRate()), ON, `${name} boot republish truth`);
+
+  for (let again = 0; again < 2; again += 1) {
+    lobbyRuntime.reset();
+    assert.ok(republishTimerCount() >= 4, "reset must leave the republish timer running");
+    assert.equal(republishTimerCount(), 4, "repeated reset must replace, not duplicate, the lobby timer");
+  }
+  assert.deepEqual(rateOf(lobbyRuntime.getRepublishRate()), ON, "repeated reset keeps the default rate");
+  assert.deepEqual(rateOf(lobbyRuntime.setRepublishRate(0)), OFF, "explicit zero turns the republish timer off");
+  assert.equal(republishTimerCount(), 3, "explicit zero must stop only the selected backend timer");
+  for (const invalid of [-5, Number.NaN, "abc"]) {
+    assert.deepEqual(rateOf(lobbyRuntime.setRepublishRate(invalid)), OFF, `an invalid rate (${String(invalid)}) turns the republish timer off`);
+  }
+  assert.deepEqual(rateOf(lobbyRuntime.setRepublishRate(250)), { republish_rate_ms: 250, enabled: true, running: true }, "a valid rate is applied and the timer runs");
+  assert.deepEqual(rateOf(lobbyRuntime.setRepublishRate(0)), OFF, "zero turns the timer off again");
+  lobbyRuntime.reset();
+  republishAfterReset = lobbyRuntime.getRepublishRate();
+  assert.deepEqual(rateOf(republishAfterReset), ON, "reset after explicit zero restores the default rate");
+  assert.equal(republishTimerCount(), 4, "reset after explicit zero must restore exactly one 100 ms timer");
+});
 
 const portalResource = lobbyRuntime.getWowPortal("lobby-portal-c");
 assert.equal(portalResource.osl_destination.target_location_id, "location-airport");
@@ -246,20 +214,11 @@ assert.equal(new Set(presence.occupancy.avatars.map((avatar) => avatar.player_id
 airportRuntime.departPresence({ player_id: "runtime-player-two", reason: "runtime-check" });
 assert.equal(airportRuntime.getFabricPresence().occupancy.registered_player_count, 1);
 
-const appSource = read("web/app.js");
 const adapterSource = read("web/live-adapter.js");
 const sceneSource = read("web/scene-runtime-controller.mjs");
 const previewReady = mutation !== "missing-prefetch-frames";
 assert.equal(previewReady, true, "authored airport aperture preview frames are required before crossing");
-assert.doesNotMatch(appSource, /loadAirportApertureMachine/);
-assert.doesNotMatch(appSource, /airportApertureMachine/);
-assert.match(appSource, /portal-c-server-backed/);
-// routed the same-origin proxy bases through the ONE
-// public-base-path helper, so the constant is now `withBase("/api/airport")`
-// (still the /api/airport proxy, now base-path aware). Assert that form.
-assert.match(adapterSource, /const BASE_AIRPORT = withBase\("\/api\/airport"\)/);
-assert.match(adapterSource, /authoredWowGraphEndpoint\(wowWorld, this\.base\)/);
-assert.match(adapterSource, /_adoptLiveAirportScenePhysics\(this\._wowResolved\)/);
+// Kept as text: no world in the lab has a destination without ground, so this refusal cannot be run. Update when this code moves.
 assert.match(adapterSource, /portal exit has no classified destination ground/);
 assert.match(sceneSource, /source: "live_backend_authored_wow_graph"/);
 assert.match(sceneSource, /one_selected_renderer: true/);
@@ -307,7 +266,6 @@ console.log(JSON.stringify({
       running: republishAfterReset.running,
     },
     cleanup_active_timer_count: activeIntervals.size,
-    controlled_red: ["boot-default-zero", "duplicate-reset-timer", "reset-default-off", "explicit-zero-broken"],
   },
   source_contract: {
     live_airport_endpoint: true,

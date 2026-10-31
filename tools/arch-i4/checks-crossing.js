@@ -3,7 +3,7 @@
 /*
  * Iteration 4, the seamless crossing as an optional profile.
  *
- *   P9  OSL's crossing proof (tools/wow-conformance/crossing-proof.js, 81 checks on two local servers) runs
+ *   P9  OSL's crossing proof (tools/wow-conformance/crossing-proof.js, 75 checks on two local servers) runs
  *       on the new portal shape, where the portal carries `destination` (an entry URL) and `node` beside
  *       the demo's labeled `osl_destination`. Reported apart from the baseline crossing. With its arrival
  *       route removed (its own --negative=route mode), it fails.
@@ -15,7 +15,8 @@ const { run, ROOT } = require('../arch-i1/lib');
 const lab = require('./lab');
 
 const { w } = lab;
-const EXPECTED_CHECKS = 81;
+// Pinned so a proof cannot lose assertions unnoticed; 81 before six source-text tripwires left crossing-proof.js.
+const EXPECTED_CHECKS = 75;
 
 function crossingProof(portA, portB, negative) {
   const env = Object.assign({}, process.env, { OSL_CROSSING_PROOF_PORT_A: String(portA), OSL_CROSSING_PROOF_PORT_B: String(portB) });

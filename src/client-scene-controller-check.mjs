@@ -12,10 +12,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CONTROLLER_PATH = join(ROOT, "web/live-adapter-client-scene-controller.mjs");
-const ADAPTER_PATH = join(ROOT, "web/live-adapter.js");
 const MUTATION = process.env.feature_P15_MUTATION || "";
 let controllerSource = readFileSync(CONTROLLER_PATH, "utf8");
-let adapterSource = readFileSync(ADAPTER_PATH, "utf8");
 
 const reciprocalDiagnosticMutations = {
   "reciprocal-diagnostic-missing": [
@@ -188,32 +186,6 @@ function applyMutation(name) {
         controllerSource,
         "      avatar: host.avatar,\n    });\n    peers.clear();",
         "      avatar: host.avatar,\n    });\n    activeRecord = pendingActiveRecord;\n    peers.clear();",
-      );
-      break;
-    case "avatar-cloned":
-      adapterSource = replaceOnce(adapterSource, "      this.state.avatar = avatar;", "      this.state.avatar = { ...avatar };");
-      break;
-    case "equipment-cloned":
-      adapterSource = replaceOnce(adapterSource, "        avatar.equippedItems = equippedItems;", "        avatar.equippedItems = [...equippedItems];");
-      break;
-    case "equipment-status-rebuilt":
-      adapterSource = replaceOnce(
-        adapterSource,
-        "      this.state.avatar = avatar;",
-        "      this.state.equipment_status = { ...this.state.equipment_status };\n      this.state.avatar = avatar;",
-      );
-      break;
-    case "endpoint-switched-on-entry":
-      adapterSource = replaceOnce(adapterSource, "      this._wowResolved = resolved;", "      this.endpoint = target;\n      this._wowResolved = resolved;");
-      break;
-    case "lobby-world-restore-removed":
-      adapterSource = replaceOnce(adapterSource, "      this.world = origin.world;", "      void origin.world;");
-      break;
-    case "facade-bypass":
-      adapterSource = replaceOnce(
-        adapterSource,
-        "    return this._clientSceneController.enter({ target, contract, resolved, bounds });",
-        "    return resolved;",
       );
       break;
     case "":
@@ -542,24 +514,6 @@ function lifecycleTrace(trace) {
   return trace.filter((item) => !item.startsWith("readHost"));
 }
 
-function segmentBetween(source, start, end) {
-  const startAt = source.indexOf(start);
-  assert.notEqual(startAt, -1, `segment start missing: ${start}`);
-  const endAt = source.indexOf(end, startAt + start.length);
-  assert.notEqual(endAt, -1, `segment end missing: ${end}`);
-  return source.slice(startAt, endAt);
-}
-
-function assertTokensInOrder(source, tokens, label) {
-  let cursor = -1;
-  for (const token of tokens) {
-    const next = source.indexOf(token, cursor + 1);
-    assert.notEqual(next, -1, `${label}: missing ordered token ${token}`);
-    assert.equal(next > cursor, true, `${label}: token out of order ${token}`);
-    cursor = next;
-  }
-}
-
 let checks = 0;
 async function check(name, assertion) {
   await assertion();
@@ -572,8 +526,6 @@ await check("controller is one dependency-clean lifecycle owner", async () => {
   assert.doesNotMatch(controllerSource, /from ["']\.\/live-adapter\.js|from ["']\.\/app\.js/);
   assert.doesNotMatch(controllerSource, /\bfetch\s*\(|\bWebSocket\b|setTimeout\s*\(|setInterval\s*\(|document\.|window\.|requestAnimationFrame|BroadcastChannel/);
   assert.doesNotMatch(controllerSource, /handoff_id|exit-intent|portal\/arrival|signManifest|traversal/);
-  assert.match(adapterSource, /createClientSceneLifecycleController\(\{/);
-  assert.doesNotMatch(adapterSource, /this\._clientSceneLoad/);
 });
 
 await check("missing graph endpoint throws before resolver or host work", async () => {
@@ -927,31 +879,6 @@ await check("post-adoption failure remains active for public rollback recovery",
   assert.equal(h.crossings.length, 1);
 });
 
-await check("adapter facades branch debug and suppression route only through the controller", async () => {
-  const facadeSource = segmentBetween(adapterSource, "  async resolveClientSceneLoad(target) {", "  async _initPlayerPreview() {");
-  assertTokensInOrder(facadeSource, [
-    "async resolveClientSceneLoad(target)",
-    "this._clientSceneController.resolve(target)",
-    "async enterClientSceneLoad({ target, contract, resolved, bounds } = {})",
-    "this._clientSceneController.enter({ target, contract, resolved, bounds })",
-    "async returnFromClientSceneLoad(options)",
-    "if (!options) return this._clientSceneController.returnToLobby()",
-    "this._clientSceneController.returnToLobby(options)",
-  ], "adapter client-scene facades");
-  assert.match(adapterSource, /if \(this\._clientSceneController\.active\(\)\) return this\.returnFromClientSceneLoad\(\);/);
-  assert.match(adapterSource, /client_scene_load: this\._clientSceneController\.debug\(\)/);
-  assert.match(adapterSource, /if \(this\._clientSceneController\.active\(\) \|\| this\._wowLocalWalk\) return \[\];/);
-  const installSource = segmentBetween(adapterSource, "    const installClientSceneState =", "    const restoreLobbyState =");
-  const restoreSource = segmentBetween(adapterSource, "    const restoreLobbyState =", "    this._clientSceneController =");
-  assert.doesNotMatch(installSource, /this\.endpoint\s*=|this\.base\s*=/);
-  assert.doesNotMatch(installSource, /equipment_status\s*=/);
-  assert.match(restoreSource, /this\.world = origin\.world;/);
-  assert.match(restoreSource, /this\.state\.avatar = avatar;/);
-  assert.match(restoreSource, /avatar\.equippedItems = equippedItems;/);
-  assert.doesNotMatch(restoreSource, /this\.state\.avatar\s*=\s*\{\s*\.\.\.avatar/);
-  assert.doesNotMatch(restoreSource, /equipment_status\s*=/);
-});
-
 await check("controller owns no teardown resource or reverse dependency", async () => {
   assert.deepEqual(Object.keys(makeHarness().controller).sort(), ["active", "debug", "enter", "resolve", "returnToLobby"]);
   assert.doesNotMatch(controllerSource, /dispose\s*\(|addEventListener|removeEventListener|\.close\s*\(|\.terminate\s*\(/);
@@ -967,14 +894,9 @@ const mutationArms = [
   "heartbeat-stop-removed",
   "registration-clear-removed",
   "runtime-close-removed",
-  "avatar-cloned",
-  "equipment-cloned",
-  "equipment-status-rebuilt",
-  "endpoint-switched-on-entry",
   "peer-clear-removed",
   "entry-prefetch-reset-removed",
   "entry-emit-before-adoption",
-  "lobby-world-restore-removed",
   "peer-reference-restore-removed",
   "active-clear-after-register",
   "return-prefetch-reset-removed",
@@ -987,7 +909,6 @@ const mutationArms = [
   "return-kind-drift",
   "debug-shape-drift",
   ...Object.keys(reciprocalDiagnosticMutations),
-  "facade-bypass",
   "rollback-active-marker-removed",
 ];
 
@@ -1007,7 +928,7 @@ if (!MUTATION) {
     assert.equal(turnedRed, true, `mutation arm ${arm} must turn the focused check RED`);
     console.log(`RED_CAUGHT ${arm}`);
   }
-  console.log(`feature_CLIENT_SCENE_CONTROLLER PASS ${checks}/26 mutations=${mutationArms.length}/${mutationArms.length}`);
+  console.log(`feature_CLIENT_SCENE_CONTROLLER PASS ${checks}/${checks} mutations=${mutationArms.length}/${mutationArms.length}`);
 }
 
 if (tempDir) rmSync(tempDir, { recursive: true, force: true });

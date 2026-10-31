@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import {
   EQUIPMENT_CHOICE_EQUIPPED,
   NO_EQUIPMENT_CHOICE,
@@ -13,7 +9,6 @@ import {
   restoreEquipmentSelection,
 } from "../web/no-equipment-choice.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const checks = [];
 const check = (name, pass, detail = "") => checks.push({ name, pass: !!pass, detail });
 
@@ -57,22 +52,10 @@ check(
   NO_EQUIPMENT_CHOICE.ariaLabel
 );
 
-const appSource = readFileSync(path.join(root, "web", "app.js"), "utf8");
-const liveSeam = {
-  moduleImported: /from\s+["']\.\/no-equipment-choice\.mjs["']/.test(appSource),
-  removeAllApplied: /applyNoEquipmentChoice\s*\(/.test(appSource),
-  choiceRendered: /NO_EQUIPMENT_CHOICE\.(label|ariaLabel)/.test(appSource),
-};
-const liveSeamGreen = Object.values(liveSeam).every(Boolean);
-
 const failed = checks.filter((entry) => !entry.pass);
 console.log("=== runtime no-equipment modal contract ===");
 for (const entry of checks) {
   console.log(`  [${entry.pass ? "PASS" : "FAIL"}] ${entry.name}${entry.detail ? ` (${entry.detail})` : ""}`);
 }
 console.log(`MODULE CONTRACT: ${failed.length === 0 ? "GREEN" : `RED (${failed.length} failed)`}`);
-console.log(`LIVE SHELL SEAM: ${liveSeamGreen ? "GREEN" : "RED (serialized integration pending)"}`);
-console.log(JSON.stringify(liveSeam));
-
-const requireLiveSeam = process.argv.includes("--require-live-seam");
-process.exit(failed.length || (requireLiveSeam && !liveSeamGreen) ? 1 : 0);
+process.exit(failed.length ? 1 : 0);

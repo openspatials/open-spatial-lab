@@ -4,12 +4,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { serverViewToggle } from "../tools/behavior/server-view-check.mjs";
+import { serverViewFaults } from "../tools/behavior/controller-faults.mjs";
+import { nodeChecks } from "../tools/behavior/node-checks.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const paths = {
   index: path.join(ROOT, "web", "index.html"),
-  camera: path.join(ROOT, "web", "movement-camera-controller.mjs"),
-  app: path.join(ROOT, "web", "app.js"),
   launcher: path.join(ROOT, "web", "demo-launcher.mjs"),
   dashboard: path.join(ROOT, "web", "wow-dashboard.html"),
   noscript: path.join(ROOT, "web", "demo-launcher-preview.html"),
@@ -24,16 +25,6 @@ function replaceOnce(value, before, after) {
 
 function validateSources(source) {
   assert.match(source.index, /id="btn-camera-toggle"[\s\S]*?<svg class="header-action-icon"/);
-  assert.match(source.camera, /const sharedToggle = lookup\("btn-camera-toggle"\)/);
-  assert.match(source.camera, /serverViewModeButton\.hidden = false/);
-  assert.match(source.camera, /serverViewModeButton\.setAttribute\("aria-label", actionLabel\)/);
-  assert.match(source.camera, /serverViewModeButton\.title = actionLabel/);
-  assert.match(source.camera, /serverViewModeButton\.setAttribute\("aria-pressed", String\(serverViewCamera\.mode === "top_down"\)\)/);
-  assert.doesNotMatch(source.camera, /serverViewModeButton\.textContent\s*=/);
-  assert.doesNotMatch(source.camera, /createElement\("button"\)[\s\S]{0,500}btn-server-camera-mode/);
-  assert.doesNotMatch(source.camera, /View: top-down|View: 3rd person/);
-  assert.match(source.app, /if \(cameraToggleBtn && isPlayer\)/);
-  assert.match(source.app, /movementCameraController\.togglePlayerCameraMode\(\)/);
 
   const footer = source.index.match(/<span class="footer-links">([\s\S]*?)<\/span>\s*<\/footer>/)?.[1] || "";
   const anchors = [...footer.matchAll(/<a class="footer-link ([^"]+)" href="([^"]+)"[\s\S]*?>([^<]+)<\/a>/g)]
@@ -60,7 +51,6 @@ function validateSources(source) {
   assert.match(source.index, /--osl-footer-height: max\(var\(--osl-shell-footer-height\), var\(--osl-footer-measured, 0px\)\)/);
   assert.match(source.index, /--rail-h: min\(640px, calc\(var\(--osl-viewport-height\) - var\(--osl-panel-top\) - var\(--osl-footer-height\)/);
   assert.match(source.index, /footer\.controls \{[^}]*min-height: var\(--osl-shell-footer-height\)/);
-  assert.match(source.app, /followFooterHeight\(document\);/);
 }
 
 const source = Object.fromEntries(await Promise.all(
@@ -69,18 +59,6 @@ const source = Object.fromEntries(await Promise.all(
 validateSources(source);
 
 const mutations = [
-  ["server-reverts-to-text-button", (value) => ({
-    ...value,
-    camera: replaceOnce(value.camera, 'const sharedToggle = lookup("btn-camera-toggle")', 'const sharedToggle = documentTarget.createElement("button")'),
-  })],
-  ["server-action-name-lost", (value) => ({
-    ...value,
-    camera: replaceOnce(value.camera, 'serverViewModeButton.setAttribute("aria-label", actionLabel);', "void actionLabel;"),
-  })],
-  ["server-visible-text-returns", (value) => ({
-    ...value,
-    camera: replaceOnce(value.camera, "serverViewModeButton.title = actionLabel;", 'serverViewModeButton.textContent = "View: 3rd person";'),
-  })],
   ["hosted-footer-label-regresses", (value) => ({
     ...value,
     index: replaceOnce(value.index, ">lab.openspatials.com</a>", ">https://lab.openspatials.com/</a>"),
@@ -169,3 +147,7 @@ process.stdout.write(`${JSON.stringify({
   positive: "server camera icon and centered hosted footer contract",
   controlled_red: controlledRed,
 }, null, 2)}\n`);
+
+const { check, finish } = nodeChecks("server-camera");
+await check("server-view-toggle", "The server view's camera button is the header's icon button, named, stateful and wordless", serverViewToggle);
+await finish({ checkFile: "src/server-camera-footer-check.mjs", faults: serverViewFaults });
