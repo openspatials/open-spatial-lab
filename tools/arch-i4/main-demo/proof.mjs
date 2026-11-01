@@ -14,7 +14,7 @@
 //   M4   a preview draws only what the destination declares; the request log shows no other node fetched
 //   M5   a portal inside a preview shows closed
 //   M6   previewing creates no user in the destination
-//   M7   an offline destination: the crossing is refused, the reason shows, the visitor stays
+//   M7   an offline destination: the crossing is refused before the visitor leaves, the reason shows, the visitor stays
 //   M8   no destination: the portal does nothing and says why
 //   M9   the Lobby start is outside every perimeter, with no destination loading at first
 //   M10  after a crossing with keys held the avatar stands idle until a new key press
@@ -35,6 +35,7 @@ import { arrivalOf, allNodes, distance, getJson, nodePose, placeByApi, worldPort
 const OUT = process.env.OSL_PROOF_DIR ? resolve(process.env.OSL_PROOF_DIR) : join(CODE, ".runtime", "arch-i4-main-proof");
 const SCREENS = join(OUT, "screens");
 const FIRST_PORT = Number(process.env.OSL_ARCH_I4_MAIN_PORT) || 33500;
+const { rawStream, until } = createRequire(import.meta.url)("../../arch-i3/lab.js");
 const ONE_CM = 0.01;
 const args = process.argv.slice(2);
 const only = args.includes("--only") ? args[args.indexOf("--only") + 1].split(",") : null;
@@ -417,9 +418,24 @@ const CHECKS = {
 
   async M6(ctx) {
     await ctx.lab.start();
+    const destinations = ["a", "b", "airport"];
+    // A user nobody renews is gone after 10 s, so counts read later can miss one. A world's event stream announces each
+    // user that joins, whenever it joins and however long it stays: it is watched from before the page opens.
+    const streams = {};
+    ctx.cleanups.push(async () => { for (const stream of Object.values(streams)) stream.close(); });
+    for (const key of [...destinations, "lobby"]) {
+      streams[key] = await rawStream(ctx.lab.port(key), "/events");
+      await until(() => streams[key].messages.some((m) => m.type === "hello"), 10000, `${key}'s event stream`);
+    }
+    const joinsIn = (key) => streams[key].messages.filter((m) => m.type === "user_joined");
+    const joined = () => {
+      const closed = destinations.filter((key) => streams[key].closed);
+      expectTrue(!closed.length, `the event stream of ${closed.join(", ")} closed, so the check would be vacuous`);
+      return destinations.flatMap((key) => joinsIn(key).map((m) => `user ${m.user.id} joined ${key}`));
+    };
     const counts = async () => {
       const out = {};
-      for (const key of ["a", "b", "airport"]) {
+      for (const key of destinations) {
         const world = (await getJson(`${ctx.lab.address(key)}wow/world`)).json;
         const presence = (await getJson(`${ctx.lab.address(key)}fabric/presence`)).json;
         out[key] = { active: world.users.active_user_count, listed: world.webofworlds_extension.users.length, arrivals: world.session.arrival_count, registered: (presence.occupancy && presence.occupancy.avatars || []).length };
@@ -432,9 +448,11 @@ const CHECKS = {
     await previewsSettled(page);
     await sleep(5000);
     const after = await counts();
-    expectTrue(JSON.stringify(before) === JSON.stringify(after), `previewing changed a destination's users: before ${JSON.stringify(before)}, after ${JSON.stringify(after)}`);
+    const joinedPreviewing = joined();
+    expectTrue(!joinedPreviewing.length && JSON.stringify(before) === JSON.stringify(after), `previewing changed a destination's users: ${joinedPreviewing.join(", ") || "none joined"}; counts before ${JSON.stringify(before)}, after ${JSON.stringify(after)}`);
     const here = (await getJson(`${ctx.lab.address("lobby")}wow/world`)).json.users.active_user_count;
     expectTrue(here === 1, `the Lobby, where the visitor is, counts ${here} users (the check would be vacuous)`);
+    expectTrue(joinsIn("lobby").length > 0, "the Lobby's event stream did not announce the visitor, so the check would be vacuous");
     // Inside A's perimeter, with the prefetch running: still no user in A.
     const toA = (await worldPortals(ctx.lab.address("lobby"))).find((p) => p.resource.label === "Portal to Location A");
     await walkTo(page, toA.pose.position[0] + toA.pose.forward[0] * 1.8, toA.pose.position[2] + toA.pose.forward[2] * 1.8);
@@ -444,8 +462,9 @@ const CHECKS = {
     }, { timeout: 30000, polling: 250 }, undefined, "inside A's perimeter the prefetch never finished, so this case would be vacuous");
     await sleep(5000);
     const insideCounts = await counts();
-    expectTrue(JSON.stringify(after) === JSON.stringify(insideCounts), `inside the perimeter, the prefetch changed a destination's users: before ${JSON.stringify(after)}, after ${JSON.stringify(insideCounts)}`);
-    return `inside A's perimeter with the prefetch warm for 5 s, and with 3 previews showing for 5 s, Location A, Location B and the airport still count ${JSON.stringify(after.a.active)}, ${after.b.active} and ${after.airport.active} users; the Lobby counts 1, the visitor`;
+    const joinedInside = joined();
+    expectTrue(!joinedInside.length && JSON.stringify(after) === JSON.stringify(insideCounts), `inside the perimeter, the prefetch changed a destination's users: ${joinedInside.join(", ") || "none joined"}; counts before ${JSON.stringify(after)}, after ${JSON.stringify(insideCounts)}`);
+    return `inside A's perimeter with the prefetch warm for 5 s, and with 3 previews showing for 5 s, Location A, Location B and the airport still count ${JSON.stringify(after.a.active)}, ${after.b.active} and ${after.airport.active} users, and their event streams, watched from before the page opened, announced no user joining; the Lobby counts 1, the visitor`;
   },
 
   async M7(ctx) {
@@ -453,6 +472,7 @@ const CHECKS = {
     const lobby = ctx.lab.address("lobby");
     const placed = await placeByApi(lobby, { x: 4.4, z: 1.4, label: "Portal to Location E", destination: ctx.lab.address("e") });
     const page = await newPage(ctx);
+    const log = await recordRequests(page, { worlds: ctx.lab.doc.worlds, front: ctx.lab.front });
     await openPlayer(page, ROUTE(ctx));
     await previewsSettled(page);
     const key = String(placed.portal.id);
@@ -471,6 +491,10 @@ const CHECKS = {
     expectTrue(refusals[0].kind === "offline" && /offline/i.test(refusals[0].sentence), `refusal: ${JSON.stringify(refusals[0])}`);
     const s = await state(page);
     expectTrue(s.location_id === "location-lobby", `the visitor left: in ${s.location_id}`);
+    // A crossing that fails later also ends as a refusal, with the visitor back here. Only the check before leaving
+    // refuses before the Lobby is asked to let the visitor go.
+    const exits = log.forWorld("lobby").filter((e) => /\/portal\/exit-intent/.test(e.path));
+    expectTrue(!exits.length, `the visitor left the Lobby with no check first: ${exits.length} exit-intent sent, then refused: ${refusals[0].reason}`);
     const toast = await page.evaluate(() => { const t = document.querySelector("#toast-stack .toast"); return t ? t.textContent : null; });
     expectTrue(toast && /offline/i.test(toast), `the notification shows ${JSON.stringify(toast)}`);
     const records = await page.evaluate(() => window.__assembly.notifications.list().filter((n) => n.kind === "portal_refused").map((n) => n.summary));
