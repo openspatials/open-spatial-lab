@@ -10,7 +10,7 @@ This repository is where Open Spatial Lab is developed. Issues and pull requests
 - Three authored Three.js destinations: Location A, Location B, and Denver Skyport
 - Denver Skyport access through the lobby's Portal C path
 - Local world servers and a one-command launcher
-- A generated player avatar with selectable equipment
+- Five Ready Player Me player avatars (CC BY-NC-SA 4.0, see `THIRD_PARTY_NOTICES.md`), one picked at random for each new session, with selectable equipment; a generated avatar with `?avatar_variant=parametric`
 - Included models, textures, motion-capture animation, and runtime assets
 - Portals from each world's Web of Worlds data: each stands at the node that places it, and its see-through view draws only what its destination declares
 - Portal navigation and player-state continuity
@@ -142,19 +142,17 @@ npm run check:behavior   # a crossing and movement in the main demo, driven as a
 
 Each step runs with a time limit and the run goes on after a failure. A line says PASS, FAIL, KNOWN-RED (red today, with its reason and the phase that takes it) or SKIP (with its reason; a skip is not a pass). Each step's output is in `diagnostics/test/`. The command exits 1 when any step fails. A KNOWN-RED step that passes counts as a failure until it is taken off the list in `tools/run-checks-lists.mjs`. Steps that drive a browser use Chrome for Testing, found by `tools/find-browser.mjs`; without it they print SKIP. Every step takes its ports from `OSL_TEST_PORT_BASE` (default 36400) and the 99 numbers after it. A file named `tools/behavior/*.check.mjs` joins `npm test` on its own, and `--faults` also runs its planted faults. `npm run renderer-proof` is too slow for this group, so it is not in `npm test` or `npm run test:fast`. Run it by itself; it ends with one statement for each engine and for John Carlson's world. `node tools/run-checks.mjs --self-check` shows that the runner itself turns red for a failing step.
 
-Known red: the round-trip proof (`wow-spec/proof/roundtrip.js`) stops at its spatial-fabric section, because the fabric modules are not in this repository.
-
 ### Worlds and portal placement
 
 The lab has one list of worlds: `worlds.json` (or the file named by `OSL_WORLDS`). The launch script, the world servers, the frontend and the browser all read it; the browser reads it at `/worlds.json`. A world added to that file appears in the launcher and the frontend routes with no other edit. `npm run check:worlds` checks a running lab against the list, and `npm run check:world-list` proves the rule.
 
 The servers bind to 127.0.0.1 unless `OSL_BIND_HOST` says otherwise. With `OSL_BIND_HOST=0.0.0.0` and no `OSL_PUBLIC_ORIGIN`, a browser on another machine can use the lab: `/worlds.json` and each world's resources then name the host the browser used in its request, not 127.0.0.1, so its portals read online. A live public lab sets `OSL_PUBLIC_ORIGIN` instead: every world then says it lives at `{origin}/w/{key}/`. Placement stays off whenever the servers are not bound to 127.0.0.1.
 
-Placing portals is off by default. It works only on a lab bound to 127.0.0.1 and started with `OSL_PLACEMENT_WRITES=1`, for example `OSL_PLACEMENT_WRITES=1 npm start`; then `&place=1` opens placement mode, on a `?wow=` player link and in the main demo as a Player (`index.html?role=player&place=1`). Without both conditions the write routes answer 403 with the reason, and placed portals are shown read-only. Never set this in a deploy file. `npm run check:placement` and `npm run check:local-only` prove this. Like every check that starts a browser, they need a headless Chrome for Testing, which `tools/find-browser.mjs` finds.
+Placing portals is off by default. It works only on a lab bound to 127.0.0.1 and started with `OSL_PLACEMENT_WRITES=1`, for example `OSL_PLACEMENT_WRITES=1 npm start`; then `&place=1` opens placement mode, on a `?wow=` player link and in the main demo as a Player (`index.html?role=player&place=1`). Without both conditions the write routes answer 403 with the reason, and placed portals are shown read-only. Never set this in a deploy file. `npm run check:placement` checks placement mode itself. `npm run check:local-only` starts the world server and the frontend bound to 127.0.0.1 and to 0.0.0.0, with and without the setting, and checks that only a lab on 127.0.0.1 with the setting accepts writes and offers placement mode in the player; it also reads this repository's container and launch files and fails if one of them sets the setting. Like every check that starts a browser, they need a headless Chrome for Testing, which `tools/find-browser.mjs` finds.
 
 ### Opt-in renderers
 
-three.js is the default. `?renderer=x3dom` and `?renderer=x_ite` open the same worlds on the X3D path, with Nicholas Polys's render adapter boundary and X3DOM path and an X_ITE adapter written to his interface. John Carlson's soft-body world runs under both. `web/renderer-lane.html` has the links, the credit and the shortfalls; `THIRD_PARTY_NOTICES.md` has the licences.
+three.js is the default. `?renderer=x3dom` and `?renderer=x_ite` open the same worlds on the X3D path, with Nicholas Polys's render adapter boundary and X3DOM path and an X_ITE adapter written to his interface. John Carlson's soft-body world runs under both. `web/renderer-lane.html` has the links, the credit and the shortfalls; `THIRD_PARTY_NOTICES.md` has the licences. `npm run renderer-proof` checks these paths in a headless browser and measures the pictures; it is slow, so it is not part of `npm test`, and `-- --only "X_ITE"` runs only the checks whose names contain that text.
 
 ### Running in a container
 
@@ -212,7 +210,7 @@ These are future enhancements, not additional setup steps for the current demo, 
 
 - Open an issue to report a bug or propose a change, or open a pull request against `main`.
 - Before you open a pull request, run `npm run verify` and the proofs that cover your change.
-- Keep code comments about the code. `npm run trace-check` fails on internal tracker ids, private paths and secret-shaped values.
+- Keep code comments about the code. `npm run trace-check` fails on internal tracker ids, private paths and folder names, and secret-shaped values, in file names and in text; each run first plants an example of every kind and fails unless each is caught.
 - Contributions are licensed under Apache-2.0, as section 5 of the license states.
 
 ## License and security

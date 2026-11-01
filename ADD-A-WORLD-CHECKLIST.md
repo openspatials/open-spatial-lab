@@ -4,7 +4,7 @@ This is the checklist for adding a world to Open Spatial Lab. You edit one confi
 
 The launch script, the world servers, the web server and the browser all read the same file. So a world you list there is launched, served, routed, shown on the launcher page and offered as a portal destination.
 
-All commands run in the lab's code folder.
+All commands run in the repository root.
 
 ## 1. Pick a free port
 
@@ -18,7 +18,7 @@ lsof -nP -iTCP:32465 -sTCP:LISTEN
 
 ## 2. Add one entry to the worlds file
 
-- The worlds file is `worlds.json` in the code folder.
+- The worlds file is `worlds.json` in the repository root.
 - If you set `OSL_WORLDS`, the worlds file is the file it names.
 - Add one entry to the `worlds` list. Give it these fields:
   - `key`: a short name in lowercase letters, digits or `-`. Links use it, for example `/w/e/`.
