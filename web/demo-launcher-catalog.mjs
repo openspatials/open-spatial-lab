@@ -72,13 +72,13 @@ const TECHNOLOGY_ITEMS = [
   },
   {
     id: "rp1-spatial-fabric",
-    name: "RP1 Spatial Fabric / .msf",
+    name: "RP1 Spatial Fabric",
     officialUrl: OFFICIAL_TECHNOLOGY_URLS["rp1-spatial-fabric"],
     workflowStep: 4,
-    role: "Address, sign, load, and compose spatial worlds as fabric resources.",
-    statusKey: "integrated-prototype",
-    statusLabel: "Integrated prototype",
-    claim: "Bounded signed-.msf composition in the lab, not the canonical full renderer.",
+    role: "Address spatial worlds as fabric resources and attach one world to another.",
+    statusKey: "unsigned-subset",
+    statusLabel: "Unsigned subset",
+    claim: "Reads each world's unsigned plain-JSON fabric and checks its portal attachment fail-closed before a crossing; no signed .msf is read.",
     mark: "RP1",
   },
   {

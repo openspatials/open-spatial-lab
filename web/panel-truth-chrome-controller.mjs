@@ -1335,20 +1335,8 @@ export function createPanelTruthChromeController(options = {}) {
   function renderStandardFabric(debug) {
     if (!lookup("std-fabric-card")) return;
     const nav = debug && debug.navigator ? debug.navigator : null;
-    const msf = debug && debug.msf ? debug.msf : null;
     const root = nav && nav.root_fabric ? nav.root_fabric : null;
-    const jws = msf && msf.jws ? msf.jws : root && root.jws ? root.jws : null;
-    const moduleRun = debug && debug.module_run ? debug.module_run : null;
-    const readVerified = !!(
-      msf && msf.result === "VERIFIED" &&
-      root && root.status === "verified" && root.signed === true &&
-      jws && jws.signature_verified === true && jws.chain_verified === true && jws.validity_ok === true
-    );
-    const servedInSession = !!(readVerified && typeof root.url === "string" && root.url.length > 0);
-    const importedSubsetRan = !!(
-      readVerified && msf.wasm_run === true &&
-      moduleRun && moduleRun.ran === true && moduleRun.hash_ok === true
-    );
+    const jws = root && root.jws ? root.jws : null;
     writeDebugText("std-fabric-context", nav ? nav.context_id || "—" : "—");
     writeDebugText("std-fabric-loaded", nav
       ? `${nav.fabrics_loaded_count || 0} in one context: ${(nav.fabrics_loaded || []).join(", ") || "—"}`
@@ -1371,21 +1359,16 @@ export function createPanelTruthChromeController(options = {}) {
     writeDebugText("std-fabric-trust", root && (root.status === "loaded" || root.status === "verified")
       ? `${root.format || "plain-json"} · ${root.signed ? `SIGNED (verified: ${jws && jws.anchor ? jws.anchor : "shipped test anchor"})` : "UNSIGNED (labeled)"}`
       : "—");
-    writeDebugText("std-fabric-reads-msf", readVerified
-      ? "verified · signed .msf"
-      : "not verified in this session");
-    const readRow = lookup("std-fabric-reads-msf");
-    if (readRow) readRow.className = readVerified ? "v std-true" : "v std-false";
-    writeDebugText("std-fabric-serves-msf", servedInSession
-      ? "retrieved and verified"
-      : "not observed in this session");
-    const serveRow = lookup("std-fabric-serves-msf");
-    if (serveRow) serveRow.className = servedInSession ? "v std-true" : "v std-false";
-    writeDebugText("std-fabric-abi", importedSubsetRan
-      ? "executed · hash verified"
-      : "not run in this session");
-    const runRow = lookup("std-fabric-abi");
-    if (runRow) runRow.className = importedSubsetRan ? "v std-true" : "v std-false";
+    // The lab has no signed .msf path: worlds serve plain-JSON fabrics, and no fabric module runs. These rows say so.
+    for (const [id, text] of [
+      ["std-fabric-reads-msf", "none · the lab reads no signed .msf"],
+      ["std-fabric-serves-msf", "none · worlds serve unsigned plain JSON"],
+      ["std-fabric-abi", "none · the lab runs no fabric module"],
+    ]) {
+      writeDebugText(id, text);
+      const row = lookup(id);
+      if (row) row.className = "v std-false";
+    }
     try { renderRp1FailClosed(debug); } catch {}
   }
 
