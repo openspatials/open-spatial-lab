@@ -18,9 +18,18 @@ const http = require('http');
 const { spawnSync } = require('child_process');
 
 // These proofs create and move nodes on their own worlds, on isolated loopback ports. Those writes are opt-in on a
-// running lab (runtime/world-server/src/local-only.js), so the proof's own process turns them on. No launch or deploy
-// file does.
-process.env.OSL_PLACEMENT_WRITES = '1';
+// running lab (runtime/world-server/src/local-only.js), so each check run() starts turns them on while it runs and puts
+// the setting back as it was when it ends. Importing this file sets nothing: a module that loads these helpers to build
+// worlds of its own gets the default, writes off. No launch or deploy file sets it either.
+const OPT_IN = 'OSL_PLACEMENT_WRITES';
+async function withPlacementWrites(fn) {
+  const saved = process.env[OPT_IN];
+  process.env[OPT_IN] = '1';
+  try { return await fn(); } finally {
+    if (saved === undefined) delete process.env[OPT_IN];
+    else process.env[OPT_IN] = saved;
+  }
+}
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const results = [];
@@ -54,7 +63,7 @@ async function run(id, title, fn, impl, mutants) {
   const entry = { id, title, ok: true, detail: null, warnings: [], mutants: [] };
   let real;
   const runReal = async () => withWarnings(async () => {
-    try { real = await fn(impl); } catch (error) { real = { ok: false, detail: 'threw: ' + (error && error.stack || error) }; }
+    try { real = await withPlacementWrites(() => fn(impl)); } catch (error) { real = { ok: false, detail: 'threw: ' + (error && error.stack || error) }; }
   });
   entry.warnings = await runReal();
   // A real run that failed the way machine load makes a check fail (a timeout, or a check that says it is
@@ -79,7 +88,7 @@ async function run(id, title, fn, impl, mutants) {
     let verdict;
     const staleBefore = staleEdits.length;
     const warnings = await withWarnings(async () => {
-      try { verdict = await fn(mutant.impl); } catch (error) { verdict = { ok: false, detail: 'threw: ' + (error && error.message || error) }; }
+      try { verdict = await withPlacementWrites(() => fn(mutant.impl)); } catch (error) { verdict = { ok: false, detail: 'threw: ' + (error && error.message || error) }; }
     });
     const stale = staleEdits.slice(staleBefore);
     if (stale.length) {

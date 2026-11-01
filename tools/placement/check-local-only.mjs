@@ -24,21 +24,23 @@
 //   - N: both on 127.0.0.1 WITHOUT the setting: every write route is refused (the same list as for the public lab,
 //     including /demo/portal/move and /reset), the player offers no placement mode, reads still work, and only the
 //     exact value "1" turns it on. L (the control) is the same lab WITH the setting, and works.
-//   - Scan (read-only): no file under deploy/ mentions the setting, and none of the lab's own launch files
-//     sets it. A planted fault (deploy-style and launch-style files that set it, written only inside
-//     run-local-only/planted-scan/) must turn the scan red.
+//   - Scan (read-only, inside this repository only): no container or deploy file (Dockerfile, docker-compose.yml,
+//     docker/, a deploy/ folder if there is one) sets the setting or names it outside a comment, and none of the lab's
+//     own launch files sets it. Importing the proof helpers that a deployment can load to build worlds
+//     (tools/arch-i1/lib.js, tools/arch-i2/worlds.js) leaves the setting unset. Planted faults (deploy-style and
+//     launch-style files that set it, and a helper that sets it when imported, written only inside
+//     run-local-only/planted-scan/) must turn these statements red.
 //
 // Exits 0 only when every statement passes with the code as it is and every planted fault is caught.
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import http from "node:http";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CODE = resolve(HERE, "..", "..");
-const WORK = resolve(CODE, "..");
 // What the check writes. OSL_PROOF_DIR names another place.
 const OUT = process.env.OSL_PROOF_DIR ? resolve(process.env.OSL_PROOF_DIR) : join(CODE, ".runtime", "placement-proof");
 const SCREENS = join(OUT, "screens-local-only");
@@ -245,7 +247,7 @@ async function shot(page, name) {
   screenNumber += 1;
   const file = join(SCREENS, `${String(screenNumber).padStart(2, "0")}-${name}.png`);
   await page.screenshot({ path: file });
-  console.log(`     screenshot ${relative(WORK, file)}`);
+  console.log(`     screenshot ${relative(CODE, file)}`);
 }
 const playerUrl = (extra = "") => `http://127.0.0.1:${FRONT}/index.html?role=source&intro=bypass&place=1${extra}&wow=${encodeURIComponent(`${addr(WORLD_A)}wow/spatial/1`)}`;
 
@@ -419,9 +421,9 @@ async function optInValueStatements(label) {
   step(`${label}: only the exact value 1 turns placement on (not set, empty, 0, true and yes stay off)`, wrong.length === 0, wrong.length ? `wrong for: ${wrong.map((c) => `${c.name} -> ${c.allowed}`).join(", ")}` : seen.map((c) => `${c.name} -> ${c.allowed}`).join(", "));
 }
 
-// Read-only. The scan reads files and never writes them. Two modes:
-//   "deploy": any mention of OSL_PLACEMENT (the setting's name, case-insensitive) in any text file fails. The
-//             deploy files have no reason to name it. Docs there must not name it either.
+// Read-only. The scans read files inside this repository and never write them. Two modes:
+//   "deploy": a container or deploy file has no reason to name OSL_PLACEMENT (the setting's name, case-insensitive), so
+//             any line outside a comment that names it fails. A comment may say that the container does not set it.
 //   "launch": the lab's own launch files may READ the setting (to say whether placement is on) but must not SET it:
 //             an assignment (NAME=..., NAME: ..., "NAME": ...), an export/ENV/env/-e/--env of it, or
 //             process.env.NAME = .... Reads (${NAME}, $NAME) are removed first; comment lines are skipped.
@@ -433,7 +435,7 @@ function walk(root, accept) {
     try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       const full = join(dir, e.name);
-      if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name)) visit(full); }
+      if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name) && full !== OUT) visit(full); }
       else if (e.isFile() && accept(full, e.name)) out.push(full);
     }
   };
@@ -448,55 +450,70 @@ const SET_FORMS = [
   /process\.env\[\s*["']OSL_PLACEMENT_WRITES["']\s*\]\s*=(?!=)/i,
   /OSL_PLACEMENT_WRITES["']?\s+["']?\d/i,
 ];
-/** The lines of `file` that set (mode launch) or mention (mode deploy) the opt-in: [{ file, line, text }]. */
+/** The lines of `file` that set (mode launch) or name outside a comment (mode deploy) the opt-in: [{ file, line, text }]. */
 function scanFile(file, mode) {
   let text = "";
   try { if (statSync(file).size > 4 * 1024 * 1024) return { hits: [], scanned: false }; text = readFileSync(file, "latin1"); } catch { return { hits: [], scanned: false }; }
   if (text.includes("\u0000")) return { hits: [], scanned: false };
   const hits = [];
   text.split(/\r?\n/).forEach((raw, i) => {
-    if (mode === "deploy") { if (/OSL_PLACEMENT/i.test(raw)) hits.push({ file, line: i + 1, text: raw.trim().slice(0, 160) }); return; }
     const trimmed = raw.trim();
     if (/^(#|\/\/|\*|\/\*)/.test(trimmed)) return;
+    if (mode === "deploy") { if (/OSL_PLACEMENT/i.test(raw)) hits.push({ file, line: i + 1, text: trimmed.slice(0, 160) }); return; }
     const line = raw.replace(/\$\{?OSL_PLACEMENT_WRITES[^}\s"']*\}?/gi, "");
     if (SET_FORMS.some((re) => re.test(line))) hits.push({ file, line: i + 1, text: trimmed.slice(0, 160) });
   });
   return { hits, scanned: true };
 }
-function scanTree(root, mode, accept = () => true) {
-  const files = walk(root, accept);
+function scanFiles(files, mode) {
   let scanned = 0;
   const hits = [];
   for (const f of files) { const r = scanFile(f, mode); if (r.scanned) scanned += 1; hits.push(...r.hits); }
   return { files: files.length, scanned, hits };
 }
-const DEPLOY = join(WORK, "deploy");
-const LAUNCH_NAMES = /^(launchOpenSpatialLab\.sh|stopOpenSpatialLab\.sh|package\.json|worlds\.json|orchestrator\.js|serve\.js|Dockerfile.*|.*\.(ya?ml|service|plist|env|conf)|\.env.*|Caddyfile.*)$/;
-/** The lab's launch files: its launch and stop scripts, the servers' starters, its configs and any container files. Not proof/ or logs/. */
-function launchFileTargets(root = WORK) {
-  const found = [];
-  for (const sub of ["code", "config"]) {
-    const base = join(root, sub);
-    if (!existsSync(base)) continue;
-    for (const f of walk(base, (full, name) => LAUNCH_NAMES.test(name) && !/\/code\/(runtime\/world-server\/test|tools|web|wow-spec|diagnostics)\//.test(full))) found.push(f);
-  }
+const scanTree = (root, mode) => scanFiles(walk(root, () => true), mode);
+const rel = (file) => relative(CODE, file).split(sep).join("/");
+const hitText = (hits) => hits.slice(0, 3).map((h) => `${rel(h.file)}:${h.line} "${h.text}"`).join("; ");
+
+// The container and deploy files: those at the top of the repository, and everything under docker/ and deploy/.
+const DEPLOY_NAMES = /^(Dockerfile.*|.*compose.*\.ya?ml|\.dockerignore|Procfile|Caddyfile.*|.*\.(service|plist|env)|\.env.*)$/;
+const DEPLOY_NEEDED = ["Dockerfile", "docker-compose.yml", "docker/entrypoint.sh"];
+function deployFileTargets(root = CODE) {
+  let top = [];
+  try { top = readdirSync(root, { withFileTypes: true }); } catch { /* nothing to read */ }
+  const found = top.filter((e) => e.isFile() && DEPLOY_NAMES.test(e.name)).map((e) => join(root, e.name));
+  for (const sub of ["docker", "deploy"]) found.push(...walk(join(root, sub), () => true));
   return found;
 }
-function scanLaunchFiles(root = WORK) {
-  const files = launchFileTargets(root);
-  let scanned = 0;
-  const hits = [];
-  for (const f of files) { const r = scanFile(f, "launch"); if (r.scanned) scanned += 1; hits.push(...r.hits); }
-  return { files: files.length, scanned, hits };
+// The lab's launch files: its launch and stop scripts, the servers' starters, its configs and its container files.
+// Checks, proofs, the browser client and the contract are not launch files.
+const LAUNCH_NAMES = /^(launchOpenSpatialLab\.sh|stopOpenSpatialLab\.sh|entrypoint\.sh|package\.json|worlds\.json|orchestrator\.js|serve\.js|Dockerfile.*|.*\.(ya?ml|service|plist|env|conf)|\.env.*|Caddyfile.*)$/;
+const NOT_LAUNCH = /^(runtime\/world-server\/test|tools|web|wow-spec|diagnostics)\//;
+const LAUNCH_NEEDED = ["launchOpenSpatialLab.sh", "stopOpenSpatialLab.sh", "src/orchestrator.js", "src/serve.js"];
+function launchFileTargets(root = CODE) {
+  return walk(root, (full, name) => LAUNCH_NAMES.test(name) && !NOT_LAUNCH.test(relative(root, full).split(sep).join("/")));
 }
-const hitText = (hits) => hits.slice(0, 3).map((h) => `${relative(WORK, h.file)}:${h.line} "${h.text}"`).join("; ");
 
-/** Plant: a deploy-style tree and a launch-style tree that set the opt-in, written only inside this proof folder. */
+// The proof helpers a deployment can load to build worlds of its own. Importing them must leave the opt-in as it was.
+const PROOF_HELPERS = ["tools/arch-i1/lib.js", "tools/arch-i2/worlds.js"];
+/** Import `files` in a fresh Node process whose environment has no opt-in, and say what the setting is afterwards. */
+function optInAfterImport(files) {
+  const env = { ...process.env };
+  delete env[OPT_IN];
+  const script = `for (const f of ${JSON.stringify(files)}) require(f); process.stdout.write(JSON.stringify(process.env[${JSON.stringify(OPT_IN)}] ?? null));`;
+  const r = spawnSync(process.execPath, ["-e", script], { cwd: CODE, env, encoding: "utf8", timeout: 60000 });
+  let value;
+  try { value = JSON.parse(r.stdout); } catch { value = undefined; }
+  return { ok: r.status === 0 && value !== undefined, value, out: `${r.stdout || ""}${r.stderr || ""}`.replace(/\s+/g, " ").trim().slice(-300) };
+}
+
+/** Plant: deploy-style and launch-style trees that set the opt-in, and a helper that sets it on import, written only inside this proof folder. */
 function plantScanTree() {
   const root = join(RUN, "planted-scan");
   rmSync(root, { recursive: true, force: true });
   const put = (rel, text) => { const f = join(root, rel); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, text); };
   put("clean/deploy/open-spatial-lab.env.example", "OSL_RUNTIME_TOPOLOGY=single-instance\nOSL_PUBLIC_BASE_PATH=/open-spatial-lab/\n");
+  put("clean/deploy/Dockerfile", "FROM node:22\n# Placement writes stay off: the container does not set OSL_PLACEMENT_WRITES.\nENV NODE_ENV=production\n");
   put("clean/code/launchOpenSpatialLab.sh", "#!/usr/bin/env bash\nif [ \"${OSL_PLACEMENT_WRITES:-}\" != \"1\" ]; then echo off; fi\n");
   put("env-file/deploy/open-spatial-lab.env", "OSL_RUNTIME_TOPOLOGY=single-instance\nOSL_PLACEMENT_WRITES=1\n");
   put("compose/deploy/docker-compose.yml", "services:\n  lab:\n    environment:\n      OSL_PUBLIC_BASE_PATH: \"/open-spatial-lab/\"\n      OSL_PLACEMENT_WRITES: \"1\"\n");
@@ -506,38 +523,54 @@ function plantScanTree() {
   put("launch-inline/code/launchOpenSpatialLab.sh", "#!/usr/bin/env bash\nOSL_PLACEMENT_WRITES=1 node src/serve.js 1234\n");
   put("launch-js/code/src/orchestrator.js", "'use strict';\nprocess.env.OSL_PLACEMENT_WRITES = '1';\n");
   put("deploy-mention/deploy/README.md", "Set OSL_PLACEMENT_WRITES in the unit file to try it.\n");
+  put("import/tools/arch-i1/lib.js", `${readFileSync(join(CODE, ...PROOF_HELPERS[0].split("/")), "utf8")}\nprocess.env.OSL_PLACEMENT_WRITES = '1';\n`);
   return root;
 }
 
 async function scanStatements() {
-  const deploy = scanTree(DEPLOY, "deploy");
-  step(`scan: no file under deploy/ names the opt-in (${deploy.scanned} files read)`, deploy.scanned >= 20 && deploy.hits.length === 0, deploy.hits.length ? `found: ${hitText(deploy.hits)}` : `${deploy.files} files found, ${deploy.scanned} read, no mention`);
-  const launch = scanLaunchFiles();
-  const launchNames = launchFileTargets().map((f) => relative(WORK, f));
+  const deployFiles = deployFileTargets();
+  const deploy = scanFiles(deployFiles, "deploy");
+  const deployNames = deployFiles.map(rel);
+  const deployMissing = DEPLOY_NEEDED.filter((name) => !deployNames.includes(name));
+  step(`scan: no container or deploy file in the repository sets the opt-in or names it outside a comment (${deploy.scanned} files read, including ${DEPLOY_NEEDED.join(", ")})`,
+    deploy.scanned >= DEPLOY_NEEDED.length && deployMissing.length === 0 && deploy.hits.length === 0,
+    deploy.hits.length ? `found: ${hitText(deploy.hits)}` : deployMissing.length ? `not found: ${deployMissing.join(", ")}` : `${deploy.scanned} files read: ${deployNames.join(", ")}`);
+  const launchFiles = launchFileTargets();
+  const launch = scanFiles(launchFiles, "launch");
+  const launchNames = launchFiles.map(rel);
+  const launchMissing = LAUNCH_NEEDED.filter((name) => !launchNames.includes(name));
   step(`scan: none of the lab's own launch files sets the opt-in (${launch.scanned} files read, including the launch script, the stop script and the servers' starters)`,
-    launch.scanned >= 6 && launchNames.some((n) => /launchOpenSpatialLab\.sh$/.test(n)) && launchNames.some((n) => /src\/orchestrator\.js$/.test(n)) && launch.hits.length === 0,
-    launch.hits.length ? `found: ${hitText(launch.hits)}` : `${launch.scanned} files read: ${launchNames.slice(0, 12).join(", ")}`);
+    launch.scanned >= 6 && launchMissing.length === 0 && launch.hits.length === 0,
+    launch.hits.length ? `found: ${hitText(launch.hits)}` : launchMissing.length ? `not found: ${launchMissing.join(", ")}` : `${launch.scanned} files read: ${launchNames.slice(0, 14).join(", ")}`);
+  const helpers = optInAfterImport(PROOF_HELPERS.map((file) => join(CODE, ...file.split("/"))));
+  step(`scan: importing the proof helpers a deployment can load (${PROOF_HELPERS.join(", ")}) leaves ${OPT_IN} unset`,
+    helpers.ok && helpers.value === null, helpers.ok ? `${OPT_IN} after the import: ${JSON.stringify(helpers.value)}` : `the import failed: ${helpers.out}`);
 
-  // Planted faults: the same scan, pointed at planted trees. Each must turn it red. The clean trees must stay green.
+  // Planted faults: the same scans, pointed at planted trees, and the same import, of a planted helper. Each must turn
+  // its statement red. The clean trees must stay green.
   const root = plantScanTree();
   const clean = scanTree(join(root, "clean", "deploy"), "deploy");
   const cleanLaunch = scanTree(join(root, "clean", "code"), "launch");
-  step("planted scan control: a clean deploy-style tree and a launch script that only READS the setting stay green", clean.scanned === 1 && clean.hits.length === 0 && cleanLaunch.scanned === 1 && cleanLaunch.hits.length === 0,
+  step("planted scan control: a clean deploy-style tree, whose Dockerfile says in a comment that it does not set the setting, and a launch script that only READS the setting stay green",
+    clean.scanned === 2 && clean.hits.length === 0 && cleanLaunch.scanned === 1 && cleanLaunch.hits.length === 0,
     `deploy-style hits ${clean.hits.length}, launch-style hits ${cleanLaunch.hits.length}`);
   const planted = [
     ["an env file in a deploy-style folder sets it", "env-file/deploy", "deploy"],
     ["a compose file in a deploy-style folder sets it", "compose/deploy", "deploy"],
     ["a Dockerfile in a deploy-style folder sets it with ENV", "dockerfile/deploy", "deploy"],
     ["a systemd unit in a deploy-style folder sets it", "systemd/deploy", "deploy"],
-    ["a deploy-style README names it (strict mode for deploy/)", "deploy-mention/deploy", "deploy"],
+    ["a deploy-style README names it (strict mode for deploy files)", "deploy-mention/deploy", "deploy"],
     ["a launch script exports it", "launch-script/code", "launch"],
     ["a launch script sets it inline before the server command", "launch-inline/code", "launch"],
     ["a server starter sets it through process.env", "launch-js/code", "launch"],
   ];
-  for (const [name, rel, mode] of planted) {
-    const r = scanTree(join(root, rel), mode);
+  for (const [name, dir, mode] of planted) {
+    const r = scanTree(join(root, dir), mode);
     step(`planted fault caught by the scan (red): ${name}`, r.scanned >= 1 && r.hits.length >= 1, r.hits.length ? `red: ${hitText(r.hits)}` : `the scan stayed green on ${r.scanned} file(s)`);
   }
+  const plantedHelper = optInAfterImport([join(root, "import", "tools", "arch-i1", "lib.js")]);
+  step("planted fault caught by the import statement (red): a proof helper that turns the opt-in on when it is imported",
+    plantedHelper.ok && plantedHelper.value === "1", plantedHelper.ok ? `red: ${OPT_IN} after the import: ${JSON.stringify(plantedHelper.value)}` : `the import failed: ${plantedHelper.out}`);
 }
 
 const real = { placementPolicy: localOnly.placementPolicy, isPlacementWrite: localOnly.isPlacementWrite };
@@ -614,7 +647,7 @@ async function main() {
     setOptIn(null);
     await launchStatements();
 
-    currentSection = "scan: deploy/ and the launch files";
+    currentSection = "scan: the container, deploy and launch files, and the proof helpers";
     await scanStatements();
 
     currentSection = "planted faults";
