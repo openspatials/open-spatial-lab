@@ -30,6 +30,11 @@ const PORTAL_TRANSITION_PHASES = Object.freeze({
 // A loaded machine answers in seconds, so this is well past any answer that is only slow.
 const CROSSING_ANSWER_LIMIT_MS = 15000;
 const TRANSITION_WALK_LIMIT_M = 1;
+// A portal that refused a crossing fires again only once the walker has left its trigger volume. The refusal puts the
+// walker back just outside it, which is not leaving: the walker has left once it is seen outside the volume more than
+// this far from where it was put back. That is more than one frame's walk (at most 2.8 m/s for 0.05 s), so a walker
+// still holding W, who is back in the volume a frame later, has not left.
+const WALK_OUT_M = 0.3;
 
 function crossingFailure(how, message) {
   return Object.assign(new Error(message), { how });
@@ -201,6 +206,9 @@ export function createPortalTraversalHandoffController(options) {
   let transitionNoticeSent = false;
   let crossingEntry = null;
   let portalRuntime = {};
+  // The portal that refused this walk-in, and where the walker was put back (WALK_OUT_M). Kept here, not with a portal's
+  // sides, which a refresh of the world's portals forgets.
+  let refusedWalkIn = null;
   let lastPortalSignedDistance = null;
   let portalLastCrossingDirection = null;
   let traversalRejectedCount = 0;
@@ -327,6 +335,7 @@ export function createPortalTraversalHandoffController(options) {
       return { evaluations: [], avatar, transitionRequest: null };
     }
 
+    if (refusedWalkIn && refusedWalkIn.location_id !== (host.world.location_id || null)) refusedWalkIn = null;
     const validKeys = new Set(portals.map((entry) => fabricPortalKey(entry)));
     for (const key of Object.keys(portalRuntime)) {
       if (!validKeys.has(key)) delete portalRuntime[key];
@@ -417,6 +426,20 @@ export function createPortalTraversalHandoffController(options) {
       ev.crossingCommitAllowed =
         ev.crossingEntrySide !== null && portalEntrySideAllowed(ev.traversal, ev.crossingEntrySide);
       if (!ev.inside && !ev.crossedPlane) runtime.lastClearPosition = clonePosition(avatar.position, [0, 0, 0]);
+      // A step that crosses the plane can land just past the volume: the walk-in ends only on a later step, so that
+      // crossing is still part of it.
+      if (
+        refusedWalkIn &&
+        refusedWalkIn.portal_key === portalKey &&
+        !ev.inside &&
+        !ev.crossedPlane &&
+        Math.hypot(
+          Number(avatar.position && avatar.position[0]) - refusedWalkIn.put_back_at[0],
+          Number(avatar.position && avatar.position[2]) - refusedWalkIn.put_back_at[2],
+        ) > WALK_OUT_M
+      ) {
+        refusedWalkIn = null;
+      }
       return ev;
     });
 
@@ -591,6 +614,8 @@ export function createPortalTraversalHandoffController(options) {
           onCrossingRefused({ kind: "no_destination", portal: ev.portal, reason: "no destination: this portal leads nowhere" });
         }
         if (!ev.crossedPlane || !ev.sourceReady || !ev.targetReady) continue;
+        // One refusal per walk-in: walking on through a portal that refused, before leaving it, is no new crossing.
+        if (refusedWalkIn && refusedWalkIn.portal_key === ev.portal_key) continue;
         if (ev.crossingCommitAllowed) {
           transitionRequest = { source: "plane_crossing", portal: ev.portal };
           break;
@@ -764,11 +789,18 @@ export function createPortalTraversalHandoffController(options) {
   function refuseCrossing() {
     const host = mutableHost(readHostSnapshot);
     // The walk has no ground check, and a walker off the ground cannot move, so it goes back to the last place it stood clear
-    // of the portal, on the side it came from: from there S only walks away, and W walks in again. Being put back is no crossing.
+    // of the portal, on the side it came from: from there S only walks away. Being put back is no crossing. The portal stays
+    // quiet for the rest of this walk-in (WALK_OUT_M): a walker who holds W on walks through it, and one who leaves it and
+    // walks in again is refused again.
     if (crossingEntry && host.avatar) {
       host.avatar.position = clonePosition(crossingEntry.position, host.avatar.position);
       patchHost({ avatar: host.avatar, avatarMode: "merge" });
       if (crossingEntry.runtime) Object.assign(crossingEntry.runtime, { lastSignedDistance: null, refused: true });
+      refusedWalkIn = {
+        portal_key: fabricPortalKey(crossingEntry.portal),
+        location_id: (host.world && host.world.location_id) || null,
+        put_back_at: clonePosition(host.avatar.position, [0, 0, 0]),
+      };
     }
     transition = null;
     handoffInFlight = false;
@@ -1267,6 +1299,7 @@ export function createPortalTraversalHandoffController(options) {
       lastPortalSignedDistance = null;
       portalLastCrossingDirection = null;
       portalRuntime = {};
+      refusedWalkIn = null;
       patchHost({
         phase: HANDOFF_PHASES.ARRIVED,
         handoffId: packet.handoff_id || null,
@@ -1626,6 +1659,7 @@ export function createPortalTraversalHandoffController(options) {
     lastPortalSignedDistance = null;
     portalLastCrossingDirection = null;
     portalRuntime = {};
+    refusedWalkIn = null;
     phaseHistory = [];
     patchHost({
       phase: HANDOFF_PHASES.ARRIVED,
@@ -1694,6 +1728,7 @@ export function createPortalTraversalHandoffController(options) {
     transitionCommitStarted = false;
     transitionNoticeSent = false;
     portalRuntime = {};
+    refusedWalkIn = null;
     lastPortalSignedDistance = null;
     portalLastCrossingDirection = null;
     traversalRejectedCount = 0;
