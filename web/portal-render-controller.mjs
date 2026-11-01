@@ -8,6 +8,8 @@ const SERVER_REPUBLISH_DEFAULT_MS = 100;
 const POLL_LOOK_MS = 100;
 // A read that never answers must not stop its world being read for good.
 const READ_GIVE_UP_MS = 10000;
+// A gap this long between two looks is a page too busy to look: a reply that came in it waits in the page's queue.
+const LOOK_STALL_MS = 1000;
 const CLIENT_READ_INTERVAL_MIN_MS = 100;
 const CLIENT_READ_INTERVAL_MAX_MS = 10000;
 const DRAG_POST_THROTTLE_MS = 120;
@@ -159,6 +161,7 @@ export function createPortalRenderController({
     lastReloadAt: null,
     readsInFlight: new Map(),
     lastPollAt: -Infinity,
+    lastLookAt: 0,
     polledWorld: null,
     rootMeshes: new Map(),
     rootSceneImpl: null,
@@ -531,6 +534,15 @@ export function createPortalRenderController({
 
   // A world just arrived in is read at once: its hosted objects must not wait out the interval.
   function pollIfDue() {
+    // After a stall, a read at or near its give-up time may have its reply waiting in the page's queue, behind this look.
+    // It gets LOOK_STALL_MS more, once, so that no second read of its world goes out in front of that reply.
+    const stalled = nowMs() - state.lastLookAt >= LOOK_STALL_MS;
+    state.lastLookAt = nowMs();
+    for (const read of stalled ? state.readsInFlight.values() : []) {
+      if (read.graced || nowMs() - read.startedAt < READ_GIVE_UP_MS - LOOK_STALL_MS) continue;
+      read.graced = true;
+      read.startedAt = nowMs() - READ_GIVE_UP_MS + LOOK_STALL_MS;
+    }
     const worldChanged = portalHost()?.activeEndpointKey !== state.polledWorld || (scene()?._impl || null) !== state.rootSceneImpl;
     if (!worldChanged && nowMs() - state.lastPollAt < state.settings.clientIntervalMs) return;
     refreshContained();
@@ -697,6 +709,7 @@ export function createPortalRenderController({
       return;
     }
     body.setAttribute("data-portal-refresh-hidden-paused", "false");
+    state.lastLookAt = nowMs();
     state.intervalHandle = windowTarget.setInterval(pollIfDue, POLL_LOOK_MS);
   }
 

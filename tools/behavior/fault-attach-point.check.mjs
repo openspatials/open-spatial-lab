@@ -30,7 +30,7 @@ const perSecond = (count, ms) => count / (ms / 1000);
 /** Stand in front of the frontend, holding or delaying the page's reads of the hosted point. */
 async function slowFront(lab, port) {
   const target = new URL(lab.front);
-  const seen = { delayMs: 0, hold: false, held: [] };
+  const seen = { delayMs: 0, hold: false, held: [], reads: 0 };
   const sockets = new Set();
   const server = createServer((req, res) => {
     const isRead = req.url.includes(READ);
@@ -43,6 +43,7 @@ async function slowFront(lab, port) {
       req.pipe(upstream);
     };
     if (!isRead) return pass();
+    seen.reads += 1;
     if (seen.hold) return void seen.held.push(pass);
     return void setTimeout(pass, seen.delayMs);
   });
@@ -257,7 +258,8 @@ const statements = [
       const { reads } = visitor;
       front.seen.hold = true;
       await waitUntil(() => front.seen.held.length >= 1, "no read came to hold", { limitMs: 10000, everyMs: 50 });
-      const startedAtHold = reads.started;
+      // The proxy can hold a read before the page's own request event for it comes in, so the count is the proxy's.
+      const startedAtHold = front.seen.reads;
       const started = Date.now();
       await sleep(NO_READ_WHILE_HUNG_MS);
       const during = reads.started - startedAtHold;
