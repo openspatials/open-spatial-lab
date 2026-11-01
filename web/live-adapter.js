@@ -52,7 +52,7 @@ import { AVATAR_VARIANTS, DEFAULT_AVATAR_VARIANT } from "./avatar-equipment-laye
 // route the same-origin proxy bases through the ONE base-path helper so the
 // whole HTTP surface (every `${proxy_base}/…` fetch built from ENDPOINTS below) resolves beneath
 // the public prefix in subpath mode, and is byte-for-byte identical in root mode.
-import { withBase, BASE_PATH } from "./base-path.mjs";
+import { apiBase, serverRootUrl, BASE_PATH, SERVER_ORIGIN } from "./base-path.mjs";
 import { worldEndpoints } from "./worlds-list.mjs";
 // child/portal fabric sReference resolution routed through
 // the public base path (pure + Node-testable; unit-proven by the check).
@@ -267,16 +267,17 @@ import { runFactoryFloorSomDemo, somGatingPanelRecord, feature_SOM_CONFORMANCE }
 // Same-origin proxy paths served by src/serve.js (adds CORS, forwards to the
 // LIVE Lane 3 backends without altering payloads). Using the
 // proxy avoids cross-origin CORS blocks against Lane 3 (which is intentionally
-// left unmodified — no auth/CORS by design).
-const BASE_A = withBase("/api/a");
-const BASE_B = withBase("/api/b");
+// left unmodified — no auth/CORS by design). A page served apart from its world
+// servers reaches the same proxy at their origin (web/base-path.mjs, SERVER_ORIGIN).
+const BASE_A = apiBase("a");
+const BASE_B = apiBase("b");
 // the pre-location LOBBY — a real first-class location a
 // player starts in when no server has been assigned (never an error state).
-const BASE_LOBBY = withBase("/api/lobby");
+const BASE_LOBBY = apiBase("lobby");
 // the authored airport is a real fourth backend. The
 // frontend proxy already owns this route; the adapter now promotes it exactly
 // like A/B instead of entering a fixture-backed client scene.
-const BASE_AIRPORT = withBase("/api/airport");
+const BASE_AIRPORT = apiBase("airport");
 const HOSTED_ATTACH_POINT_EVENT = "hostedattachpoint";
 // floor between two `runtime-state tick` console lines.
 // The stream itself is untouched; only how often its arrival is narrated is.
@@ -509,7 +510,7 @@ function findFabricSpawnNode(manifest) {
 // (/open-spatial-lab/api/a/fabric.json) in subpath mode instead of 404-ing at the
 // origin; loopback-URL rewriting and root-mode output are unchanged.
 function resolveFabricReference(ref) {
-  return resolveFabricReferenceForBase(BASE_PATH, ref);
+  return resolveFabricReferenceForBase(BASE_PATH, ref, SERVER_ORIGIN);
 }
 
 /** Return the backend-advertised authored graph through the active proxy. */
@@ -2403,7 +2404,8 @@ export class LiveAdapter extends EventTarget {
       fetch: (url, init) => fetch(url, init),
       plain: this._crossingProfile === "plain",
       pageUrl: typeof window !== "undefined" && window.location ? window.location.href : null,
-      frontBase: typeof window !== "undefined" && window.location ? `${window.location.origin}${BASE_PATH}/` : null,
+      // The /w/{key}/ pages live with the world servers, so a plain-navigation crossing goes to their origin.
+      frontBase: typeof window !== "undefined" && window.location ? serverRootUrl(window.location) : null,
     });
   }
 

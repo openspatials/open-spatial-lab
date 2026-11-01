@@ -44,6 +44,7 @@
 'use strict';
 
 import { WORLDS } from "./worlds-list.mjs";
+import { apiBase } from "./base-path.mjs";
 
 /** The three intents the fragment grammar can express. Spec-stated verbs. */
 export const WOW_INTENT = Object.freeze({
@@ -97,7 +98,7 @@ export const ASPECT_KIND = Object.freeze({
  */
 export const OSL_WORLDS = Object.freeze(Object.fromEntries(WORLDS.map((world) => [
     world.key,
-    Object.freeze({ key : world.key, apiBase : '/api/' + world.key, label : world.name }),
+    Object.freeze({ key : world.key, apiBase : apiBase(world.key), label : world.name }),
 ])));
 
 /** Legacy OSL entry: ?role=source|target|player already selects a world. Keep it working. */

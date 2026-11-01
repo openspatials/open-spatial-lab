@@ -1,6 +1,6 @@
 // Ported by hand from Nicholas Polys's public fork npolys/open-spatial-lab, commit 99175b4b6,
 // web/x3dom-live-mode.mjs. Apache-2.0, like the rest of the lab. Nicholas Polys is co-author of lab commit ef702ec.
-// Changes in this copy: the boot sequence is the function runX3dLiveMode, so X_ITE can share it; world selection follows the lab's URL rules; the page chrome and proof hooks are the lab's. X3DOM stays the default of this file.
+// Changes in this copy: the boot sequence is the function runX3dLiveMode, so X_ITE can share it; world selection follows the lab's URL rules; the page chrome and proof hooks are the lab's; the avatar's path resolves beneath the lab's base path. X3DOM stays the default of this file.
 
 import { X3DOMRenderAdapter } from "./vendor/scene-core/render-adapter/x3dom-render-adapter.mjs";
 import { X3domGltfHumanoidProvider } from "./x3dom-gltf-humanoid-provider.mjs";
@@ -11,6 +11,7 @@ import { createX3domHudGlue } from "./x3dom-hud-glue.mjs";
 import { createX3domPeerAvatarsGlue } from "./x3dom-peer-avatars-glue.mjs";
 import { ORBIT_CAMERA_DEFAULTS } from "./orbit-camera-controller.mjs";
 import { LiveAdapter } from "./live-adapter.js";
+import { withBase } from "./base-path.mjs";
 
 // Phase 7 (original boot-path scaffold) + Phases 1-4 + 3.5a/3.5b of the X3DOM parity plan — a
 // genuinely new, additive boot path, NOT a refactor of the normal three.js path (app.js/scene.js/
@@ -25,7 +26,7 @@ import { LiveAdapter } from "./live-adapter.js";
 // client the three.js path uses (LiveAdapter has zero THREE dependency — confirmed by reading its
 // source — so reusing it here is a straight import, not a port). Still deliberately excluded (see
 // the parity plan's later phases): the full inspector panel (see x3dom-hud-glue.mjs for why).
-const AVATAR_URL = "/assets/avatars/glb/rpm_female_character.glb";
+const AVATAR_URL = withBase("/assets/avatars/glb/rpm_female_character.glb");
 const CONTROL_KEY_MAP = Object.freeze({ KeyW: "forward", KeyS: "back", KeyA: "left", KeyD: "right", Space: "jump" });
 const RUN_KEY_CODES = new Set(["ShiftLeft", "ShiftRight"]);
 

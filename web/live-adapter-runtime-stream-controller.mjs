@@ -1,11 +1,15 @@
-import { applyBase, BASE_PATH } from "./base-path.mjs";
+import { applyBase, normalizeServerOrigin, BASE_PATH, SERVER_ORIGIN } from "./base-path.mjs";
 
 // the same-origin WebSocket URL. Scheme is derived from location (ws:
 // locally, wss: behind HTTPS — never hardcoded). The path is prefixed with the deploy-time public
 // base path (the injected BASE_PATH, NOT the page path — a page at {base}/w/a/ still upgrades at
 // {base}/api/a/…). `base` is exposed for deterministic testing of both modes in one process; the
 // runtime default is the active BASE_PATH, so root mode is unchanged.
-export function sameOriginWebSocketUrl(endpointKey, wsPath, locationLike = globalThis.location, base = BASE_PATH) {
+// A page served apart from its world servers (SERVER_ORIGIN set) upgrades at their origin instead,
+// ws: for http and wss: for https, at /api/{key}… on that origin's root. Unset, nothing changes.
+export function sameOriginWebSocketUrl(endpointKey, wsPath, locationLike = globalThis.location, base = BASE_PATH, serverOrigin = SERVER_ORIGIN) {
+  const server = normalizeServerOrigin(serverOrigin);
+  if (server) return `${server.replace(/^http/, "ws")}/api/${endpointKey}${wsPath}`;
   const protocol = locationLike.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${locationLike.host}${applyBase(base, `/api/${endpointKey}${wsPath}`)}`;
 }

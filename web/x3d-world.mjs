@@ -6,6 +6,7 @@
 // crossing lands in Location B under the same engine.
 import { rendererKindFromSearch } from "./vendor/scene-core/render-adapter/render-adapter.mjs";
 import { SOFT_BODY_WORLD_FILE, loadAmmo, prepareWorld, runWorld } from "./soft-body-world.mjs";
+import { withServer } from "./base-path.mjs";
 
 const WORLDS_ROOT = "./x3d-worlds/";
 const DEFAULT_WORLD = "anchor-portal-world.x3d.json";
@@ -23,12 +24,14 @@ const state = { kind, worldFile, loaded: false, anchorUrl: null, parameter: null
 window.__x3dWorld = state;
 document.body.dataset.x3dWorldRenderer = kind || "";
 
+// A world's page ("/w/b/") lives with the world servers, so a page served apart from them opens it at their origin
+// (web/base-path.mjs, SERVER_ORIGIN). On their own origin the result stays a path, as before.
 function destinationUrl(url) {
-  const target = new URL(url, location.href);
+  const target = new URL(withServer(url), location.href);
   target.searchParams.set("renderer", kind);
   target.searchParams.set("role", "player");
   target.searchParams.set("intro", "bypass");
-  return `${target.pathname}${target.search}`;
+  return target.origin === location.origin ? `${target.pathname}${target.search}` : target.href;
 }
 
 function findNode(value, type) {

@@ -1,6 +1,6 @@
 // Ported by hand from Nicholas Polys's public fork npolys/open-spatial-lab, commit 99175b4b6,
 // runtime/scene-core/public/render-adapter/x3dom-inline-pool.js. Apache-2.0, like the rest of the lab. Nicholas Polys is co-author of lab commit ef702ec.
-// Changes in this copy: none.
+// Changes in this copy: the placeholder's path resolves beneath the lab's base path (window.__OSL_BASE_PATH__).
 
 // Deliberately a CLASSIC (non-module) script, loaded via a plain <script src> — NOT importable
 // as an ES module. It must run synchronously during the browser's initial HTML parse and use
@@ -20,7 +20,12 @@
 // host-capability-scaled pool isn't needed yet.
 (function () {
     var X3DOM_INLINE_POOL_SIZE = window.__X3DOM_INLINE_POOL_SIZE_OVERRIDE || 32;
-    var X3DOM_INLINE_POOL_PLACEHOLDER_URL = "/assets/equip-crown.glb";
+    // The placeholder is the lab's own file, so a copy of the lab served beneath a base path finds it there. The base
+    // path is window.__OSL_BASE_PATH__, read and checked as web/base-path.mjs (normalizeBasePath) does: a value that
+    // is not a plain path, or none, leaves "/assets/equip-crown.glb" as it was.
+    var basePath = typeof window.__OSL_BASE_PATH__ === "string" ? window.__OSL_BASE_PATH__.trim().replace(/\/+$/, "") : "";
+    if (!/^(\/[A-Za-z0-9][A-Za-z0-9._~-]*)+$/.test(basePath)) basePath = "";
+    var X3DOM_INLINE_POOL_PLACEHOLDER_URL = basePath + "/assets/equip-crown.glb";
     for (var i = 0; i < X3DOM_INLINE_POOL_SIZE; i += 1) {
         // render="false" on the wrapper: every slot needs one real load to become reliably
         // reloadable later (see the file header), but an unclaimed slot has no reason to be

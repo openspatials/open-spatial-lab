@@ -90,7 +90,7 @@ import * as THREE from "three";
 // the WoW CORE REQUIREMENTS (join/follow/preview/persist/share) are
 // plain URL + hash-fragment semantics, not an API. web/wow-url.mjs is the pure grammar.
 import { parseWorldUrl } from "./wow-url.mjs";
-import { withBase } from "./base-path.mjs";
+import { withServer } from "./base-path.mjs";
 import { reconcileKeyedHtml } from "./reconcile-keyed-html.mjs";
 import { NO_EQUIPMENT_CHOICE, applyNoEquipmentChoice } from "./no-equipment-choice.mjs";
 import { createPlayerSessionController } from "./player-session-controller.mjs";
@@ -4164,7 +4164,7 @@ const mainDemo = createMainDemoWiring({
   wantsPlacement: params.get("place") === "1",
   keyOf: appPortalKey,
   getMount: () => $("scene-mount"),
-  worldsUrl: withBase("/worlds.json"),
+  worldsUrl: withServer("/worlds.json"),
   setCameraAzimuth: (azimuth) => movementCameraController.setRestoredCameraSeed({ azimuth }),
 });
 

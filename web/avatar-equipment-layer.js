@@ -605,12 +605,15 @@ function makeVisualMarker(item) {
  * stand up a second loader stack. Rejects on failure; the caller
  * (web/wow-scene.mjs#mountWowSceneAssets) then renders the labeled fallback.
  *
- * @param {string} url  resolved (absolute) glTF/GLB URL
+ * A root-absolute `url` ("/assets/…", as a listed world's data names the lab's own models) is this
+ * frontend's file, so it resolves beneath the base path like every other "/assets/…" here.
+ *
+ * @param {string} url  resolved (absolute) glTF/GLB URL, or a root-absolute path of this frontend
  * @returns {Promise<import("three").Object3D>} the loaded glТF scene root
  */
 export async function loadGltfSceneAsset(url) {
   const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(url);
+  const gltf = await loader.loadAsync(withBase(url));
   return (gltf && (gltf.scene || (gltf.scenes && gltf.scenes[0]))) || null;
 }
 

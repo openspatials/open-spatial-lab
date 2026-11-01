@@ -1,5 +1,6 @@
 /*
- * The browser's one list of worlds. It comes from the frontend's GET /worlds.json, which reads the worlds
+ * The browser's one list of worlds. It comes from the frontend's GET /worlds.json (at the world servers' origin when the
+ * page is served apart from them: web/base-path.mjs, SERVER_ORIGIN), which reads the worlds
  * configuration (worlds.json, or the file named by OSL_WORLDS). Everything in web/ that needs to know which worlds
  * exist, what they are called or which port they use reads this list, so a world added to that file appears with no
  * edit here. See ADD-A-WORLD-CHECKLIST.md.
@@ -7,7 +8,7 @@
  * A module check that imports these browser modules under Node reads the same configuration file directly.
  */
 
-import { withBase } from "./base-path.mjs";
+import { apiBase, withServer } from "./base-path.mjs";
 
 const RUNS_IN_NODE = typeof process !== "undefined" && !!process.versions?.node;
 
@@ -30,7 +31,7 @@ async function readWorldList() {
     const { loadWorlds, publicWorlds } = createRequire(import.meta.url)("../src/worlds-config.js");
     return publicWorlds(loadWorlds());
   }
-  const url = withBase("/worlds.json");
+  const url = withServer("/worlds.json");
   let response;
   try {
     response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
@@ -67,7 +68,7 @@ export function ringColorsOf(locationId, worlds = WORLDS) {
 export function worldEndpoints(worlds = WORLDS) {
   return Object.freeze(Object.fromEntries(worlds.map((world) => [world.key, {
     endpoint_key: world.key,
-    proxy_base: withBase(`/api/${world.key}`),
+    proxy_base: apiBase(world.key),
     backend_base_url: world.address.replace(/\/$/, ""),
     location_id: world.location_id,
     world_id: world.world_id,

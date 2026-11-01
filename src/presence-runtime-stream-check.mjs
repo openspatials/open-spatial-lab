@@ -245,6 +245,16 @@ await check("same-origin WebSocket URL derives ws/wss without visitor loopback",
   assert.doesNotMatch(runtimeSource, /ws:\/\/127\.0\.0\.1/);
 });
 
+await check("a page served apart from its world servers streams from their origin, at its root", () => {
+  const page = { protocol: "https:", host: "www.demo.test" };
+  assert.equal(sameOriginWebSocketUrl("lobby", "/runtime-state", page, "/projects/lab/app", "https://lab.demo.test"), "wss://lab.demo.test/api/lobby/runtime-state");
+  assert.equal(sameOriginWebSocketUrl("a", "/events", page, "/projects/lab/app", "http://lab.demo.test:43080"), "ws://lab.demo.test:43080/api/a/events");
+  // No origin, or one that is not a bare http(s) origin: the page's own origin, beneath its base, as before.
+  for (const origin of ["", "https://lab.demo.test/sub", "wss://lab.demo.test", "javascript:void(0)"]) {
+    assert.equal(sameOriginWebSocketUrl("a", "/events", page, "/projects/lab/app", origin), "wss://www.demo.test/projects/lab/app/api/a/events");
+  }
+});
+
 function peerFixture({ mode = "player" } = {}) {
   let now = 0;
   const sent = [];

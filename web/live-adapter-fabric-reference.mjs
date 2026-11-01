@@ -15,9 +15,12 @@
  * in code, so literal-sweep never saw this seam. This function is pure
  * and Node-importable (the base is passed in, not read from an injected global)
  * so the base-path check unit-proves BOTH modes in one process.
+ *
+ * A page served apart from its world servers passes their origin (web/base-path.mjs, SERVER_ORIGIN) as
+ * `serverOrigin`: the proxy path is then at that origin's root. Without it every branch is as before.
  */
 
-import { applyBase } from "./base-path.mjs";
+import { applyServer } from "./base-path.mjs";
 import { WORLDS } from "./worlds-list.mjs";
 
 // Loopback backend origin -> same-origin proxy endpoint key, one per listed world (web/worlds-list.mjs).
@@ -29,23 +32,24 @@ const LOOPBACK_ORIGIN_TO_ENDPOINT_KEY = Object.freeze(WORLDS.map((world) => [
 /**
  * @param {string} base active public base path ("" root, "/open-spatial-lab" subpath).
  * @param {*}      ref  the authored sReference (string) or null/undefined.
+ * @param {string} [serverOrigin] the world servers' origin when it is not this page's ("" or absent: this page's).
  * @returns {string|null} the same-origin proxy path beneath `base`, a foreign
  *   absolute URL untouched, a relative ref untouched, or null for a non-string.
  */
-export function resolveFabricReference(base, ref) {
+export function resolveFabricReference(base, ref, serverOrigin = "") {
   if (!ref || typeof ref !== "string") return null;
   if (/^https?:\/\//i.test(ref)) {
     for (const [origin, key] of LOOPBACK_ORIGIN_TO_ENDPOINT_KEY) {
-      if (origin.test(ref)) return ref.replace(origin, applyBase(base, "/api/" + key));
+      if (origin.test(ref)) return ref.replace(origin, applyServer(serverOrigin, base, "/api/" + key));
     }
     // A foreign absolute URL (some other origin) is cross-origin by intent;
-    // leave it untouched (applyBase is a no-op for non-"/" values anyway).
+    // leave it untouched (applyServer is a no-op for non-"/" values anyway).
     return ref;
   }
   // Root-absolute same-origin path (/api/a/fabric.json, /fabric.json, …): prefix
   // it beneath the base. applyBase is identity in root mode, idempotent for an
   // already-prefixed value, and a pass-through for a relative (non-"/") ref.
-  return applyBase(base, ref);
+  return applyServer(serverOrigin, base, ref);
 }
 
 export default { resolveFabricReference };
