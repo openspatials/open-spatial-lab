@@ -1,5 +1,6 @@
 // The loading record of a crossing carries what the destination world declared. It was built by a function that read a
-// name it never declared, so no crossing could open its record or its toast.
+// name it never declared, so no crossing could open its record or its toast, and a silent catch hid the error. An error
+// there is now said on the console, once for each distinct message, and the crossing goes on.
 //   node tools/behavior/fault-portal-loading.check.mjs [--faults] [--only id,id]
 import { WORLDS } from "../../web/worlds-list.mjs";
 import { nodeChecks } from "./node-checks.mjs";
@@ -64,7 +65,42 @@ await check("late-content-reaches-record", "Content fetched after the record ope
   if (rec.destination.world_title !== "Harbour" || rec.pointers.names_present.length !== 3 || !rec.pointers.consent_granted) throw new Error("the fetched content did not reach the record");
 });
 
+/** Runs fn with console.error recorded, one line per call, instead of printed. */
+async function consoleErrorsDuring(fn) {
+  const said = [];
+  const original = console.error;
+  console.error = (...args) => said.push(args.map((a) => (a && a.message) || String(a)).join(" "));
+  try { await fn(); } finally { console.error = original; }
+  return said;
+}
+
+await check("tracking-error-reported", "An error while tracking a crossing is said on the console once for each distinct message, and the next crossing still opens its record", async () => {
+  const { initPortalLoadingOverlay, notePortalLoadingState } = await import(`../../web/portal-loading.mjs?crossing=${loads += 1}`);
+  const published = [];
+  // A state the tracker cannot read: reading its controls throws, as a name the code never declared does.
+  const unreadable = (message) => ({ get controls() { throw new ReferenceError(message); } });
+  const said = await consoleErrorsDuring(() => {
+    initPortalLoadingOverlay({
+      isPlayer: true,
+      adapter: { activeEndpointKey: WORLDS[0].key, previewEndpointKey: WORLDS[1].key, demoProxyBase: () => "" },
+      readCachedLoadingContent: () => null,
+      showToast: () => {},
+      publishNotification: (record) => published.push(record),
+    });
+    for (let i = 0; i < 3; i += 1) notePortalLoadingState(unreadable("first is not defined"));
+    notePortalLoadingState(unreadable("second is not defined"));
+    notePortalLoadingState(crossingTo(WORLDS[1]));
+  });
+  if (said.length !== 2) throw new Error(`the tracking errors were said ${said.length} times on the console, not once for each of 2 messages: ${JSON.stringify(said)}`);
+  if (!/first is not defined/.test(said[0]) || !/second is not defined/.test(said[1])) throw new Error(`the console said ${JSON.stringify(said)}`);
+  if (published.length !== 1) throw new Error(`after the errors the crossing published ${published.length} records, not 1`);
+});
+
 await finish({ checkFile: "tools/behavior/fault-portal-loading.check.mjs", faults: [
   { statement: "record-carries-content", name: "the record reads the destination content from a name its function never declared", expect: /crossing published 0 records/,
     edits: [{ file: "web/portal-loading.mjs", find: "function applyContentToRecord(rec) {\n  const c = tracker.capture && tracker.capture.content;\n", replace: "function applyContentToRecord(rec) {\n" }] },
+  { statement: "tracking-error-reported", name: "the catch around tracking says nothing", expect: /said 0 times on the console/,
+    edits: [{ file: "web/portal-loading.mjs", find: "    reportTrackingError(e);\n", replace: "" }] },
+  { statement: "tracking-error-reported", name: "every repeat of the same error is said again", expect: /said 4 times on the console/,
+    edits: [{ file: "web/portal-loading.mjs", find: "  if (reportedTrackingErrors.has(message)) return;\n", replace: "" }] },
 ] });

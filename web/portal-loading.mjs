@@ -342,7 +342,21 @@ export function notePortalLoadingState(dbg) {
     }
     refreshTracking(dbg);
   } catch (e) {
-    /* tracking the loading record must never break the crossing */
+    // Tracking the loading record must never break the crossing, so the error goes no further. It is still said, once
+    // for each distinct message: a silent catch here once hid an error that stopped every crossing's record and toast.
+    reportTrackingError(e);
+  }
+}
+
+const reportedTrackingErrors = new Set();
+function reportTrackingError(error) {
+  const message = String((error && error.message) || error);
+  if (reportedTrackingErrors.has(message)) return;
+  reportedTrackingErrors.add(message);
+  try {
+    console.error("[portal-loading] tracking a crossing's loading record failed; the crossing goes on:", error);
+  } catch (e) {
+    /* a console that throws must not break the crossing either */
   }
 }
 
@@ -401,8 +415,10 @@ function beginTracking(dbg, key, opts) {
           tracker.capture.content = content;
           if (tracker.record) applyContentToRecord(tracker.record);
         }
+      }, () => {
+        /* best effort: a destination that does not answer leaves the record as it is */
       })
-      .catch(() => {});
+      .catch(reportTrackingError);
   }
 
   if (tracker.logLine) {
@@ -417,7 +433,7 @@ function beginTracking(dbg, key, opts) {
       const live = tracker.adapter && typeof tracker.adapter.debugState === "function" ? tracker.adapter.debugState() : null;
       if (live) refreshTracking(live);
     } catch (e) {
-      /* keep ticking */
+      reportTrackingError(e); // and keep ticking
     }
   }, REFRESH_MS);
   refreshTracking(dbg);
