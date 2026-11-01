@@ -337,7 +337,7 @@ async function launcherOrderProof(page, surface) {
   assert.deepEqual(dom.missions, expectedMissions);
   assert.deepEqual(dom.technologies, expectedTechnologies);
   assert.deepEqual(dom.footerLinks, [
-    { text: "lab.openspatials.com", href: "https://lab.openspatials.com/" },
+    { text: "openspatials.com/projects/open-spatial-lab", href: "https://openspatials.com/projects/open-spatial-lab/" },
   ]);
   assert.deepEqual(dom.headerSourceLinks, [
     {

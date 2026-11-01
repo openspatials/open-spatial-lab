@@ -613,7 +613,7 @@ function uiProblems(records) {
     if (!record.no_horizontal_overflow) problems.push(`${prefix}: horizontal overflow`);
     if (!record.no_vertical_body_overflow) problems.push(`${prefix}: body overflow`);
     const expected = [
-      ["lab.openspatials.com", "https://lab.openspatials.com/"],
+      ["openspatials.com/projects/open-spatial-lab", "https://openspatials.com/projects/open-spatial-lab/"],
     ];
     if (JSON.stringify(record.footer_links.map((entry) => [entry.label, entry.href])) !== JSON.stringify(expected)) {
       problems.push(`${prefix}: footer order/hrefs differ`);

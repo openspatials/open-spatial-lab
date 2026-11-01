@@ -39,8 +39,8 @@ const DOWNLOADED_SHA256 = Object.freeze({
   "x3dom/x3dom-full.js": "0d336683d039d19c94a4b748299a13270db3a9e71edfccbf6ad6a58133e1b3fb",
   "x_ite/x_ite.min.mjs": "14e45510d4a28c3485964b2447ea9fedd996b3564f1130d012c0bc3da0a91b5e",
 });
-// X_ITE's decoders, look-up tables and splat sorter whose licence could not be shown. The lab does not serve them.
-const LEFT_OUT_OF_XITE = Object.freeze(["libktx.js", "libktx.wasm", "woff2_decoder.js", "lut_charlie.png", "lut_ggx.png", "lut_sheen_E.png", "mkkellogg-sort.worker.js", "sorter_no_simd_non_shared.wasm"]);
+// X_ITE's KTX decoder: KTX-Software builds Ericsson's etcdec.cxx, which is not open source, into it. The lab does not serve it.
+const LEFT_OUT_OF_XITE = Object.freeze(["libktx.js", "libktx.wasm"]);
 // The code from other projects inside X_ITE's own files, each named with its licence in vendor/x_ite/THIRD-PARTY-IN-BUNDLES.md.
 const BUNDLED_IN_XITE = Object.freeze(["libgif-js", "apng-js", "Joyent", "libtess", "Andreas Plesch", "CharLS", "OpenJPEG", "dicom-parser", "jpeg-js", "jpeg-lossless-decoder-js", "ammo.js", "Bullet", "opentype.js", "tiny-inflate", "nurbs", "isndarray", "mikktspace", "nalgebra", "Draco", "meshoptimizer"]);
 // The git blob id of web/worlds/soft-body.json in John Carlson's commit bf12953173.

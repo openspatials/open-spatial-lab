@@ -32,8 +32,8 @@ function validateSources(source) {
   assert.deepEqual(anchors, [
     {
       className: "footer-hosted-link",
-      href: "https://lab.openspatials.com/",
-      label: "lab.openspatials.com",
+      href: "https://openspatials.com/projects/open-spatial-lab/",
+      label: "openspatials.com/projects/open-spatial-lab",
     },
   ]);
   assert.ok(footer.includes(`<span class="footer-attribution" data-testid="footer-attribution">${ATTRIBUTION}</span>`));
@@ -61,11 +61,11 @@ validateSources(source);
 const mutations = [
   ["hosted-footer-label-regresses", (value) => ({
     ...value,
-    index: replaceOnce(value.index, ">lab.openspatials.com</a>", ">https://lab.openspatials.com/</a>"),
+    index: replaceOnce(value.index, ">openspatials.com/projects/open-spatial-lab</a>", ">https://openspatials.com/projects/open-spatial-lab/</a>"),
   })],
   ["old-hosted-address-returns", (value) => ({
     ...value,
-    launcher: replaceOnce(value.launcher, 'hostedLink.href = "https://lab.openspatials.com/";', 'hostedLink.href = "https://labs.peers.social/open-spatial-lab/";'),
+    launcher: replaceOnce(value.launcher, 'hostedLink.href = "https://openspatials.com/projects/open-spatial-lab/";', 'hostedLink.href = "https://labs.peers.social/open-spatial-lab/";'),
   })],
   ["footer-attribution-removed", (value) => ({
     ...value,

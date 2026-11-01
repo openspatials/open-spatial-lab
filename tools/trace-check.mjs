@@ -118,6 +118,7 @@ function searchableText(path, bytes) {
 // downloaded, and the generator line John Carlson wrote in his world's head, kept as he wrote it.
 const THIRD_PARTY_LINES = new Set([
   "runtime/scene-core/public/vendor/x_ite/assets/lib/draco_decoder_gltf.js:d48191b910a8be819a5d0167ad75a9f18273a928b02b5688b02e1a77e3ef6c0a",
+  "runtime/scene-core/public/vendor/x_ite/assets/lib/woff2_decoder.js:a11032721079bcff222e2664cfb49c518de7d4e2ee0468d4d128a9fe03c91e8b",
   "runtime/scene-core/public/vendor/x_ite/x_ite.min.mjs:a7354787ccb0e01b9bfad0e0bf852faabd076ebcfa85d6744ba39d44961d97c9",
   "web/worlds/soft-body.json:6802afd5d6f53a33fc684d80c0ace1ac7d7e626edeeafb10062baa02c5cdf224",
   "web/x3d-worlds/soft-body.x3d.json:6802afd5d6f53a33fc684d80c0ace1ac7d7e626edeeafb10062baa02c5cdf224",
