@@ -64,31 +64,6 @@ function directionFromPosition(position) {
     return [-x / len, -y / len, -z / len];
 }
 
-// Lab addition. Removing a subtree that holds an Inline whose own name space has already gone null
-// makes X3DOM 1.8.3's Inline.parentRemoved throw ("reading 'removeSpace' of null"). The throw ends
-// X3DOM's mutation handler, so every later DOM change of that batch is lost. A portal crossing removes
-// the world's hosted objects and rebuilds the portals in one batch, so the old portals stayed on screen
-// and the new portals and hosted objects were never drawn. The downloaded file stays as it is; this
-// gives parentRemoved a stand-in name space for that one call, which it needs only for removeSpace.
-function guardInlineRemoval(x3dom) {
-    const proto = x3dom.nodeTypes?.Inline?.prototype;
-    if (!proto || proto.__labRemovalGuard)
-        return;
-    const parentRemoved = proto.parentRemoved;
-    proto.parentRemoved = function () {
-        if (this._nameSpace)
-            return parentRemoved.apply(this, arguments);
-        this._nameSpace = { removeSpace() { } };
-        try {
-            return parentRemoved.apply(this, arguments);
-        }
-        finally {
-            this._nameSpace = null;
-        }
-    };
-    proto.__labRemovalGuard = true;
-}
-
 export class X3DOMRenderAdapter extends RenderAdapter {
     // Lab addition: what the registry and the renderer page show. The version and licence are read
     // from vendor/x3dom/VERSION and vendor/x3dom/LICENSE.md; tools/renderer/proof.mjs compares them.
@@ -108,7 +83,6 @@ export class X3DOMRenderAdapter extends RenderAdapter {
         if (!x3dom)
             throw new Error("X3DOMRenderAdapter requires a loaded x3dom module (window.x3dom)");
         this._x3dom = x3dom;
-        guardInlineRemoval(x3dom);
         this._x3dEl = null;
         this._sceneEl = null;
         this._cameraEl = null;
