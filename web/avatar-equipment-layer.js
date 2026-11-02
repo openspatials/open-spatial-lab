@@ -24,6 +24,7 @@ const ATTACHMENT_PRESETS = {
 // with no retargeting. A switch REPLACES the one avatar model inside the rig (never adds a second) and re-attaches the
 // current equipment. The adapter carries the active variant key in avatar.avatar_variant (broadcast to observers and
 // carried through the crossing packet). Credits: THIRD_PARTY_NOTICES.md.
+// BEGIN shared asset catalog: written by site-src/catalog/apply.mjs (spatial-interop) from assets.json. Edit the list there.
 export const AVATAR_VARIANTS = Object.freeze({
   "collection-adam": {
     key: "collection-adam",
@@ -97,6 +98,7 @@ export const AVATAR_VARIANTS = Object.freeze({
 // The default player avatar. A new session starts as one of the collection (starting_pool) at random; this is the one
 // used when no pick exists.
 export const DEFAULT_AVATAR_VARIANT = "collection-adam";
+// END shared asset catalog
 
 /**
  * PREFERRED HEIGHT (the Universal Manifest shape, deliberately NOT UM-wired).
