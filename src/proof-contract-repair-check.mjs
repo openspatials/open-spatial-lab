@@ -50,17 +50,17 @@ function rendererFixture() {
   const gateCompletedAt = 100;
   const requiredAssets = [
     {
-      path: "/assets/avatars/glb/readyplayerme_cyberpunk.glb",
-      url: "http://127.0.0.1:9193/assets/avatars/glb/readyplayerme_cyberpunk.glb",
+      path: "/assets/avatars/glb/collection-adam.glb",
+      url: "http://127.0.0.1:9193/assets/avatars/glb/collection-adam.glb",
       request_count: 1,
       response_status: 200,
-      content_length: "5612900",
+      content_length: "2931092",
       loading_failed_count: 0,
       terminal: { kind: "Network.loadingFinished", before_journey: true, before_teardown: true },
       body: {
         available: true,
-        bytes: 5612900,
-        sha256: "1ed7b4b4eefeba3d379b101fe68e5e2826ea85d1048bf836f263ca5dc09ba88e",
+        bytes: 2931092,
+        sha256: "360417dbd12093eb95c22f9ef4528515dd1fc16548cc84229d1eca09e2d5c9aa",
       },
     },
     {
@@ -68,13 +68,13 @@ function rendererFixture() {
       url: "http://127.0.0.1:9193/assets/mocap/locomotion-mocap.json",
       request_count: 1,
       response_status: 200,
-      content_length: "153528",
+      content_length: "106845",
       loading_failed_count: 0,
       terminal: { kind: "Network.loadingFinished", before_journey: true, before_teardown: true },
       body: {
         available: true,
-        bytes: 153528,
-        sha256: "f36e7ac39bcfd7b109c6e2366c43a126bfe64e0a6024244515881114d60a2c26",
+        bytes: 106845,
+        sha256: "5347fdb29d2caa5a635eff79b4db26f7a6e73a1025d417a7d0d4f50e027503b3",
       },
     },
   ];
@@ -86,7 +86,7 @@ function rendererFixture() {
     equipment_ready: true,
     assembly_disposed: false,
     avatar: {
-      variant: "readyplayerme-cyberpunk",
+      variant: "collection-adam",
       switch_in_flight: false,
       model_height_m: 1.8,
       head_height_m: 1.65,
