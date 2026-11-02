@@ -91,7 +91,7 @@ function rendererFixture() {
       model_height_m: 1.8,
       head_height_m: 1.65,
       current_animation_state: "idle",
-      locomotion_states: ["idle", "walk", "jog", "jumpStart", "jumpLoop", "jumpLand"],
+      locomotion_states: ["idle", "walk", "jog", "jumpstart", "jumploop", "jumpland"],
     },
   });
   return {
