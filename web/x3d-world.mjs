@@ -6,7 +6,7 @@
 // crossing lands in Location B under the same engine.
 import { rendererKindFromSearch } from "./vendor/scene-core/render-adapter/render-adapter.mjs";
 import { SOFT_BODY_WORLD_FILE, loadAmmo, prepareWorld, runWorld } from "./soft-body-world.mjs";
-import { withServer } from "./base-path.mjs";
+import { SERVER_ORIGIN, withBase, withServer } from "./base-path.mjs";
 
 const WORLDS_ROOT = "./x3d-worlds/";
 const DEFAULT_WORLD = "anchor-portal-world.x3d.json";
@@ -25,9 +25,12 @@ window.__x3dWorld = state;
 document.body.dataset.x3dWorldRenderer = kind || "";
 
 // A world's page ("/w/b/") lives with the world servers, so a page served apart from them opens it at their origin
-// (web/base-path.mjs, SERVER_ORIGIN). On their own origin the result stays a path, as before.
+// (web/base-path.mjs, SERVER_ORIGIN). The Lobby is the exception there: the app's own first page opens a Player in it,
+// so "/w/lobby/" stays with the app. On the servers' own origin the result stays a path, as before.
+const LOBBY_PAGE = "/w/lobby/";
 function destinationUrl(url) {
-  const target = new URL(withServer(url), location.href);
+  const page = SERVER_ORIGIN && url === LOBBY_PAGE ? withBase("/") : withServer(url);
+  const target = new URL(page, location.href);
   target.searchParams.set("renderer", kind);
   target.searchParams.set("role", "player");
   target.searchParams.set("intro", "bypass");
