@@ -9,7 +9,7 @@ import { drawLabelCanvas } from "./label-canvas.mjs";
 
 const LOOKS = Object.freeze({
   restricted: Object.freeze({ text: "Restricted", stroke: "#ffc400" }),
-  hidden: Object.freeze({ text: "Hidden", stroke: "#c03cff" }),
+  hidden: Object.freeze({ text: "Hidden", stroke: "#ff2d55" }),
 });
 const LABEL_CANVAS_WIDTH = 560;
 const LABEL_WIDTH_M = 0.9;

@@ -133,7 +133,7 @@ function assertLobbyAirportPortalApproach(scene, portalC, spatialRoot, portalCou
     // The Lobby's two objects are its restricted and hidden demo objects (runtime-state.js demoDefaultSceneObjects).
     const authoredBenches = [
         { object_id : 'obj-lobby-bench-1', shape : 'box', size_m : 1, color : '#ffc400', position : [ -3.4, 0.5, -1.2 ] },
-        { object_id : 'obj-lobby-bench-2', shape : 'box', size_m : 1, color : '#c03cff', position : [ 1.1, 0.5, 1.7 ] },
+        { object_id : 'obj-lobby-bench-2', shape : 'box', size_m : 1, color : '#ff2d55', position : [ 1.1, 0.5, 1.7 ] },
     ];
     const benches = objects.filter(obj => /^obj-lobby-bench-[12]$/.test(obj.object_id));
     assert.deepStrictEqual(benches.map(bench => ({ ...bench, position : null })),

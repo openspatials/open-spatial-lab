@@ -256,7 +256,7 @@ const PRESENCE_DEPART_TOMBSTONE_MS = 5000;
 // A world's first hosted object is restricted and its second hidden (wow-asset.js, primitiveAssetAccess). They are
 // the demo of that rule, so they are large and wear one colour each, the same in every world.
 const RESTRICTED_OBJECT_COLOR = '#ffc400';
-const HIDDEN_OBJECT_COLOR = '#c03cff';
+const HIDDEN_OBJECT_COLOR = '#ff2d55';
 const ACCESS_DEMO_SIZE_M = 1.0;
 
 function demoDefaultSceneObjects(locationId)
