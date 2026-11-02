@@ -42,12 +42,12 @@ export const AVATAR_VARIANTS = Object.freeze({
     starting_pool: true,
     structured_unsupported: [],
   },
-  "collection-david": {
-    key: "collection-david",
-    label: "David",
+  "collection-megan": {
+    key: "collection-megan",
+    label: "Megan",
     type: "glb",
-    url: withBase("/assets/actionforge/characters/david/david.glb"),
-    prepared: "/assets/actionforge/characters/david/david.avatar.json",
+    url: withBase("/assets/actionforge/characters/megan/megan.glb"),
+    prepared: "/assets/actionforge/characters/megan/megan.avatar.json",
     runtime: "actionforge",
     scale: 1,
     rotation_y: 0,

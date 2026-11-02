@@ -14,11 +14,11 @@
       "license": "Adobe Mixamo character"
     },
     {
-      "key": "collection-david",
-      "label": "David",
+      "key": "collection-megan",
+      "label": "Megan",
       "type": "glb",
-      "url": "/assets/actionforge/characters/david/david.glb",
-      "prepared": "/assets/actionforge/characters/david/david.avatar.json",
+      "url": "/assets/actionforge/characters/megan/megan.glb",
+      "prepared": "/assets/actionforge/characters/megan/megan.avatar.json",
       "runtime": "actionforge",
       "scale": 1,
       "rotation_y": 0,

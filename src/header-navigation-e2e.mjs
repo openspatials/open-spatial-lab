@@ -425,7 +425,7 @@ async function runProfile(browser, profile, health) {
   try {
     await page.setViewport({ width: profile.width, height: profile.height, deviceScaleFactor: 1 });
     await page.evaluateOnNewDocument(() => { localStorage.clear(); sessionStorage.clear(); });
-    await page.goto(`http://127.0.0.1:${ports.frontend}/index.html?role=player&active=source&intro=0&avatar_variant=collection-david`, {
+    await page.goto(`http://127.0.0.1:${ports.frontend}/index.html?role=player&active=source&intro=0&avatar_variant=collection-megan`, {
       waitUntil: "domcontentloaded", timeout: 60000,
     });
     await page.waitForFunction(() => document.body.dataset.assemblyReady === "1" && window.__assembly?.ready === true,

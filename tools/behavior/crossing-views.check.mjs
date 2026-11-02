@@ -8,8 +8,8 @@ import { FACING_RAD, lobbyUrl, portalNamed, walkInto, yawOf } from "./crossing-w
 import { lastPushedDeparture, markDocument, peerFrames, peerIds, recordPeerFrames, sceneFacts, speakOnPeerChannel, stopSpeaking, windowFacts } from "./page-reads.mjs";
 
 const MARK = "opened before the crossing";
-const PINNED_AVATAR = "collection-david"; // a starting avatar the page accepts in its address: not the default, and loaded from a file, so a peer shown too early is seen in another avatar for a while
-const PINNED_MODEL = "/assets/actionforge/characters/david/david.glb";
+const PINNED_AVATAR = "collection-megan"; // a starting avatar the page accepts in its address: not the default, and loaded from a file, so a peer shown too early is seen in another avatar for a while
+const PINNED_MODEL = "/assets/actionforge/characters/megan/megan.glb";
 const MODEL_LATE_MS = 8000; // how late the pinned model reaches a watcher that opens a world where its wearer stands
 const TRAVERSAL = "web/live-adapter-portal-traversal-controller.mjs";
 const PEERS = "web/live-adapter-peer-presence-reducer.mjs";

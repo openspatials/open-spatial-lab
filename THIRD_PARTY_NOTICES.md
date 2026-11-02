@@ -112,7 +112,7 @@ The complete redistribution terms are included in `licenses/`, together with eac
 
 The equipment models, `web/assets/equip-*.glb`, `web/assets/hero-held-lantern.gltf` and `web/assets/hero-worn-visor.gltf`, are original CC0-1.0 assets made for this project.
 
-The avatars are four characters from Adobe Mixamo (Adam, David, Elizabeth and Sophie, `web/assets/actionforge/characters/<name>/<name>.glb`). They were converted onto ActionForge's CC0 skeleton (see below) by the project's avatar pipeline, with their meshes and textures kept and the textures re-encoded as WebP. They are the player avatars and dress the Denver Skyport actors. Each has a prepared file (`<name>.avatar.json`: clip choices and measured gait) and body details (`<name>.body.json`), measured by the project.
+The avatars are four characters from Adobe Mixamo (Adam, Megan, Elizabeth and Sophie, `web/assets/actionforge/characters/<name>/<name>.glb`). They were converted onto ActionForge's CC0 skeleton (see below) by the project's avatar pipeline, with their meshes and textures kept and the textures re-encoded as WebP. They are the player avatars and dress the Denver Skyport actors. Each has a prepared file (`<name>.avatar.json`: clip choices and measured gait) and body details (`<name>.body.json`), measured by the project.
 
 The animation comes from the ActionForge animation library: the rig and its 84 clips by Quaternius, exported from ActionForge, dedicated to the public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). `web/assets/actionforge/clips/actionforge-clips.glb` holds them in place, on the rig's own 71 joints; the file carries the same credit. The clips play on each character's own skeleton, with no retargeting.
 
