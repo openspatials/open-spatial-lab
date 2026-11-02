@@ -320,10 +320,13 @@ const CHECKS = {
     await sleep(2500);
     const previews = await page.evaluate(() => window.__assembly.portalPreviews());
     const problems = [];
-    // A's preview: exactly the nodes within its radius of its arrival node, computed here from the world's graph.
+    // A's preview: exactly the nodes within its radius of its arrival node, computed here from the world's graph, less
+    // the node of A's hidden object, which the world's access rule never shows to another world.
     const declared = (await getJson(`${a}wow/world`)).json.preview;
     const arrivalPose = await nodePose(a, 1, Number(/node\/(\d+)$/.exec(declared.node)[1]));
-    const within = (await allNodes(a, 1)).filter((n) => distance(n.position, arrivalPose.position) <= declared.radius_m).map((n) => n.id).sort((x, y) => x - y);
+    const hiddenIds = (await getJson(`${a}demo/um/attach-point`)).json.value.objects.filter((o) => o.asset_access === "hidden").map((o) => o.object_id);
+    if (!hiddenIds.length) problems.push("A names no hidden object: the check of what its preview leaves out is vacuous");
+    const within = (await allNodes(a, 1)).filter((n) => distance(n.position, arrivalPose.position) <= declared.radius_m && !hiddenIds.includes(n.label)).map((n) => n.id).sort((x, y) => x - y);
     const shown = [...previews["lobby-portal-a"].node_ids].sort((x, y) => x - y);
     if (JSON.stringify(shown) !== JSON.stringify(within)) problems.push(`A's preview shows ${shown}, its radius holds ${within}`);
     if (!shown.includes(nearId)) problems.push("the near node is missing from A's preview");

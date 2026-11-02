@@ -389,13 +389,19 @@ const x3dCameraAtRest = (page) => page.waitForFunction(() => {
   return Math.abs(o.targetAzimuth - o.azimuth) < 0.01 && Math.abs(o.targetPolar - o.polar) < 0.01 && Math.abs(o.targetDistance - o.distance) < 0.01;
 }, { timeout: 30000 * SLOW });
 // Each hosted object belongs to one world: obj-a- to a, obj-b- to b, obj-lobby- to lobby.
-function assertAssetsAskedOfOwner(page, kind) {
+async function assertAssetsAskedOfOwner(page, kind) {
   const wrong = page.__assetRequests.filter((url) => {
     const [, server, owner] = url.match(/\/api\/([^/]+)\/wow\/asset\/primitive-obj-([a-z]+)-/) || [];
     return server !== owner;
   });
   assert.deepEqual(wrong, [], `${kind}: asked the wrong world for another world's hosted object: ${wrong.slice(0, 3).join(", ")}`);
-  assert.ok(page.__assetRequests.length > 0, `${kind}: no hosted object was asked for at all`);
+  // Only an asset the world serves is asked for: its attach-point names each object's access. The Lobby's two objects
+  // are restricted and hidden, so a page in the Lobby asks for none.
+  const objects = await page.evaluate(() => window.__x3domLiveMode.liveAdapter.demoReadAttachPoint(window.__x3domLiveMode.liveAdapter.activeEndpointKey).then((point) => point.value.objects));
+  const refused = objects.filter((object) => (object.asset_access || "public") !== "public").map((object) => object.object_id);
+  const askedRefused = page.__assetRequests.filter((url) => refused.some((id) => url.endsWith(`primitive-${id}`)));
+  assert.deepEqual(askedRefused, [], `${kind}: asked for an asset its world refuses: ${askedRefused.slice(0, 3).join(", ")}`);
+  if (objects.some((object) => (object.asset_access || "public") === "public")) assert.ok(page.__assetRequests.length > 0, `${kind}: no hosted object was asked for at all`);
 }
 // Does each portal show its own destination?
 // 1. What the world server gave: the preview holds the content of the world its portal names, with that world's own hosted objects.
@@ -454,10 +460,11 @@ function x3dLobbyCheck(kind) {
       throw new Error(`${kind} lobby: a preview has no content: ${JSON.stringify((await x3dState(page)).previews)}`);
     }
     if (kind === "x3dom") {
-      // X3DOM lights a texture like any surface, so each preview's plane is unlit, and nothing else is. Measured by its brightness below.
+      // X3DOM lights a texture like any surface, so each preview's plane is unlit, and nothing else is but the labels,
+      // which face the viewer from a Billboard (web/hosted-access-label.mjs). Measured by its brightness below.
       const lit = await page.evaluate(() => ({
         previews: [...document.querySelectorAll("plane")].filter((plane) => plane.parentElement.querySelector("renderedtexture")).map((plane) => plane.getAttribute("lit")),
-        unlit: document.querySelectorAll('[lit="false"]').length,
+        unlit: [...document.querySelectorAll('[lit="false"]')].filter((node) => !node.closest("billboard")).length,
       }));
       assert.equal(lit.previews.length, 3, `x3dom lobby: a portal shows no preview: ${lit.previews.length} of the 3 portals' planes hold a rendered texture`);
       assert.ok(lit.previews.every((value) => value === "false"), `x3dom lobby: a preview's plane is lit (${JSON.stringify(lit.previews)})`);
@@ -466,7 +473,7 @@ function x3dLobbyCheck(kind) {
     }
     await sleep(ctx.planted ? 3000 : 2000);
     const rects = await x3dApertureRects(page);
-    const seen = await snap(ctx, page, kind, "lobby", `Opened ?renderer=${kind}. The lobby is drawn by ${kind}, with three portals showing bounded previews, a fourth in a plain colour, and the avatar. No three.js canvas is on the page.`, rects);
+    const seen = await snap(ctx, page, kind, "lobby", `Opened ?renderer=${kind}. The lobby is drawn by ${kind}, with three portals showing bounded previews, a fourth in a plain colour, and the avatar. No three.js canvas is on the page.`, rects, [], await floorPointsAhead(page));
     assertLooksLikeWorld(seen, `${kind} lobby`);
     assertTone(seen, "green", `${kind} lobby`);
     assert.ok(seen.bright > 0.004, `${kind} lobby: no bright portal rings on screen (${seen.bright})`);
@@ -481,7 +488,7 @@ function x3dLobbyCheck(kind) {
       if (kind === "x3dom" && region.name === "location-a") assert.ok(region.mean[2] >= X3DOM_UNLIT_PREVIEW_MIN_BLUE, `x3dom lobby: the preview to ${region.name} is as dark as a lit one, mean rgb(${region.mean})`);
     }
     await assertPreviewsShowOwnDestination(ctx, page, kind, rects);
-    assertAssetsAskedOfOwner(page, kind);
+    await assertAssetsAskedOfOwner(page, kind);
     const before = state.position;
     await page.keyboard.down("KeyW");
     await sleep(ctx.planted ? 800 : 1600);
@@ -510,7 +517,7 @@ function x3dCrossingCheck(kind) {
     for (const [target, tone, name] of [["location-a", "blue", "location-a-crossed"], ["location-b", "brown", "location-b-crossed"]]) {
       const page = await openX3d(ctx, kind);
       await sleep(ctx.planted ? 500 : 2500);
-      const lobby = await analyse(await page.screenshot({ encoding: "base64" }));
+      const lobby = await analyse(await page.screenshot({ encoding: "base64" }), [], [], await floorPointsAhead(page));
       assertTone(lobby, "green", `${kind} lobby before crossing`);
       await x3dCross(page, kind, target);
       // The same wait with and without a planted fault: the camera eases for a while after a crossing,
@@ -531,12 +538,31 @@ function x3dCrossingCheck(kind) {
       assert.ok(seenFromBehind.length > 0, `${kind} ${target}: the camera is not behind any portal, so the arrival has changed`);
       for (const preview of seenFromBehind) assert.ok(preview.apertureHidden, `${kind} ${target}: a preview covers the opening of the portal to ${preview.target} from behind`);
       console.log(`      ${kind} ${target} rings: ${seen.rings.map((ring) => `${ring.name} ${ring.hits}/${ring.onScreen}`).join("; ")}`);
-      assertAssetsAskedOfOwner(page, kind);
+      await assertAssetsAskedOfOwner(page, kind);
       await page.close();
     }
     return "lobby to Location A and lobby to Location B crossed, rooms redrawn";
   };
 }
+
+// Points on the floor ahead of the avatar and to its right, as the camera faces, on screen. The lower corners of a
+// room's first view can hold its large restricted and hidden demo objects (runtime-state.js demoDefaultSceneObjects);
+// this floor is clear of them in the Lobby, in Location B and where the way back from the soft-body world lands.
+const floorPointsAhead = (page) => page.evaluate(() => {
+  const { adapter, liveAdapter, camera } = window.__x3domLiveMode;
+  const [x, , z] = liveAdapter.state.avatar.position;
+  const pose = camera.currentPose();
+  if (!pose) return [];
+  const fx = pose.lookAt[0] - pose.position[0], fz = pose.lookAt[2] - pose.position[2];
+  const length = Math.hypot(fx, fz) || 1;
+  const [ax, az] = [fx / length, fz / length];
+  const points = [];
+  for (const [side, ahead] of [[0.7, 1.3], [0.9, 1.8], [0.6, 2.4]]) {
+    const p = adapter.worldToScreen(adapter.camera, [x + ax * ahead - az * side, 0, z + az * ahead + ax * side]);
+    if (p && p.visible && p.x >= 0 && p.y >= 0 && p.x < innerWidth && p.y < innerHeight) points.push([p.x, p.y]);
+  }
+  return points;
+});
 
 // Points on the airport's concourse floor, 1 m out from each side of the runner and 3 to 7 m ahead of the avatar, on
 // screen. The floor and the runner are the world's own walkable surfaces, as the airport scene draws them.
@@ -635,7 +661,7 @@ function worldCheck(kind) {
     await page.mouse.up();
     await arrive(page, "click");
     await sleep(4000);
-    const crossed = await snap(ctx, page, kind, "x3d-json-anchor-clicked", `Clicked the disc with the mouse. The browser went to ${anchorUrl} and Location B opened under ${kind}, with its own room colour.`);
+    const crossed = await snap(ctx, page, kind, "x3d-json-anchor-clicked", `Clicked the disc with the mouse. The browser went to ${anchorUrl} and Location B opened under ${kind}, with its own room colour.`, [], [], await floorPointsAhead(page));
     assertTone(crossed, "brown", `${kind} after the Anchor click (a direct load of Location B)`);
     await page.close();
 
@@ -1096,7 +1122,7 @@ function softPortalCheck(kind) {
     };
     await backInLobby("by walking");
     await sleep(ctx.planted ? 800 : 4000);
-    const lobby = await softSnap(ctx, page, `${kind}-walked-back-to-lobby`, `Held W into the disc. The X3D Anchor went to /w/lobby/ and the Lobby opened under ${kind}.`);
+    const lobby = await snap(ctx, page, SOFT_SERIES, `${kind}-walked-back-to-lobby`, `Held W into the disc. The X3D Anchor went to /w/lobby/ and the Lobby opened under ${kind}.`, [], [], await floorPointsAhead(page));
     assertTone(lobby, "green", `${kind} Lobby after the way back`);
     await page.close();
 
@@ -1253,7 +1279,6 @@ const CHECKS = [
     { name: "the engine ignores lit", rules: [{ url: "vendor/x3dom/x3dom-full.js", find: 'this.addField_SFBool(e,"lit",!0)', replace: 'this._vf.lit=!0' }], expect: /as dark as a lit one/ },
     { name: "the C key does nothing", rules: [noCKey], expect: /C key did not switch/ },
     { name: "the equipment button does nothing", rules: [noCycle], expect: /equipment button did not change/ },
-    { name: "hosted objects asked of the current world", rules: [assetsFromOtherWorld], expect: /asked the wrong world/ },
     { name: "every portal holds the first portal's world", rules: [contentOfFirstPortal], expect: /holds the content of/ },
     { name: "every portal draws the first portal's room", rules: [stageOfFirstPortal], expect: /does not come from that destination's own room/ },
     { name: "previews with no background on a clipped view", rules: [{ url: "x3dom-portal-traversal-glue.mjs", find: "backgroundColor: PREVIEW_BACKGROUND_COLOR,", replace: "" }], expect: /renders black/ },
@@ -1263,7 +1288,6 @@ const CHECKS = [
     { name: "the room not built", rules: [noRoomRule], expect: /room colour is wrong|looks blank/ },
     { name: "the avatar file missing", rules: [avatarGone], patience: 20000, expect: /the avatar did not load/ },
     { name: "the preview not attached to the aperture", rules: [noPreviewRule], expect: /shows no preview, only a flat tint/ },
-    { name: "hosted objects asked of the current world", rules: [assetsFromOtherWorld], expect: /asked the wrong world/ },
     { name: "every portal holds the first portal's world", rules: [contentOfFirstPortal], expect: /holds the content of/ },
     { name: "every portal draws the first portal's room", rules: [stageOfFirstPortal], expect: /does not come from that destination's own room/ },
     { name: "the preview draws once and never again", rules: [{ url: adapterFile, find: "node.singleFrame = false;", replace: "" }], expect: /shows no preview, only a flat tint/ },
@@ -1273,11 +1297,15 @@ const CHECKS = [
   { name: "X3DOM: portal crossings redraw the world", browser: true, body: x3dCrossingCheck("x3dom"), faults: [
     { name: "the crossing does not rebuild the scene", rules: [noRedrawRule], expect: /room colour is wrong/ },
     { name: "the rings not drawn", rules: [noRings], expect: /no portal ring where the portal/ },
+    // The Lobby's two objects are restricted and hidden, so it asks for no asset: a crossing into A or B does.
+    { name: "hosted objects asked of the current world", rules: [assetsFromOtherWorld], expect: /asked the wrong world/ },
     { name: "the preview still drawn from behind", rules: [{ url: "x3dom-portal-traversal-glue.mjs", find: "adapter.setVisible(mesh, !behind);\n                mesh._labHidden = behind;", replace: "" }], expect: /a preview covers the opening/ },
   ] },
   { name: "X_ITE: portal crossings redraw the world", browser: true, body: x3dCrossingCheck("x_ite"), faults: [
     { name: "the crossing does not rebuild the scene", rules: [noRedrawRule], expect: /room colour is wrong/ },
     { name: "the rings not drawn", rules: [noRings], expect: /no portal ring where the portal/ },
+    // The Lobby's two objects are restricted and hidden, so it asks for no asset: a crossing into A or B does.
+    { name: "hosted objects asked of the current world", rules: [assetsFromOtherWorld], expect: /asked the wrong world/ },
     { name: "the preview still drawn from behind", rules: [{ url: "x3dom-portal-traversal-glue.mjs", find: "adapter.setVisible(mesh, !behind);\n                mesh._labHidden = behind;", replace: "" }], expect: /a preview covers the opening/ },
     { name: "the camera no longer hides the wall behind the avatar", rules: [{ url: adapterFile, find: "const { position: origin, lookAt } = this._cameraPose;", replace: "return null; const { position: origin, lookAt } = this._cameraPose;" }], expect: /location-a: the view looks blank/ },
   ] },

@@ -675,8 +675,19 @@ function createServer(role, extraOpts)
             if (!preview) return sendJson(res, 404, { ok : false, error : 'no_preview_declared' });
             if (refusesRead(preview.graphId, preview.arrivalId)) return sendJson(res, 403, { ok : false, error : 'forbidden' });
             if (preview.hidden) return sendJson(res, 409, { ok : false, error : 'arrival_node_hidden' });
+            // A hosted object is shown as its world's access rule allows another world to see it: a hidden one not at
+            // all, a restricted one as its place and size only (runtime-state.js, objectsSeenFromAnotherWorld).
+            const accessOf = (entry) => runtime.hostedObjectAccessOfNode(entry.node);
             const shape = (entry) => {
                 const n = entry.node;
+                const hosted = accessOf(entry);
+                if (hosted && hosted.access === 'restricted')
+                    return {
+                        id : n.id,
+                        localTransform : entry.relative.map(v => (Math.abs(v) < 1e-12 ? 0 : v)),
+                        webofworlds_extension : { role : 'hosted_object', asset_access : 'restricted', size_m : hosted.size_m },
+                        children : [],
+                    };
                 return {
                     id : n.id,
                     ...(n.label != null ? { label : n.label } : {}),
@@ -693,7 +704,8 @@ function createServer(role, extraOpts)
                     children : [],
                 };
             };
-            const readable = preview.nodes.filter(entry => !refusesRead(preview.graphId, entry.node.id));
+            const readable = preview.nodes.filter(entry => !refusesRead(preview.graphId, entry.node.id)
+                && (accessOf(entry) || {}).access !== 'hidden');
             const root = shape(readable.find(entry => entry.node.id === preview.arrivalId));
             // where the arrival node stands in its graph, so a client can place the preview in the world's own frame
             root.webofworlds_extension = { ...(root.webofworlds_extension || {}), world_transform : preview.worldTransform };

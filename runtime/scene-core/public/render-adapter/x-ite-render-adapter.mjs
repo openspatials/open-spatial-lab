@@ -516,9 +516,17 @@ export class XIteRenderAdapter extends RenderAdapter {
         }
     }
     createMaterial(desc) {
+        const scene = this._scene;
+        // A sprite's appearance holds its texture and no Material, which X3D draws unlit, as three.js draws a SpriteMaterial.
+        if (desc.type === "sprite") {
+            if (!desc.map || desc.map.kind !== "x_ite-canvas-texture")
+                throw new Error('XIteRenderAdapter.createMaterial: a "sprite" needs a "map" from createCanvasTexture()');
+            const appearance = scene.createNode("Appearance");
+            appearance.texture = desc.map.node;
+            return { kind: "x_ite-material", appearance, material: null, base: { side: "double" } };
+        }
         if (desc.type !== "standard" && desc.type !== "basic" && desc.type !== "line")
             throw new Error(`XIteRenderAdapter.createMaterial: type "${desc.type}" is not implemented`);
-        const scene = this._scene;
         const material = scene.createNode("Material");
         const color = desc.color !== undefined ? parseColor(desc.color) : { r: 0.8, g: 0.8, b: 0.8 };
         const emissive = desc.type === "line" || desc.type === "basic" ? color : desc.emissive !== undefined ? parseColor(desc.emissive) : { r: 0, g: 0, b: 0 };
@@ -570,7 +578,16 @@ export class XIteRenderAdapter extends RenderAdapter {
     updateCanvasTexture(textureHandle) {
         textureHandle.node.url = new this._X3D.MFString(textureHandle.canvas.toDataURL());
     }
-    createSprite() { throw new Error("XIteRenderAdapter.createSprite: not yet implemented"); }
+    /** A quad of the given size in metres that turns to face the viewer, as a three.js Sprite does. */
+    createSprite(material, { width = 1, height = 1 } = {}) {
+        const quad = this._wrapShape(this.createGeometry({ type: "plane", width, height }), material);
+        const billboard = this._scene.createNode("Billboard");
+        billboard.axisOfRotation = new this._X3D.SFVec3f(0, 0, 0);
+        billboard.children.push(quad.node);
+        const transform = this._scene.createNode("Transform");
+        transform.children.push(billboard);
+        return new XNode(transform);
+    }
     createGridHelper({ size, divisions, colorGrid, transparent, opacity }) {
         const X3D = this._X3D;
         const half = size / 2;

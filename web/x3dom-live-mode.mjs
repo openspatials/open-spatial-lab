@@ -147,6 +147,13 @@ export async function runX3dLiveMode({ adapter, info, bannerText, dragEl, prepar
         document.body.dataset.x3dLocation = world.location_id || "";
     };
     showWorldInHeader();
+    // Lab addition: the header's connection chip starts at "Loading" (index.html), and only app.js moves it on the
+    // three.js path. Here the world is live once its first state has arrived, so the chip says so.
+    const connectionChip = document.getElementById("connection-status");
+    if (connectionChip) {
+        connectionChip.className = "live-tag connection-live";
+        connectionChip.textContent = "Live backend";
+    }
     let crossings = 0;
     liveAdapter.addEventListener("crossing", (event) => {
         const detail = event.detail || {};

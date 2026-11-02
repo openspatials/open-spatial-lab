@@ -86,6 +86,23 @@ function etagOf(bytes)
     return '"sha256:' + crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 32) + '"';
 }
 
+/**
+ * Who may fetch a hosted primitive's asset, by its place in the world's hosted list.
+ * The FIRST primitive of each world is RESTRICTED (403 without a bearer token) and
+ * the SECOND is HIDDEN (404 even though it exists) — so the spec's Data Security
+ * arm is exercised against real, live, otherwise-identical assets rather than a
+ * special fixture built to fail. Every other primitive is public. The asset route
+ * and the attach-point both read this one rule, so what a client is told matches
+ * what the route answers.
+ */
+function primitiveAssetAccess(objects, objectId)
+{
+    const objs = objects || [];
+    if (objs[0] && objs[0].object_id === objectId) return 'restricted';
+    if (objs[1] && objs[1].object_id === objectId) return 'hidden';
+    return 'public';
+}
+
 /** RFC 7232 §3.2 — If-None-Match. `*` matches any current representation. */
 function ifNoneMatchHits(headerValue, etag)
 {
@@ -197,15 +214,12 @@ function createAssetRegistry(opts)
         const objs = getSceneObjects() || [];
         const match = objs.find(o => 'primitive-' + String(o.object_id) === id);
         if (match)
+        {
+            const access = primitiveAssetAccess(objs, match.object_id);
             return {
                 id, kind : 'primitive', obj : match,
-                // The FIRST primitive of each world is RESTRICTED (403 without a
-                // bearer token) and the SECOND is HIDDEN (404 even though it
-                // exists) — so the spec's Data Security arm is exercised against
-                // real, live, otherwise-identical assets rather than a special
-                // fixture built to fail. Every other primitive is public.
-                restricted : objs[0] && objs[0].object_id === match.object_id,
-                hidden : objs[1] && objs[1].object_id === match.object_id,
+                restricted : access === 'restricted',
+                hidden : access === 'hidden',
                 elsewhere : null,
                 content : {
                     label : 'Hosted primitive — ' + match.object_id + ' (' + (match.shape || 'box') + ')',
@@ -215,6 +229,7 @@ function createAssetRegistry(opts)
                     version : 1,
                 },
             };
+        }
         return null;
     }
 
@@ -335,4 +350,4 @@ function createAssetRegistry(opts)
     };
 }
 
-module.exports = { createAssetRegistry, etagOf, ifNoneMatchHits, DEV_BEARER_TOKEN, ASSET_BASE_PREFIX };
+module.exports = { createAssetRegistry, primitiveAssetAccess, etagOf, ifNoneMatchHits, DEV_BEARER_TOKEN, ASSET_BASE_PREFIX };

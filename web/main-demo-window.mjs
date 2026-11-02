@@ -57,6 +57,8 @@ export function previewStatesOf(records) {
           destination: content.destination,
           node_ids: (content.nodes || []).map((node) => node.id),
           closed_portals: rec.composition?.presentation?.closed_portals || [],
+          // the destination's restricted objects, drawn as faint boxes
+          restricted_ghosts: rec.composition?.presentation?.restricted_ghosts || [],
           radius_m: content.radius_m ?? null,
           status: rec.contentStatus,
           assets: rec.composition?.presentation?.assets || null,

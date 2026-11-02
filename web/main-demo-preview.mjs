@@ -9,6 +9,9 @@
  *
  * A preview that holds a world's authored airport terminal draws it with the same presentation code the airport
  * itself uses (web/airport-terminal-scene.mjs), for the storefronts, travelers and signs it declares.
+ *
+ * An object the destination restricts arrives as its place and size only, and shows as a faint box with its label
+ * (deps.accessGhost, web/hosted-access-label.mjs). A hidden one never arrives.
  */
 
 const COLOR_CLOSED_RING = 0x7a808c;
@@ -99,7 +102,7 @@ function hideBuilderAids(root, { keepFloor }) {
 
 /** The scene a portal's window looks into. `deps` are the shared builders, injected so this file stays free of them. */
 export function composeBoundedPreview(content, context, deps) {
-  const { THREE, buildWowScene, mountAirportTerminalContent, mountWowSceneAssets, loadGltf, cloneScene, cache, document: doc, motionPreference } = deps;
+  const { THREE, buildWowScene, mountAirportTerminalContent, mountWowSceneAssets, loadGltf, cloneScene, cache, document: doc, motionPreference, accessGhost } = deps;
   if (content.preview_kind !== "nodes") return flatComposition(content, deps);
   const width = Math.max(1, Number(context && context.width) || 1);
   const height = Math.max(1, Number(context && context.height) || 1);
@@ -128,6 +131,14 @@ export function composeBoundedPreview(content, context, deps) {
     const wayBack = content.join_in_preview && way && Math.hypot(at[12] - way[0], at[14] - way[2]) <= WAY_BACK_REACH_M;
     closed.push({ id: node.id, label: node.label, way_back: !!wayBack });
     if (!wayBack) group.add(closedPortal(THREE, node));
+  }
+  const ghosts = [];
+  for (const node of content.nodes) {
+    if (node.extension?.asset_access !== "restricted" || typeof accessGhost !== "function") continue;
+    const group = built.node_groups.get(Number(node.id));
+    if (!group) continue;
+    group.add(accessGhost(THREE, doc, Number(node.extension.size_m) || 0.5));
+    ghosts.push(node.id);
   }
 
   const assets = {
@@ -161,6 +172,7 @@ export function composeBoundedPreview(content, context, deps) {
       node_ids: content.nodes.map((node) => node.id),
       radius_m: content.radius_m,
       closed_portals: closed,
+      restricted_ghosts: ghosts,
       airport_terminal: airportTerminal,
       render_summary: built.render_summary,
       assets,

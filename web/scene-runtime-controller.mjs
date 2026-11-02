@@ -1,5 +1,6 @@
 import { SpatialPortalPreviewManager } from "./portal-spatial-preview.mjs?v=meeting-critical-destination";
 import { composeBoundedPreview } from "./main-demo-preview.mjs";
+import { accessGhostThree } from "./hosted-access-label.mjs";
 import { ringColorsOf } from "./worlds-list.mjs";
 import { clampPixelRatio, renderQualityLevers } from "./render-quality-levers.mjs";
 
@@ -297,6 +298,7 @@ export function createSceneRuntimeController({
           cache: destinationAssetCache,
           document: documentTarget,
           motionPreference,
+          accessGhost: accessGhostThree,
         });
       },
       ringColorOf: (locationId) => ringColorsOf(locationId).color,

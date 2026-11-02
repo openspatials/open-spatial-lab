@@ -35,6 +35,7 @@ const wowGeo = require('../../../web/wow-geopose.js');
 // P1: the shared-edge identity derivation is single-sourced
 // in config.js (where the topology is validated at load); descriptors reuse it.
 const { portalEdgeId } = require('./config');
+const { primitiveAssetAccess } = require('./wow-asset');
 
 // Brings the retained UniversalManifest identity spine LIVE on /wow/user. REUSES
 // the proven, standalone signing library (web/signing/) — Ed25519 (WebCrypto) +
@@ -252,33 +253,58 @@ const PRESENCE_MAX_PLAYERS = 64;
 // (3000 ms) so an in-flight beat cannot outlive it.
 const PRESENCE_DEPART_TOMBSTONE_MS = 5000;
 
+// A world's first hosted object is restricted and its second hidden (wow-asset.js, primitiveAssetAccess). They are
+// the demo of that rule, so they are large and wear one colour each, the same in every world.
+const RESTRICTED_OBJECT_COLOR = '#ffc400';
+const HIDDEN_OBJECT_COLOR = '#c03cff';
+const ACCESS_DEMO_SIZE_M = 1.0;
+
 function demoDefaultSceneObjects(locationId)
 {
-    // Positions deliberately keep the portal approach corridor (x≈2.8,
-    // z 0.4→-2.8 in A; the -x exit lane at z≈-2.8 in B) clear so the
-    // keyboard walk-through path is untouched.
+    // Positions keep the walks from the spawn to each portal, the portals' loading circles and arrival spots, and
+    // the spawn clear (with the ambient drift's 0.35 m), and stand where the spawn view and a portal leading here see
+    // them. Clearances are in the access-demo-check RESULT.md.
+    const access = (object_id, shape, color, position) => ({ object_id, shape, size_m : ACCESS_DEMO_SIZE_M, color, position });
     if (locationId === 'location-b')
     {
         return [
-            { object_id : 'obj-b-cube-1', shape : 'box', size_m : 0.8, color : '#ff8c42', position : [ -2.4, 0.4, -1.2 ] },
-            { object_id : 'obj-b-sphere-1', shape : 'sphere', size_m : 0.7, color : '#ffd166', position : [ 1.6, 0.35, 1.8 ] },
+            access('obj-b-cube-1', 'box', RESTRICTED_OBJECT_COLOR, [ -2.8, 0.5, -1.4 ]),
+            access('obj-b-sphere-1', 'sphere', HIDDEN_OBJECT_COLOR, [ -1.2, 0.5, -1.0 ]),
             { object_id : 'obj-b-cube-2', shape : 'box', size_m : 0.6, color : '#c65ccd', position : [ -0.8, 0.3, 2.6 ] },
         ];
     }
-    // lobby furniture. The two benches flank the spawn
-    // area outside the portal prefetch zones, leaving every approach clear.
     if (locationId === 'location-lobby')
     {
         return [
-            { object_id : 'obj-lobby-bench-1', shape : 'box', size_m : 0.6, color : '#9fb0d0', position : [ -4.4, 0.3, 1.6 ] },
-            { object_id : 'obj-lobby-bench-2', shape : 'box', size_m : 0.6, color : '#9fb0d0', position : [ 4.4, 0.3, 1.6 ] },
+            // The spawn view of the Lobby is mostly its portals: the restricted object stands left of portal A, the hidden
+            // one near the camera on the right, below portal B's opening.
+            access('obj-lobby-bench-1', 'box', RESTRICTED_OBJECT_COLOR, [ -3.4, 0.5, -1.2 ]),
+            access('obj-lobby-bench-2', 'box', HIDDEN_OBJECT_COLOR, [ 1.1, 0.5, 1.7 ]),
         ];
     }
     return [
-        { object_id : 'obj-a-cube-1', shape : 'box', size_m : 0.8, color : '#2bd4ff', position : [ -2.2, 0.4, 1.6 ] },
-        { object_id : 'obj-a-sphere-1', shape : 'sphere', size_m : 0.7, color : '#6ee7a8', position : [ 1.8, 0.35, -0.6 ] },
+        access('obj-a-cube-1', 'box', RESTRICTED_OBJECT_COLOR, [ -1.4, 0.5, 0.6 ]),
+        access('obj-a-sphere-1', 'sphere', HIDDEN_OBJECT_COLOR, [ 1.4, 0.5, 0.6 ]),
         { object_id : 'obj-a-cube-2', shape : 'box', size_m : 0.6, color : '#8a7dff', position : [ -1.2, 0.3, -2.2 ] },
     ];
+}
+
+/**
+ * The hosted objects as another world may see them (a portal's preview, a prefetch): what primitiveAssetAccess
+ * allows. A hidden object is left out; a restricted one is its place and size, with no colour or shape. A world's
+ * authored content is described whole by its own /wow/graph, so it is shown as it is.
+ */
+function objectsSeenFromAnotherWorld(objects)
+{
+    const out = [];
+    for (const obj of objects)
+    {
+        const access = obj.authored_wow_content ? 'public' : primitiveAssetAccess(objects, obj.object_id);
+        if (access === 'hidden') continue;
+        out.push(access === 'public' ? obj
+            : { object_id : obj.object_id, position : obj.position.slice(), size_m : obj.size_m, asset_access : access });
+    }
+    return out;
 }
 
 /**
@@ -2008,7 +2034,7 @@ function createRuntime(opts)
             portal.trigger && portal.trigger.position, [ 2.8, 0, -2.8 ]);
         const included = [];
         const beyond = [];
-        for (const obj of state.scene_objects)
+        for (const obj of objectsSeenFromAnotherWorld(state.scene_objects))
         {
             const dx = (obj.position[0] || 0) - anchor[0];
             const dz = (obj.position[2] || 0) - anchor[2];
@@ -2102,7 +2128,7 @@ function createRuntime(opts)
             // beside (never inside) the cached-fabric `entities` list.
             avatars : avatarsInCircle,
             totals : {
-                fabric_entities : state.scene_objects.length,
+                fabric_entities : entities.length + excluded,
                 region_entities : entities.length,
                 excluded_entities : excluded,
                 truncated : false,
@@ -2369,7 +2395,7 @@ function createRuntime(opts)
                 server_max_bytes : FABRIC_REGION_SERVER_MAX_BYTES,
             },
             totals : {
-                fabric_entities : state.scene_objects.length,
+                fabric_entities : scan.included.length + scan.beyond.length,
                 region_entities : scan.included.length,
                 excluded_entities : scan.beyond.length,
                 scope_entities : scopeEntities,
@@ -3740,8 +3766,9 @@ function createRuntime(opts)
         };
         const base = parse(DEMO_WORLD_BASE_COLOR[LOCATION_ID] || '#20242e');
         let r = base[0] * 2, g = base[1] * 2, b = base[2] * 2, w = 2;
-        for (const obj of state.scene_objects)
+        for (const obj of objectsSeenFromAnotherWorld(state.scene_objects))
         {
+            if (!obj.color) continue;
             const c = parse(obj.color);
             const dx = (obj.position[0] || 0) - anchor[0];
             const dz = (obj.position[2] || 0) - anchor[2];
@@ -3793,7 +3820,7 @@ function createRuntime(opts)
                     kind : '3d_snapshot',
                     room : { size_m : [ 12, 12 ], base_color : DEMO_WORLD_BASE_COLOR[LOCATION_ID] || '#20242e' },
                     portal : demoPortalPose(),
-                    objects : state.scene_objects,
+                    objects : objectsSeenFromAnotherWorld(state.scene_objects),
                     avatar_position : state.avatar.transform.position.slice(),
                 },
             }));
@@ -3846,9 +3873,29 @@ function createRuntime(opts)
                     label : 'highest rung — stubbed, not working yet (labeled)',
                 },
             },
-            value : getPortalView('snapshot3d').value,
+            value : attachPointValue(),
             proof_boundary : getWowProofBoundary(),
         }, demoExtensionBoundary()));
+    }
+
+    /** The snapshot3d value as this world's own visitors see it: every object, each naming whether its asset may be
+     *  fetched, so a client never asks for an asset the asset route will refuse. */
+    function attachPointValue()
+    {
+        const value = getPortalView('snapshot3d').value;
+        value.objects = clone(state.scene_objects).map(obj => Object.assign(obj, {
+            asset_access : primitiveAssetAccess(state.scene_objects, obj.object_id),
+        }));
+        return value;
+    }
+
+    /** For /wow/preview: the access of the hosted object a node places, and its size, or null for any other node. */
+    function hostedObjectAccessOfNode(node)
+    {
+        const names = node && Array.isArray(node.names) ? node.names : [];
+        const obj = state.scene_objects.find(o => o.object_id === names[0]);
+        if (!obj || obj.authored_wow_content) return null;
+        return { access : primitiveAssetAccess(state.scene_objects, obj.object_id), size_m : Number(obj.size_m) || 0 };
     }
 
 
@@ -4081,7 +4128,7 @@ function createRuntime(opts)
         getFabricManifest, getFabricSpawnPose,
         applyMovement, recordPortalExitIntent, recordPortalArrival,
         // demo extension (labeled; additive only)
-        getSceneObjects, moveSceneObject, movePortal, getPortalView, getUmAttachPoint,
+        getSceneObjects, moveSceneObject, movePortal, getPortalView, getUmAttachPoint, hostedObjectAccessOfNode,
         // addressable spatial fabric portal prefetch (read-only)
         getFabricRegion, getFabricPresence,
         getFabricRegionChunk, getFabricRegionTilesetHypothesis,

@@ -9,6 +9,7 @@ import { glueCameraThroughFrames, normalizeVec3, subtract3, addScaled3, dot3, po
 import { mountAirportTerminalContentX3dom, terminalSignMesh } from "./x3dom-airport-terminal-scene.mjs";
 import { X3D_PORTALS, ringColorsOf } from "./worlds-list.mjs";
 import { withBase } from "./base-path.mjs";
+import { accessGhostX3d } from "./hosted-access-label.mjs";
 
 // Phase 2 of the X3DOM render-parity plan — portal traversal.
 //
@@ -331,10 +332,20 @@ export function createX3domPortalTraversalGlue({ adapter, liveAdapter, camera, l
             mountAirportTerminalContentX3dom(graph, adapter, { parent: root, document, partial: true });
         }
         record.hostedObjectIds = [];
+        record.ghostNodeIds = [];
         for (const node of content.nodes) {
             if (node.closed) {
                 if (!isWayBack(content, node))
                     adapter.add(root, closedPortalMesh(node));
+                continue;
+            }
+            // Lab addition: an object the destination restricts arrives as its place and size only, and shows as a
+            // faint box with its label (web/hosted-access-label.mjs).
+            if (node.extension && node.extension.asset_access === "restricted") {
+                const ghost = accessGhostX3d(adapter, document, Number(node.extension.size_m) || 0.5);
+                adapter.setLocalMatrix(ghost, node.matrix);
+                adapter.add(root, ghost);
+                record.ghostNodeIds.push(node.id);
                 continue;
             }
             if (node.extension && node.extension.authored_wow_content)
@@ -818,6 +829,7 @@ export function createX3domPortalTraversalGlue({ adapter, liveAdapter, camera, l
             target: record.portal?.target_location_id || null,
             contentLocation: record.contentLocation || null,
             hostedObjectIds: record.hostedObjectIds || [],
+            ghostNodeIds: record.ghostNodeIds || [],
             cameraBehind: isCameraBehind(record.portal),
             apertureHidden: apertureMeshes.get(record.portal)?._labHidden === true,
             textureAttached: !!record.rt,
@@ -838,6 +850,12 @@ export function createX3domPortalTraversalGlue({ adapter, liveAdapter, camera, l
     return {
         mountWorldContent, reportCameraTransform, tick, handleCrossing, previewDebugState,
         debugDestSceneRoot, debugHostedGroup,
+        // Lab addition, for tests: how each of the active world's hosted objects is drawn, and whether it has a label.
+        activeHostedState: () => [...activeHostedMeshes.entries()].map(([id, mesh]) => ({
+            ...(mesh.userData?.hostedSceneObject || {}),
+            object_id: id,
+            label: activeHostedMeshes.__accessLabels?.get(id)?.label?.name || null,
+        })),
         x3dPortals: () => x3dPortalsHere.map((entry) => ({ portal_id: entry.portal_id, label: entry.label, position: entry.position, x3d_world: entry.x3d_world })),
         dispose: () => {
             liveAdapter.removeEventListener("crossing", handleCrossing);

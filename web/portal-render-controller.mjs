@@ -1,4 +1,5 @@
 import { ringColorsOf } from "./worlds-list.mjs";
+import { accessLabelThree, hostedAccessOf } from "./hosted-access-label.mjs";
 
 // Hosted objects read well at one re-read a second; ten a second queued in the browser on any slow link, in front of
 // the requests a crossing needs.
@@ -21,7 +22,29 @@ function disposeMesh(mesh) {
     mesh.geometry?.dispose?.();
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     materials.forEach((material) => material?.dispose?.());
+    if (mesh.userData?.accessLabel) disposeLabel(mesh.userData.accessLabel);
   } catch {}
+}
+
+// A sprite's geometry is shared by every sprite, so only its texture and material are freed.
+function disposeLabel(label) {
+  label.parent?.remove(label);
+  label.material?.map?.dispose?.();
+  label.material?.dispose?.();
+}
+
+/** A hosted object whose asset is not public carries its access above it (web/hosted-access-label.mjs). */
+function syncAccessLabel(THREE, mesh, access, sizeM, layer, setLayerRecursive) {
+  const key = access === "public" ? null : `${access}:${sizeM}`;
+  if ((mesh.userData.accessLabelKey ?? null) === key) return;
+  if (mesh.userData.accessLabel) disposeLabel(mesh.userData.accessLabel);
+  const label = key ? accessLabelThree(THREE, globalThis.document, access, sizeM) : null;
+  if (label) {
+    if (layer != null && typeof setLayerRecursive === "function") setLayerRecursive(label, layer);
+    mesh.add(label);
+  }
+  mesh.userData.accessLabel = label;
+  mesh.userData.accessLabelKey = key;
 }
 
 /** Shared hosted-object projection used by the direct scene and every legacy
@@ -51,6 +74,7 @@ export function syncHostedSceneObjectMeshes({
     const shape = definition.shape === "sphere" ? "sphere" : "box";
     const sizeM = Math.max(0.15, Number(definition.size_m) || 0.5);
     const color = new THREE.Color(String(definition.color || "#8899aa"));
+    const access = hostedAccessOf(definition);
     seen.add(objectId);
     let mesh = meshes.get(objectId);
     if (!mesh) {
@@ -85,6 +109,7 @@ export function syncHostedSceneObjectMeshes({
     }
     mesh.material?.color?.copy?.(color);
     mesh.material?.emissive?.copy?.(color)?.multiplyScalar?.(0.18);
+    syncAccessLabel(THREE, mesh, access, sizeM, layer, setLayerRecursive);
     if (preservePositionForId !== objectId) {
       const position = Array.isArray(definition.position) ? definition.position : [0, 0, 0];
       mesh.position.set(Number(position[0]) || 0, Number(position[1]) || 0, Number(position[2]) || 0);
@@ -95,6 +120,7 @@ export function syncHostedSceneObjectMeshes({
       size_m: sizeM,
       color: `#${color.getHexString()}`,
       version,
+      asset_access: access,
       projection_authority: "shared_hosted_scene_object_projection_v1",
       geometry_type: mesh.geometry?.type || null,
       material_type: mesh.material?.type || null,

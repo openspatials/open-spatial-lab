@@ -1,6 +1,6 @@
 // Ported by hand from Nicholas Polys's public fork npolys/open-spatial-lab, commit 99175b4b6,
 // runtime/scene-core/public/render-adapter/x3dom-render-adapter.mjs. Apache-2.0, like the rest of the lab. Nicholas Polys is co-author of lab commit ef702ec.
-// Changes in this copy: added static info, multiplyScale() and a background colour for createRenderedTexture(); a material shared by several meshes now gives each mesh its own copy of the appearance.
+// Changes in this copy: added static info, multiplyScale() and a background colour for createRenderedTexture(); a material shared by several meshes now gives each mesh its own copy of the appearance; createSprite() and the "sprite" material draw a texture that faces the viewer.
 
 import { RenderAdapter } from "./render-adapter.mjs";
 import { decomposeTRS, transformPoint } from "./spatial-math.mjs";
@@ -638,8 +638,17 @@ export class X3DOMRenderAdapter extends RenderAdapter {
         }
     }
     createMaterial(desc) {
+        // Lab addition: a sprite's appearance holds its texture and no Material, which X3D draws unlit, as three.js
+        // draws a SpriteMaterial.
+        if (desc.type === "sprite") {
+            if (!desc.map || desc.map.kind !== "x3d-canvas-texture")
+                throw new Error('X3DOMRenderAdapter.createMaterial: a "sprite" needs a "map" from createCanvasTexture()');
+            const appearanceEl = document.createElement("appearance");
+            appearanceEl.appendChild(desc.map.el);
+            return { kind: "x3d-material", appearanceEl, materialEl: null, base: { side: "double", unlit: true }, mapTexture: desc.map };
+        }
         if (desc.type !== "standard" && desc.type !== "basic" && desc.type !== "line")
-            throw new Error(`X3DOMRenderAdapter.createMaterial: type "${desc.type}" not yet implemented (supported so far: standard, basic, line)`);
+            throw new Error(`X3DOMRenderAdapter.createMaterial: type "${desc.type}" not yet implemented (supported so far: standard, basic, line, sprite)`);
         const materialEl = document.createElement("material");
         const color = desc.color !== undefined ? parseColor(desc.color) : { r: 0.8, g: 0.8, b: 0.8 };
         // X3D lines aren't lit — diffuseColor alone wouldn't render visibly, so line materials
@@ -846,7 +855,16 @@ export class X3DOMRenderAdapter extends RenderAdapter {
     attachRenderedTexture(material, rt) { material.appearanceEl.appendChild(rt.el); }
     mountRenderedTextureStage(stage) { this.add(this.sceneRoot, stage); }
     setRenderedTextureUpdate(rt, mode) { rt.el.setAttribute("update", mode); }
-    createSprite() { throw new Error("X3DOMRenderAdapter.createSprite: not yet implemented"); }
+    // Lab addition: a quad of the given size in metres that turns to face the viewer, as a three.js Sprite does.
+    createSprite(material, { width = 1, height = 1 } = {}) {
+        const billboard = document.createElement("billboard");
+        billboard.setAttribute("axisOfRotation", "0 0 0");
+        billboard.appendChild(this._wrapShape(this.createGeometry({ type: "plane", width, height }), material));
+        const transform = document.createElement("transform");
+        transform.appendChild(billboard);
+        transform.userData = {};
+        return transform;
+    }
     createGridHelper({ size, divisions, colorGrid, transparent, opacity }) {
         const half = size / 2;
         const step = size / divisions;

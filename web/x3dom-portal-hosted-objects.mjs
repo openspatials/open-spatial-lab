@@ -2,6 +2,8 @@
 // web/x3dom-portal-hosted-objects.mjs. Apache-2.0, like the rest of the lab. Nicholas Polys is co-author of lab commit ef702ec.
 // Changes in this copy: none, except where a comment says so. X_ITE uses this file too.
 
+import { accessLabelX3d, hostedAccessOf } from "./hosted-access-label.mjs";
+
 // X3DOM-native sibling to portal-render-controller.mjs's syncHostedSceneObjectMeshes() — NOT a
 // reuse of that function. It hardcodes `new ThreeRenderAdapter(THREE)` and reaches past the
 // adapter for raw three.js APIs (`mesh.material.color.copy()`, `mesh.geometry.dispose()`,
@@ -47,6 +49,24 @@ function wowStatusMap(meshes) {
     return meshes.__wowStatus || (meshes.__wowStatus = new Map());
 }
 
+// Lab addition: a hosted object whose asset is not public carries its access above it (web/hosted-access-label.mjs).
+// The label is a child of the object's mesh, kept here by object_id with the access and size it was drawn for.
+function syncAccessLabel(adapter, meshes, objectId, mesh, access, sizeM) {
+    const labels = meshes.__accessLabels || (meshes.__accessLabels = new Map());
+    const key = access === "public" ? null : `${access}:${sizeM}`;
+    const held = labels.get(objectId);
+    if (held && held.mesh === mesh && held.key === key)
+        return;
+    if (held && held.mesh === mesh && held.label) {
+        adapter.remove(mesh, held.label);
+        disposeMesh(adapter, held.label);
+    }
+    const label = key ? accessLabelX3d(adapter, globalThis.document, access, sizeM) : null;
+    if (label)
+        adapter.add(mesh, label);
+    labels.set(objectId, { mesh, key, label });
+}
+
 export function syncHostedSceneObjectMeshesX3dom({ adapter, meshes, parent, objects, version = null, fetchWowRepresentation = false, wowAssetBaseUrl = null }) {
     if (!adapter || !parent || !(meshes instanceof Map)) {
         return { object_ids: [], created: 0, removed: 0, geometry_updated: 0, structure_changed: false };
@@ -70,8 +90,19 @@ export function syncHostedSceneObjectMeshesX3dom({ adapter, meshes, parent, obje
         // 32-slot Inline pool (already near capacity with avatars/equipment/peers — see
         // x3dom-peer-avatars-glue.mjs's own MAX_PEERS cap for the same reason).
         const isFixture = !!(definition.fixture || definition.synthetic_density_fixture);
-        const wantsWowFetch = fetchWowRepresentation && !isFixture && !!wowAssetBaseUrl;
+        // Lab change: an asset the world will not serve (the attach-point names it restricted or hidden) is never
+        // requested; the object is drawn as itself, from its definition.
+        const access = hostedAccessOf(definition);
+        const wantsWowFetch = fetchWowRepresentation && !isFixture && !!wowAssetBaseUrl && access === "public";
         let mesh = meshes.get(objectId);
+        const held = statusMap.get(objectId);
+        if (mesh && access !== "public" && held && (held.status === "loading" || held.status === "loaded")) {
+            adapter.remove(parent, mesh);
+            disposeMesh(adapter, mesh);
+            meshes.delete(objectId);
+            statusMap.delete(objectId);
+            mesh = undefined;
+        }
         if (!mesh && wantsWowFetch) {
             const url = `${wowAssetBaseUrl}/wow/asset/primitive-${encodeURIComponent(objectId)}`;
             let claim = null;
@@ -156,6 +187,9 @@ export function syncHostedSceneObjectMeshesX3dom({ adapter, meshes, parent, obje
         // future definition.color changed).
         if (!isWowManaged)
             adapter.recolorSubtreeMaterials(mesh, color);
+        // Lab change: the access label (see syncAccessLabel).
+        if (!isWowManaged)
+            syncAccessLabel(adapter, meshes, objectId, mesh, access, sizeM);
         // Position/visibility/userData apply unconditionally, every tick, regardless of load state
         // (still-loading, loaded, or synthetic-fallback) — this is what keeps a hosted object
         // tracking live position updates (demoMoveSceneObject / ambient republish drift) without
@@ -169,6 +203,7 @@ export function syncHostedSceneObjectMeshesX3dom({ adapter, meshes, parent, obje
             color: `#${adapter.colorToHexString(color)}`,
             version,
             wow_status: entry ? entry.status : "synthetic",
+            asset_access: access,
         });
         // Skipped while still "loading": createInlineAsset() manages this mesh's own visibility
         // internally (stays hidden until the requested content has actually swapped in — see its
@@ -188,6 +223,7 @@ export function syncHostedSceneObjectMeshesX3dom({ adapter, meshes, parent, obje
         disposeMesh(adapter, mesh);
         meshes.delete(id);
         statusMap.delete(id);
+        meshes.__accessLabels?.delete(id);
         removed += 1;
     }
     return {
@@ -207,5 +243,6 @@ export function disposeHostedSceneObjectMeshesX3dom(adapter, meshes) {
     meshes.clear();
     if (meshes.__wowStatus)
         meshes.__wowStatus.clear();
+    meshes.__accessLabels?.clear();
     return count;
 }

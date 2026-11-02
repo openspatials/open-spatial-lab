@@ -25,6 +25,7 @@
 import { readPortals, previewOf, crossPortal, arrivalAt, entryBase, readFlatNode, placePortal, moveNode, changePortal, PREVIEW_COLOR } from "./wow-portal.mjs";
 import { WOW_MEDIA_TYPE } from "./wow-inclusion.mjs";
 import { worldBaseOf } from "./wow-observe.mjs";
+import { drawLabelCanvas } from "./label-canvas.mjs";
 
 const RING_RADIUS = 1.0;
 const RING_CENTER_Y = 1.25;
@@ -612,52 +613,11 @@ export async function applyJoinArrival({ hostUrl, camera, hash, fetch }) {
  * height in meters, so the caller can set its bottom just above the ring.
  */
 export function portalLabel(THREE, doc, lines, style) {
-  if (!doc || typeof doc.createElement !== "function") return null;
-  const WIDTH = 1024;
-  const PAD = 28;
-  const measure = doc.createElement("canvas").getContext("2d");
-  if (!measure) return null;
-  const font = (size) => `bold ${size}px ui-monospace, Menlo, monospace`;
-  const rows = [];
-  lines.forEach((line, i) => {
-    let size = i === 0 ? 76 : 48;
-    const min = i === 0 ? 52 : 40;
-    measure.font = font(size);
-    while (measure.measureText(line).width > WIDTH - 2 * PAD && size > min) {
-      size -= 2;
-      measure.font = font(size);
-    }
-    // Wrap what still does not fit, at spaces.
-    let row = "";
-    for (const word of String(line).split(" ")) {
-      const next = row ? `${row} ${word}` : word;
-      if (row && measure.measureText(next).width > WIDTH - 2 * PAD) { rows.push({ text: row, size }); row = word; }
-      else row = next;
-    }
-    rows.push({ text: row, size });
-  });
-  const height = PAD * 2 + rows.reduce((sum, r) => sum + r.size * 1.3, 0);
-  const canvas = doc.createElement("canvas");
-  canvas.width = WIDTH;
-  canvas.height = Math.ceil(height);
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = style.background;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = style.stroke;
-  ctx.lineWidth = 8;
-  ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-  ctx.fillStyle = style.color;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  let y = PAD;
-  for (const r of rows) {
-    ctx.font = font(r.size);
-    ctx.fillText(r.text, WIDTH / 2, y + (r.size * 1.3) / 2);
-    y += r.size * 1.3;
-  }
+  const canvas = drawLabelCanvas(doc, lines, style);
+  if (!canvas) return null;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), depthTest: false, transparent: true }));
   const widthM = 2.4;
-  sprite.scale.set(widthM, (widthM * canvas.height) / WIDTH, 1);
+  sprite.scale.set(widthM, (widthM * canvas.height) / canvas.width, 1);
   sprite.userData.height_m = sprite.scale.y;
   sprite.renderOrder = 10;
   sprite.name = `wow-portal-label:${lines[0]}`;
