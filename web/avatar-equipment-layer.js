@@ -1350,7 +1350,10 @@ export class AvatarEquipmentLayer {
     const clipDuration = Number(action && action.getClip().duration);
     const translationSpeed = Number(translationSpeedMps);
     if (!action || !Number.isFinite(clipDuration) || clipDuration <= 0) {
-      throw new Error("selected run clip is unavailable for runtime calibration");
+      // Name the avatar and its own load error, so a fault here can be read from the visitor's screen.
+      const lastError = (this.status.errors || []).slice(-1)[0];
+      throw new Error(`selected run clip is unavailable for runtime calibration (avatar ${this.status.avatar_variant || "unknown"}`
+        + `${lastError ? `: ${lastError}` : ""})`);
     }
     if (!Number.isFinite(translationSpeed) || translationSpeed <= 0) {
       throw new RangeError("run translation speed must be a positive finite value");
