@@ -190,6 +190,16 @@ export function createAirportEntityRuntime(graph, built, THREE, opts = {}) {
     return false;
   }
 
+  // The scene loader asks here first: an actor on the avatar runtime is mounted from the runtime's own parsed copy of
+  // its character, so the GLB downloads once (attachRuntimeActor then reuses the same library). null: load it normally.
+  function runtimeActorScene(assetRecord) {
+    const record = assetRecord ? recordByNode.get(String(assetRecord.id)) : null;
+    if (!record || !["npc-traveler", "store-staff"].includes(record.card.semantic_role)) return null;
+    const npcAsset = record.node.webofworlds_extension?.npc_asset || {};
+    if (npcAsset.load_mode !== "actionforge-runtime" || !npcAsset.prepared) return null;
+    return import("./avatar/actionforge-avatar.mjs").then(({ actionForgeAvatarScene }) => actionForgeAvatarScene({ prepared: npcAsset.prepared }));
+  }
+
   // An actor on the avatar collection: the avatar runtime plays its idle on the character's own skeleton
   // (avatar/actionforge-avatar.mjs). The loaded GLB is replaced in place by the runtime's instance of the same file.
   async function attachRuntimeActor(record, model, npcAsset) {
@@ -268,7 +278,7 @@ export function createAirportEntityRuntime(graph, built, THREE, opts = {}) {
     debug.disposed = true;
   }
 
-  const runtime = { update, attachAsset, dispose, debugState: () => ({ ...debug, inventory_errors: debug.inventory_errors.slice() }) };
+  const runtime = { update, attachAsset, runtimeActorScene, dispose, debugState: () => ({ ...debug, inventory_errors: debug.inventory_errors.slice() }) };
   built.airport_entity_runtime = runtime;
   built.render_summary.airport_entities = debug;
   if (opts.document?.body) {

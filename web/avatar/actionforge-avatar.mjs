@@ -107,6 +107,12 @@ function itemsFor() {
   return itemLibrary;
 }
 
+/** The character's parsed glTF scene from the shared library: a scene loader can mount it without fetching the GLB again. */
+export async function actionForgeAvatarScene(variant) {
+  const library = await libraryFor(withBase(variant.prepared));
+  return library.template.children[0];
+}
+
 export async function loadActionForgeAvatar(variant) {
   const [library, items] = await Promise.all([libraryFor(withBase(variant.prepared)), itemsFor().catch(() => null)]);
   const instance = createAvatarInstance(library);

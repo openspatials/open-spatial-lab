@@ -769,7 +769,7 @@ export function resolveAssetUri(uri, baseUrl) {
  * placeholder on success.
  *
  * REUSE, not a second loader: the network/parse is done by the INJECTED
- * `opts.loadGltf(url) -> Promise<Object3D>` — in the browser this is the SAME
+ * `opts.loadGltf(url, record) -> Promise<Object3D>` — in the browser this is the SAME
  * GLTFLoader the avatars use (web/avatar-equipment-layer.js#loadGltfSceneAsset).
  *
  * - CACHE by resolved URI: the first placement of a URI loads over the network;
@@ -841,7 +841,7 @@ export async function mountWowSceneAssets(assetNodes, THREE, opts = {}) {
         let templatePromise = cache.get(resolved);
         if (!templatePromise) {
           fromCache = false;
-          templatePromise = Promise.resolve().then(() => loadGltf(resolved));
+          templatePromise = Promise.resolve().then(() => loadGltf(resolved, rec));
           cache.set(resolved, templatePromise);
         }
         const template = await templatePromise;

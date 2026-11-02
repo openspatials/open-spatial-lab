@@ -47,6 +47,8 @@ export function createSceneRuntimeController({
   showToast,
   vec3Label,
 }) {
+  // The airport's actors on the avatar runtime are mounted from the runtime's own copy of their character (one download).
+  const airportLoadGltf = (built) => (url, record) => built?.airport_entity_runtime?.runtimeActorScene?.(record) || loadGltf(url);
   let currentScene = null;
   let previewManager = null;
   let clientSceneLoadInFlight = false;
@@ -495,7 +497,7 @@ export function createSceneRuntimeController({
     let transferReadyPromise = null;
     if (assetNodes.length) {
       void mountWowSceneAssets(assetNodes, THREE, {
-        loadGltf,
+        loadGltf: airportLoadGltf(built),
         cloneScene,
         cache: destinationAssetCache,
         shouldMount: () => currentScene === next,
@@ -645,7 +647,7 @@ export function createSceneRuntimeController({
       const assetNodes = built.asset_nodes || [];
       if (assetNodes.length) {
         void mountWowSceneAssets(assetNodes, THREE, {
-          loadGltf,
+          loadGltf: airportLoadGltf(built),
           cloneScene,
           cache: destinationAssetCache,
           baseUrl: activeClientSceneGraph.base_url || activeClientSceneGraph.graph_url || locationHref,
@@ -959,7 +961,7 @@ export function createSceneRuntimeController({
       if (assetNodes.length) {
         const assetBaseUrl = resolved.base_url || resolved.graph_url || locationHref;
         void mountWowSceneAssets(assetNodes, THREE, {
-          loadGltf,
+          loadGltf: airportLoadGltf(built),
           cloneScene,
           cache: destinationAssetCache,
           baseUrl: assetBaseUrl,
