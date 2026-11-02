@@ -102,7 +102,8 @@ export function createAvatarSelectorController({
   // — they are simply not offered as selector chips. If a catalog carries no selectable GLB at
   // all, fall back to the full set rather than render an empty selector.
   function enumerableVariantKeys() {
-    const glb = variantKeys.filter((key) => variants[key] && variants[key].type === "glb");
+    // selectable: false keeps a GLB loadable (direct paths, world actors) but out of the selector and the random start.
+    const glb = variantKeys.filter((key) => variants[key] && variants[key].type === "glb" && variants[key].selectable !== false);
     return glb.length ? glb : variantKeys.slice();
   }
 
@@ -172,8 +173,11 @@ export function createAvatarSelectorController({
     if (saved) return { variant: saved, source: "saved" };
     const keys = enumerableVariantKeys();
     if (!keys.length) return null;
-    const index = Math.min(keys.length - 1, Math.max(0, Math.floor(randomFn() * keys.length)));
-    const variant = keys[index];
+    // Variants marked starting_pool (the avatar collection) are where a new visitor starts; the rest stay choosable.
+    const preferred = keys.filter((key) => variants[key] && variants[key].starting_pool === true);
+    const pool = preferred.length ? preferred : keys;
+    const index = Math.min(pool.length - 1, Math.max(0, Math.floor(randomFn() * pool.length)));
+    const variant = pool[index];
     writeSavedStartingVariant(storage, variant);
     return { variant, source: "random" };
   }

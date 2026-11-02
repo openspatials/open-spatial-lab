@@ -58,6 +58,21 @@ export const MIXAMO_TO_VRM = Object.freeze({
   mixamorigRightToeBase: "rightToes",
 });
 
+// ActionForge's CC0 71-joint skeleton (Quaternius), used by the avatar collection: exact joint names, matched before
+// the Mixamo names, because the Mixamo matcher drops a trailing "_02" and would fold spine_01 to spine_03 into one bone.
+const ACTIONFORGE_FINGERS = { thumb: ["Metacarpal", "Proximal", "Distal"], index: ["Proximal", "Intermediate", "Distal"],
+  middle: ["Proximal", "Intermediate", "Distal"], ring: ["Proximal", "Intermediate", "Distal"], pinky: ["Proximal", "Intermediate", "Distal"] };
+export const ACTIONFORGE_TO_VRM = Object.freeze({
+  pelvis: "hips", spine_01: "spine", spine_02: "chest", spine_03: "upperChest", neck_01: "neck", Head: "head",
+  clavicle_l: "leftShoulder", upperarm_l: "leftUpperArm", lowerarm_l: "leftLowerArm", hand_l: "leftHand",
+  clavicle_r: "rightShoulder", upperarm_r: "rightUpperArm", lowerarm_r: "rightLowerArm", hand_r: "rightHand",
+  thigh_l: "leftUpperLeg", calf_l: "leftLowerLeg", foot_l: "leftFoot", ball_l: "leftToes",
+  thigh_r: "rightUpperLeg", calf_r: "rightLowerLeg", foot_r: "rightFoot", ball_r: "rightToes",
+  ...Object.fromEntries(Object.entries(ACTIONFORGE_FINGERS).flatMap(([finger, parts]) => ["l", "r"].flatMap((side) =>
+    parts.map((part, i) => [`${finger}_0${i + 1}_${side}`,
+      `${side === "l" ? "left" : "right"}${finger === "pinky" ? "Little" : finger[0].toUpperCase() + finger.slice(1)}${part}`])))),
+});
+
 export function measureAnatomicalFrame(getBoneNode) {
   const world = (name) => {
     const node = getBoneNode(name);

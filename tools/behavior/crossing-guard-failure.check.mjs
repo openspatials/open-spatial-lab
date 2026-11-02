@@ -13,7 +13,7 @@ import { sceneFacts } from "./page-reads.mjs";
 
 const MISS_M = 0.06; // past the guards' 0.05 m
 const SETTLE_MS = 4000;
-const WALK_AWAY_M = [1.0, 1.7]; // over 0.6 s of the movement loop's time, at 2.35 m/s
+const WALK_AWAY_M = [0.6, 1.0]; // over 0.6 s of the movement loop's time, at 1.4 m/s
 const PROBLEM = /Crossing check failed/;
 const PICTURES = join(CODE, ".runtime", "behavior", "crossing-guard-failure", "pictures");
 

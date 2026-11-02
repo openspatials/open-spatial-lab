@@ -1,10 +1,10 @@
 // Motion-capture locomotion: idle, walk and run clips from a recorded human, retargeted onto
 // the avatar's normalized humanoid rig. Jump has no recording, so it is authored here.
 //
-// THE SOURCE. /assets/mocap/locomotion-mocap.json is baked from the 100STYLE dataset
-// (Ian Mason, Sebastian Starke, Taku Komura; CC BY 4.0) by tools/mocap/bake-locomotion.mjs:
-// a neutral idle, a brisk ("Rushed") forward walk and a long-stride ("BigSteps") forward run,
-// each cut to a single seamless cycle, so they match the lab's 2.35 m/s walk and 2.8 m/s run. The file carries its own attribution, the source skeleton (bone names,
+// THE SOURCE. /assets/mocap/locomotion-mocap.json is baked from ActionForge's CC0 clip pack
+// (Quaternius) by tools/mocap/bake-actionforge-locomotion.mjs: idle_loop, walk_loop and jog_fwd_loop,
+// each one seamless cycle, played near their own pace by the lab's 1.4 m/s walk and 4.5 m/s run.
+// (tools/mocap/bake-locomotion.mjs bakes the earlier 100STYLE clips into the same format.) The file carries its own attribution, the source skeleton (bone names,
 // parents and rest offsets, all rest rotations identity) and a map from source bone names to
 // humanoid bone names, so this module knows no source naming of its own.
 //

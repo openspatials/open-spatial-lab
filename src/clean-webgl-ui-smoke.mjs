@@ -32,13 +32,13 @@ const VIEWPORTS = Object.freeze([
   { name: "narrow", width: 390, height: 844, deviceScaleFactor: 1 },
 ]);
 const ASSET_PREWARM_EXPECTED = Object.freeze({
-  "/assets/avatars/glb/readyplayerme_cyberpunk.glb": Object.freeze({
-    bytes: 5612900,
-    sha256: "1ed7b4b4eefeba3d379b101fe68e5e2826ea85d1048bf836f263ca5dc09ba88e",
+  "/assets/avatars/glb/collection-adam.glb": Object.freeze({
+    bytes: 2931092,
+    sha256: "360417dbd12093eb95c22f9ef4528515dd1fc16548cc84229d1eca09e2d5c9aa",
   }),
   "/assets/mocap/locomotion-mocap.json": Object.freeze({
-    bytes: 153528,
-    sha256: "f36e7ac39bcfd7b109c6e2366c43a126bfe64e0a6024244515881114d60a2c26",
+    bytes: 106845,
+    sha256: "5347fdb29d2caa5a635eff79b4db26f7a6e73a1025d417a7d0d4f50e027503b3",
   }),
 });
 const EXPECTED_LOCOMOTION_STATES = Object.freeze(["idle", "walk", "run", "jump"]);
@@ -110,7 +110,7 @@ export function rendererGate(run) {
     need(sample.source === "window.__assembly", "product loader readiness was forged");
     need(sample.assembly_ready === true && sample.equipment_ready === true, "product loader was not truthfully ready");
     need(sample.assembly_disposed === false, "product loader was already disposed at readiness");
-    need(sample.avatar?.variant === "readyplayerme-cyberpunk", "default avatar loader did not settle on the required variant");
+    need(sample.avatar?.variant === "collection-adam", "default avatar loader did not settle on the required variant");
     need(sample.avatar?.switch_in_flight === false, "avatar loader was still switching");
     need(sample.avatar?.model_height_m > 0 && sample.avatar?.head_height_m > 0, "avatar render geometry was not ready");
     need(sample.avatar?.current_animation_state === "idle", "avatar locomotion did not settle at idle");
@@ -467,7 +467,7 @@ async function waitForProductReadiness(page, browserGateCompletedAtMs) {
     const visual = assembly?.avatarVisualState?.();
     const clips = (visual?.locomotion_clips || []).map((clip) => String(clip).split("(", 1)[0].toLowerCase());
     return assembly?.ready === true && assembly?.disposed !== true && assembly?.equipmentReady?.() === true &&
-      visual?.avatar_variant === "readyplayerme-cyberpunk" && visual?.avatar_switch_in_flight === false &&
+      visual?.avatar_variant === "collection-adam" && visual?.avatar_switch_in_flight === false &&
       visual?.avatar_model_height_m > 0 && visual?.avatar_head_height_m > 0 &&
       visual?.current_animation_state === "idle" && states.every((state) => clips.includes(state));
   }, { timeout: 60_000, polling: 100 }, EXPECTED_LOCOMOTION_STATES);
@@ -479,7 +479,7 @@ async function waitForProductReadiness(page, browserGateCompletedAtMs) {
   const gatePassed = samples.every((sample) =>
     sample.source === "window.__assembly" && sample.assembly_ready === true &&
     sample.assembly_disposed === false && sample.equipment_ready === true &&
-    sample.avatar?.variant === "readyplayerme-cyberpunk" && sample.avatar.switch_in_flight === false &&
+    sample.avatar?.variant === "collection-adam" && sample.avatar.switch_in_flight === false &&
     sample.avatar.model_height_m > 0 && sample.avatar.head_height_m > 0 &&
     sample.avatar.current_animation_state === "idle" &&
     EXPECTED_LOCOMOTION_STATES.every((state) => sample.avatar.locomotion_states.includes(state)) &&

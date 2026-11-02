@@ -98,11 +98,11 @@ export function createRunTweakRegistry({ sourceDefaults, readCalibration, applyC
       units: "cycles/s",
       sourceDerivedDefault: speedDefault,
       precision: 4,
-      min: 2.7 / distanceDefault,
-      max: 3.15 / distanceDefault,
+      min: 3.5 / distanceDefault,
+      max: 5.5 / distanceDefault,
       step: 0.001,
       description: "Completed run-animation cycles per second.",
-      rangeRationale: "2.7-3.0 m/s is the preferred measured jog envelope; 3.15 m/s (195.092 steps/min) is the hard clip limit.",
+      rangeRationale: "3.5-5.5 m/s plays the ActionForge jog (5.3 m/s at its own pace on the pack's skeleton) at 0.6 to 1.0 of its pace, so the feet neither float nor race.",
     },
   ];
   let registry;

@@ -10,7 +10,7 @@ import { cameraMovementFaults } from "./camera-movement-faults.mjs";
 
 const FIRST_PERSON_M = 1.0; // the camera sits in the head; a third-person camera is 3.4 m behind
 const THIRD_PERSON_M = 2.0;
-const CARRY_ON_M = 0.3; // what a key held through a crossing may still walk; 2.35 m/s would give 1.9 m in 0.8 s
+const CARRY_ON_M = 0.3; // what a key held through a crossing may still walk; 1.4 m/s would give 1.1 m in 0.8 s
 const FRESH_PRESS_M = 0.8;
 const CROSS_LIMIT_MS = 90000;
 const AGAIN_RAD = 0.15;

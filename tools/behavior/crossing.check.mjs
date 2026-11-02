@@ -7,7 +7,7 @@ import { AT_THE_NODE_M, FACING_RAD, lobbyUrl, portalNamed, walkInto, yawOf } fro
 const CAMERA_DISTANCE_M = [1.5, 8];
 const COUNTERPART_M = 2.2;
 const SETTLE_MS = 4000;
-const WALK_AWAY_M = [1.0, 1.7]; // over 0.6 s of the movement loop's time, at 2.35 m/s
+const WALK_AWAY_M = [0.6, 1.0]; // over 0.6 s of the movement loop's time, at 1.4 m/s
 
 /** Every location the page shows, in order, until stop() is called. */
 function watchLocations(page) {

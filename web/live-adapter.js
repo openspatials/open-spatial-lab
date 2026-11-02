@@ -284,8 +284,11 @@ const HOSTED_ATTACH_POINT_EVENT = "hostedattachpoint";
 const RUNTIME_STATE_LOG_INTERVAL_MS = 5000;
 const ENDPOINTS = worldEndpoints();
 const WORLD_LIMIT = 5.4;
-const MOVE_SPEED_MPS = 2.35;
-const RUN_MOVE_SPEED_MPS = 2.8;
+// Walk and run speeds follow the CC0 ActionForge clips (web/assets/mocap/locomotion-mocap.json): a brisk walk and a
+// jog, each near its clip's own pace (walk_loop 0.94 m/s, jog_fwd_loop 5.3 m/s on the pack's skeleton), so the feet
+// do not race or float. The 100STYLE clips these replaced turned the hips and head 30 to 49 degrees off the path.
+const MOVE_SPEED_MPS = 1.4;
+const RUN_MOVE_SPEED_MPS = 4.5;
 const RUN_MAX_CYCLE_SPEED = 1.6257644280216694;
 const RUN_MIN_CYCLE_DISTANCE_M = 0.5;
 const JUMP_SPEED_MPS = 4.25;

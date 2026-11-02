@@ -6,7 +6,7 @@ import { worldPortals } from "../arch-i4/main-demo/world-data.mjs";
 import { expect, faceYaw, fixed, holdKeys, inRange, pageFacts, runBehavior, sleep, walkThrough, walkTo, waitUntil, worldRecord } from "./kit.mjs";
 import { bodyMark, clearViaPicker, clientSceneTrip, HAT_AND_MUG, groundNow, liveFacts, moveRunCadence, storedInBrowser, visitRecorded, wearViaPicker, wornNow } from "./live-adapter-page.mjs";
 
-const WALK_M = [1.2, 1.65]; // 0.6 s of the movement loop at 2.35 m/s, as in movement.check.mjs
+const WALK_M = [0.72, 0.98]; // 0.6 s of the movement loop at 1.4 m/s, as in movement.check.mjs
 const RUN_FOLLOWS_RANGE = 0.5; // how far the run speed ratio may be from the slider's ratio, as a share of the slider's rise
 const CROSS_LIMIT_MS = 90000;
 

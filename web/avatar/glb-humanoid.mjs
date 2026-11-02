@@ -39,7 +39,7 @@
 
 import * as THREE from "../vendor/scene-core/vendor/three/three.module.js";
 import { VRMHumanoid } from "../vendor-vrm/three-vrm.module.js";
-import { MIXAMO_TO_VRM, measureAnatomicalFrame } from "../humanoid-rig.js";
+import { ACTIONFORGE_TO_VRM, MIXAMO_TO_VRM, measureAnatomicalFrame } from "../humanoid-rig.js";
 
 /**
  * Mixamo BASE bone name (lowercased, no `mixamorig` prefix, no exporter suffix)
@@ -447,7 +447,7 @@ export function buildGlbHumanoid(scene, { normalizeRestPose = true, normalizeLeg
   scene.traverse((node) => {
     if (node.isSkinnedMesh) skinnedMeshCount += 1;
     if (!node.isBone) return;
-    const vrmBone = BASE_TO_VRM_BONE[baseBoneName(node.name)];
+    const vrmBone = ACTIONFORGE_TO_VRM[node.name] || BASE_TO_VRM_BONE[baseBoneName(node.name)];
     if (!vrmBone || humanBones[vrmBone]) return;
     humanBones[vrmBone] = { node };
     mappedBones[vrmBone] = node.name;

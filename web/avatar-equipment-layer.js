@@ -32,10 +32,10 @@ const ATTACHMENT_PRESETS = {
 // real blended mocap locomotion (grafted).
 //
 // MOCAP SOURCE — LICENCE, stated correctly.
-// The idle, walk and run clips are motion capture from the 100STYLE dataset (Ian Mason,
-// Sebastian Starke, Taku Komura), licensed CC BY 4.0, which allows public redistribution with
-// credit. The credit is in THIRD_PARTY_NOTICES.md and inside the clip file itself.
-// tools/mocap/bake-locomotion.mjs cuts one cycle of each from the dataset. The lab
+// The idle, walk and run clips are ActionForge's CC0 clips (idle_loop, walk_loop, jog_fwd_loop, by Quaternius),
+// baked by tools/mocap/bake-actionforge-locomotion.mjs from the avatars build's clip pack. The credit is in
+// THIRD_PARTY_NOTICES.md and inside the clip file itself. Before that they were 100STYLE motion capture (CC BY 4.0,
+// tools/mocap/bake-locomotion.mjs), which turned the hips and head off the path. The lab
 // used Adobe Mixamo clips before; Mixamo forbids distributing its animation files, so those
 // are not in this repository.
 const MOCAP_URLS = { locomotion: withBase("/assets/mocap/locomotion-mocap.json") };
@@ -51,8 +51,8 @@ const MOCAP_URLS = { locomotion: withBase("/assets/mocap/locomotion-mocap.json")
 //   1. "upgraded" (AvatarSample_B) is NOT CC0. The bytes say
 //      VRM.meta.licenseName = "Other" with an EMPTY otherLicenseUrl. Its licence is therefore
 //      UNKNOWN — recorded as Unknown, not guessed into something friendlier. See the entry.
-//   2. "upgraded" is not the default: DEFAULT_AVATAR_VARIANT below is
-//      "readyplayerme-cyberpunk" (CC-BY-NC-SA-4.0).
+//   2. "upgraded" is not the default: DEFAULT_AVATAR_VARIANT below is "collection-adam" (the
+//      avatar collection, Adobe Mixamo characters).
 //
 // The "classic" variant (/runtime-assets/avatar.vrm, HYPERFY "HYPERROBO_TEMPLATE") IS GONE.
 // Its own VRM.meta declares licenseName "Redistribution_Prohibited" and allowedUserName
@@ -87,7 +87,71 @@ export const AVATAR_VARIANTS = Object.freeze({
     structured_unsupported: [],
   },
   // END
-  // The Ready Player Me characters below are Mixamo-topology rigs driven through the
+  // The avatar collection: Mixamo characters converted onto ActionForge's CC0 71-joint skeleton, each at its real height, facing +Z, 1024-pixel WebP textures. glb-humanoid maps their joint
+  // names through ACTIONFORGE_TO_VRM (humanoid-rig.js). Listed first so the selector shows them first.
+  "collection-adam": {
+    key: "collection-adam",
+    label: "Adam",
+    type: "glb",
+    url: withBase("/assets/avatars/glb/collection-adam.glb"),
+    scale: 1,
+    rotation_y: 0,
+    load_mode: "gltf-humanoid-facade",
+    mocap_retarget: "supported",
+    equipment_attachment: "glb-humanoid-normalized-bones",
+    licence: "Adobe Mixamo character",
+    licence_holder: "Adobe Mixamo",
+    starting_pool: true,
+    structured_unsupported: [],
+  },
+  "collection-david": {
+    key: "collection-david",
+    label: "David",
+    type: "glb",
+    url: withBase("/assets/avatars/glb/collection-david.glb"),
+    scale: 1,
+    rotation_y: 0,
+    load_mode: "gltf-humanoid-facade",
+    mocap_retarget: "supported",
+    equipment_attachment: "glb-humanoid-normalized-bones",
+    licence: "Adobe Mixamo character",
+    licence_holder: "Adobe Mixamo",
+    starting_pool: true,
+    structured_unsupported: [],
+  },
+  "collection-elizabeth": {
+    key: "collection-elizabeth",
+    label: "Elizabeth",
+    type: "glb",
+    url: withBase("/assets/avatars/glb/collection-elizabeth.glb"),
+    scale: 1,
+    rotation_y: 0,
+    load_mode: "gltf-humanoid-facade",
+    mocap_retarget: "supported",
+    equipment_attachment: "glb-humanoid-normalized-bones",
+    licence: "Adobe Mixamo character",
+    licence_holder: "Adobe Mixamo",
+    starting_pool: true,
+    structured_unsupported: [],
+  },
+  "collection-sophie": {
+    key: "collection-sophie",
+    label: "Sophie",
+    type: "glb",
+    url: withBase("/assets/avatars/glb/collection-sophie.glb"),
+    scale: 1,
+    rotation_y: 0,
+    load_mode: "gltf-humanoid-facade",
+    mocap_retarget: "supported",
+    equipment_attachment: "glb-humanoid-normalized-bones",
+    licence: "Adobe Mixamo character",
+    licence_holder: "Adobe Mixamo",
+    starting_pool: true,
+    structured_unsupported: [],
+  },
+  // The Ready Player Me characters below are no longer offered (selectable: false; the avatar collection replaced them in
+  // the selector). They still load by key, for saved picks, address pins and the Denver Skyport actors that wear them.
+  // They are Mixamo-topology rigs driven through the
   // gltf-humanoid-facade, so they share the locomotion retarget and the normalized-bone
   // equipment attachment with no per-avatar code. rotation_y stays 0: a Mixamo glTF rig
   // already faces the mocap source's forward. They are the player roster (each new session
@@ -108,6 +172,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "glb-humanoid-normalized-bones",
     licence: "CC-BY-NC-SA-4.0",
     licence_holder: "Ready Player Me (via Sketchfab)",
+    selectable: false,
     structured_unsupported: [],
   },
   "cyberpunk-female-full-body": {
@@ -122,6 +187,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "glb-humanoid-normalized-bones",
     licence: "CC-BY-NC-SA-4.0",
     licence_holder: "Ready Player Me (via Sketchfab)",
+    selectable: false,
     structured_unsupported: [],
   },
   "rpm-female-cyberpunk": {
@@ -136,6 +202,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "glb-humanoid-normalized-bones",
     licence: "CC-BY-NC-SA-4.0",
     licence_holder: "Ready Player Me (via Sketchfab)",
+    selectable: false,
     structured_unsupported: [],
   },
   "rpm-female-ninja": {
@@ -150,6 +217,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "glb-humanoid-normalized-bones",
     licence: "CC-BY-NC-SA-4.0",
     licence_holder: "Ready Player Me (via Sketchfab)",
+    selectable: false,
     structured_unsupported: [],
   },
   "rpm-female-character": {
@@ -164,14 +232,14 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "glb-humanoid-normalized-bones",
     licence: "CC-BY-NC-SA-4.0",
     licence_holder: "Ready Player Me (via Sketchfab)",
+    selectable: false,
     structured_unsupported: [],
   },
 });
-// The default player avatar is a Ready Player Me character (CC-BY-NC-SA-4.0, credited in
-// THIRD_PARTY_NOTICES.md). A new session starts as one of the roster at random; this is the
+// The default player avatar is Adam from the avatar collection (credited in THIRD_PARTY_NOTICES.md). A new session starts as one of the collection (starting_pool) at random; this is the
 // one used when no pick exists. The generated avatar stays available through
 // `?avatar_variant=parametric`.
-export const DEFAULT_AVATAR_VARIANT = "readyplayerme-cyberpunk";
+export const DEFAULT_AVATAR_VARIANT = "collection-adam";
 
 /**
  * PREFERRED HEIGHT (the Universal Manifest shape, deliberately NOT UM-wired).
@@ -214,12 +282,12 @@ const HEAD_ITEM_SINK_FRACTION = Object.freeze({
 // Walk playback retains its measured natural-speed calibration. Run playback is
 // intentionally separate: one run loop is a measured two-step gait cycle whose
 // distance is the fixed-sole/foot-derived source of truth Stage A.
-const WORLD_MOVE_SPEED_MPS = 2.35;
-const WALK_NATURAL_SPEED_MPS = 1.55;
-const RUN_CYCLE_DISTANCE_M = 1.9375500814918891;
+const WORLD_MOVE_SPEED_MPS = 1.4;
+const WALK_NATURAL_SPEED_MPS = 0.9375; // walk_loop and jog_fwd_loop as baked into locomotion-mocap.json (pack size)
+const RUN_CYCLE_DISTANCE_M = 4.9732;
 const RUN_CONTACT_WINDOWS_S = Object.freeze({
-  left: Object.freeze({ start: 0.2139999963556017, end: 0.4494999923450606 }),
-  right: Object.freeze({ start: 0.570999990275928, end: 0.7804999867081642 }),
+  left: Object.freeze({ start: 0.0333, end: 0.1 }),
+  right: Object.freeze({ start: 0.5, end: 0.5667 }),
 });
 const RUN_CONTACT_RELEASE_S = 0.11;
 // The walk and run pace come with the clips (measured from the recording and scaled to the
@@ -710,7 +778,7 @@ export class AvatarEquipmentLayer {
       walk_animation_asset_uri: MOCAP_URLS.locomotion,
       run_animation_asset_uri: MOCAP_URLS.locomotion,
       retargeter:
-        "motion capture (100STYLE, CC BY 4.0) retargeted onto the normalized humanoid rig",
+        "ActionForge clips (CC0) retargeted onto the normalized humanoid rig",
       retargeted_walk_loaded: false,
       retargeted_run_loaded: false,
       retargeted_track_count: 0,
@@ -1254,7 +1322,7 @@ export class AvatarEquipmentLayer {
       this.status.retargeted_walk_loaded = true;
       this.status.retargeted_run_loaded = Boolean(clips.run && clips.run.tracks.length);
       this.status.retarget_source_animation =
-        "motion-capture idle, walk and run (100STYLE, CC BY 4.0) and an authored jump";
+        "ActionForge idle, walk and jog (CC0) and an authored jump";
       this.status.retargeted_track_count = clips.walk.tracks.length;
       this.status.retargeted_track_names = clips.walk.tracks.map((track) => track.name).slice(0, 40);
       this.status.retargeted_non_identity_quaternion_samples = countNonIdentityQuaternionSamples(clips.walk);

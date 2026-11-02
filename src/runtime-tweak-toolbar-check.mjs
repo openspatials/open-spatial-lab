@@ -59,8 +59,9 @@ function includesAll(text, needles, label) {
 
 function calibrationHarness() {
   const defaults = {
-    run_cycle_speed: 1.4451239360192616,
-    run_cycle_distance: 1.9375500814918891,
+    // The lab's 4.5 m/s run over the ActionForge jog's cycle (4.9732 m, web/assets/mocap/locomotion-mocap.json).
+    run_cycle_speed: 4.5 / 4.9732,
+    run_cycle_distance: 4.9732,
   };
   let applied = { ...defaults };
   const registry = createRunTweakRegistry({
@@ -110,7 +111,7 @@ await check("cycle-speed drives the shared run action without clip restart", () 
 await check("default product recovers measured run translation", () => {
   const { defaults } = calibrationHarness();
   const runMps = defaults.run_cycle_speed * defaults.run_cycle_distance;
-  assert.ok(Math.abs(runMps - 2.8) < 1e-12, `default product ${runMps} != 2.8 m/s`);
+  assert.ok(Math.abs(runMps - 4.5) < 1e-12, `default product ${runMps} != 4.5 m/s`);
   // The stride comes with the run clip (measured from the recording), with the old constant as a fallback.
   assert.ok(source.avatar.includes("const runCycleDistance = (this._gait || DEFAULT_GAIT).runCycleDistance"));
   assert.ok(source.avatar.includes("const runCycleSpeed = translationSpeed / runCycleDistance"));
@@ -123,7 +124,7 @@ await check("per-row copy is deterministic and live", () => {
   const actual = mutation === "copy-row"
     ? `${registry[0].key}: ${registry[0].sourceDerivedDefault.toFixed(registry[0].precision)}`
     : formatTweakLine(registry[0]);
-  assert.equal(actual, "run_cycle_speed: 1.5455");
+  assert.equal(actual, "run_cycle_speed: 1.0048");
 });
 
 await check("copy-all rereads current values in registry order", () => {
@@ -132,7 +133,7 @@ await check("copy-all rereads current values in registry order", () => {
   const actual = mutation === "copy-all-freshness"
     ? registry.map((entry) => `${entry.key}: ${entry.sourceDerivedDefault.toFixed(entry.precision)}`).join("\n")
     : copyAllTweakText(registry);
-  assert.equal(actual, "run_cycle_speed: 1.5455");
+  assert.equal(actual, "run_cycle_speed: 1.0048");
 });
 
 await check("clipboard rejection exposes selectable honest fallback", () => {

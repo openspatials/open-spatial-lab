@@ -1,7 +1,43 @@
 {
   "schema_version": 1,
-  "default_avatar": "readyplayerme-cyberpunk",
+  "default_avatar": "collection-adam",
   "avatars": [
+    {
+      "key": "collection-adam",
+      "label": "Adam",
+      "type": "glb",
+      "url": "/assets/avatars/glb/collection-adam.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "Adobe Mixamo character"
+    },
+    {
+      "key": "collection-david",
+      "label": "David",
+      "type": "glb",
+      "url": "/assets/avatars/glb/collection-david.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "Adobe Mixamo character"
+    },
+    {
+      "key": "collection-elizabeth",
+      "label": "Elizabeth",
+      "type": "glb",
+      "url": "/assets/avatars/glb/collection-elizabeth.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "Adobe Mixamo character"
+    },
+    {
+      "key": "collection-sophie",
+      "label": "Sophie",
+      "type": "glb",
+      "url": "/assets/avatars/glb/collection-sophie.glb",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "Adobe Mixamo character"
+    },
     {
       "key": "readyplayerme-cyberpunk",
       "label": "Joe",
@@ -9,7 +45,8 @@
       "url": "/assets/avatars/glb/readyplayerme_cyberpunk.glb",
       "scale": 1,
       "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0"
+      "license": "CC-BY-NC-SA-4.0",
+      "selectable": false
     },
     {
       "key": "cyberpunk-female-full-body",
@@ -18,7 +55,8 @@
       "url": "/assets/avatars/glb/cyberpunk_female_full-body_character.glb",
       "scale": 1,
       "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0"
+      "license": "CC-BY-NC-SA-4.0",
+      "selectable": false
     },
     {
       "key": "rpm-female-cyberpunk",
@@ -27,7 +65,8 @@
       "url": "/assets/avatars/glb/rpm_female_cyberpunk.glb",
       "scale": 1,
       "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0"
+      "license": "CC-BY-NC-SA-4.0",
+      "selectable": false
     },
     {
       "key": "rpm-female-ninja",
@@ -36,7 +75,8 @@
       "url": "/assets/avatars/glb/rpm_female_ninja.glb",
       "scale": 1,
       "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0"
+      "license": "CC-BY-NC-SA-4.0",
+      "selectable": false
     },
     {
       "key": "rpm-female-character",
@@ -45,7 +85,8 @@
       "url": "/assets/avatars/glb/rpm_female_character.glb",
       "scale": 1,
       "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0"
+      "license": "CC-BY-NC-SA-4.0",
+      "selectable": false
     },
     {
       "key": "parametric",

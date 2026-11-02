@@ -2,13 +2,13 @@
 //   node tools/behavior/movement.check.mjs [--faults] [--only id,id]
 //
 // Every distance is for a hold counted in the movement loop's own time (see kit.mjs): on a loaded machine a second of
-// wall time can give the loop anything from 0.05 s to a full second, but a second of its time is always 2.35 m of walking.
+// wall time can give the loop anything from 0.05 s to a full second, but a second of its time is always 1.4 m of walking.
 import { angleBetween, blurWindow, expect, faceYaw, fixed, holdKeys, inRange, pageFacts, planar, runBehavior, sleep, untilClock, waitUntil, walkTo, worldRecord } from "./kit.mjs";
 
 const HOLD_S = 0.6;
-const WALK_M = [1.2, 1.65]; // 1.41 m at the measured 2.35 m/s; half speed would be 0.7 m
+const WALK_M = [0.72, 0.98]; // 0.84 m at 1.4 m/s (the ActionForge walk's pace); half speed would be 0.42 m
 const HEADING_RAD = 0.15;
-const RUN_OVER_WALK = [1.1, 2.5]; // measured 1.19; the avatar's calibration sets the run speed, so no number is pinned
+const RUN_OVER_WALK = [2.0, 4.0]; // 4.5 against 1.4 m/s by the constants (3.2); the avatar's calibration sets the run speed, so no number is pinned
 const COAST_M = 0.45; // what may still pass after a release, measured over 0.5 s of the loop's time; a stuck key gives 1.2 m
 const DRAG_PX = 200;
 const DRAG_RAD = [0.7, 1.4]; // measured 1.04 (0.0052 rad per pixel)
@@ -211,7 +211,7 @@ const MOVE = "web/movement-camera-controller.mjs";
 const ADAPTER = "web/live-adapter.js";
 const faults = [
   { statement: "release-stops", name: "a released key is never cleared", expect: /after the release it went on/, edits: [{ file: MOVE, find: "      controlState[control] = pressed;\n", replace: "      if (pressed) controlState[control] = true;\n" }] },
-  { statement: "w-along-facing", name: "the walking speed is off by half", expect: /W walked 0\.\d+ m in/, edits: [{ file: ADAPTER, find: "const MOVE_SPEED_MPS = 2.35;", replace: "const MOVE_SPEED_MPS = 1.175;" }] },
+  { statement: "w-along-facing", name: "the walking speed is off by half", expect: /W walked 0\.\d+ m in/, edits: [{ file: ADAPTER, find: "const MOVE_SPEED_MPS = 1.4;", replace: "const MOVE_SPEED_MPS = 0.7;" }] },
   { statement: "s-against-facing", name: "S walks forward", expect: /S walked [\d.]+ rad off/, edits: [{ file: ADAPTER, find: "const forward = (controls.forward ? 1 : 0) - (controls.back ? 1 : 0);", replace: "const forward = (controls.forward || controls.back ? 1 : 0);" }] },
   { statement: "a-d-across-facing", name: "A and D swapped", expect: /A walked [\d.]+ rad off/, edits: [{ file: ADAPTER, find: "const strafe = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);", replace: "const strafe = (controls.left ? 1 : 0) - (controls.right ? 1 : 0);" }] },
   { statement: "diagonal-is-not-faster", name: "a diagonal step that is not scaled down", expect: /W and D walked [\d.]+ m in/, edits: [{ file: ADAPTER, find: "const len = Math.hypot(forward, strafe) || 1;", replace: "const len = 1;" }] },

@@ -18,7 +18,7 @@ const INJECTED = [
 ];
 
 const HOLD_S = 0.6;
-const WALKS_M = 0.8; // 1.41 m at the measured 2.35 m/s
+const WALKS_M = 0.48; // 0.84 m at 1.4 m/s
 const STILL_M = 0.05;
 const LONGER_THAN_ONE_FAULT_MS = 3000; // the product treats 2 s without a throw as the end of a fault
 const NOTICE = /movement/i;

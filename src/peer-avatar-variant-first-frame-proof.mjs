@@ -85,7 +85,7 @@ function check(label, cond) {
 // PART A — SOURCE PINS (keep the fake faithful and tie the proof to shipped code)
 
 // A1. Variant identity constants used by the harness, pinned to the real module.
-const DEFAULT_VARIANT = "readyplayerme-cyberpunk";
+const DEFAULT_VARIANT = "collection-adam";
 const NON_DEFAULT_VARIANT = "rpm-female-ninja"; // a real non-default GLB variant
 pin(`layer declares DEFAULT_AVATAR_VARIANT = "${DEFAULT_VARIANT}"`,
   LAYER.includes(`DEFAULT_AVATAR_VARIANT = "${DEFAULT_VARIANT}"`));
