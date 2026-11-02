@@ -118,13 +118,16 @@ function proxyHttp(key, request, response, backendPorts, frontend) {
   request.pipe(proxy);
 }
 
-function proxyWebSocket(request, clientSocket, head, backendPorts) {
+function proxyWebSocket(request, clientSocket, head, backendPorts, defaultKey) {
   let parsed;
   try { parsed = new URL(request.url, 'http://127.0.0.1'); } catch (error) {
     clientSocket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
     return;
   }
-  const match = parsed.pathname.match(/^\/api\/([a-z0-9-]+)\/(runtime-state|events)$/);
+  // The root serves the default world's /wow/ resources, so its event stream answers at the root too: /events, and
+  // /wow/events (the World resource's services.events read against the resource's own address).
+  const rootEvents = /^\/(?:wow\/)?events$/.test(parsed.pathname);
+  const match = rootEvents ? [parsed.pathname, defaultKey, 'events'] : parsed.pathname.match(/^\/api\/([a-z0-9-]+)\/(runtime-state|events)$/);
   if (!match || !Object.prototype.hasOwnProperty.call(backendPorts, match[1])) {
     clientSocket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
     return;
@@ -256,7 +259,7 @@ function createFrontendServer(port = 8143, options = {}) {
     }
   }
 
-  server.on('upgrade', (request, socket, head) => proxyWebSocket(request, socket, head, backendPorts));
+  server.on('upgrade', (request, socket, head) => proxyWebSocket(request, socket, head, backendPorts, config.worlds[0] ? config.worlds[0].key : 'a'));
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     const host = options.host || localOnly.bindHost();

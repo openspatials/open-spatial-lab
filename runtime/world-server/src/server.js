@@ -1263,6 +1263,9 @@ function createServer(role, extraOpts)
             if (!wsPath.startsWith(BASE_PATH + '/')) { socket.destroy(); return; }
             wsPath = wsPath.slice(BASE_PATH.length);
         }
+        // The World resource (wow/world) lists its stream as services.events "events". Read against the resource's own
+        // address that is wow/events, read against the world's base it is /events: both open the same stream.
+        if (wsPath === '/wow/events') wsPath = '/events';
         if (wsPath !== '/runtime-state' && wsPath !== '/events')
         {
             socket.destroy();
