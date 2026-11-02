@@ -150,7 +150,8 @@ export function composeBoundedPreview(content, context, deps) {
   let disposed = false;
   if (built.asset_nodes && built.asset_nodes.length) {
     void mountWowSceneAssets(built.asset_nodes, THREE, {
-      loadGltf,
+      // An airport actor on the avatar runtime is mounted from the runtime's own copy of its character (one download).
+      loadGltf: (url, record) => built.airport_entity_runtime?.runtimeActorScene?.(record) || loadGltf(url),
       cloneScene,
       cache,
       shouldMount: () => !disposed,
