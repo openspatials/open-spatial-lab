@@ -24,13 +24,15 @@ const state = { kind, worldFile, loaded: false, anchorUrl: null, parameter: null
 window.__x3dWorld = state;
 document.body.dataset.x3dWorldRenderer = kind || "";
 
-// A world's page ("/w/b/") lives with the world servers, so a page served apart from them opens it at their origin
-// (web/base-path.mjs, SERVER_ORIGIN). The Lobby is the exception there: the app's own first page opens a Player in it,
-// so "/w/lobby/" stays with the app. On the servers' own origin the result stays a path, as before.
-const LOBBY_PAGE = "/w/lobby/";
+// A world's page ("/w/b/") is served by the world servers. A page served apart from them (web/base-path.mjs,
+// SERVER_ORIGIN) opens that world in the app's own first page instead, so the app's page policy and renderer go with
+// the Player: ?active={world} picks the world, and a Player with none starts in the Lobby. On the servers' own origin
+// the result stays the world's page path, as before.
+const WORLD_PAGE = /^\/w\/([a-z0-9-]+)\/$/;
 function destinationUrl(url) {
-  const page = SERVER_ORIGIN && url === LOBBY_PAGE ? withBase("/") : withServer(url);
-  const target = new URL(page, location.href);
+  const world = SERVER_ORIGIN ? WORLD_PAGE.exec(url)?.[1] : null;
+  const target = new URL(world ? withBase("/") : withServer(url), location.href);
+  if (world && world !== "lobby") target.searchParams.set("active", world);
   target.searchParams.set("renderer", kind);
   target.searchParams.set("role", "player");
   target.searchParams.set("intro", "bypass");
