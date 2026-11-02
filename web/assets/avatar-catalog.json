@@ -6,7 +6,9 @@
       "key": "collection-adam",
       "label": "Adam",
       "type": "glb",
-      "url": "/assets/avatars/glb/collection-adam.glb",
+      "url": "/assets/actionforge/characters/adam/adam.glb",
+      "prepared": "/assets/actionforge/characters/adam/adam.avatar.json",
+      "runtime": "actionforge",
       "scale": 1,
       "rotation_y": 0,
       "license": "Adobe Mixamo character"
@@ -15,7 +17,9 @@
       "key": "collection-david",
       "label": "David",
       "type": "glb",
-      "url": "/assets/avatars/glb/collection-david.glb",
+      "url": "/assets/actionforge/characters/david/david.glb",
+      "prepared": "/assets/actionforge/characters/david/david.avatar.json",
+      "runtime": "actionforge",
       "scale": 1,
       "rotation_y": 0,
       "license": "Adobe Mixamo character"
@@ -24,7 +28,9 @@
       "key": "collection-elizabeth",
       "label": "Elizabeth",
       "type": "glb",
-      "url": "/assets/avatars/glb/collection-elizabeth.glb",
+      "url": "/assets/actionforge/characters/elizabeth/elizabeth.glb",
+      "prepared": "/assets/actionforge/characters/elizabeth/elizabeth.avatar.json",
+      "runtime": "actionforge",
       "scale": 1,
       "rotation_y": 0,
       "license": "Adobe Mixamo character"
@@ -33,69 +39,12 @@
       "key": "collection-sophie",
       "label": "Sophie",
       "type": "glb",
-      "url": "/assets/avatars/glb/collection-sophie.glb",
+      "url": "/assets/actionforge/characters/sophie/sophie.glb",
+      "prepared": "/assets/actionforge/characters/sophie/sophie.avatar.json",
+      "runtime": "actionforge",
       "scale": 1,
       "rotation_y": 0,
       "license": "Adobe Mixamo character"
-    },
-    {
-      "key": "readyplayerme-cyberpunk",
-      "label": "Joe",
-      "type": "glb",
-      "url": "/assets/avatars/glb/readyplayerme_cyberpunk.glb",
-      "scale": 1,
-      "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0",
-      "selectable": false
-    },
-    {
-      "key": "cyberpunk-female-full-body",
-      "label": "Jane",
-      "type": "glb",
-      "url": "/assets/avatars/glb/cyberpunk_female_full-body_character.glb",
-      "scale": 1,
-      "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0",
-      "selectable": false
-    },
-    {
-      "key": "rpm-female-cyberpunk",
-      "label": "Rose",
-      "type": "glb",
-      "url": "/assets/avatars/glb/rpm_female_cyberpunk.glb",
-      "scale": 1,
-      "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0",
-      "selectable": false
-    },
-    {
-      "key": "rpm-female-ninja",
-      "label": "Helium",
-      "type": "glb",
-      "url": "/assets/avatars/glb/rpm_female_ninja.glb",
-      "scale": 1,
-      "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0",
-      "selectable": false
-    },
-    {
-      "key": "rpm-female-character",
-      "label": "Nea",
-      "type": "glb",
-      "url": "/assets/avatars/glb/rpm_female_character.glb",
-      "scale": 1,
-      "rotation_y": 0,
-      "license": "CC-BY-NC-SA-4.0",
-      "selectable": false
-    },
-    {
-      "key": "parametric",
-      "label": "Parametric H-Anim avatar",
-      "type": "parametric",
-      "url": "parametric://hanim-19774/default",
-      "scale": 1,
-      "rotation_y": 0,
-      "license": "generated-no-binary-asset"
     }
   ]
 }

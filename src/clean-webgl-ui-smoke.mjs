@@ -32,16 +32,17 @@ const VIEWPORTS = Object.freeze([
   { name: "narrow", width: 390, height: 844, deviceScaleFactor: 1 },
 ]);
 const ASSET_PREWARM_EXPECTED = Object.freeze({
-  "/assets/avatars/glb/collection-adam.glb": Object.freeze({
+  "/assets/actionforge/characters/adam/adam.glb": Object.freeze({
     bytes: 2931092,
     sha256: "360417dbd12093eb95c22f9ef4528515dd1fc16548cc84229d1eca09e2d5c9aa",
   }),
-  "/assets/mocap/locomotion-mocap.json": Object.freeze({
-    bytes: 106845,
-    sha256: "5347fdb29d2caa5a635eff79b4db26f7a6e73a1025d417a7d0d4f50e027503b3",
+  "/assets/actionforge/clips/actionforge-clips.glb": Object.freeze({
+    bytes: 3330948,
+    sha256: "481d25771881e69d1f7ad1f0f817afcf2682ea6af3ed810e52e11fcfb2d5a971",
   }),
 });
-const EXPECTED_LOCOMOTION_STATES = Object.freeze(["idle", "walk", "run", "jump"]);
+// The avatar runtime's clip slots, as the checks below read them (lowercased).
+const EXPECTED_LOCOMOTION_STATES = Object.freeze(["idle", "walk", "jog", "jumpstart", "jumploop", "jumpland"]);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function protectedBrowserMains() {

@@ -200,24 +200,47 @@ export async function hold(page, key, ms) {
   await page.keyboard.up(key);
 }
 
-/** Walk to (x, z) with the W key, turning the camera with the mouse toward the target first; stops within `tolerance`. */
+/**
+ * Walk to (x, z) with the W key, turning the camera with the mouse toward the target first; stops within `tolerance`.
+ * The key stays down while the page is read: the avatar runtime turns the avatar on the spot before it walks off, and
+ * speeds it up and slows it down, so a press of a fixed length can fall short or carry it past the target.
+ */
 export async function walkTo(page, x, z, { tolerance = 0.12, maxSteps = 60 } = {}) {
-  let closest = Infinity;
-  let stalled = 0;
   for (let step = 0; step < maxSteps; step += 1) {
     const s = await state(page);
     const dx = x - s.position[0];
     const dz = z - s.position[2];
     const distance = Math.hypot(dx, dz);
     if (distance <= tolerance) return s;
-    // On a busy machine a short press can fall between two frames and move nothing: then press for longer.
-    stalled = distance < closest - 0.01 ? 0 : stalled + 1;
-    closest = Math.min(closest, distance);
     await faceYaw(page, Math.atan2(dx, dz), { tolerance: distance > 1.5 ? 0.06 : 0.03 });
-    await hold(page, "w", Math.max(60, Math.min(900, distance * 260)) * Math.min(6, 1 + stalled));
+    await walkUntilNear(page, x, z, tolerance);
     await sleep(150);
   }
   throw new Error(`could not walk to ${x},${z} (timed out after ${maxSteps} steps): ${JSON.stringify(await state(page))}`);
+}
+
+/**
+ * Hold W until the avatar would come to rest within half of `tolerance` of (x, z) at its present speed, until it passes
+ * its closest point, or for 6 s (a loop that gets no frames on a busy machine). After the release it still covers about
+ * 0.05 s at its speed, until the key-up reaches the page, and then its slow-down at about 9 m/s per second.
+ */
+async function walkUntilNear(page, x, z, tolerance) {
+  const started = Date.now();
+  let closest = Infinity;
+  await page.keyboard.down("w");
+  try {
+    while (Date.now() - started < 6000) {
+      const s = await state(page);
+      const distance = Math.hypot(x - s.position[0], z - s.position[2]);
+      const speed = (s.controls && s.controls.speed_mps) || 0;
+      const coast = speed * 0.05 + (speed * speed) / 18;
+      if (distance - coast <= tolerance / 2 || distance > closest + 0.02) return;
+      closest = Math.min(closest, distance);
+      await sleep(15);
+    }
+  } finally {
+    await page.keyboard.up("w");
+  }
 }
 
 /**

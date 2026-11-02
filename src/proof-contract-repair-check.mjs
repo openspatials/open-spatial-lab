@@ -50,8 +50,8 @@ function rendererFixture() {
   const gateCompletedAt = 100;
   const requiredAssets = [
     {
-      path: "/assets/avatars/glb/collection-adam.glb",
-      url: "http://127.0.0.1:9193/assets/avatars/glb/collection-adam.glb",
+      path: "/assets/actionforge/characters/adam/adam.glb",
+      url: "http://127.0.0.1:9193/assets/actionforge/characters/adam/adam.glb",
       request_count: 1,
       response_status: 200,
       content_length: "2931092",
@@ -64,17 +64,17 @@ function rendererFixture() {
       },
     },
     {
-      path: "/assets/mocap/locomotion-mocap.json",
-      url: "http://127.0.0.1:9193/assets/mocap/locomotion-mocap.json",
+      path: "/assets/actionforge/clips/actionforge-clips.glb",
+      url: "http://127.0.0.1:9193/assets/actionforge/clips/actionforge-clips.glb",
       request_count: 1,
       response_status: 200,
-      content_length: "106845",
+      content_length: "3330948",
       loading_failed_count: 0,
       terminal: { kind: "Network.loadingFinished", before_journey: true, before_teardown: true },
       body: {
         available: true,
-        bytes: 106845,
-        sha256: "5347fdb29d2caa5a635eff79b4db26f7a6e73a1025d417a7d0d4f50e027503b3",
+        bytes: 3330948,
+        sha256: "481d25771881e69d1f7ad1f0f817afcf2682ea6af3ed810e52e11fcfb2d5a971",
       },
     },
   ];
@@ -91,7 +91,7 @@ function rendererFixture() {
       model_height_m: 1.8,
       head_height_m: 1.65,
       current_animation_state: "idle",
-      locomotion_states: ["idle", "walk", "run", "jump"],
+      locomotion_states: ["idle", "walk", "jog", "jumpStart", "jumpLoop", "jumpLand"],
     },
   });
   return {

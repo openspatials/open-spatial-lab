@@ -110,22 +110,17 @@ The complete redistribution terms are included in `licenses/`, together with eac
 
 ## Avatars and equipment
 
-The equipment models, `web/assets/equip-*.glb`, `web/assets/hero-held-lantern.gltf` and `web/assets/hero-worn-visor.gltf`, are original CC0-1.0 assets made for this project. The generated avatar (`?avatar_variant=parametric`) is built in code by `web/avatar/parametric-avatar.mjs` and has no model file.
+The equipment models, `web/assets/equip-*.glb`, `web/assets/hero-held-lantern.gltf` and `web/assets/hero-worn-visor.gltf`, are original CC0-1.0 assets made for this project.
 
-Five unmodified Ready Player Me avatar models are included under CC BY-NC-SA 4.0. They are the player avatars, and they dress the Denver Skyport actors. They are third-party works, are not covered by the project's Apache-2.0 license, and may be reused only under their own attribution, non-commercial, and ShareAlike terms:
+The avatars are four characters from Adobe Mixamo (Adam, David, Elizabeth and Sophie, `web/assets/actionforge/characters/<name>/<name>.glb`). They were converted onto ActionForge's CC0 skeleton (see below) by the project's avatar pipeline, with their meshes and textures kept and the textures re-encoded as WebP. They are the player avatars and dress the Denver Skyport actors. Each has a prepared file (`<name>.avatar.json`: clip choices and measured gait) and body details (`<name>.body.json`), measured by the project.
 
-- Readyplayerme Cyberpunk — [source](https://sketchfab.com/3d-models/readyplayerme-cyberpunk-5881c7e4431d44058325b4be4d8d30dc).
-- Cyberpunk female full-body character — [source](https://sketchfab.com/3d-models/cyberpunk-female-full-body-character-25db1f1e45f948ec9a74b30356766908).
-- Female full-body cyberpunk themed avatar — [source](https://sketchfab.com/3d-models/female-full-body-cyberpunk-themed-avatar-7a8fa15955084fa3bf7103ed1818c584).
-- Female full-body Ninja avatar — [source](https://sketchfab.com/3d-models/female-full-body-ninja-avatar-490dfcc890694c3cb711869fd9f98e4b).
-- Ready Player Me female character — [source](https://sketchfab.com/3d-models/ready-player-me-female-character-f2791ae3c40c4920a158f96c7dc46f53).
+The animation comes from the ActionForge animation library: the rig and its 84 clips by Quaternius, exported from ActionForge, dedicated to the public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). `web/assets/actionforge/clips/actionforge-clips.glb` holds them in place, on the rig's own 71 joints; the file carries the same credit. The clips play on each character's own skeleton, with no retargeting.
 
-Ready Player Me is the credited creator for each model. No changes were made to the model files. The complete [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) legal text is included in `licenses/CC-BY-NC-SA-4.0.txt`.
+One unmodified Ready Player Me model, `web/assets/avatars/glb/rpm_female_character.glb` ([source](https://sketchfab.com/3d-models/ready-player-me-female-character-f2791ae3c40c4920a158f96c7dc46f53)), remains as the avatar of the X3D paths (X3DOM and X_ITE) until they take a collection character. It is licensed CC BY-NC-SA 4.0 (attribution, non-commercial, ShareAlike), is not covered by the project's Apache-2.0 license, and Ready Player Me is its credited creator. The legal text is in `licenses/CC-BY-NC-SA-4.0.txt`.
+
+No redistribution-prohibited avatar or raw third-party animation source file is included. Earlier releases used motion capture from the [100STYLE dataset](https://zenodo.org/records/8127870) by Ian Mason, Sebastian Starke and Taku Komura (CC BY 4.0); its text stays in `licenses/CC-BY-4.0.txt`.
 
 The airport interface images in `web/assets/hud/` (round profile images) were generated for this project from its own prompts. They picture the lab's fictional travelers and storefronts.
 
-Four avatar models from Adobe Mixamo (Adam, David, Elizabeth and Sophie, `web/assets/avatars/glb/collection-*.glb`) are included. They were converted onto ActionForge's CC0 skeleton (see below) by the project's avatar pipeline, with their meshes and textures kept and the textures re-encoded as WebP.
-
-No redistribution-prohibited avatar or raw third-party animation source file is included. The idle, walk and run animation comes from the ActionForge animation library by Quaternius, dedicated to the public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): `web/assets/mocap/locomotion-mocap.json` holds one cycle each of `idle_loop`, `walk_loop` and `jog_fwd_loop`, resampled by `tools/mocap/bake-actionforge-locomotion.mjs`; the file carries the same credit. The jump is authored by the application. Earlier releases used motion capture from the [100STYLE dataset](https://zenodo.org/records/8127870) by Ian Mason, Sebastian Starke and Taku Komura (CC BY 4.0, `tools/mocap/bake-locomotion.mjs`); its text stays in `licenses/CC-BY-4.0.txt`.
 
 Full CC0, CC BY 4.0, CC BY-NC-SA 4.0, SIL OFL 1.1, MIT, and SCEA license texts are included in `licenses/`.

@@ -15,10 +15,12 @@ export function portalNamed(portals, label) {
 }
 
 /** Walk through the middle of a portal, from 1.4 m in front of it. */
-export async function walkInto(page, portal, location) {
+export async function walkInto(page, portal, location, { aside = 0 } = {}) {
   const [x, , z] = portal.pose.position;
   const [fx, , fz] = portal.pose.forward;
-  const seen = await walkThrough(page, { from: [x + fx * 1.4, z + fz * 1.4], yaw: Math.atan2(-fx, -fz), expect: location, timeoutMs: CROSS_LIMIT_MS });
+  // `aside` moves the start (and so the walk) that many metres across the portal, off its middle.
+  const from = [x + fx * 1.4 + fz * aside, z + fz * 1.4 - fx * aside];
+  const seen = await walkThrough(page, { from, yaw: Math.atan2(-fx, -fz), expect: location, timeoutMs: CROSS_LIMIT_MS });
   expect(seen.location_id === location, `the walk did not cross: still in ${seen.location_id} at ${seen.position} (timed out after ${CROSS_LIMIT_MS / 1000} s)`);
   return seen;
 }

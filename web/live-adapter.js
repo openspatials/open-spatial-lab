@@ -35,6 +35,8 @@
  * standards_conformance:false. Integration upgrades no claim.
  */
 
+import { Locomotion } from "./avatar/runtime/locomotion.mjs";
+import { motionRecord } from "./avatar/actionforge-avatar.mjs";
 import {
   HANDOFF_PHASES,
   PROVENANCE,
@@ -284,9 +286,9 @@ const HOSTED_ATTACH_POINT_EVENT = "hostedattachpoint";
 const RUNTIME_STATE_LOG_INTERVAL_MS = 5000;
 const ENDPOINTS = worldEndpoints();
 const WORLD_LIMIT = 5.4;
-// Walk and run speeds follow the CC0 ActionForge clips (web/assets/mocap/locomotion-mocap.json): a brisk walk and a
-// jog, each near its clip's own pace (walk_loop 0.94 m/s, jog_fwd_loop 5.3 m/s on the pack's skeleton), so the feet
-// do not race or float. The 100STYLE clips these replaced turned the hips and head 30 to 49 degrees off the path.
+// The lab's own walk and run, used only until the avatar runtime gives its tuning (setAvatarLocomotionTuning) and for an
+// avatar outside the runtime. The runtime's Locomotion moves every avatar of the roster at its own clips' pace (walk
+// 1.06 to 1.15 m/s, jog 4.8 to 5.0 m/s for the four collection avatars), so the feet do not race or float.
 const MOVE_SPEED_MPS = 1.4;
 const RUN_MOVE_SPEED_MPS = 4.5;
 const RUN_MAX_CYCLE_SPEED = 1.6257644280216694;
@@ -3606,6 +3608,62 @@ export class LiveAdapter extends EventTarget {
     };
   }
 
+  /**
+   * The movement tuning of the avatar the runtime animates (avatar/actionforge-avatar.mjs). With it, stepAvatar moves
+   * the avatar with the runtime's Locomotion: acceleration, a bounded turn along which it walks, and the three-part
+   * jump. null returns to the lab's own movement (an avatar outside the runtime).
+   */
+  setAvatarLocomotionTuning(tuning) {
+    this._avatarLocomotionTuning = tuning || null;
+    this._avatarLocomotion = null;
+  }
+
+  /**
+   * While the lab moves the avatar itself (a portal walk-through, a handoff), the runtime's motion record says what the
+   * lab does: on the ground, at the speed of the last planar step. The runtime's Locomotion starts again at the arrival.
+   */
+  _publishRuntimeGroundMotion(dt) {
+    const tuning = this._avatarLocomotionTuning;
+    if (!tuning || !this.state.avatar) return;
+    const d = (dt > 0 && this.state.controls.moving && this.state.controls.last_planar_delta) || [0, 0, 0];
+    const speed = dt > 0 ? Math.hypot(d[0], d[2]) / dt : 0;
+    const nowS = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    this.state.controls.speed_mps = Number(speed.toFixed(4));
+    this.state.controls.jump_height_m = 0;
+    this.state.controls.grounded = true;
+    this.state.controls.motion = {
+      runtime: "actionforge", speed_mps: Number(speed.toFixed(4)), phase: "none", phase_started_s: nowS,
+      crouch_time_s: tuning.crouchStanding, jump_style: "standing", land_moving: false, vy_mps: 0, turn_rate: 0, at_s: nowS,
+    };
+    this.state.avatar.locomotion = { ...this.state.controls };
+    this._avatarLocomotion = null;
+  }
+
+  /** The runtime's Locomotion for this avatar, made at the avatar's place; it follows any jump in place (a crossing). */
+  _runtimeLocomotion(avatar, groundY) {
+    const tuning = this._avatarLocomotionTuning;
+    if (!tuning) return null;
+    const p = clonePosition(avatar.position, [0, 0, 0]);
+    let loco = this._avatarLocomotion;
+    const moved = loco && Math.hypot(loco.position.x - p[0], loco.position.z - p[2]) > 1e-4;
+    if (!loco || moved) {
+      const yaw = Number(avatar.rotation_y) || 0;
+      if (!loco) loco = new Locomotion(tuning, { x: p[0], z: p[2], yaw });
+      else {
+        loco.position.set(p[0], 0, p[2]);
+        loco.quaternion.setFromAxisAngle({ x: 0, y: 1, z: 0 }, yaw);
+        loco.yaw = yaw;
+        loco.speed = 0;
+        loco.vy = 0;
+        loco.grounded = true;
+        loco._setPhase("none");
+      }
+      loco.position.y = Math.max(0, (Number(p[1]) || 0) - groundY);
+      this._avatarLocomotion = loco;
+    }
+    return loco;
+  }
+
   /** Install both run-cycle values atomically; no server/URL/storage default is written. */
   setRunCalibration(input) {
     const runCycleSpeed = Number(input && input.run_cycle_speed);
@@ -3654,6 +3712,7 @@ export class LiveAdapter extends EventTarget {
 
     if (this._portalTraversalController.inTransition()) {
       this._stepPortalTransition(dt);
+      this._publishRuntimeGroundMotion(dt);
       return this.state.controls;
     }
 
@@ -3662,6 +3721,7 @@ export class LiveAdapter extends EventTarget {
       this.state.phase !== HANDOFF_PHASES.ARRIVED &&
       this.state.phase !== HANDOFF_PHASES.PORTAL_ACTIVE
     ) {
+      this._publishRuntimeGroundMotion(0);
       return this.state.controls;
     }
 
@@ -3700,6 +3760,12 @@ export class LiveAdapter extends EventTarget {
     const basisYaw = Number.isFinite(Number(controls.camera_yaw))
       ? Number(controls.camera_yaw)
       : Math.PI;
+    const runtimeLocomotion = this._runtimeLocomotion(avatar, currentGround.surface_y_m);
+    if (runtimeLocomotion) {
+      return this._stepRuntimeLocomotion(dt, controls, runtimeLocomotion, {
+        forward, strafe, hasPlanarInput, runMode, basisYaw, p, previousPosition, currentGround, wasMoving, avatar,
+      });
+    }
     let dx = 0;
     let dz = 0;
     if (hasPlanarInput) {
@@ -3809,6 +3875,91 @@ export class LiveAdapter extends EventTarget {
       }
     }
     // throttled live-pose broadcast for the same-location observer.
+    this._maybeBroadcastPlayerPose();
+    this._emit();
+    return this.state.controls;
+  }
+
+  /**
+   * One movement step with the avatar runtime's Locomotion: it accelerates, turns at a bounded rate and walks along its
+   * facing, and runs the jump (crouch, push, air, land). The lab keeps the world: the bounds, the classified walkable
+   * ground (a step off it is refused) and the ground's height under the feet; the jump's height rides on top of it.
+   */
+  _stepRuntimeLocomotion(dt, controls, loco, ctx) {
+    const { forward, strafe, hasPlanarInput, runMode, basisYaw, p, previousPosition, currentGround, wasMoving, avatar } = ctx;
+    const start = { x: loco.position.x, z: loco.position.z };
+    loco.update(dt, { forward, right: strafe, jog: runMode, jump: controls.jump === true, cameraYaw: basisYaw });
+    const mb = this._movementBounds;
+    const wantX = previousPosition[0] + (loco.position.x - start.x);
+    const wantZ = previousPosition[2] + (loco.position.z - start.z);
+    p[0] = clamp(wantX, mb ? mb.minX : -WORLD_LIMIT, mb ? mb.maxX : WORLD_LIMIT);
+    p[2] = clamp(wantZ, mb ? mb.minZ : -WORLD_LIMIT, mb ? mb.maxZ : WORLD_LIMIT);
+    let localGround = this._resolveAvatarGround(p[0], p[2]);
+    const groundQueryBlocked = !localGround.ok;
+    const rejectedGroundQuery = groundQueryBlocked ? localGround : null;
+    if (groundQueryBlocked) {
+      p[0] = previousPosition[0];
+      p[2] = previousPosition[2];
+      localGround = currentGround;
+      loco.speed = 0;
+    } else if (p[0] !== wantX || p[2] !== wantZ) {
+      // A step the bounds cut short leaves the speed it made, so at a wall the avatar stands, or slides along it,
+      // instead of walking on the spot.
+      loco.speed = Math.min(loco.speed, Math.hypot(p[0] - previousPosition[0], p[2] - previousPosition[2]) / dt);
+    }
+    loco.position.x = p[0];
+    loco.position.z = p[2];
+    const dx = p[0] - previousPosition[0];
+    const dz = p[2] - previousPosition[2];
+    p[1] = localGround.surface_y_m + loco.position.y;
+    avatar.rotation_y = loco.yaw;
+    this._jumpVelocity = loco.vy;
+    this.state.controls.grounded = loco.grounded;
+    this._publishGroundSurface(localGround);
+    if (groundQueryBlocked) {
+      this.state.controls.ground_query_ok = false;
+      this.state.controls.ground_query_reason = "outside_classified_walkable_surface_planar_move_rejected";
+      this.state.controls.ground_query_rejected_xz_m = [
+        Number(rejectedGroundQuery.query_x_m.toFixed(4)),
+        Number(rejectedGroundQuery.query_z_m.toFixed(4)),
+      ];
+    } else {
+      this.state.controls.ground_query_rejected_xz_m = null;
+    }
+    const active = hasPlanarInput || controls.jump === true || loco.speed > 0 || loco.phase !== "none" ||
+      !loco.grounded || Math.abs(loco.turnRate) > 1e-6 || Math.abs(p[1] - previousPosition[1]) > 1e-9;
+    if (!active && !wasMoving) return this.state.controls;
+
+    avatar.position = p;
+    const tuning = this._avatarLocomotionTuning;
+    const moving = loco.speed > 0.01 && !groundQueryBlocked;
+    this.state.controls.enabled = true;
+    this.state.controls.moving = moving;
+    this.state.controls.movement_mode = moving ? (loco.speed > tuning.walkSpeed + 0.05 ? "run" : "walk") : "idle";
+    this.state.controls.run_mode = moving && runMode;
+    this.state.controls.speed_mps = Number(loco.speed.toFixed(4));
+    this.state.controls.movement_basis_yaw = Number(basisYaw.toFixed(6));
+    this.state.controls.movement_basis_source = Number.isFinite(Number(controls.camera_yaw)) ? "camera_relative" : "world_fixed_legacy";
+    this.state.controls.movement_direction = directionFromInput(forward, strafe);
+    this.state.controls.last_planar_delta = [Number(dx.toFixed(4)), 0, Number(dz.toFixed(4))];
+    this.state.controls.facing_semantics = facingSemanticsFromDelta(dx, dz);
+    this.state.controls.jump_height_m = Number(loco.position.y.toFixed(3));
+    this.state.controls.motion = motionRecord(loco, (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000);
+    avatar.locomotion = { ...this.state.controls };
+    this._updatePortalStatus();
+
+    this._serverSyncMs += dt * 1000;
+    if (moving && this._serverSyncMs >= 250) {
+      this._serverSyncMs = 0;
+      if (!this._wowLocalWalk) {
+        this._transport.postJson(`${this.base}/movement`, {
+          forward,
+          strafe,
+          turn: 0,
+          source: "browser-real-avatar-controls",
+        }).catch(() => {});
+      }
+    }
     this._maybeBroadcastPlayerPose();
     this._emit();
     return this.state.controls;

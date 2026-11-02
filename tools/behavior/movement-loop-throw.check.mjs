@@ -7,7 +7,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { CODE, HarnessError, openPlayer } from "../arch-i4/main-demo/lab.mjs";
-import { expect, faceYaw, fixed, holdKeys, pageFacts, planar, runBehavior, sleep, untilClock, waitUntil, walkTo } from "./kit.mjs";
+import { expect, faceYaw, fixed, holdKeys, PACE_S, pageFacts, planar, runBehavior, sleep, untilClock, waitUntil, walkTo } from "./kit.mjs";
 
 const MOVE = "web/movement-camera-controller.mjs";
 const STEP_LINE = "      capabilities.stepAvatar(input, deltaSeconds);\n";
@@ -18,7 +18,7 @@ const INJECTED = [
 ];
 
 const HOLD_S = 0.6;
-const WALKS_M = 0.48; // 0.84 m at 1.4 m/s
+const WALKS_M = 0.4; // walking pace gives 0.63 to 0.69 m (kit.WALK_M)
 const STILL_M = 0.05;
 const LONGER_THAN_ONE_FAULT_MS = 3000; // the product treats 2 s without a throw as the end of a fault
 const NOTICE = /movement/i;
@@ -119,7 +119,7 @@ const statements = [
     const throws = await throwsSoFar(page);
     expect(reported(ctx, first) === 1 && reported(ctx, second) === 1, `over ${throws} throws the first message was reported ${reported(ctx, first)} times and the second ${reported(ctx, second)} times`);
     await disarm(page);
-    await untilClock(page, 0.1);
+    await untilClock(page, PACE_S);
     const clearFrom = await pageFacts(page);
     const clearTo = await untilClock(page, HOLD_S);
     await page.keyboard.up("w");

@@ -86,7 +86,7 @@ function check(label, cond) {
 
 // A1. Variant identity constants used by the harness, pinned to the real module.
 const DEFAULT_VARIANT = "collection-adam";
-const NON_DEFAULT_VARIANT = "rpm-female-ninja"; // a real non-default GLB variant
+const NON_DEFAULT_VARIANT = "collection-sophie"; // a real non-default GLB variant
 pin(`layer declares DEFAULT_AVATAR_VARIANT = "${DEFAULT_VARIANT}"`,
   LAYER.includes(`DEFAULT_AVATAR_VARIANT = "${DEFAULT_VARIANT}"`));
 pin(`layer declares non-default variant key "${NON_DEFAULT_VARIANT}"`,

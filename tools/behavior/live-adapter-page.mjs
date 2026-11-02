@@ -86,32 +86,6 @@ export async function groundNow(page) {
 export const bodyMark = (page, name) => page.evaluate((attribute) => document.body.getAttribute(attribute), name);
 
 /**
- * The run-cadence slider in the tweak palette, sent to one end of its range ("Home" is the lowest, "End" the highest)
- * with that key, as a visitor can; answers the value it shows. The header button that opened the palette is hidden in
- * the page now, so the palette is opened and closed through its driver.
- */
-export async function moveRunCadence(page, key) {
-  await page.evaluate(() => window.__assembly.runtimeTweaks.open());
-  const range = '[data-testid="runtime-tweak-range-run_cycle_speed"]';
-  await page.waitForSelector(range, { visible: true, timeout: 30000 });
-  await page.focus(range);
-  await page.keyboard.press(key, { delay: 20 });
-  const value = await page.$eval(range, (input) => Number(input.value));
-  await page.$eval(range, (input) => input.blur());
-  await page.evaluate(() => window.__assembly.runtimeTweaks.close());
-  return value;
-}
-
-/**
- * Everything the page keeps in this browser profile, as one string, except the player's own session record: the page
- * rewrites that one every few seconds, with a new time, wherever the visitor stands.
- */
-export const storedInBrowser = (page) => page.evaluate(() => {
-  const without = (store) => Object.fromEntries(Object.entries({ ...store }).filter(([key]) => !key.startsWith("wow-player-session")));
-  return JSON.stringify([without(localStorage), without(sessionStorage)]);
-});
-
-/**
  * The client-scene round trip, as the scene controller drives it: load the airport graph, enter it, come back. Each
  * step answers with what the page showed at that moment.
  */

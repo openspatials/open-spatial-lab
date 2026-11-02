@@ -7,13 +7,13 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { CODE } from "../arch-i4/main-demo/lab.mjs";
 import { worldPortals } from "../arch-i4/main-demo/world-data.mjs";
-import { expect, fixed, holdKeys, inRange, pageFacts, runBehavior, sleep } from "./kit.mjs";
+import { expect, fixed, holdKeys, inRange, pageFacts, runBehavior, sleep, WALK_M } from "./kit.mjs";
 import { lobbyUrl, portalNamed, walkInto } from "./crossing-walk.mjs";
 import { sceneFacts } from "./page-reads.mjs";
 
 const MISS_M = 0.06; // past the guards' 0.05 m
 const SETTLE_MS = 4000;
-const WALK_AWAY_M = [0.6, 1.0]; // over 0.6 s of the movement loop's time, at 1.4 m/s
+const WALK_AWAY_M = WALK_M; // over 0.6 s of the movement loop's time, at walking pace (kit.mjs)
 const PROBLEM = /Crossing check failed/;
 const PICTURES = join(CODE, ".runtime", "behavior", "crossing-guard-failure", "pictures");
 

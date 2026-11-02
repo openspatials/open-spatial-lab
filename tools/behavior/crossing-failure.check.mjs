@@ -8,7 +8,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { CODE, plantFaults } from "../arch-i4/main-demo/lab.mjs";
 import { placeByApi, worldPortals } from "../arch-i4/main-demo/world-data.mjs";
-import { expect, faceYaw, fail, fixed, holdKeys, inRange, pageFacts, recordRequests, runBehavior, sleep, untilClock, waitUntil, walkTo, worldRecord } from "./kit.mjs";
+import { expect, faceYaw, fail, fixed, holdKeys, inRange, pageFacts, recordRequests, runBehavior, sleep, untilClock, waitUntil, walkTo, worldRecord, WALK_M } from "./kit.mjs";
 import { lobbyUrl, portalNamed, walkInto } from "./crossing-walk.mjs";
 
 const EXIT_INTENT = "/portal/exit-intent";
@@ -17,7 +17,7 @@ const REFUSAL_AFTER_PLANE_MS = 60000; // the crossing's own limit is 15 s; the r
 const REACH_PLANE_MS = 90000;
 const WALK_LIMIT_M = 1.25; // the controller's 1 m, from a crossing point up to one 1.4 m/s frame past the plane
 const STOOD_NEAR_PLANE_M = 0.5;
-const WALK_AWAY_M = [0.6, 1.0]; // over 0.6 s of the movement loop's time, at 1.4 m/s
+const WALK_AWAY_M = WALK_M; // over 0.6 s of the movement loop's time, at walking pace (kit.mjs)
 const STILL_HERE = /You are still here/;
 const LET_GO_S = 0.1; // of the movement loop's time: a finger on W lifts a moment after the refusal, never with it
 const SETTLE_MS = 1000; // long enough for a crossing begun by the last step to be refused

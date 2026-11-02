@@ -86,6 +86,9 @@ export function createPeerPresenceReducer({
     const runMode = controls.run_mode === true || movementMode === "run";
     const speedMps = Number(controls.speed_mps) || 0;
     const transitionPhase = controls.portal_transition_phase || "none";
+    // The avatar runtime's motion record (avatar/actionforge-avatar.mjs): a jump phase change is an edge to send.
+    const motion = controls.motion && controls.motion.runtime === "actionforge" ? controls.motion : null;
+    const motionPhase = motion ? motion.phase : "none";
     const visualVisible = !avatar.transition_visual || avatar.transition_visual.visible !== false;
     const last = lastPlayerPoseSent;
     const movedEnough =
@@ -102,6 +105,7 @@ export function createPeerPresenceReducer({
         last.movement_mode !== movementMode ||
         last.run_mode !== runMode ||
         last.transition_phase !== transitionPhase ||
+        last.motion_phase !== motionPhase ||
         last.visible !== visualVisible);
     const intervalElapsed = !last || now - last.at >= PLAYER_POSE_MIN_INTERVAL_MS;
     if (!force && !stateEdge && !(movedEnough && intervalElapsed)) return false;
@@ -115,6 +119,7 @@ export function createPeerPresenceReducer({
       movement_mode: movementMode,
       run_mode: runMode,
       transition_phase: transitionPhase,
+      motion_phase: motionPhase,
       visible: visualVisible,
       location_id: current.world.location_id,
     };
@@ -141,6 +146,7 @@ export function createPeerPresenceReducer({
         grounded: controls.grounded !== false,
         jump_height_m: Number(controls.jump_height_m || 0),
         portal_transition_phase: transitionPhase,
+        ...(motion ? { motion: { ...motion } } : {}),
       },
       transition_visual: avatar.transition_visual ? { ...avatar.transition_visual } : null,
       avatar_variant: avatar.avatar_variant || defaultAvatarVariant,
@@ -195,6 +201,7 @@ export function createPeerPresenceReducer({
       grounded: locomotion.grounded !== false,
       jump_height_m: Number(locomotion.jump_height_m || 0),
       portal_transition_phase: locomotion.portal_transition_phase || "none",
+      motion: locomotion.motion && locomotion.motion.runtime === "actionforge" ? { ...locomotion.motion } : null,
       mirrored_from_player_pose: true,
     };
     livePlayerPose = {

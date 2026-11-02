@@ -1,20 +1,8 @@
 import * as THREE from "./vendor/scene-core/vendor/three/three.module.js";
 import { GLTFLoader } from "./vendor-three-examples/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "./vendor-three-examples/utils/SkeletonUtils.js";
-import { VRMLoaderPlugin } from "./vendor-vrm/three-vrm.module.js";
-import { createRetargetedLocomotionClips } from "./mocap-locomotion.js";
-import { fetchAndParseGltf } from "./gltf-fetch-loader.mjs";
-// BEGIN (parametric avatar engine — H-Anim skeleton + params-generated body)
-import { createParametricAvatar, DEFAULT_AVATAR_PARAMS } from "./avatar/parametric-avatar.mjs";
-// END
-// BEGIN (Ready Player Me / Mixamo GLB humanoid facade — the "glTF humanoid
-// mapping layer" avatar-catalog.json said was missing. Turns a rigged GLB into the
-// same VRMHumanoid surface the VRM avatars expose, so the mocap retarget, the
-// locomotion mixer, and normalized-bone equipment attachment all work on GLBs with
-// NO changes to any of those systems.)
-import { createGlbHumanoidAvatar } from "./avatar/glb-humanoid.mjs";
+import { loadActionForgeAvatar, ActionForgeMotionDriver } from "./avatar/actionforge-avatar.mjs";
 import "./gltf-webp-support.mjs"; // WebP textures on a host whose policy leaves data: out of img-src
-// END
 // every avatar/mocap asset URL below is a root-absolute same-origin path.
 // Route each through the ONE base-path helper so it resolves beneath the public prefix in subpath
 // mode; in root mode withBase() is the identity,
@@ -30,76 +18,25 @@ const ATTACHMENT_PRESETS = {
   hips: { position: [0, 0.72, 0.08], label: "hips" },
 };
 
-// real blended mocap locomotion (grafted).
-//
-// MOCAP SOURCE — LICENCE, stated correctly.
-// The idle, walk and run clips are ActionForge's CC0 clips (idle_loop, walk_loop, jog_fwd_loop, by Quaternius),
-// baked by tools/mocap/bake-actionforge-locomotion.mjs from the avatars build's clip pack. The credit is in
-// THIRD_PARTY_NOTICES.md and inside the clip file itself. Before that they were 100STYLE motion capture (CC BY 4.0,
-// tools/mocap/bake-locomotion.mjs), which turned the hips and head off the path. The lab
-// used Adobe Mixamo clips before; Mixamo forbids distributing its animation files, so those
-// are not in this repository.
-const MOCAP_URLS = { locomotion: withBase("/assets/mocap/locomotion-mocap.json") };
-
-// The runtime-switchable avatar set. A switch REPLACES the one
-// avatar model inside the rig (never adds a second), re-retargets the mocap set onto the
-// new humanoid rig, and re-attaches the current equipment to the new rig's bones. The
-// adapter carries the active variant key in avatar.avatar_variant (broadcast to observers +
-// carried through the crossing packet).
-//
-// Licence facts for the variants below:
-//
-//   1. "upgraded" (AvatarSample_B) is NOT CC0. The bytes say
-//      VRM.meta.licenseName = "Other" with an EMPTY otherLicenseUrl. Its licence is therefore
-//      UNKNOWN — recorded as Unknown, not guessed into something friendlier. See the entry.
-//   2. "upgraded" is not the default: DEFAULT_AVATAR_VARIANT below is "collection-adam" (the
-//      avatar collection, Adobe Mixamo characters).
-//
-// The "classic" variant (/runtime-assets/avatar.vrm, HYPERFY "HYPERROBO_TEMPLATE") IS GONE.
-// Its own VRM.meta declares licenseName "Redistribution_Prohibited" and allowedUserName
-// "OnlyAuthor" — only the author may use it, and it may not be redistributed at all. OSL was
-// serving it over HTTP as a selectable variant. That is not a money clause, so the project's
-// non-commercial posture did not rescue it: it was dropped, and the file was deleted.
-// Attribution for what remains: THIRD_PARTY_NOTICES.md.
+// The avatars: the avatar collection, Mixamo characters converted onto ActionForge's CC0 71-joint skeleton (Quaternius),
+// each at its real height, facing +Z, with 1024-pixel WebP textures and its prepared file (clips, measurements) and body
+// details. The avatar runtime animates them (avatar/actionforge-avatar.mjs): the 84-clip pack plays on their own bones,
+// with no retargeting. A switch REPLACES the one avatar model inside the rig (never adds a second) and re-attaches the
+// current equipment. The adapter carries the active variant key in avatar.avatar_variant (broadcast to observers and
+// carried through the crossing packet). Credits: THIRD_PARTY_NOTICES.md.
 export const AVATAR_VARIANTS = Object.freeze({
-  // No VRM model file ships. The format-neutral runtime machinery below (three-vrm's
-  // VRMHumanoid facade, VRMLoaderPlugin, the MIXAMO_TO_VRM bone map, the `this.vrm` runtime
-  // handle) is NOT VRM model support — it is the shared humanoid rig every avatar drives
-  // through, so it stays.
-  // BEGIN (parametric avatar variant)
-  // Generated locally from AvatarParams (H-Anim skeleton + parametric body);
-  // NO asset is fetched — the url is an honest pseudo-URI naming the generator.
-  // rotation_y is 0 (not PI): the parametric rig natively faces the mocap
-  // source's forward (+Z, no VRM0 mirror), which the VRM0 avatars only reach
-  // after their PI flip. The UM avatar-facet binding is the seam inside
-  // web/avatar/parametric-avatar.mjs (paramsFromAvatarFacet — stub, unwired).
-  parametric: {
-    key: "parametric",
-    label: "Parametric H-Anim avatar (generated in browser)",
-    type: "parametric",
-    url: "parametric://hanim-19774/default",
-    parametric: true,
-    params: DEFAULT_AVATAR_PARAMS,
-    scale: 1,
-    rotation_y: 0,
-    load_mode: "parametric-generated",
-    mocap_retarget: "supported",
-    equipment_attachment: "parametric-normalized-bones",
-    structured_unsupported: [],
-  },
-  // END
-  // The avatar collection: Mixamo characters converted onto ActionForge's CC0 71-joint skeleton, each at its real height, facing +Z, 1024-pixel WebP textures. glb-humanoid maps their joint
-  // names through ACTIONFORGE_TO_VRM (humanoid-rig.js). Listed first so the selector shows them first.
   "collection-adam": {
     key: "collection-adam",
     label: "Adam",
     type: "glb",
-    url: withBase("/assets/avatars/glb/collection-adam.glb"),
+    url: withBase("/assets/actionforge/characters/adam/adam.glb"),
+    prepared: "/assets/actionforge/characters/adam/adam.avatar.json",
+    runtime: "actionforge",
     scale: 1,
     rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
+    load_mode: "actionforge-runtime",
+    mocap_retarget: "none: the clip pack plays on the character's own skeleton",
+    equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
     starting_pool: true,
@@ -109,12 +46,14 @@ export const AVATAR_VARIANTS = Object.freeze({
     key: "collection-david",
     label: "David",
     type: "glb",
-    url: withBase("/assets/avatars/glb/collection-david.glb"),
+    url: withBase("/assets/actionforge/characters/david/david.glb"),
+    prepared: "/assets/actionforge/characters/david/david.avatar.json",
+    runtime: "actionforge",
     scale: 1,
     rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
+    load_mode: "actionforge-runtime",
+    mocap_retarget: "none: the clip pack plays on the character's own skeleton",
+    equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
     starting_pool: true,
@@ -124,12 +63,14 @@ export const AVATAR_VARIANTS = Object.freeze({
     key: "collection-elizabeth",
     label: "Elizabeth",
     type: "glb",
-    url: withBase("/assets/avatars/glb/collection-elizabeth.glb"),
+    url: withBase("/assets/actionforge/characters/elizabeth/elizabeth.glb"),
+    prepared: "/assets/actionforge/characters/elizabeth/elizabeth.avatar.json",
+    runtime: "actionforge",
     scale: 1,
     rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
+    load_mode: "actionforge-runtime",
+    mocap_retarget: "none: the clip pack plays on the character's own skeleton",
+    equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
     starting_pool: true,
@@ -139,107 +80,22 @@ export const AVATAR_VARIANTS = Object.freeze({
     key: "collection-sophie",
     label: "Sophie",
     type: "glb",
-    url: withBase("/assets/avatars/glb/collection-sophie.glb"),
+    url: withBase("/assets/actionforge/characters/sophie/sophie.glb"),
+    prepared: "/assets/actionforge/characters/sophie/sophie.avatar.json",
+    runtime: "actionforge",
     scale: 1,
     rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
+    load_mode: "actionforge-runtime",
+    mocap_retarget: "none: the clip pack plays on the character's own skeleton",
+    equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
     starting_pool: true,
     structured_unsupported: [],
   },
-  // The Ready Player Me characters below are no longer offered (selectable: false; the avatar collection replaced them in
-  // the selector). They still load by key, for saved picks, address pins and the Denver Skyport actors that wear them.
-  // They are Mixamo-topology rigs driven through the
-  // gltf-humanoid-facade, so they share the locomotion retarget and the normalized-bone
-  // equipment attachment with no per-avatar code. rotation_y stays 0: a Mixamo glTF rig
-  // already faces the mocap source's forward. They are the player roster (each new session
-  // starts as one of them, at random) and they also dress the airport travelers.
-  //
-  // LICENCE (all three): CC-BY-NC-SA-4.0, author "Ready Player Me", via Sketchfab (read from
-  // each file's own asset.extras). NON-COMMERCIAL + ShareAlike + ATTRIBUTION REQUIRED.
-  // Attribution ships in THIRD_PARTY_NOTICES.md.
-  "readyplayerme-cyberpunk": {
-    key: "readyplayerme-cyberpunk",
-    label: "Joe",
-    type: "glb",
-    url: withBase("/assets/avatars/glb/readyplayerme_cyberpunk.glb"),
-    scale: 1,
-    rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
-    licence: "CC-BY-NC-SA-4.0",
-    licence_holder: "Ready Player Me (via Sketchfab)",
-    selectable: false,
-    structured_unsupported: [],
-  },
-  "cyberpunk-female-full-body": {
-    key: "cyberpunk-female-full-body",
-    label: "Jane",
-    type: "glb",
-    url: withBase("/assets/avatars/glb/cyberpunk_female_full-body_character.glb"),
-    scale: 1,
-    rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
-    licence: "CC-BY-NC-SA-4.0",
-    licence_holder: "Ready Player Me (via Sketchfab)",
-    selectable: false,
-    structured_unsupported: [],
-  },
-  "rpm-female-cyberpunk": {
-    key: "rpm-female-cyberpunk",
-    label: "Rose",
-    type: "glb",
-    url: withBase("/assets/avatars/glb/rpm_female_cyberpunk.glb"),
-    scale: 1,
-    rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
-    licence: "CC-BY-NC-SA-4.0",
-    licence_holder: "Ready Player Me (via Sketchfab)",
-    selectable: false,
-    structured_unsupported: [],
-  },
-  "rpm-female-ninja": {
-    key: "rpm-female-ninja",
-    label: "Helium",
-    type: "glb",
-    url: withBase("/assets/avatars/glb/rpm_female_ninja.glb"),
-    scale: 1,
-    rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
-    licence: "CC-BY-NC-SA-4.0",
-    licence_holder: "Ready Player Me (via Sketchfab)",
-    selectable: false,
-    structured_unsupported: [],
-  },
-  "rpm-female-character": {
-    key: "rpm-female-character",
-    label: "Nea",
-    type: "glb",
-    url: withBase("/assets/avatars/glb/rpm_female_character.glb"),
-    scale: 1,
-    rotation_y: 0,
-    load_mode: "gltf-humanoid-facade",
-    mocap_retarget: "supported",
-    equipment_attachment: "glb-humanoid-normalized-bones",
-    licence: "CC-BY-NC-SA-4.0",
-    licence_holder: "Ready Player Me (via Sketchfab)",
-    selectable: false,
-    structured_unsupported: [],
-  },
 });
-// The default player avatar is Adam from the avatar collection (credited in THIRD_PARTY_NOTICES.md). A new session starts as one of the collection (starting_pool) at random; this is the
-// one used when no pick exists. The generated avatar stays available through
-// `?avatar_variant=parametric`.
+// The default player avatar. A new session starts as one of the collection (starting_pool) at random; this is the one
+// used when no pick exists.
 export const DEFAULT_AVATAR_VARIANT = "collection-adam";
 
 /**
@@ -276,76 +132,11 @@ const HEAD_ITEM_SINK_FRACTION = Object.freeze({
   "equip-helmet": 0.55,
   _default: 0.35,
 });
-// World-speed playback match — THE treadmill fix from review:
-// the locomotion clip's playback rate is scaled so foot speed matches the real
-// world translation speed instead of playing at an arbitrary fixed rate.
-// WORLD_MOVE_SPEED_MPS mirrors MOVE_SPEED_MPS in live-adapter.js (keep in sync).
-// Walk playback retains its measured natural-speed calibration. Run playback is
-// intentionally separate: one run loop is a measured two-step gait cycle whose
-// distance is the fixed-sole/foot-derived source of truth Stage A.
-const WORLD_MOVE_SPEED_MPS = 1.4;
-const WALK_NATURAL_SPEED_MPS = 0.9375; // walk_loop and jog_fwd_loop as baked into locomotion-mocap.json (pack size)
-const RUN_CYCLE_DISTANCE_M = 4.9732;
-const RUN_CONTACT_WINDOWS_S = Object.freeze({
-  left: Object.freeze({ start: 0.0333, end: 0.1 }),
-  right: Object.freeze({ start: 0.5, end: 0.5667 }),
-});
-const RUN_CONTACT_RELEASE_S = 0.11;
-// The walk and run pace come with the clips (measured from the recording and scaled to the
-// avatar). These are the fallbacks while no clip is loaded.
-const DEFAULT_GAIT = Object.freeze({
-  walkNaturalSpeed: WALK_NATURAL_SPEED_MPS,
-  runCycleDistance: RUN_CYCLE_DISTANCE_M,
-  runContactWindows: RUN_CONTACT_WINDOWS_S,
-});
-const LOCOMOTION_CROSSFADE_S = 0.22;
-
-function jumpPlaybackStatus() {
-  return {
-    policy: "takeoff-reset-loop-once",
-    clip_duration_seconds: null,
-    action_time_seconds: 0,
-    normalized_time: 0,
-    effective_weight: 0,
-    effective_time_scale: 1,
-    loop_mode: "LoopOnce",
-    repetitions: 1,
-    clamp_when_finished: true,
-    paused: true,
-    running: false,
-    finished: false,
-    airborne: false,
-    phase: "unloaded",
-    cycle_count: 0,
-    takeoff_reset_count: 0,
-    landing_count: 0,
-    midair_restart_count: 0,
-    takeoff_action_time_seconds: null,
-    takeoff_weight: null,
-    landing_action_time_seconds: null,
-  };
-}
-
 function countMeshes(root) {
   let count = 0;
   root.traverse((node) => {
     if (node.isMesh || node.isSkinnedMesh) count += 1;
   });
-  return count;
-}
-
-function countNonIdentityQuaternionSamples(clip) {
-  let count = 0;
-  for (const track of clip.tracks) {
-    if (track.ValueTypeName !== "quaternion") continue;
-    for (let i = 0; i < track.values.length; i += 4) {
-      const x = track.values[i] || 0;
-      const y = track.values[i + 1] || 0;
-      const z = track.values[i + 2] || 0;
-      const w = track.values[i + 3] || 1;
-      if (Math.abs(x) + Math.abs(y) + Math.abs(z) > 1e-5 || Math.abs(w - 1) > 1e-5) count += 1;
-    }
-  }
   return count;
 }
 
@@ -742,17 +533,9 @@ export class AvatarEquipmentLayer {
     this.attachedObjects = [];
     this.anchors = {};
     this._equipmentSignature = "";
-    // blended-mocap locomotion FSM state (idle/walk/jump).
-    this.mixer = null;
-    this.actions = null;
-    this._animState = "idle";
-    this._lastJumpActionTime = null;
-    this._runCalibrationTelemetry = {
-      active_wall_seconds: 0,
-      active_clip_seconds: 0,
-      completed_cycles: 0,
-    };
-    this._runFootContactLock = null;
+    // The avatar runtime that animates the model (avatar/actionforge-avatar.mjs).
+    this._motionDriver = null;
+    this._actionForge = null;
     // Runtime avatar switching bookkeeping.
     this._avatarModel = null; // the ONE VRM scene currently inside avatarRig
     this._switchInFlight = false;
@@ -776,24 +559,10 @@ export class AvatarEquipmentLayer {
       avatar_switch_in_flight: false,
       avatar_asset_uri: AVATAR_VARIANTS[DEFAULT_AVATAR_VARIANT].url,
       ...defaultSupport,
-      walk_animation_asset_uri: MOCAP_URLS.locomotion,
-      run_animation_asset_uri: MOCAP_URLS.locomotion,
-      retargeter:
-        "ActionForge clips (CC0) retargeted onto the normalized humanoid rig",
-      retargeted_walk_loaded: false,
-      retargeted_run_loaded: false,
-      retargeted_track_count: 0,
-      retargeted_non_identity_quaternion_samples: 0,
+      animation_runtime: "actionforge",
+      clip_pack_uri: withBase("/assets/actionforge/clips/actionforge-clips.glb"),
       locomotion_clips: [],
       current_animation_state: "idle",
-      walk_playback_rate: Number((WORLD_MOVE_SPEED_MPS / WALK_NATURAL_SPEED_MPS).toFixed(3)),
-      locomotion_playback_rate: Number((WORLD_MOVE_SPEED_MPS / WALK_NATURAL_SPEED_MPS).toFixed(3)),
-      anim_speed_match: {
-        world_move_speed_mps: WORLD_MOVE_SPEED_MPS,
-        walk_clip_natural_speed_mps: WALK_NATURAL_SPEED_MPS,
-        run_cycle_distance_m: RUN_CYCLE_DISTANCE_M,
-        note: "walk uses its calibrated natural speed; run cycles/s = run translation m/s / measured run metres/cycle",
-      },
       animation_mixer_active: false,
       animation_time_seconds: 0,
       procedural_pose_active: false,
@@ -802,38 +571,8 @@ export class AvatarEquipmentLayer {
       locomotion_movement_mode: "idle",
       locomotion_run_mode: false,
       locomotion_speed_mps: 0,
-      run_calibration: {
-        supported: false,
-        source_derived: false,
-        run_clip_duration_seconds: null,
-        run_playback_rate: null,
-        run_cycle_speed: null,
-        run_cycle_distance: null,
-        effective_run_translation_speed_mps: null,
-        active_wall_seconds: 0,
-        active_clip_seconds: 0,
-        completed_cycles: 0,
-      },
-      run_contact_lock: {
-        owner: "AvatarEquipmentLayer._loop",
-        enabled: true,
-        active: false,
-        active_side: null,
-        phase_seconds: null,
-        plant_window: null,
-        anchor_world_xz: null,
-        horizontal_error_mm: 0,
-        max_horizontal_error_mm: 0,
-        release_active: false,
-        simultaneous_overconstraint_count: 0,
-        phase_discontinuity_release_count: 0,
-        state_transition_release_count: 0,
-        lifecycle_release_count: 0,
-        outside_run_release_count: 0,
-      },
       avatar_grounded: true,
       avatar_jump_height_m: 0,
-      jump_playback: jumpPlaybackStatus(),
       avatar_visual_scale: 1,
       avatar_model_height_m: null,
       avatar_head_height_m: null,
@@ -962,7 +701,9 @@ export class AvatarEquipmentLayer {
       const { vrm, model, metrics } = await this._loadVrmModel(variant);
       this._adoptVrmModel(variant, vrm, model, metrics);
     } catch (err) {
-      this.status.errors.push(`avatar model load failed; fallback avatar hidden: ${err.message}`);
+      const message = `avatar model load failed; fallback avatar hidden: ${err.message}`;
+      this.status.errors.push(message);
+      console.warn(`[avatar ${variant.key}] ${message}`);
       this.status.real_vrm_loaded = false;
       this.status.avatar_static_glb_loaded = false;
       this.fallbackRig.visible = false;
@@ -971,45 +712,12 @@ export class AvatarEquipmentLayer {
   }
 
   async _loadVrmModel(variant) {
-    // BEGIN (parametric variant: generate the avatar locally from
-    // AvatarParams — no GLB/VRM fetch. The returned engine facade exposes the
-    // same surface the demo consumes from three-vrm, so retarget/equipment/
-    // grounding paths below run unchanged.)
-    if (variant.parametric) {
-      const parametric = createParametricAvatar(variant.params || DEFAULT_AVATAR_PARAMS);
-      return withRigMetrics(parametric, parametric.scene);
-    }
-    // END
-    const loader = new GLTFLoader();
-    loader.register((parser) => new VRMLoaderPlugin(parser));
-    const gltf = await fetchAndParseGltf(loader, variant.url);
-    const vrm = gltf.userData && gltf.userData.vrm ? gltf.userData.vrm : null;
-    const model = (vrm && vrm.scene) || gltf.scene;
-    // BEGIN — THE FIX.
-    // A rigged GLB (Ready Player Me / Mixamo / Sketchfab) carries a real SkinnedMesh
-    // and a real skeleton, but NO `gltf.userData.vrm`. The old code therefore left
-    // `vrm` null, which made `real_vrm_loaded` false, which made _loadLocomotionClips()
-    // bail before ever constructing an AnimationMixer, which is why these avatars stood
-    // frozen — and made _attachmentTarget() fall through to the static fallback anchors,
-    // which is why their equipment floated instead of riding the hand.
-    //
-    // Wrapping the GLB's Mixamo skeleton in a real three-vrm VRMHumanoid gives it the
-    // humanoid facade it was missing, and every downstream system then treats it exactly
-    // like a VRM. Nothing below this line needed to change.
-    if (!vrm && variant.type === "glb") {
-      const { avatar: glbAvatar, report } = createGlbHumanoidAvatar(model);
-      this.status.glb_humanoid_report = {
-        rigged: report.ok,
-        mapped_bone_count: report.mappedBoneCount,
-        skinned_mesh_count: report.skinnedMeshCount,
-        missing_required_bones: report.missingRequiredBones,
-        reason: report.reason,
-      };
-      if (glbAvatar) return withRigMetrics(glbAvatar, model);
-      // Not a drivable humanoid — fall back to the static path and SAY WHY.
-      this.status.errors.push(`GLB humanoid facade unavailable: ${report.reason}`);
-    }
-    return withRigMetrics(vrm, model);
+    // Every avatar is a character of the avatar collection on ActionForge's skeleton; the avatar runtime loads its
+    // prepared file (model, clips, measurements, body details) and animates it (avatar/actionforge-avatar.mjs).
+    if (variant.runtime !== "actionforge") throw new Error(`avatar ${variant.key} is not on the avatar runtime`);
+    const loaded = await loadActionForgeAvatar(variant);
+    this._actionForge = loaded;
+    return withRigMetrics(loaded.vrm, loaded.model);
   }
 
   /**
@@ -1018,7 +726,6 @@ export class AvatarEquipmentLayer {
    * removed and disposed before the new one is added; never two).
    */
   _adoptVrmModel(variant, vrm, model, metrics = null) {
-    this._resetRunFootContactLock("avatar-switch");
     const support = variantSupportStatus(variant);
     this._rigMetrics = metrics || measureRigMetrics(model, vrm);
     const isStaticGlb = support.avatar_asset_type === "glb" && !vrm;
@@ -1027,29 +734,19 @@ export class AvatarEquipmentLayer {
       this._disposeModel(this._avatarModel);
       this._avatarModel = null;
     }
-    if (this.mixer) {
-      this.mixer.stopAllAction();
-      this.mixer = null;
-    }
-    this.actions = null;
+    this._motionDriver = null;
     this.status.animation_mixer_active = false;
     this.vrm = vrm;
     this.status.real_vrm_loaded = !!vrm;
     this.status.avatar_static_glb_loaded = isStaticGlb;
-    // BEGIN (honest render-source label: parametric avatars are
-    // GENERATED, not loaded assets — real_vrm_loaded keeps its layer meaning
-    // of "a real avatar model is active", this field disambiguates the source)
-    // a rigged GLB driven through the humanoid facade is neither a "vrm-asset"
-    // nor a "glb-static-asset" — label it for what it is, or the debug state lies.
+    // What draws the avatar: real_vrm_loaded keeps its layer meaning of "a real avatar model is active"; this field
+    // names the source, so the debug state does not call a runtime avatar a VRM.
     this.status.avatar_render_source =
-      vrm && vrm.isParametric
-        ? "parametric-generated-mesh"
-        : vrm && vrm.isGlbHumanoid
-          ? "glb-humanoid-rig"
-          : isStaticGlb
-            ? "glb-static-asset"
-            : "vrm-asset";
-    // END
+      vrm && vrm.isActionForge
+        ? "actionforge-runtime"
+        : isStaticGlb
+          ? "glb-static-asset"
+          : "vrm-asset";
     this.status.avatar_variant = variant.key;
     this.status.avatar_variant_label = variant.label;
     this.status.avatar_asset_uri = variant.url;
@@ -1274,472 +971,29 @@ export class AvatarEquipmentLayer {
    * arm/leg override (which fought the mixer and read as a T-pose shuffle).
    */
   async _loadLocomotionClips() {
-    this._resetRunFootContactLock("locomotion-reload");
-    if (!this.status.real_vrm_loaded) {
-      this.status.retargeted_walk_loaded = false;
-      this.status.retargeted_track_count = 0;
-      this.status.retargeted_non_identity_quaternion_samples = 0;
+    this._motionDriver = null;
+    if (!this.vrm || !this.vrm.isActionForge || !this._actionForge) {
       this.status.locomotion_clips = [];
       this.status.animation_mixer_active = false;
-      if (this.status.avatar_static_glb_loaded) this.status.current_animation_state = "static-glb";
       return;
     }
     try {
-      const clips = await createRetargetedLocomotionClips(this.vrm, MOCAP_URLS);
-      if (!clips.walk || !clips.walk.tracks.length) throw new Error("retargeted walk produced no tracks");
-
-      this.mixer = new THREE.AnimationMixer(this.vrm.scene);
-      this.actions = {};
-      this._runCalibrationTelemetry = {
-        active_wall_seconds: 0,
-        active_clip_seconds: 0,
-        completed_cycles: 0,
-      };
-      this.status.jump_playback = jumpPlaybackStatus();
-      this._lastJumpActionTime = null;
-      for (const [state, clip] of Object.entries(clips)) {
-        const action = this.mixer.clipAction(clip);
-        action.enabled = true;
-        const isJump = state === "jump";
-        action.setLoop(isJump ? THREE.LoopOnce : THREE.LoopRepeat, isJump ? 1 : Infinity);
-        action.clampWhenFinished = isJump;
-        action.setEffectiveWeight(state === "idle" ? 1 : 0);
-        action.play();
-        // The jump must not accumulate an invisible clock while its weight is
-        // zero. It is unpaused and reset only on the airborne edge below.
-        if (isJump) action.paused = true;
-        this.actions[state] = action;
-      }
-      // World-speed playback match (treadmill fix): scale the walk cycle so its
-      // stride speed equals the adapter's real world translation speed.
-      this._gait = {
-        walkNaturalSpeed: clips.walk.userData?.natural_speed_mps || DEFAULT_GAIT.walkNaturalSpeed,
-        runCycleDistance: clips.run?.userData?.cycle_distance_m || DEFAULT_GAIT.runCycleDistance,
-        runContactWindows: clips.run?.userData?.contact_windows_s || DEFAULT_GAIT.runContactWindows,
-      };
-      this.actions.walk.setEffectiveTimeScale(WORLD_MOVE_SPEED_MPS / this._gait.walkNaturalSpeed);
-      this._animState = "idle";
-
-      this.status.retargeted_walk_loaded = true;
-      this.status.retargeted_run_loaded = Boolean(clips.run && clips.run.tracks.length);
-      this.status.retarget_source_animation =
-        "ActionForge idle, walk and jog (CC0) and an authored jump";
-      this.status.retargeted_track_count = clips.walk.tracks.length;
-      this.status.retargeted_track_names = clips.walk.tracks.map((track) => track.name).slice(0, 40);
-      this.status.retargeted_non_identity_quaternion_samples = countNonIdentityQuaternionSamples(clips.walk);
-      this.status.locomotion_clips = Object.values(clips).map(
-        (clip) => `${clip.name}(${clip.duration.toFixed(2)}s,${clip.tracks.length}t)`
-      );
+      const { instance, library, tuning } = this._actionForge;
+      this._motionDriver = new ActionForgeMotionDriver(instance, library, tuning, this._actionForge.items);
+      this.status.locomotion_clips = Object.entries(library.clips).map(([slot, clip]) => `${slot}(${clip.duration.toFixed(2)}s,${clip.tracks.length}t)`);
       this.status.animation_mixer_active = true;
-      this.status.mapped_bone_count = clips.walk.tracks.filter((t) => t.name.endsWith(".quaternion")).length;
-      this._syncJumpPlaybackTelemetry();
+      this.status.animation_runtime = "actionforge";
+      this.status.locomotion_tuning = {
+        walk_speed_mps: Number(tuning.walkSpeed.toFixed(4)),
+        jog_speed_mps: Number(tuning.jogSpeed.toFixed(4)),
+      };
+      this.status.current_animation_state = "idle";
+      if (typeof this._onLocomotionTuning === "function") this._onLocomotionTuning(tuning);
     } catch (err) {
-      this.status.errors.push(`locomotion clip load failed: ${err.message}`);
-      this.status.retargeted_walk_loaded = false;
-      this.status.retargeted_run_loaded = false;
+      this.status.errors.push(`avatar runtime failed: ${err.message}`);
+      console.warn(`[avatar ${this.status.avatar_variant}] avatar runtime failed: ${err.message}`);
       this.status.animation_mixer_active = false;
     }
-  }
-
-  /**
-   * characterize the selected run action without changing it. Every
-   * supported GLB, VRM, and parametric facade reaches this same action map.
-   */
-  characterizeRunCalibration(translationSpeedMps) {
-    const action = this.actions && this.actions.run;
-    const clipDuration = Number(action && action.getClip().duration);
-    const translationSpeed = Number(translationSpeedMps);
-    if (!action || !Number.isFinite(clipDuration) || clipDuration <= 0) {
-      // Name the avatar and its own load error, so a fault here can be read from the visitor's screen.
-      const lastError = (this.status.errors || []).slice(-1)[0];
-      throw new Error(`selected run clip is unavailable for runtime calibration (avatar ${this.status.avatar_variant || "unknown"}`
-        + `${lastError ? `: ${lastError}` : ""})`);
-    }
-    if (!Number.isFinite(translationSpeed) || translationSpeed <= 0) {
-      throw new RangeError("run translation speed must be a positive finite value");
-    }
-    const runCycleDistance = (this._gait || DEFAULT_GAIT).runCycleDistance;
-    const runCycleSpeed = translationSpeed / runCycleDistance;
-    const playbackRate = runCycleSpeed * clipDuration;
-    this.status.run_calibration = {
-      ...this.status.run_calibration,
-      supported: true,
-      source_derived: true,
-      rig_path: this.status.avatar_render_source || this.status.avatar_variant,
-      run_clip_duration_seconds: clipDuration,
-      run_playback_rate: playbackRate,
-      run_cycle_speed: runCycleSpeed,
-      run_cycle_distance: runCycleDistance,
-      effective_run_translation_speed_mps: translationSpeed,
-      cadence_steps_per_min: runCycleSpeed * 120,
-      gait_cycle_mapping: "one run loop = one same-foot-to-same-foot two-step cycle",
-      calibration_source: "runtime fixed-foot/sole-derived measured run-cycle distance",
-      formula: "cycles_per_second=translation_mps/measured_run_metres_per_cycle; animation_time_scale=cycles_per_second*clip_duration_s",
-    };
-    return { ...this.status.run_calibration };
-  }
-
-  /**
-   * Locomotion FSM: pick the desired state from the mirrored adapter
-   * locomotion flags and crossfade action weights toward it. Runs for the
-   * player AND both observer mirrors (same layer code).
-   */
-  _updateLocomotionState(delta) {
-    if (!this.actions) return;
-    const airborne = this.status.avatar_grounded === false || (this.status.avatar_jump_height_m || 0) > 0.02;
-    const desired = airborne && this.actions.jump
-      ? "jump"
-      : this.status.locomotion_moving &&
-          this.status.locomotion_run_mode &&
-          this.status.locomotion_movement_mode === "run" &&
-          this.actions.run
-        ? "run"
-        : this.status.locomotion_moving
-          ? "walk"
-          : "idle";
-    const previous = this._animState;
-    if (desired !== previous) {
-      const jump = this.actions.jump;
-      const playback = this.status.jump_playback;
-      if (desired === "jump" && jump) {
-        playback.cycle_count += 1;
-        jump.reset();
-        jump.setLoop(THREE.LoopOnce, 1);
-        jump.clampWhenFinished = true;
-        jump.setEffectiveTimeScale(1);
-        jump.play();
-        playback.takeoff_reset_count += 1;
-        playback.takeoff_action_time_seconds = Number(jump.time.toFixed(4));
-        playback.takeoff_weight = Number(jump.getEffectiveWeight().toFixed(4));
-        this._lastJumpActionTime = jump.time;
-      } else if (previous === "jump" && jump) {
-        playback.landing_count += 1;
-        playback.landing_action_time_seconds = Number(jump.time.toFixed(4));
-        this._lastJumpActionTime = null;
-      }
-      if (desired === "run") {
-        this._runCalibrationTelemetry = {
-          active_wall_seconds: 0,
-          active_clip_seconds: 0,
-          completed_cycles: 0,
-        };
-      }
-      this._animState = desired;
-    }
-    this.status.current_animation_state = this._animState;
-    if ((desired === "walk" || desired === "run") && this.actions[desired]) {
-      const speedMps = Number(this.status.locomotion_speed_mps) || WORLD_MOVE_SPEED_MPS;
-      const runCycleSpeed = Number(this.avatar?.locomotion?.run_cycle_speed);
-      const clipDuration = Number(this.actions[desired].getClip().duration) || 0;
-      const playbackRate = desired === "run" && Number.isFinite(runCycleSpeed) && runCycleSpeed > 0
-        ? runCycleSpeed * clipDuration
-        : speedMps / (this._gait || DEFAULT_GAIT).walkNaturalSpeed;
-      this.actions[desired].setEffectiveTimeScale(playbackRate);
-      this.status.locomotion_playback_rate = Number(playbackRate.toFixed(3));
-    }
-    const step = LOCOMOTION_CROSSFADE_S > 0 ? delta / LOCOMOTION_CROSSFADE_S : 1;
-    for (const [state, action] of Object.entries(this.actions)) {
-      const target = state === this._animState ? 1 : 0;
-      const weight = action.getEffectiveWeight();
-      const next = target > weight ? Math.min(target, weight + step) : Math.max(target, weight - step);
-      action.setEffectiveWeight(next);
-    }
-  }
-
-  _syncRunCalibrationTelemetry(delta) {
-    const action = this.actions && this.actions.run;
-    if (!action) return;
-    const duration = Number(action.getClip().duration) || 0;
-    const locomotion = this.avatar && this.avatar.locomotion ? this.avatar.locomotion : {};
-    const configuredCycleSpeed = Number(locomotion.run_cycle_speed);
-    // Outside the run state the action can retain its loader-time scale of 1.
-    // Report the installed calibration, not that inactive implementation detail.
-    const playbackRate = this._animState === "run"
-      ? Number(action.getEffectiveTimeScale()) || 0
-      : Number.isFinite(configuredCycleSpeed) && configuredCycleSpeed > 0
-        ? configuredCycleSpeed * duration
-        : Number(action.getEffectiveTimeScale()) || 0;
-    if (duration <= 0 || playbackRate <= 0) return;
-    if (this._animState === "run") {
-      this._runCalibrationTelemetry.active_wall_seconds += delta;
-      this._runCalibrationTelemetry.active_clip_seconds += delta * playbackRate;
-      this._runCalibrationTelemetry.completed_cycles = Math.floor(
-        (this._runCalibrationTelemetry.active_clip_seconds + 1e-9) / duration
-      );
-    }
-    const runCycleSpeed = playbackRate / duration;
-    const translationSpeed = Number(locomotion.run_translation_speed_mps) || Number(locomotion.speed_mps) || 0;
-    const runCycleDistance = Number(locomotion.run_cycle_distance) || (this._gait || DEFAULT_GAIT).runCycleDistance;
-    this.status.run_calibration = {
-      ...this.status.run_calibration,
-      supported: true,
-      rig_path: this.status.avatar_render_source || this.status.avatar_variant,
-      run_clip_duration_seconds: duration,
-      run_playback_rate: playbackRate,
-      run_cycle_speed: runCycleSpeed,
-      run_cycle_distance: runCycleDistance,
-      effective_run_translation_speed_mps: runCycleDistance ? runCycleSpeed * runCycleDistance : translationSpeed,
-      cadence_steps_per_min: runCycleSpeed * 120,
-      action_time_seconds: Number(action.time.toFixed(6)),
-      active_wall_seconds: Number(this._runCalibrationTelemetry.active_wall_seconds.toFixed(6)),
-      active_clip_seconds: Number(this._runCalibrationTelemetry.active_clip_seconds.toFixed(6)),
-      completed_cycles: this._runCalibrationTelemetry.completed_cycles,
-    };
-  }
-
-  _resetRunFootContactLock(reason = "state-transition") {
-    const lock = this._runFootContactLock;
-    const status = this.status && this.status.run_contact_lock;
-    const hadCorrection = Boolean(lock && (lock.activeSide || lock.release));
-    if (status && hadCorrection) {
-      if (reason === "dispose" || reason === "avatar-switch" || reason === "locomotion-reload") {
-        status.lifecycle_release_count += 1;
-      } else if (reason === "phase-discontinuity") {
-        status.phase_discontinuity_release_count += 1;
-      } else {
-        status.state_transition_release_count += 1;
-      }
-    }
-    this._runFootContactLock = null;
-    if (!status) return;
-    status.active = false;
-    status.active_side = null;
-    status.phase_seconds = null;
-    status.plant_window = null;
-    status.anchor_world_xz = null;
-    status.horizontal_error_mm = 0;
-    status.release_active = false;
-  }
-
-  _runFootContactPoint(side) {
-    const lock = this._runFootContactLock;
-    const fixedMarker = lock && lock.markers && lock.markers[side];
-    if (fixedMarker && fixedMarker.mesh && typeof fixedMarker.mesh.getVertexPosition === "function") {
-      const point = new THREE.Vector3();
-      fixedMarker.mesh.getVertexPosition(fixedMarker.vertex, point);
-      fixedMarker.mesh.localToWorld(point);
-      return point;
-    }
-    const raw = this.vrm?.humanoid?.getRawBoneNode?.(`${side}Foot`);
-    return raw ? raw.getWorldPosition(new THREE.Vector3()) : null;
-  }
-
-  _applyRunFootContactLock(delta) {
-    const action = this.actions && this.actions.run;
-    const duration = Number(action && action.getClip().duration);
-    const status = this.status.run_contact_lock;
-    const inRun = this._animState === "run" && this.status.locomotion_movement_mode === "run";
-    if (!action || !this.vrm || !this._avatarModel || !Number.isFinite(duration) || duration <= 0 || !inRun) {
-      if (this._runFootContactLock && (this._runFootContactLock.activeSide || this._runFootContactLock.release)) {
-        status.outside_run_release_count += 1;
-      }
-      this._resetRunFootContactLock("state-transition");
-      return;
-    }
-
-    if (!this._runFootContactLock || this._runFootContactLock.model !== this._avatarModel) {
-      const defaultSole = this.status.avatar_variant === DEFAULT_AVATAR_VARIANT
-        ? this._avatarModel.getObjectByName("Object_21")
-        : null;
-      this._runFootContactLock = {
-        model: this._avatarModel,
-        activeSide: null,
-        anchor: null,
-        corrected: null,
-        previousPhase: null,
-        release: null,
-        markers: {
-          left: defaultSole && defaultSole.isSkinnedMesh ? { mesh: defaultSole, vertex: 289 } : null,
-          right: defaultSole && defaultSole.isSkinnedMesh ? { mesh: defaultSole, vertex: 777 } : null,
-        },
-      };
-    }
-    const lock = this._runFootContactLock;
-    const phase = ((Number(action.time) % duration) + duration) % duration;
-    const expectedAdvance = Math.max(0, Number(delta) || 0) * Math.max(0, Number(action.getEffectiveTimeScale()) || 0);
-    if (lock.previousPhase !== null) {
-      const actualAdvance = (phase - lock.previousPhase + duration) % duration;
-      if (actualAdvance > Math.max(0.08, expectedAdvance * 3 + 0.01)) {
-        this._resetRunFootContactLock("phase-discontinuity");
-        return;
-      }
-    }
-    lock.previousPhase = phase;
-
-    const contactWindows = (this._gait || DEFAULT_GAIT).runContactWindows;
-    const activeSides = Object.entries(contactWindows)
-      .filter(([, window]) => window.end <= duration
-        ? phase >= window.start && phase <= window.end
-        : phase >= window.start || phase <= window.end - duration)
-      .map(([side]) => side);
-    if (activeSides.length > 1) {
-      status.simultaneous_overconstraint_count += 1;
-      this._resetRunFootContactLock("simultaneous-overconstraint");
-      return;
-    }
-    const side = activeSides[0] || null;
-    const humanoid = this.vrm.humanoid;
-    const upper = side ? humanoid?.getNormalizedBoneNode?.(`${side}UpperLeg`) : null;
-    const lower = side ? humanoid?.getNormalizedBoneNode?.(`${side}LowerLeg`) : null;
-    const foot = side ? humanoid?.getNormalizedBoneNode?.(`${side}Foot`) : null;
-
-    if (lock.activeSide && lock.activeSide !== side) {
-      const releaseUpper = humanoid?.getNormalizedBoneNode?.(`${lock.activeSide}UpperLeg`);
-      const releaseLower = humanoid?.getNormalizedBoneNode?.(`${lock.activeSide}LowerLeg`);
-      lock.release = releaseUpper && releaseLower
-        ? {
-            side: lock.activeSide,
-            elapsed: 0,
-            upper: lock.corrected?.side === lock.activeSide
-              ? lock.corrected.upper.clone()
-              : releaseUpper.quaternion.clone(),
-            lower: lock.corrected?.side === lock.activeSide
-              ? lock.corrected.lower.clone()
-              : releaseLower.quaternion.clone(),
-          }
-        : null;
-      lock.activeSide = null;
-      lock.anchor = null;
-      lock.corrected = null;
-    }
-
-    if (side && upper && lower && foot) {
-      lock.release = null;
-      this.vrm.update(0);
-      this._avatarModel.updateMatrixWorld(true);
-      const current = this._runFootContactPoint(side);
-      if (!current) {
-        this._resetRunFootContactLock("missing-foot");
-        return;
-      }
-      if (lock.activeSide !== side || !lock.anchor) {
-        lock.activeSide = side;
-        lock.anchor = current.clone();
-      }
-
-      const identity = new THREE.Quaternion();
-      const worldDelta = new THREE.Quaternion();
-      const parentWorld = new THREE.Quaternion();
-      const localDelta = new THREE.Quaternion();
-      const boneWorld = new THREE.Vector3();
-      const endWorld = new THREE.Vector3();
-      const targetWorld = new THREE.Vector3();
-      const toEnd = new THREE.Vector3();
-      const toTarget = new THREE.Vector3();
-      let horizontalError = 0;
-      for (let iteration = 0; iteration < 4; iteration += 1) {
-        this.vrm.update(0);
-        this._avatarModel.updateMatrixWorld(true);
-        const marker = this._runFootContactPoint(side);
-        if (!marker) break;
-        const errorX = lock.anchor.x - marker.x;
-        const errorZ = lock.anchor.z - marker.z;
-        horizontalError = Math.hypot(errorX, errorZ);
-        if (horizontalError <= 0.0005) break;
-        foot.getWorldPosition(endWorld);
-        targetWorld.copy(endWorld).set(endWorld.x + errorX, endWorld.y, endWorld.z + errorZ);
-        for (const bone of [lower, upper]) {
-          bone.updateWorldMatrix(true, true);
-          foot.getWorldPosition(endWorld);
-          bone.getWorldPosition(boneWorld);
-          toEnd.copy(endWorld).sub(boneWorld);
-          toTarget.copy(targetWorld).sub(boneWorld);
-          if (toEnd.lengthSq() <= 1e-10 || toTarget.lengthSq() <= 1e-10) continue;
-          worldDelta.setFromUnitVectors(toEnd.normalize(), toTarget.normalize());
-          const angle = identity.angleTo(worldDelta);
-          if (angle > 0.35) worldDelta.slerp(identity, 1 - 0.35 / angle);
-          bone.parent.getWorldQuaternion(parentWorld);
-          localDelta.copy(parentWorld).invert().multiply(worldDelta).multiply(parentWorld);
-          bone.quaternion.premultiply(localDelta).normalize();
-        }
-      }
-      this.vrm.update(0);
-      this._avatarModel.updateMatrixWorld(true);
-      const corrected = this._runFootContactPoint(side);
-      horizontalError = corrected ? Math.hypot(lock.anchor.x - corrected.x, lock.anchor.z - corrected.z) : horizontalError;
-      lock.corrected = {
-        side,
-        upper: upper.quaternion.clone(),
-        lower: lower.quaternion.clone(),
-      };
-      status.active = true;
-      status.active_side = side;
-      status.phase_seconds = Number(phase.toFixed(6));
-      status.plant_window = { ...contactWindows[side] };
-      status.anchor_world_xz = [Number(lock.anchor.x.toFixed(6)), Number(lock.anchor.z.toFixed(6))];
-      status.horizontal_error_mm = Number((horizontalError * 1000).toFixed(3));
-      status.max_horizontal_error_mm = Math.max(status.max_horizontal_error_mm, status.horizontal_error_mm);
-      status.release_active = false;
-      return;
-    }
-
-    status.active = false;
-    status.active_side = null;
-    status.phase_seconds = Number(phase.toFixed(6));
-    status.plant_window = null;
-    status.anchor_world_xz = null;
-    status.horizontal_error_mm = 0;
-    if (lock.release) {
-      const releaseUpper = humanoid?.getNormalizedBoneNode?.(`${lock.release.side}UpperLeg`);
-      const releaseLower = humanoid?.getNormalizedBoneNode?.(`${lock.release.side}LowerLeg`);
-      if (!releaseUpper || !releaseLower) {
-        lock.release = null;
-      } else {
-        lock.release.elapsed += Math.max(0, Number(delta) || 0);
-        const linear = Math.min(1, lock.release.elapsed / RUN_CONTACT_RELEASE_S);
-        const blend = linear * linear * (3 - 2 * linear);
-        const nativeUpper = releaseUpper.quaternion.clone();
-        const nativeLower = releaseLower.quaternion.clone();
-        releaseUpper.quaternion.copy(lock.release.upper).slerp(nativeUpper, blend);
-        releaseLower.quaternion.copy(lock.release.lower).slerp(nativeLower, blend);
-        status.release_active = blend < 1;
-        if (blend >= 1) lock.release = null;
-      }
-    } else {
-      status.release_active = false;
-    }
-  }
-
-  _syncJumpPlaybackTelemetry() {
-    const action = this.actions && this.actions.jump;
-    const playback = this.status.jump_playback;
-    if (!action || !playback) return;
-    const duration = Number(action.getClip().duration) || 0;
-    const time = Number(action.time) || 0;
-    const airborne = this.status.avatar_grounded === false || (this.status.avatar_jump_height_m || 0) > 0.02;
-    if (
-      airborne &&
-      this._lastJumpActionTime !== null &&
-      time + 0.05 < this._lastJumpActionTime
-    ) {
-      playback.midair_restart_count += 1;
-    }
-    this._lastJumpActionTime = airborne ? time : null;
-    playback.clip_duration_seconds = Number(duration.toFixed(4));
-    playback.action_time_seconds = Number(time.toFixed(4));
-    playback.normalized_time = duration > 0 ? Number((time / duration).toFixed(4)) : 0;
-    playback.effective_weight = Number(action.getEffectiveWeight().toFixed(4));
-    playback.effective_time_scale = Number(action.getEffectiveTimeScale().toFixed(4));
-    playback.loop_mode = action.loop === THREE.LoopOnce
-      ? "LoopOnce"
-      : action.loop === THREE.LoopPingPong
-        ? "LoopPingPong"
-        : "LoopRepeat";
-    playback.repetitions = Number.isFinite(action.repetitions) ? action.repetitions : "Infinity";
-    playback.clamp_when_finished = action.clampWhenFinished === true;
-    playback.paused = action.paused === true;
-    playback.running = action.isRunning();
-    playback.finished = action.paused === true && duration > 0 && time >= duration - 0.0001;
-    playback.airborne = airborne;
-    playback.phase = !airborne
-      ? "grounded"
-      : time < 0.18
-        ? "crouch-launch"
-        : time < 0.42
-          ? "airborne-tuck"
-          : time < duration - 0.0001
-            ? "descent-landing"
-            : "landing-hold";
   }
 
   async _loadItem(item) {
@@ -1803,12 +1057,22 @@ export class AvatarEquipmentLayer {
   }
 
   async _syncEquipmentNow() {
-    const items = this.avatar && Array.isArray(this.avatar.equippedItems) ? this.avatar.equippedItems : [];
+    let items = this.avatar && Array.isArray(this.avatar.equippedItems) ? this.avatar.equippedItems : [];
+    // On the avatar runtime, the items it knows are held and worn by its Equipment (stance on the arms, finger grip,
+    // contact point in the hollow of the hand); only the others take the plain attach below.
+    let runtimeItems = [];
+    if (this._motionDriver) {
+      const split = this._motionDriver.syncItems(items);
+      items = split.rest;
+      runtimeItems = split.runtime;
+    }
     for (const object of this.attachedObjects) {
       if (object.parent) object.parent.remove(object);
     }
     this.attachedObjects = [];
-    this.status.attachedItems = [];
+    this.status.attachedItems = runtimeItems.map((entry) => ({
+      itemId: entry.itemId, runtime_item: entry.runtimeId, target: "avatar-runtime-equipment", asset_loaded: true,
+    }));
     if (!items.length) {
       this.status.settled = true;
       return;
@@ -1842,6 +1106,21 @@ export class AvatarEquipmentLayer {
       });
     }
     this.status.settled = true;
+  }
+
+  /**
+   * The movement tuning of the avatar the runtime animates (walk and jog speeds, turn rates, jump), for the movement
+   * step (live-adapter.js). Called now if an avatar is loaded, and again after every avatar switch.
+   */
+  /** The avatar runtime's effective clip weights (idle, walk, jog, jump parts, stances), or null on the lab's own path. */
+  motionWeights() {
+    if (!this._motionDriver) return null;
+    return Object.fromEntries(Object.entries(this._motionDriver.weights()).map(([k, v]) => [k, Number(v.toFixed(3))]));
+  }
+
+  setLocomotionTuningListener(listener) {
+    this._onLocomotionTuning = typeof listener === "function" ? listener : null;
+    if (this._onLocomotionTuning && this._motionDriver) this._onLocomotionTuning(this._actionForge.tuning);
   }
 
   setAvatar(avatar) {
@@ -1929,12 +1208,7 @@ export class AvatarEquipmentLayer {
     const hasWorn = this.status.attachedItems.some((item) => item.mode === "worn");
     return {
       ...this.status,
-      locomotion_action_weights: Object.fromEntries(
-        Object.entries(this.actions || {}).map(([state, action]) => [
-          state,
-          Number(action.getEffectiveWeight().toFixed(4)),
-        ]),
-      ),
+      locomotion_action_weights: this.motionWeights() || {},
       expected_item_count: items.length,
       attached_item_count: this.status.attachedItems.length,
       has_held_item: hasHeld,
@@ -2105,22 +1379,15 @@ export class AvatarEquipmentLayer {
 
   _loop() {
     const delta = this.clock ? this.clock.getDelta() : 0;
-    if (this.mixer && this.avatarRig.visible) {
-      // blended mocap FSM replaces the fixed-rate single
-      // clip + procedural arm/leg override. Walk playback rate stays matched
-      // to the world translation speed (no treadmill / foot-slide).
-      this._updateLocomotionState(delta);
-      this.mixer.update(delta);
-      this._applyRunFootContactLock(delta);
-      this._syncRunCalibrationTelemetry(delta);
-      this._syncJumpPlaybackTelemetry();
+    if (this._motionDriver && this.avatarRig.visible) {
+      this._motionDriver.update(Math.min(delta, 0.1), this.avatar);
+      const s = this._motionDriver.lastState;
+      this.status.current_animation_state = s.phase !== "none" ? `jump-${s.phase}` : s.speed > 0.05 ? (s.speed > this._actionForge.tuning.walkSpeed + 0.05 ? "jog" : "walk") : "idle";
       this.status.animation_time_seconds = Number((this.status.animation_time_seconds + delta).toFixed(3));
-    } else if (this._runFootContactLock) this._resetRunFootContactLock("state-transition");
-    if (this.vrm && typeof this.vrm.update === "function") this.vrm.update(delta);
+    }
     // in shared-scene mode the HOST world's own render loop draws the one
     // scene (avatars included) — a second render() here would double-draw every
-    // frame. The rAF above still runs so the mixer/locomotion/vrm updates keep
-    // their behaviour in both modes.
+    // frame. The rAF above still runs so the avatar runtime keeps animating in both modes.
     if (!this.sharedScene) this.renderer.render(this.scene, this.camera);
     this._raf = requestAnimationFrame(this._loop);
   }
@@ -2156,7 +1423,6 @@ export class AvatarEquipmentLayer {
   }
 
   dispose() {
-    this._resetRunFootContactLock("dispose");
     if (this._raf) cancelAnimationFrame(this._raf);
     if (this._onResize) window.removeEventListener("resize", this._onResize);
     if (this.sharedScene) {

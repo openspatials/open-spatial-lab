@@ -10,8 +10,8 @@ import { cameraMovementFaults } from "./camera-movement-faults.mjs";
 
 const FIRST_PERSON_M = 1.0; // the camera sits in the head; a third-person camera is 3.4 m behind
 const THIRD_PERSON_M = 2.0;
-const CARRY_ON_M = 0.3; // what a key held through a crossing may still walk; 1.4 m/s would give 1.1 m in 0.8 s
-const FRESH_PRESS_M = 0.8;
+const CARRY_ON_M = 0.3; // what a key held through a crossing may still walk; walking pace would give 0.9 m in 0.8 s
+const FRESH_PRESS_M = 0.5; // walking pace gives 0.63 to 0.69 m in 0.6 s (kit.WALK_M)
 const CROSS_LIMIT_MS = 90000;
 const AGAIN_RAD = 0.15;
 const GROWN_FOOTER_PX = 90;
@@ -77,15 +77,19 @@ const statements = [
     expect(marks.length === 0, `the page carries destination marks: ${marks.join(", ")}`);
     return `${seen.flat().length} requests to the destination worlds, none for a region`;
   } },
-  { id: "jump-keeps-the-loop-running", says: "After a jump it lands and W still walks", async run(ctx) {
+  { id: "jump-keeps-the-loop-running", says: "After a jump it lands, the movement loop raises no error, and W still walks", async run(ctx) {
     const page = await visitor(ctx);
     await page.bringToFront();
     await walkTo(page, -1, 2);
     await faceYaw(page, Math.PI / 2);
+    // The loop survives a throw (it reports it and goes on), so a fault in the jump's pose call shows only as an error.
+    const errorsBefore = ctx.pageErrors.length;
     await page.keyboard.press("Space");
     await untilClock(page, 1.5);
     const landed = await pageFacts(page);
     expect(landed.grounded, "it never landed after the jump");
+    const raised = ctx.pageErrors.slice(errorsBefore);
+    expect(raised.length === 0, `the jump raised an error in the movement loop: ${raised[0]}`);
     const walk = await holdKeys(page, ["w"], 0.6);
     expect(walk.distance > FRESH_PRESS_M, `W walked only ${fixed(walk.distance)} m after the jump`);
     return `landed, then W walked ${fixed(walk.distance)} m`;

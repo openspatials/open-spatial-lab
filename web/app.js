@@ -126,10 +126,6 @@ import { createMotionPreference } from "./motion-preference.mjs";
 import { pixelRatioFor, renderQualityLevers } from "./render-quality-levers.mjs";
 import { createSemanticDestinationsController } from "./semantic-destinations-controller.mjs";
 import { mountDemoTrajectoryTool } from "./demo-trajectory/trajectory-panel.mjs?v=runtime";
-import {
-  createRunTweakRegistry,
-  createRuntimeTweakController,
-} from "./runtime-tweak-controller.mjs";
 
 const params = new URLSearchParams(location.search);
 const portalAtomicityOracleParam = ["127.0.0.1", "localhost"].includes(location.hostname) &&
@@ -4373,54 +4369,9 @@ async function main() {
     motionPreference,
   });
   await equipmentLayer.ready;
-  // derive the two defaults from the loaded run clip and the accepted
-  // translation path, then install them atomically in the existing movement
-  // owner. No URL, storage, backend, or cross-session default is written.
-  // The run calibration needs the avatar's run clip. If the avatar did not load (its errors are in the avatar status),
-  // the Player still starts, without the run tweaks, instead of stopping on the missing clip.
-  let runCalibrationReady = false;
-  if (isPlayer) {
-    try {
-      equipmentLayer.characterizeRunCalibration(adapter.runCalibrationSnapshot().source_translation_speed_mps);
-      runCalibrationReady = true;
-    } catch (error) {
-      logLine(`runtime tweaks unavailable: ${error.message} (avatar errors: ${(equipmentLayer.status.errors || []).slice(-2).join("; ") || "none"})`);
-    }
-  }
-  if (isPlayer && runCalibrationReady) {
-    const sourceRunCalibration = equipmentLayer.characterizeRunCalibration(
-      adapter.runCalibrationSnapshot().source_translation_speed_mps
-    );
-    adapter.setRunCalibration({
-      run_cycle_speed: sourceRunCalibration.run_cycle_speed,
-      run_cycle_distance: sourceRunCalibration.run_cycle_distance,
-    });
-    const runtimeTweakRegistry = createRunTweakRegistry({
-      sourceDefaults: sourceRunCalibration,
-      readCalibration: () => adapter.runCalibrationSnapshot(),
-      applyCalibration: (values) => adapter.setRunCalibration(values),
-    });
-    runtimeTweakController = createRuntimeTweakController({
-      view: window,
-      document,
-      toggle: $("btn-runtime-tweaks"),
-      palette: $("runtime-tweak-palette"),
-      rows: $("runtime-tweak-rows"),
-      closeButton: $("btn-runtime-tweak-close"),
-      copyAllButton: $("btn-runtime-tweak-copy-all"),
-      resetAllButton: $("btn-runtime-tweak-reset-all"),
-      status: $("runtime-tweak-status"),
-      fallback: $("runtime-tweak-copy-fallback"),
-      resizeHandle: $("runtime-tweak-resizer"),
-      registry: runtimeTweakRegistry,
-    });
-    runtimeTweakController.mount();
-    logLine(
-      `runtime tweaks: source run=${sourceRunCalibration.run_cycle_speed.toFixed(4)} cycles/s × ` +
-        `${sourceRunCalibration.run_cycle_distance.toFixed(3)} m/cycle = ` +
-        `${sourceRunCalibration.effective_run_translation_speed_mps.toFixed(3)} m/s (session-local)`
-    );
-  }
+  // The avatar runtime (avatar/actionforge-avatar.mjs) hands its movement tuning to the movement step, now and after
+  // every avatar switch; the movement step then moves the avatar with the runtime's Locomotion.
+  if (isPlayer) equipmentLayer.setLocomotionTuningListener((tuning) => adapter.setAvatarLocomotionTuning(tuning));
   logLine(`renderer: ${scene.rendererKind} (application renderer; not first-party TeleportXR)`);
   logLine(`portal visual alignment: ${portalVisualAlignment.reason || "unknown"} center=${vec3Label(portalVisualAlignment.visual_center || portalVisualAlignment.trigger_center)}`);
   logLine(`LIVE backend bound: ${adapter.base}`);
@@ -4722,6 +4673,11 @@ async function main() {
             attached_items: equipmentLayer.status.attachedItems,
             locomotion_clips: equipmentLayer.status.locomotion_clips,
             current_animation_state: equipmentLayer.status.current_animation_state,
+            animation_runtime: equipmentLayer.status.animation_runtime || null,
+            avatar_render_source: equipmentLayer.status.avatar_render_source || null,
+            locomotion_tuning: equipmentLayer.status.locomotion_tuning || null,
+            motion_weights: equipmentLayer.motionWeights ? equipmentLayer.motionWeights() : null,
+            errors: (equipmentLayer.status.errors || []).slice(-5),
             run_calibration: { ...equipmentLayer.status.run_calibration },
           }
         : null,

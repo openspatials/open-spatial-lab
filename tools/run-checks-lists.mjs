@@ -59,7 +59,6 @@ const CLIENT = [
   "src/presentation-json-viewer-check.mjs",
   "src/proof-contract-repair-check.mjs",
   "src/randomize-starting-avatar-check.mjs",
-  "src/runtime-tweak-toolbar-check.mjs",
   "src/self-identity-push-departure-check.mjs",
   "src/semantic-destinations-check.mjs",
   "src/server-camera-footer-check.mjs",

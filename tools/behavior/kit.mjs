@@ -45,6 +45,14 @@ export const inRange = (value, [low, high]) => value >= low && value <= high;
 export const planar = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
 export const fixed = (value, digits = 3) => Number(value).toFixed(digits);
 
+/**
+ * The loop time the avatar runtime (web/avatar/runtime/locomotion.mjs) takes to turn the avatar to the keys' direction,
+ * on the spot first, and bring it up to walking pace: 0.7 s for half a turn, the most a key can ask for.
+ */
+export const PACE_S = 0.8;
+/** 0.6 s of the loop at the collection avatars' walking pace, 1.06 to 1.15 m/s (0.63 to 0.69 m); half pace gives 0.34 m. */
+export const WALK_M = [0.58, 0.8];
+
 /** The smallest signed difference between two angles, in radians. */
 export function angleBetween(a, b) {
   let v = a - b;
@@ -130,12 +138,13 @@ export async function untilClock(page, seconds, { limitMs = 60000 } = {}) {
 }
 
 /**
- * Hold keys for `seconds` of the movement loop's time and measure the walk while they are held, so the press and the
- * release, which fall anywhere between two frames, are not part of it. `distance` is scaled to exactly `seconds`.
+ * Hold keys for `seconds` of the movement loop's time and measure the walk while they are held, after `settle` seconds
+ * in which the avatar turns and comes up to pace, so the press, the turn, the speed-up and the release are not part of
+ * it. `distance` is scaled to exactly `seconds`.
  */
-export async function holdKeys(page, keys, seconds) {
+export async function holdKeys(page, keys, seconds, { settle = PACE_S } = {}) {
   for (const key of keys) await page.keyboard.down(key);
-  await untilClock(page, 0.1);
+  await untilClock(page, settle);
   const before = await pageFacts(page);
   const after = await untilClock(page, seconds);
   for (const key of [...keys].reverse()) await page.keyboard.up(key);

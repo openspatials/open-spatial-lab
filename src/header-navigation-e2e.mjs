@@ -425,17 +425,16 @@ async function runProfile(browser, profile, health) {
   try {
     await page.setViewport({ width: profile.width, height: profile.height, deviceScaleFactor: 1 });
     await page.evaluateOnNewDocument(() => { localStorage.clear(); sessionStorage.clear(); });
-    await page.goto(`http://127.0.0.1:${ports.frontend}/index.html?role=player&active=source&intro=0&avatar_variant=readyplayerme-cyberpunk`, {
+    await page.goto(`http://127.0.0.1:${ports.frontend}/index.html?role=player&active=source&intro=0&avatar_variant=collection-david`, {
       waitUntil: "domcontentloaded", timeout: 60000,
     });
     await page.waitForFunction(() => document.body.dataset.assemblyReady === "1" && window.__assembly?.ready === true,
       { timeout: 60000 });
     await page.waitForFunction(() => window.__assembly?.equipmentReady?.() === true, { timeout: 60000 });
+    // The run-tweak palette is gone with the avatar runtime, so its owner-hidden button is never unhidden.
     await page.waitForFunction(() => {
-      const runtime = document.getElementById("btn-runtime-tweaks");
       const lobby = document.getElementById("btn-return-lobby");
-      return runtime && !runtime.hidden && lobby && !lobby.hidden
-        && window.__assembly.debugState().location_id === "location-a";
+      return lobby && !lobby.hidden && window.__assembly.debugState().location_id === "location-a";
     }, { timeout: 30000 });
     await page.$eval('button[data-testid="start-exploring"]', (button) => button.click());
     await page.waitForFunction(() => !document.querySelector('[data-testid="player-first-frame"]'));

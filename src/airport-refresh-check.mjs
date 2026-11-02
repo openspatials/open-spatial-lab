@@ -107,16 +107,17 @@ function implementationGuard() {
   assert.match(scene, /placeholder\.visible = false/, "airport blue proxy cubes must be suppressed before first paint");
   assert.match(portalProof, /suppressAirportWowProxy/);
   assert.match(portalProof, /\^wow-node-\\d\+\$/, "hosted airport graph proxies must be suppressed without hiding unrelated validation objects");
-  assert.match(runtime, /new THREE\.AnimationMixer\(actorState\.avatar\.scene\)/, "real humanoid mixers required");
-  assert.match(runtime, /setLoop\(THREE\.LoopRepeat, Infinity\)/, "idle clips must actually loop");
-  assert.match(runtime, /actorState\.action\.time = clips\.idle\.duration \* actorState\.phase/, "authored phases must seed action time");
+  // Actors are characters of the avatar collection, animated by the avatar runtime (its idle loops on their own skeleton).
+  assert.match(runtime, /new ActionForgeMotionDriver\(loaded\.instance, loaded\.library, loaded\.tuning\)/, "real runtime idle required");
+  assert.match(runtime, /actor\.driver\.update\(/, "the idle must advance with the renderer loop");
+  assert.match(runtime, /actorState\.driver\.update\(idle\.duration \* actorState\.phase, null\)/, "authored phases must seed the idle time");
   assert.match(runtime, /depthTest: true/);
   assert.match(runtime, /depthWrite: false/);
   assert.match(runtime, /CARD_LIMIT = 6/);
   assert.match(runtime, /frustum\.containsPoint/);
   assert.match(runtime, /state\.mesh\.quaternion\.copy\(camera\.quaternion\)/, "cards must billboard from the maintained camera");
   assert.match(runtime, /group\.parent\?\.remove\(group\)/, "card owner must remove its group on disposal");
-  assert.match(runtime, /mixer\?\.uncacheRoot/, "idle mixer roots must be released");
+  assert.match(runtime, /actor\.holder\?\.removeFromParent\(\)/, "runtime actors must be released");
   assert.match(controller, /airport_entity_runtime\?\.update\(seconds, built\.camera\)/, "selected renderer loop must own runtime updates");
   assert.match(controller, /airport_entity_runtime\?\.dispose\(\)/, "selected scene disposal must release the runtime");
   assert.doesNotMatch(runtime, /requestAnimationFrame|setInterval|position\s*:\s*["']fixed/, "runtime must not create a second loop or screen-fixed HUD");

@@ -2,20 +2,24 @@
 //   node tools/behavior/movement.check.mjs [--faults] [--only id,id]
 //
 // Every distance is for a hold counted in the movement loop's own time (see kit.mjs): on a loaded machine a second of
-// wall time can give the loop anything from 0.05 s to a full second, but a second of its time is always 1.4 m of walking.
-import { angleBetween, blurWindow, expect, faceYaw, fixed, holdKeys, inRange, pageFacts, planar, runBehavior, sleep, untilClock, waitUntil, walkTo, worldRecord } from "./kit.mjs";
+// wall time can give the loop anything from 0.05 s to a full second, but a second of its time is always the same walk.
+// The avatar runtime turns the avatar to the keys' direction (on the spot first) and speeds it up before it walks at
+// pace, so each walk is measured after kit.PACE_S of that.
+import { angleBetween, blurWindow, expect, faceYaw, fixed, holdKeys, inRange, PACE_S, pageFacts, planar, runBehavior, sleep, untilClock, WALK_M, waitUntil, walkTo, worldRecord } from "./kit.mjs";
 
 const HOLD_S = 0.6;
-const WALK_M = [0.72, 0.98]; // 0.84 m at 1.4 m/s (the ActionForge walk's pace); half speed would be 0.42 m
 const HEADING_RAD = 0.15;
-const RUN_OVER_WALK = [2.0, 4.0]; // 4.5 against 1.4 m/s by the constants (3.2); the avatar's calibration sets the run speed, so no number is pinned
-const COAST_M = 0.45; // what may still pass after a release, measured over 0.5 s of the loop's time; a stuck key gives 1.2 m
+const RUN_OVER_WALK = [3.0, 5.0]; // the jog, 4.8 to 5.0 m/s, against the walk, 1.06 to 1.15 m/s: 4.2 to 4.7 times
+const RUN_SETTLE_S = 1.3; // half a turn, then the speed-up to the jog at about 7.5 m/s per second
+const RUN_HOLD_S = 0.3; // 1.4 to 1.5 m of the jog, which keeps it on the open floor
+const COAST_M = 0.45; // what may still pass after a release, measured over 0.5 s of the loop's time (the runtime stops a walk in 0.07 m); a stuck key gives 0.6 m
 const DRAG_PX = 200;
 const DRAG_RAD = [0.7, 1.4]; // measured 1.04 (0.0052 rad per pixel)
-const JUMP_PEAK_M = [0.45, 1.2]; // measured 0.76 sampled, 0.86 by the arc
+const JUMP_PEAK_M = [0.45, 1.2]; // the runtime's jump tops out at 0.75 m
 const LANDED_M = 0.02;
 const STILL_M = 0.02;
 const PERIMETER_M = 5.6; // measured stop at 5.4; the room's walls are at 6
+const TO_PERIMETER_S = 2.6; // from z 3.6: a turn, then 1.8 m at walking pace
 const RECORD_M = 0.05;
 const PEER_M = 0.3;
 
@@ -36,7 +40,9 @@ function expectWalk(walk, keys, wantedHeading) {
   expect(inRange(walk.distance, WALK_M), `${keys} walked ${fixed(walk.distance)} m in ${HOLD_S} s of loop time, not ${WALK_M.join(" to ")} m`);
   const off = angleBetween(walk.heading, wantedHeading);
   expect(off <= HEADING_RAD, `${keys} walked ${fixed(off)} rad off the way it should go`);
-  return `${keys}: ${fixed(walk.distance)} m, ${fixed(off)} rad off`;
+  const body = angleBetween(walk.after.facing, walk.heading);
+  expect(body <= HEADING_RAD, `${keys} walked with the avatar facing ${fixed(body)} rad off the way it walks`);
+  return `${keys}: ${fixed(walk.distance)} m, ${fixed(off)} rad off, the avatar facing ${fixed(body)} rad off its way`;
 }
 
 const statements = [
@@ -50,7 +56,7 @@ const statements = [
     expect(coast <= COAST_M && !later.moving, `after the release it went on ${fixed(coast)} m; moving: ${later.moving}`);
     return `went on ${fixed(coast)} m, ${fixed(planar(released.position, walk.after.position))} m of it before the first read`;
   } },
-  { id: "w-along-facing", says: `W walks along the facing direction, ${WALK_M.join(" to ")} m in ${HOLD_S} s of loop time`, async run(ctx) {
+  { id: "w-along-facing", says: `W walks along the facing direction, the avatar facing its way, ${WALK_M.join(" to ")} m in ${HOLD_S} s of loop time`, async run(ctx) {
     const page = await atOpenFloor(ctx);
     const walk = await holdKeys(page, ["w"], HOLD_S);
     const detail = expectWalk(walk, "W", walk.after.basis);
@@ -58,12 +64,12 @@ const statements = [
     expect(facing <= HEADING_RAD, `after W the avatar faces ${fixed(facing)} rad off the facing direction`);
     return detail;
   } },
-  { id: "s-against-facing", says: `S walks against the facing direction, ${WALK_M.join(" to ")} m in ${HOLD_S} s of loop time`, async run(ctx) {
+  { id: "s-against-facing", says: `S turns the avatar round and walks it against the facing direction, ${WALK_M.join(" to ")} m in ${HOLD_S} s of loop time`, async run(ctx) {
     const page = await atOpenFloor(ctx, 0.5);
     const walk = await holdKeys(page, ["s"], HOLD_S);
     return expectWalk(walk, "S", walk.after.basis + Math.PI);
   } },
-  { id: "a-d-across-facing", says: `A and D walk across the facing direction, left and right, ${WALK_M.join(" to ")} m each`, async run(ctx) {
+  { id: "a-d-across-facing", says: `A and D turn the avatar and walk it across the facing direction, left and right, ${WALK_M.join(" to ")} m each`, async run(ctx) {
     const page = await atOpenFloor(ctx);
     const left = await holdKeys(page, ["a"], HOLD_S);
     const right = await holdKeys(page, ["d"], HOLD_S);
@@ -77,7 +83,7 @@ const statements = [
   { id: "shift-runs", says: `Shift makes it faster than walking, ${RUN_OVER_WALK.join(" to ")} times`, async run(ctx) {
     const page = await atOpenFloor(ctx);
     const walk = await holdKeys(page, ["w"], HOLD_S);
-    const run = await holdKeys(page, ["Shift", "s"], HOLD_S);
+    const run = await holdKeys(page, ["Shift", "s"], RUN_HOLD_S, { settle: RUN_SETTLE_S });
     const ratio = run.speed / walk.speed;
     expect(inRange(ratio, RUN_OVER_WALK), `with Shift it moved ${fixed(ratio)} times the walking speed (${fixed(run.speed)} against ${fixed(walk.speed)} m/s)`);
     return `${fixed(run.speed)} against ${fixed(walk.speed)} m/s of loop time`;
@@ -132,7 +138,7 @@ const statements = [
     const page = await atOpenFloor(ctx, -1);
     const start = await pageFacts(page);
     await page.keyboard.down("w");
-    const going = await untilClock(page, 0.3);
+    const going = await untilClock(page, PACE_S);
     expect(planar(going.position, start.position) > 0.2, `W walked only ${fixed(planar(going.position, start.position))} m before the blur (the check would be vacuous)`);
     await blurWindow(page);
     const later = await untilClock(page, 0.5);
@@ -147,7 +153,7 @@ const statements = [
     await walkTo(page, 1, 3.6);
     await faceYaw(page, 0);
     await page.keyboard.down("w");
-    await untilClock(page, 1.4);
+    await untilClock(page, TO_PERIMETER_S);
     const atIt = await pageFacts(page);
     const later = await untilClock(page, 0.5);
     await page.keyboard.up("w");
@@ -209,19 +215,21 @@ async function jumpOnce(page) {
 
 const MOVE = "web/movement-camera-controller.mjs";
 const ADAPTER = "web/live-adapter.js";
+const LOCOMOTION = "web/avatar/runtime/locomotion.mjs";
 const faults = [
   { statement: "release-stops", name: "a released key is never cleared", expect: /after the release it went on/, edits: [{ file: MOVE, find: "      controlState[control] = pressed;\n", replace: "      if (pressed) controlState[control] = true;\n" }] },
-  { statement: "w-along-facing", name: "the walking speed is off by half", expect: /W walked 0\.\d+ m in/, edits: [{ file: ADAPTER, find: "const MOVE_SPEED_MPS = 1.4;", replace: "const MOVE_SPEED_MPS = 0.7;" }] },
+  { statement: "w-along-facing", name: "the walking speed is off by half", expect: /W walked 0\.\d+ m in/, edits: [{ file: LOCOMOTION, find: "const walkRate = 1.2;", replace: "const walkRate = 0.6;" }] },
   { statement: "s-against-facing", name: "S walks forward", expect: /S walked [\d.]+ rad off/, edits: [{ file: ADAPTER, find: "const forward = (controls.forward ? 1 : 0) - (controls.back ? 1 : 0);", replace: "const forward = (controls.forward || controls.back ? 1 : 0);" }] },
   { statement: "a-d-across-facing", name: "A and D swapped", expect: /A walked [\d.]+ rad off/, edits: [{ file: ADAPTER, find: "const strafe = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);", replace: "const strafe = (controls.left ? 1 : 0) - (controls.right ? 1 : 0);" }] },
-  { statement: "diagonal-is-not-faster", name: "a diagonal step that is not scaled down", expect: /W and D walked [\d.]+ m in/, edits: [{ file: ADAPTER, find: "const len = Math.hypot(forward, strafe) || 1;", replace: "const len = 1;" }] },
+  { statement: "a-d-across-facing", name: "the avatar is drawn facing its old way, so it walks sideways", expect: /[AD] walked with the avatar facing/, edits: [{ file: ADAPTER, find: "    avatar.rotation_y = loco.yaw;\n", replace: "" }] },
+  { statement: "diagonal-is-not-faster", name: "a diagonal step that is not scaled down", expect: /W and D walked [\d.]+ m in/, edits: [{ file: LOCOMOTION, find: "      else target = Math.abs(err) > 120 * DEG ? base * 0.3 : base;", replace: "      else target = (Math.abs(err) > 120 * DEG ? base * 0.3 : base) * Math.hypot(fwd, right);" }] },
   { statement: "shift-runs", name: "the loop never passes the run key on", expect: /with Shift it moved/, edits: [{ file: MOVE, find: "? { ...controlState, run: runModifierKeys.size > 0, camera_yaw: movementBasisYaw() }", replace: "? { ...controlState, run: false, camera_yaw: movementBasisYaw() }" }] },
   { statement: "drag-turns", name: "a mouse drag turns the camera the wrong way", expect: /a drag to the right turned the facing direction/, edits: [{ file: MOVE, find: "    orbitCamera.lastY = event.clientY;\n    orbitCamera.targetAzimuth -= dx *", replace: "    orbitCamera.lastY = event.clientY;\n    orbitCamera.targetAzimuth += dx *" }] },
-  { statement: "space-lifts", name: "a jump far too weak", expect: /Space lifted it/, edits: [{ file: ADAPTER, find: "const JUMP_SPEED_MPS = 4.25;", replace: "const JUMP_SPEED_MPS = 0.85;" }] },
-  { statement: "lands-at-floor", name: "no gravity, so it never comes down", expect: /it never landed/, edits: [{ file: ADAPTER, find: "const GRAVITY_MPS2 = 10.5;", replace: "const GRAVITY_MPS2 = 0;" }] },
+  { statement: "space-lifts", name: "a jump far too weak", expect: /Space lifted it/, edits: [{ file: LOCOMOTION, find: "    jumpApex: 0.75,", replace: "    jumpApex: 0.15," }] },
+  { statement: "lands-at-floor", name: "no gravity, so it never comes down", expect: /it never landed/, edits: [{ file: LOCOMOTION, find: "      this.vy -= T.gravity * dt;\n", replace: "" }] },
   { statement: "typing-does-not-move", name: "keys typed in a field reach the controls", expect: /typing moved the avatar/, edits: [{ file: MOVE, find: "    if (pressed && typingTarget) return;\n", replace: "" }] },
   { statement: "blur-stops", name: "a held key not cleared on blur", expect: /with the window blurred and the key down/, edits: [{ file: MOVE, find: `    addListener(windowTarget, "blur", resetControlState);\n`, replace: "" }] },
-  { statement: "perimeter-stops", name: "the perimeter check removed", expect: /it passed through/, edits: [{ file: ADAPTER, find: "p[2] = clamp(p[2] + dz, mb ? mb.minZ : -WORLD_LIMIT, mb ? mb.maxZ : WORLD_LIMIT);", replace: "p[2] = p[2] + dz;" }] },
+  { statement: "perimeter-stops", name: "the perimeter check removed", expect: /it passed through/, edits: [{ file: ADAPTER, find: "p[2] = clamp(wantZ, mb ? mb.minZ : -WORLD_LIMIT, mb ? mb.maxZ : WORLD_LIMIT);", replace: "p[2] = wantZ;" }] },
   { statement: "world-record-follows", name: "the heartbeat reports the spawn point, not the avatar", expect: /the world's record stands/, edits: [{ file: "web/live-adapter-presence-controller.mjs", find: "      position: roundedPosition(avatar.position),\n", replace: "      position: [0, 0, 0],\n" }] },
   { statement: "second-visitor-sees", name: "a visitor keeps a peer's first position", expect: /the second visitor sees the first [\d.]+ m from where it is/, edits: [{ file: "web/live-adapter-peer-presence-reducer.mjs", find: "      position: clonePosition(message.position, [0, 0, 0]),\n      rotation_y: Number(message.rotation_y) || 0,\n      avatar_variant:", replace: "      position: previous ? previous.position : clonePosition(message.position, [0, 0, 0]),\n      rotation_y: Number(message.rotation_y) || 0,\n      avatar_variant:" }] },
 ];

@@ -1,13 +1,10 @@
 // What the page's connection to its world does, as a visitor sees it: it registers and stays registered, it keeps its
-// streams open, it lists every request in the API panel, it signs a crossing, it equips what the picker says, and the
-// run-cadence slider sets the run speed. The statements here replace assertions that read web/live-adapter.js as text.
+// streams open, it lists every request in the API panel, it signs a crossing and it equips what the picker says. The
+// statements here replace assertions that read web/live-adapter.js as text.
 //   node tools/behavior/live-adapter.check.mjs [--faults] [--only id,id]
 import { worldPortals } from "../arch-i4/main-demo/world-data.mjs";
-import { expect, faceYaw, fixed, holdKeys, inRange, pageFacts, runBehavior, sleep, walkThrough, walkTo, waitUntil, worldRecord } from "./kit.mjs";
-import { bodyMark, clearViaPicker, clientSceneTrip, HAT_AND_MUG, groundNow, liveFacts, moveRunCadence, storedInBrowser, visitRecorded, wearViaPicker, wornNow } from "./live-adapter-page.mjs";
-
-const WALK_M = [0.72, 0.98]; // 0.6 s of the movement loop at 1.4 m/s, as in movement.check.mjs
-const RUN_FOLLOWS_RANGE = 0.5; // how far the run speed ratio may be from the slider's ratio, as a share of the slider's rise
+import { expect, faceYaw, fixed, holdKeys, inRange, pageFacts, runBehavior, WALK_M, walkThrough, waitUntil, worldRecord } from "./kit.mjs";
+import { bodyMark, clearViaPicker, clientSceneTrip, HAT_AND_MUG, groundNow, liveFacts, visitRecorded, wearViaPicker, wornNow } from "./live-adapter-page.mjs";
 const CROSS_LIMIT_MS = 90000;
 
 const lobby = (ctx) => `${ctx.lab.front}/index.html?role=player&intro=bypass`;
@@ -26,14 +23,6 @@ async function crossToA(ctx) {
   const seen = await walkThrough(page, { from: [x + fx * 1.4, z + fz * 1.4], yaw: Math.atan2(-fx, -fz), expect: "location-a", timeoutMs: CROSS_LIMIT_MS });
   expect(seen.location_id === "location-a", `the walk did not cross: still in ${seen.location_id} (timed out after ${CROSS_LIMIT_MS / 1000} s)`);
   return page;
-}
-
-/** The middle of the Lobby's open floor, turned to walk along +X, so that a run in either direction stays clear of the walls. */
-async function atOpenFloor(page) {
-  await page.bringToFront();
-  await walkTo(page, -1, 2);
-  await faceYaw(page, Math.PI / 2);
-  await sleep(300);
 }
 
 const statements = [
@@ -82,31 +71,6 @@ const statements = [
     await waitUntil(async () => (await wornNow(page)).length === 0, async () => `after clearing the avatar still wears ${(await wornNow(page)).join(", ")}`, { limitMs: 20000 });
     return `wore ${worn.join(", ")}, then nothing`;
   } },
-  { id: "run-cadence-sets-run-speed", says: "Moving the run cadence slider from its lowest to its highest raises the run speed in step, and writes nothing", async run(ctx) {
-    const { page, requests } = await recorded(ctx);
-    await atOpenFloor(page);
-    const kept = await storedInBrowser(page);
-    const address = page.url();
-    const writes = [];
-    const move = async (key) => {
-      const mark = requests.mark();
-      const value = await moveRunCadence(page, key);
-      writes.push(...requests.since(mark).filter((entry) => entry.kind === "http" && entry.method !== "GET" && entry.world && !/presence/.test(entry.path)));
-      return value;
-    };
-    const low = await move("Home");
-    const slow = await holdKeys(page, ["Shift", "w"], 0.6);
-    const high = await move("End");
-    const fast = await holdKeys(page, ["Shift", "s"], 0.6);
-    expect(high > low * 1.05, `the slider's two ends are ${low} and ${high}`);
-    const wanted = high / low;
-    const got = fast.speed / slow.speed;
-    expect(Math.abs(got - wanted) <= (wanted - 1) * RUN_FOLLOWS_RANGE, `the slider went to ${fixed(wanted)} times its lowest value but the run speed to ${fixed(got)} times`);
-    expect((await storedInBrowser(page)) === kept, "moving the slider changed what the page keeps in the browser");
-    expect(page.url() === address, `moving the slider changed the address to ${page.url()}`);
-    expect(writes.length === 0, `moving the slider sent a write to the world: ${writes.map((entry) => `${entry.method} ${entry.path}`).join(", ")}`);
-    return `slider ${fixed(wanted)} times from end to end, run speed ${fixed(got)} times; nothing stored, nothing written`;
-  } },
   { id: "mission-link-opens-lobby", says: "A link with mission=denver-skyport opens the Lobby, with the page marked as a server-backed crossing", async run(ctx) {
     const page = await ctx.visit(`${lobby(ctx)}&mission=denver-skyport`);
     const facts = await pageFacts(page);
@@ -120,13 +84,13 @@ const statements = [
     await waitUntil(async () => (await pageFacts(page)).airportReady, "the airport never showed", { limitMs: 60000 });
     const facts = await pageFacts(page);
     expect(facts.location === "location-airport", `opened ${facts.location}, not the airport`);
-    // The spawn may face a wall, so any of the four walking keys may be the one that is free.
-    let best = 0;
-    for (const key of ["w", "s", "a", "d"]) {
-      best = Math.max(best, (await holdKeys(page, [key], 0.6)).distance);
-      if (best >= WALK_M[0]) break;
-    }
-    expect(inRange(best, WALK_M), `no walking key moved the avatar ${WALK_M.join(" to ")} m in 0.6 s of loop time on the airport floor; the best moved ${fixed(best)} m`);
+    // The entry spawn stands 1.4 m in front of the return portal (runtime/world-server/src/config.js), and the camera
+    // faces it: turned to +Z, W walks into the concourse instead of back to the Lobby.
+    await faceYaw(page, 0);
+    const best = (await holdKeys(page, ["w"], 0.6)).distance;
+    const still = await pageFacts(page);
+    expect(still.location === "location-airport", `the walk left the airport for ${still.location}`);
+    expect(inRange(best, WALK_M), `W moved the avatar ${fixed(best)} m in 0.6 s of loop time on the airport floor, not ${WALK_M.join(" to ")} m`);
     const ground = await groundNow(page);
     expect(ground.own, `the visitor walks on ${ground.name || "no ground at all"}, not on the airport's own floor`);
     return `walked ${fixed(best)} m on the airport floor (${ground.name})`;
@@ -170,9 +134,6 @@ const faults = [
   { statement: "api-panel-lists-requests", name: "the adapter exports a second bus the panel does not hear", expect: /not in the API panel/, edits: [{ file: ADAPTER, find: 'export { API_EVENTS } from "./live-adapter-transport.mjs";', replace: "export const API_EVENTS = new EventTarget();" }] },
   { statement: "api-panel-lists-requests", name: "a demo route is listed as if it were a data route", expect: /lists internal demo routes/, edits: [{ file: ADAPTER, find: "this._transport.rawFetch(`${this.demoProxyBase(endpointKey)}/demo/um/attach-point`", replace: "this._transport.getJson(`${this.demoProxyBase(endpointKey)}/demo/um/attach-point`" }] },
   { statement: "picker-equips", name: "Apply stages the item but never puts it on", expect: /does not wear it/, edits: [{ file: "web/app.js", find: "          avatar.equippedItems = items;\n", replace: "" }] },
-  { statement: "run-cadence-sets-run-speed", name: "the run speed ignores the slider", expect: /the slider went to [\d.]+ times its lowest value but the run speed/, edits: [{ file: ADAPTER, find: "calibration.run_cycle_speed * calibration.run_cycle_distance\n        : sourceSpeed,", replace: "sourceSpeed\n        : sourceSpeed," }] },
-  { statement: "run-cadence-sets-run-speed", name: "the slider saves its value in the browser", expect: /changed what the page keeps in the browser/, edits: [{ file: ADAPTER, find: "    this._runCalibration = Object.freeze({", replace: "    localStorage.setItem(\"run_cycle_speed\", String(runCycleSpeed));\n    this._runCalibration = Object.freeze({" }] },
-  { statement: "run-cadence-sets-run-speed", name: "the slider posts its value to the world", expect: /sent a write to the world: POST/, edits: [{ file: ADAPTER, find: "    this._runCalibration = Object.freeze({", replace: "    void this._transport.postJson(`${this.base}/demo/run-calibration`, { run_cycle_speed: runCycleSpeed });\n    this._runCalibration = Object.freeze({" }] },
   { statement: "mission-link-opens-lobby", name: "the mission link leaves no mark", expect: /the page is marked "null"/, edits: [{ file: "web/app.js", find: "if (isPlayer && launcherMissionParam === \"denver-skyport\") {", replace: "if (false) {" }] },
   { statement: "airport-ground-walks", name: "the airport's floor is never adopted", expect: /not on the airport's own floor/, edits: [{ file: ADAPTER, find: "  _adoptLiveAirportScenePhysics(resolved) {\n", replace: "  _adoptLiveAirportScenePhysics(resolved) {\n    return;\n" }] },
   { statement: "crossing-is-signed", name: "the crossing is not signed", expect: /no signed receipt in the API panel/, edits: [{ file: ADAPTER, find: "featureSignManifestOntoPacket(packet, this.world, this._transport),", replace: "Promise.resolve(null)," }] },

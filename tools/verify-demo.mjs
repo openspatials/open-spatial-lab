@@ -52,9 +52,10 @@ async function openWorld(browser, route, expectedLocation, requestLog, errors) {
   return page;
 }
 
-// The generated avatar must idle with its arms down. Hands are measured against the hips in
-// the avatar's own frame: in a T-pose they sit about 0.68 m out and 0.38 m above the hips;
-// standing they sit about 0.24 m out and 0.13 m below.
+// The avatar must idle with its arms down. Hands are measured against the hips in the avatar's
+// own frame: in a T-pose they sit about 0.68 m out and 0.38 m above the hips; in the avatar
+// runtime's idle (ActionForge idle_loop, elbows a little bent) about 0.32 m out and 0.09 to 0.11 m
+// above.
 async function assertStandingPose(page) {
   try {
     await page.waitForFunction(() => {
@@ -62,7 +63,7 @@ async function assertStandingPose(page) {
       if (!bones?.hips || !bones.leftHand || !bones.rightHand) return false;
       return ["leftHand", "rightHand"].every((name) => {
         const hand = bones[name].local;
-        return Math.abs(hand[0] - bones.hips.local[0]) < 0.45 && hand[1] < bones.hips.local[1] + 0.1;
+        return Math.abs(hand[0] - bones.hips.local[0]) < 0.45 && hand[1] < bones.hips.local[1] + 0.2;
       });
     }, { timeout: 15000, polling: 100 });
   } catch (error) {
@@ -340,18 +341,18 @@ async function main() {
     await lobby.evaluate(async () => {
       const selector = window.__assembly.avatarSelector;
       selector.open();
-      selector.pickAvatar("readyplayerme-cyberpunk");
+      selector.pickAvatar("collection-david");
       await selector.apply();
     });
     await lobby.waitForFunction(
-      () => window.__assembly.debugState().avatar?.avatar_variant === "readyplayerme-cyberpunk",
+      () => window.__assembly.debugState().avatar?.avatar_variant === "collection-david",
       { timeout: 30000 },
     );
     await assertStandingPose(lobby);
     await lobby.evaluate(async () => {
       const selector = window.__assembly.avatarSelector;
       selector.open();
-      selector.pickAvatar("readyplayerme-cyberpunk");
+      selector.pickAvatar("collection-david");
       selector.pickSlotItem("head", "equip-hat");
       selector.pickSlotItem("rightHand", "equip-hammer");
       await selector.apply();
@@ -359,7 +360,7 @@ async function main() {
     await lobby.waitForFunction(() => {
       const state = window.__assembly.debugState();
       const itemIds = state.avatar?.equippedItems?.map((item) => item.itemId) || [];
-      return state.avatar?.avatar_variant === "readyplayerme-cyberpunk" && itemIds.includes("equip-hat") && itemIds.includes("equip-hammer");
+      return state.avatar?.avatar_variant === "collection-david" && itemIds.includes("equip-hat") && itemIds.includes("equip-hammer");
     }, { timeout: 30000 });
     await portalDrive(lobby, "lobby-portal-c", "location-airport", { browserDriven: true });
     await lobby.waitForFunction(() => (

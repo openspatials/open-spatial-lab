@@ -8,7 +8,9 @@ import { FACING_RAD, lobbyUrl, portalNamed, walkInto, yawOf } from "./crossing-w
 import { lastPushedDeparture, markDocument, peerFrames, peerIds, recordPeerFrames, sceneFacts, speakOnPeerChannel, stopSpeaking, windowFacts } from "./page-reads.mjs";
 
 const MARK = "opened before the crossing";
-const PINNED_AVATAR = "rpm-female-ninja"; // a starting avatar the page accepts in its address: not the default, and loaded from a file, so a peer shown too early is seen in another avatar for a while
+const PINNED_AVATAR = "collection-david"; // a starting avatar the page accepts in its address: not the default, and loaded from a file, so a peer shown too early is seen in another avatar for a while
+const PINNED_MODEL = "/assets/actionforge/characters/david/david.glb";
+const MODEL_LATE_MS = 8000; // how late the pinned model reaches a watcher that opens a world where its wearer stands
 const TRAVERSAL = "web/live-adapter-portal-traversal-controller.mjs";
 const PEERS = "web/live-adapter-peer-presence-reducer.mjs";
 
@@ -55,6 +57,39 @@ async function watchCrosserArrive(ctx) {
   return { wearing, drawn: (await peerFrames(watcher)).filter((peer) => peer.rendered), after: (await sceneFacts(walker)).ownVariant };
 }
 
+
+/** Hold back every request of `page` for a file whose path ends with `path` by `ms`; let the rest through. */
+async function deliverLate(page, path, ms) {
+  await page.setRequestInterception(true);
+  page.on("request", (request) => {
+    let pathname = "";
+    try { pathname = new URL(request.url()).pathname; } catch {}
+    if (pathname.endsWith(path)) setTimeout(() => request.continue().catch(() => {}), ms);
+    else request.continue().catch(() => {});
+  });
+}
+
+/**
+ * A visitor stands in Location A wearing PINNED_AVATAR; then a second visitor of the same browser opens A, with that
+ * avatar's model held back MODEL_LATE_MS, and counts what it draws of the first. A crosser is no test of this: the
+ * watcher draws it through A's portal window before it crosses, so its model is in place long before it arrives.
+ */
+async function watchJoiner(ctx) {
+  const { lab } = ctx;
+  const joiner = await ctx.visit(`${lab.front}/w/a/?intro=bypass&avatar_variant=${PINNED_AVATAR}`);
+  const wearing = await waitUntil(async () => {
+    const variant = (await sceneFacts(joiner)).ownVariant;
+    return variant === PINNED_AVATAR ? variant : null;
+  }, `the joiner never wore ${PINNED_AVATAR} (the check would be vacuous)`, { limitMs: 90000 });
+  const watcher = await ctx.visit(`${lab.front}/w/a/?intro=bypass`, { sameProfileAs: joiner, open: false });
+  await deliverLate(watcher, PINNED_MODEL, MODEL_LATE_MS);
+  await openPlayer(watcher, `${lab.front}/w/a/?intro=bypass`);
+  await recordPeerFrames(watcher);
+  await watcher.bringToFront();
+  await waitUntil(async () => (await peerFrames(watcher)).some((peer) => peer.rendered), "the watcher never drew the joiner", { limitMs: 120000 });
+  await sleep(1000);
+  return { wearing, drawn: (await peerFrames(watcher)).filter((peer) => peer.rendered) };
+}
 
 const postJson = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
@@ -128,6 +163,12 @@ const statements = [
     expect(after === wearing, `the crosser wears ${after} after the crossing, not ${wearing}`);
     return `drawn as ${wearing} in ${drawn.reduce((sum, peer) => sum + peer.frames, 0)} frames`;
   } },
+  { id: "joiner-drawn-in-own-avatar", says: `A visitor who opens a world where someone already stands draws them in their own avatar from the first frame, even with that avatar's model ${MODEL_LATE_MS / 1000} s late`, async run(ctx) {
+    const { wearing, drawn } = await watchJoiner(ctx);
+    const wrong = drawn.filter((peer) => peer.variant !== wearing);
+    expect(wrong.length === 0, `the watcher drew the joiner as ${wrong.map((peer) => `${peer.variant} for ${peer.frames} frames`).join(", ")}, not ${wearing}`);
+    return `drawn as ${wearing} in ${drawn.reduce((sum, peer) => sum + peer.frames, 0)} frames, its model ${MODEL_LATE_MS / 1000} s late`;
+  } },
   { id: "own-copy-not-drawn", says: "A portal window draws a real peer who stands in the destination, and never a copy of the visitor", async run(ctx) {
     const { page, peerId, me } = await crowdInA(ctx);
     await sleep(2000);
@@ -168,7 +209,7 @@ const faults = [
   { statement: "crossing-keeps-the-page", name: "the page reloads after it arrives", expect: /the page was replaced during the crossing/, edits: [{ file: TRAVERSAL, find: "      crossing.destination_scene_source = promoted.destinationSceneSource;\n", replace: "      crossing.destination_scene_source = promoted.destinationSceneSource;\n      setTimeout(() => location.reload(), 500);\n" }] },
   { statement: "scene-from-destination-graph", name: "the crossing keeps the scene graph of the world it left", expect: /the page's scene graph is/, edits: [{ file: "web/live-adapter.js", find: "    const promotedSceneSource = await this._resolveWowSceneGraph({\n      base: this.base,", replace: "    const promotedSceneSource = this._lastCrossingSceneSource || null;\n    void ({\n      base: this.base," }] },
   { statement: "scene-from-destination-graph", name: "the crossing record names no scene source", expect: /the crossing names the scene graph null/, edits: [{ file: TRAVERSAL, find: "      crossing.destination_scene_source = promoted.destinationSceneSource;\n", replace: "      crossing.destination_scene_source = null;\n" }] },
-  { statement: "watcher-sees-crosser-in-its-own-avatar", name: "a peer is shown while its own avatar is still loading", expect: /the watcher drew the crosser as/, edits: [{ file: "web/app.js", find: "          try { await layer.switchAvatarVariant(wantVariant); } catch {}\n", replace: "          layer.switchAvatarVariant(wantVariant).catch(() => {});\n" }] },
+  { statement: "joiner-drawn-in-own-avatar", name: "a peer is shown while its own avatar is still loading", expect: /the watcher drew the joiner as/, edits: [{ file: "web/app.js", find: "          try { await layer.switchAvatarVariant(wantVariant); } catch {}\n", replace: "          layer.switchAvatarVariant(wantVariant).catch(() => {});\n" }] },
   { statement: "watcher-sees-crosser-in-its-own-avatar", name: "the crossing packet drops the avatar", expect: /the crosser wears \S+ after the crossing|the watcher drew the crosser as/, edits: [{ file: TRAVERSAL, find: "      avatar_variant: host.avatar.avatar_variant || assets.defaultAvatarVariant,", replace: "      avatar_variant: assets.defaultAvatarVariant," }] },
   { statement: "own-copy-not-drawn", name: "no guard keeps the visitor's own id out of what the page draws", expect: /draws the visitor's own copy/, edits: [
     { file: "web/app.js", find: "    controlledPlayerId: () => adapter.controlledIdentity().player_id,\n", replace: "    controlledPlayerId: () => null,\n" },

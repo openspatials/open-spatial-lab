@@ -1,13 +1,13 @@
 // What a crossing does in the main demo, seen from the worlds' own routes and from the page, as a Player with real keys.
 //   node tools/behavior/crossing.check.mjs [--faults] [--only id,id]
 import { arrivalOf, distance, placeByApi, worldPortals } from "../arch-i4/main-demo/world-data.mjs";
-import { angleBetween, expect, fixed, holdKeys, inRange, pageFacts, planar, recordRequests, runBehavior, sleep, waitUntil, walkTo, faceYaw, worldRecord } from "./kit.mjs";
+import { angleBetween, expect, fixed, holdKeys, inRange, pageFacts, planar, recordRequests, runBehavior, sleep, waitUntil, walkTo, faceYaw, worldRecord, WALK_M } from "./kit.mjs";
 import { AT_THE_NODE_M, FACING_RAD, lobbyUrl, portalNamed, walkInto, yawOf } from "./crossing-walk.mjs";
 
 const CAMERA_DISTANCE_M = [1.5, 8];
 const COUNTERPART_M = 2.2;
 const SETTLE_MS = 4000;
-const WALK_AWAY_M = [0.6, 1.0]; // over 0.6 s of the movement loop's time, at 1.4 m/s
+const WALK_AWAY_M = WALK_M; // over 0.6 s of the movement loop's time, at walking pace (kit.mjs)
 
 /** Every location the page shows, in order, until stop() is called. */
 function watchLocations(page) {
@@ -45,6 +45,7 @@ function watchHolders(lab, playerId, source, destination) {
 }
 
 /** The one walk most statements read: from the Lobby into Location A, with what each world and the page said. */
+const ASIDE_M = 0.3;
 const tripToA = (ctx) => ctx.once("trip", async () => {
   const { lab } = ctx;
   const page = await ctx.visit(lobbyUrl(lab));
@@ -58,7 +59,8 @@ const tripToA = (ctx) => ctx.once("trip", async () => {
   const mark = requests.mark();
   const watch = watchLocations(page);
   const holders = watchHolders(lab, start.playerId, "lobby", "a");
-  await walkInto(page, portal, "location-a");
+  // Off the portal's middle, so that landing at the node (not at the walker's own offset) is something to prove.
+  await walkInto(page, portal, "location-a", { aside: ASIDE_M });
   const arrived = await pageFacts(page);
   await sleep(SETTLE_MS);
   const settled = await pageFacts(page, { with: ["objects"] });
@@ -162,7 +164,7 @@ const statements = [
     expect(refused.length === 0, `refused: ${refused.map((e) => `${e.world} ${e.path} ${e.status}`).join(", ")}`);
     return `exit, arrival, depart, register in order; ${writes.length} writes, none refused`;
   } },
-  { id: "arrives-at-node", says: `The walker arrives within ${AT_THE_NODE_M} m of the destination's node`, async run(ctx) {
+  { id: "arrives-at-node", says: `The walker, walking in ${ASIDE_M} m off the portal's middle, arrives within ${AT_THE_NODE_M} m of the destination's node`, async run(ctx) {
     const { arrived, arrival } = await tripToA(ctx);
     const off = distance(arrived.position, arrival.pose.position);
     expect(off <= AT_THE_NODE_M, `arrived ${fixed(off)} m from node ${arrival.node}`);

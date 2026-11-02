@@ -1,0 +1,363 @@
+{
+  "schema": "osl-avatars-items/1",
+  "note": "The items the lab's equipment catalog shares with the avatar runtime: each with its stance clip, grip, contact point and axes (avatar/runtime/equipment.mjs). Models are the lab's own /assets/equip-*.glb.",
+  "keys": [],
+  "items": [
+    {
+      "id": "shield",
+      "kind": "shield",
+      "label": "Round shield (lab model)",
+      "file": "../../equip-shield.glb",
+      "mode": "held",
+      "hand": "l",
+      "stance": "idle_shield_loop",
+      "grip": {
+        "clip": "idle_shield_loop",
+        "time": 0
+      },
+      "grip_point": [
+        0,
+        0,
+        0.165
+      ],
+      "grip_axis": [
+        0,
+        1,
+        0
+      ],
+      "grip_forward": [
+        1,
+        0,
+        0
+      ],
+      "scale": 0.38,
+      "size_m": [
+        0.5928,
+        0.5928,
+        0.0988
+      ],
+      "hands": 1,
+      "contacts": {
+        "l": {
+          "point": [
+            0,
+            0,
+            0.165
+          ],
+          "grip_axis": [
+            0,
+            1,
+            0
+          ],
+          "forward_axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      },
+      "placement": {
+        "anchor": "hand",
+        "contact_on_hand": "hollow"
+      }
+    },
+    {
+      "id": "torch",
+      "kind": "torch",
+      "label": "Torch (lab model)",
+      "file": "../../equip-torch.glb",
+      "mode": "held",
+      "hand": "l",
+      "stance": "idle_torch_loop",
+      "grip": {
+        "clip": "idle_torch_loop",
+        "time": 0
+      },
+      "grip_point": [
+        0,
+        0.3,
+        0
+      ],
+      "grip_axis": [
+        0,
+        1,
+        0
+      ],
+      "grip_forward": [
+        0,
+        0,
+        1
+      ],
+      "scale": 0.35,
+      "size_m": [
+        0.112,
+        0.6055,
+        0.112
+      ],
+      "hands": 1,
+      "contacts": {
+        "l": {
+          "point": [
+            0,
+            0.3,
+            0
+          ],
+          "grip_axis": [
+            0,
+            1,
+            0
+          ],
+          "forward_axis": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "placement": {
+        "anchor": "hand",
+        "contact_on_hand": "hollow"
+      }
+    },
+    {
+      "id": "hammer",
+      "kind": "hammer",
+      "label": "War hammer (lab model)",
+      "file": "../../equip-hammer.glb",
+      "mode": "held",
+      "hand": "r",
+      "stance": "sword_idle",
+      "grip": {
+        "clip": "sword_idle",
+        "time": 0
+      },
+      "grip_point": [
+        0,
+        0.25,
+        0
+      ],
+      "grip_axis": [
+        0,
+        1,
+        0
+      ],
+      "grip_forward": [
+        1,
+        0,
+        0
+      ],
+      "scale": 0.4,
+      "size_m": [
+        0.24,
+        0.66,
+        0.192
+      ],
+      "hands": 1,
+      "contacts": {
+        "r": {
+          "point": [
+            0,
+            0.25,
+            0
+          ],
+          "grip_axis": [
+            0,
+            1,
+            0
+          ],
+          "forward_axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      },
+      "placement": {
+        "anchor": "hand",
+        "contact_on_hand": "hollow"
+      }
+    },
+    {
+      "id": "mug",
+      "kind": "mug",
+      "label": "Tankard (lab model)",
+      "file": "../../equip-mug.glb",
+      "mode": "held",
+      "hand": "l",
+      "stance": "idle_torch_loop",
+      "grip": {
+        "clip": "consume",
+        "time": 0.6667
+      },
+      "grip_point": [
+        0.35,
+        0.3,
+        0
+      ],
+      "grip_axis": [
+        0,
+        1,
+        0
+      ],
+      "grip_forward": [
+        -1,
+        0,
+        0
+      ],
+      "scale": 0.28,
+      "size_m": [
+        0.196,
+        0.1652,
+        0.168
+      ],
+      "hands": 1,
+      "contacts": {
+        "l": {
+          "point": [
+            0.35,
+            0.3,
+            0
+          ],
+          "grip_axis": [
+            0,
+            1,
+            0
+          ],
+          "forward_axis": [
+            -1,
+            0,
+            0
+          ]
+        }
+      },
+      "placement": {
+        "anchor": "hand",
+        "contact_on_hand": "hollow"
+      }
+    },
+    {
+      "id": "helmet",
+      "kind": "helmet",
+      "label": "Iron helmet (lab model)",
+      "file": "../../equip-helmet.glb",
+      "mode": "worn",
+      "bone": "Head",
+      "worn": {
+        "position": [
+          0,
+          0.025,
+          -0.005
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.24,
+          0.24,
+          0.24
+        ]
+      },
+      "size_m": [
+        0.264,
+        0.168,
+        0.276
+      ],
+      "hands": 0,
+      "scale_m_per_unit": 0.24,
+      "placement": {
+        "anchor": "head",
+        "rotation": [
+          0.016261,
+          0,
+          0,
+          0.999868
+        ],
+        "attach_point": [
+          0,
+          0.35,
+          -0.025
+        ],
+        "scale_with": "head_width_m",
+        "offset": {
+          "up": {
+            "measure": "head_height_m",
+            "factor": 0.3933
+          },
+          "forward": {
+            "measure": "head_depth_m",
+            "factor": -0.0323
+          },
+          "right": {
+            "measure": "head_width_m",
+            "factor": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "crown",
+      "kind": "crown",
+      "label": "Gold crown (lab model)",
+      "file": "../../equip-crown.glb",
+      "mode": "worn",
+      "bone": "Head",
+      "worn": {
+        "position": [
+          0,
+          0.07,
+          -0.005
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.155,
+          0.155,
+          0.155
+        ]
+      },
+      "size_m": [
+        0.1891,
+        0.0899,
+        0.1891
+      ],
+      "hands": 0,
+      "scale_m_per_unit": 0.155,
+      "placement": {
+        "anchor": "head",
+        "rotation": [
+          0.016261,
+          0,
+          0,
+          0.999868
+        ],
+        "attach_point": [
+          0,
+          0.6,
+          0
+        ],
+        "scale_with": "head_width_m",
+        "offset": {
+          "up": {
+            "measure": "head_height_m",
+            "factor": 0.5868
+          },
+          "forward": {
+            "measure": "head_depth_m",
+            "factor": 0.0013
+          },
+          "right": {
+            "measure": "head_width_m",
+            "factor": 0
+          }
+        }
+      }
+    }
+  ]
+}

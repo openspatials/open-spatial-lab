@@ -175,7 +175,7 @@ class FakePortalAvatarLayer {
     this.status = {
       renderer: "webgl",
       settled: true,
-      avatar_variant: "readyplayerme-cyberpunk",
+      avatar_variant: "collection-david",
       avatar_render_source: "rigged-glb",
       attached_item_count: 0,
       current_animation_state: "idle",
@@ -217,7 +217,7 @@ function representationFixture(options = {}) {
   const peer = {
     ...avatar(OTHER, [1.5, 0, 0]),
     location_id: "location-b",
-    avatar_variant: "readyplayerme-cyberpunk",
+    avatar_variant: "collection-david",
     equippedItems: [],
     locomotion: { moving: false, movement_mode: "idle", grounded: true },
     transition_visual: { visible: true, scale: 1 },

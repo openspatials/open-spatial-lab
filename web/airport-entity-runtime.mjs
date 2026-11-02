@@ -4,11 +4,9 @@
 
 import { validateAirportEntityInventory } from "./airport-entity-manifest.mjs";
 import { verifyManifestProfileA } from "./signing/um-signature-profile-a.mjs";
-import { withBase } from "./base-path.mjs";
 
 const CARD_LIMIT = 6;
 const CARD_DISTANCE_M = 21;
-const MOCAP_URLS = Object.freeze({ locomotion: withBase("/assets/mocap/locomotion-mocap.json") });
 
 function roundedRect(context, x, y, width, height, radius) {
   const r = Math.min(radius, width / 2, height / 2);
@@ -186,37 +184,39 @@ export function createAirportEntityRuntime(graph, built, THREE, opts = {}) {
     const record = recordByNode.get(String(assetRecord.id));
     if (!record || !["npc-traveler", "store-staff"].includes(record.card.semantic_role)) return false;
     if (actors.has(record.card.node_id)) return true;
-    const [{ createGlbHumanoidAvatar }, { createRetargetedLocomotionClips }] = await Promise.all([
-      import("./avatar/glb-humanoid.mjs"),
-      import("./mocap-locomotion.js"),
-    ]);
-    if (disposed) return false;
-    const builtAvatar = createGlbHumanoidAvatar(model, { assetId: record.node.webofworlds_extension?.npc_asset?.catalog_id });
-    if (!builtAvatar.avatar) {
-      debug.inventory_errors.push(`node ${record.card.node_id}: GLB humanoid unavailable (${builtAvatar.report?.reason || "mapping failed"})`);
-      return false;
-    }
-    const actorState = { avatar: builtAvatar.avatar, mixer: null, action: null, phase: Number(record.node.webofworlds_extension?.idle_animation?.phase_offset) || 0 };
-    actors.set(record.card.node_id, actorState);
+    const npcAsset = record.node.webofworlds_extension?.npc_asset || {};
+    if (npcAsset.load_mode === "actionforge-runtime" && npcAsset.prepared) return attachRuntimeActor(record, model, npcAsset);
+    debug.inventory_errors.push(`node ${record.card.node_id}: actor model is not on the avatar runtime (load_mode ${npcAsset.load_mode || "none"})`);
+    return false;
+  }
+
+  // An actor on the avatar collection: the avatar runtime plays its idle on the character's own skeleton
+  // (avatar/actionforge-avatar.mjs). The loaded GLB is replaced in place by the runtime's instance of the same file.
+  async function attachRuntimeActor(record, model, npcAsset) {
+    const nodeId = record.card.node_id;
+    const actorState = { holder: null, driver: null, phase: Number(record.node.webofworlds_extension?.idle_animation?.phase_offset) || 0 };
+    actors.set(nodeId, actorState);
     debug.actor_assets_attached = actors.size;
     try {
-      const clips = await createRetargetedLocomotionClips(actorState.avatar, MOCAP_URLS);
-      if (disposed || !actors.has(record.card.node_id)) return false;
-      if (!clips.idle || !clips.idle.tracks.length) throw new Error("retargeted idle produced no tracks");
-      actorState.mixer = new THREE.AnimationMixer(actorState.avatar.scene);
-      actorState.action = actorState.mixer.clipAction(clips.idle);
-      actorState.action.enabled = true;
-      actorState.action.setLoop(THREE.LoopRepeat, Infinity);
-      actorState.action.setEffectiveWeight(1);
-      actorState.action.setEffectiveTimeScale(opts.motionPreference?.isReduced?.() ? 0.42 : 1);
-      actorState.action.play();
-      actorState.action.time = clips.idle.duration * actorState.phase;
-      actorState.mixer.update(0);
-      actorState.avatar.update(0);
+      const { loadActionForgeAvatar, ActionForgeMotionDriver } = await import("./avatar/actionforge-avatar.mjs");
+      const loaded = await loadActionForgeAvatar({ prepared: npcAsset.prepared });
+      if (disposed || actors.get(nodeId) !== actorState) return false;
+      const holder = loaded.model;
+      holder.position.copy(model.position);
+      holder.quaternion.copy(model.quaternion);
+      holder.scale.copy(model.scale);
+      model.parent?.add(holder);
+      model.visible = false;
+      actorState.holder = holder;
+      actorState.driver = new ActionForgeMotionDriver(loaded.instance, loaded.library, loaded.tuning);
+      const idle = loaded.library.clips.idle;
+      // The authored phase offset: start this actor's idle part-way through, so neighbours do not breathe in step.
+      actorState.driver.update(idle.duration * actorState.phase, null);
       debug.idle_mixers_active += 1;
+      debug.runtime_actors = (debug.runtime_actors || 0) + 1;
       return true;
     } catch (error) {
-      debug.inventory_errors.push(`node ${record.card.node_id}: idle unavailable (${error?.message || String(error)})`);
+      debug.inventory_errors.push(`node ${nodeId}: avatar runtime idle unavailable (${error?.message || String(error)})`);
       return false;
     }
   }
@@ -225,9 +225,10 @@ export function createAirportEntityRuntime(graph, built, THREE, opts = {}) {
     if (disposed) return;
     const delta = Math.max(0, Math.min(0.05, Number(deltaSeconds) || 0));
     for (const actor of actors.values()) {
-      if (!actor.mixer) continue;
-      actor.mixer.update(delta);
-      actor.avatar.update(delta);
+      if (actor.driver) {
+        actor.driver.update(opts.motionPreference?.isReduced?.() ? delta * 0.42 : delta, null);
+        continue;
+      }
     }
     if (!camera) return;
     camera.updateMatrixWorld?.(true);
@@ -252,9 +253,7 @@ export function createAirportEntityRuntime(graph, built, THREE, opts = {}) {
     if (disposed) return;
     disposed = true;
     for (const actor of actors.values()) {
-      try { actor.action?.stop(); } catch {}
-      try { actor.mixer?.stopAllAction(); } catch {}
-      try { actor.mixer?.uncacheRoot(actor.avatar.scene); } catch {}
+      try { actor.holder?.removeFromParent(); } catch {}
     }
     actors.clear();
     for (const state of cardStates) {
