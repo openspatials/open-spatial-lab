@@ -13,6 +13,7 @@ import { createParametricAvatar, DEFAULT_AVATAR_PARAMS } from "./avatar/parametr
 // locomotion mixer, and normalized-bone equipment attachment all work on GLBs with
 // NO changes to any of those systems.)
 import { createGlbHumanoidAvatar } from "./avatar/glb-humanoid.mjs";
+import "./gltf-webp-support.mjs"; // WebP textures on a host whose policy leaves data: out of img-src
 // END
 // every avatar/mocap asset URL below is a root-absolute same-origin path.
 // Route each through the ONE base-path helper so it resolves beneath the public prefix in subpath

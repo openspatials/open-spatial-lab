@@ -4376,7 +4376,18 @@ async function main() {
   // derive the two defaults from the loaded run clip and the accepted
   // translation path, then install them atomically in the existing movement
   // owner. No URL, storage, backend, or cross-session default is written.
+  // The run calibration needs the avatar's run clip. If the avatar did not load (its errors are in the avatar status),
+  // the Player still starts, without the run tweaks, instead of stopping on the missing clip.
+  let runCalibrationReady = false;
   if (isPlayer) {
+    try {
+      equipmentLayer.characterizeRunCalibration(adapter.runCalibrationSnapshot().source_translation_speed_mps);
+      runCalibrationReady = true;
+    } catch (error) {
+      logLine(`runtime tweaks unavailable: ${error.message} (avatar errors: ${(equipmentLayer.status.errors || []).slice(-2).join("; ") || "none"})`);
+    }
+  }
+  if (isPlayer && runCalibrationReady) {
     const sourceRunCalibration = equipmentLayer.characterizeRunCalibration(
       adapter.runCalibrationSnapshot().source_translation_speed_mps
     );
