@@ -65,7 +65,7 @@ async function overlayChecks(ports) {
   ]);
 
   const offerDrifts = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('+            world\'s nodes within the radius of the arrival node, each relative to it, and only those the', '+            world\'s nodes within the radius of the arrival node, and only those the') } };
-  const viewWithoutNode = { serverEdits: { runtime: [['            id : WOW_PLAYER_VIEW_ID, // number, per WoW View schema\n            ...(placed != null ? { node : nodeRef(spatialStore, placed) } : {}),', '            id : WOW_PLAYER_VIEW_ID, // number, per WoW View schema']] } };
+  const viewWithoutNode = { serverEdits: { 'runtime-view-projection.js': [['        id : WOW_PLAYER_VIEW_ID, // number, per WoW View schema\n        ...(placed != null ? { node : node } : {}),', '        id : WOW_PLAYER_VIEW_ID, // number, per WoW View schema']] } };
   await run('W2', 'the offered text and the lab\'s contract agree on Portal.destination, Portal.node, User.node, View.node, World.preview and the portals paragraph; on the wire a portal carries destination and node, the user and the view carry node, the World declares its preview, and the preview URL returns a Node tree', async (impl) => {
     const failures = [];
     const a = iteration4Text(loadIteration4(impl.edits).world);

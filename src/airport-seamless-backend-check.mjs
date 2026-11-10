@@ -21,13 +21,14 @@ const { createRuntime } = require(RUNTIME_PATH);
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), "utf8");
 const mutation = process.env.feature_MUTATION || "";
 
-const RUNTIME = "runtime/world-server/src/runtime-state.js";
+const REPUBLISH = "runtime/world-server/src/runtime-republish.js";
+const REPUBLISH_POLICY = "runtime/world-server/src/runtime-republish-policy.js";
 const REPUBLISH_FAULTS = [
-  { name: "the boot rate is zero", expect: /four 100 ms republish timers/, edits: [{ file: RUNTIME, find: "const DEMO_REPUBLISH_RATE_DEFAULT_MS = 100;", replace: "const DEMO_REPUBLISH_RATE_DEFAULT_MS = 0;" }] },
-  { name: "a reset starts a second timer", expect: /replace, not duplicate/, edits: [{ file: RUNTIME, find: "    function startRepublishTimer()\n    {\n        stopRepublishTimer();", replace: "    function startRepublishTimer()\n    {\n        void republishTimer;" }] },
-  { name: "a reset leaves the timer off", expect: /reset must leave the republish timer running/, edits: [{ file: RUNTIME, find: "        state.republish_rate_ms = DEMO_REPUBLISH_RATE_DEFAULT_MS;\n        startRepublishTimer();", replace: "        state.republish_rate_ms = 0;\n        stopRepublishTimer();" }] },
-  { name: "a rate below zero is taken as a rate", expect: /an invalid rate \(-5\) turns the republish timer off/, edits: [{ file: RUNTIME, find: "if (Number.isFinite(raw) && raw > 0)", replace: "if (Number.isFinite(raw) && raw !== 0)" }] },
-  { name: "an explicit zero is replaced by the default", expect: /explicit zero turns the republish timer off/, edits: [{ file: RUNTIME, find: "        let applied = 0;", replace: "        let applied = DEMO_REPUBLISH_RATE_DEFAULT_MS;" }] },
+  { name: "the boot rate is zero", expect: /four 100 ms republish timers/, edits: [{ file: REPUBLISH_POLICY, find: "const DEMO_REPUBLISH_RATE_DEFAULT_MS = 100;", replace: "const DEMO_REPUBLISH_RATE_DEFAULT_MS = 0;" }] },
+  { name: "a reset starts a second timer", expect: /replace, not duplicate/, edits: [{ file: REPUBLISH, find: "    startRepublishTimer()\n    {\n        this.stopRepublishTimer();", replace: "    startRepublishTimer()\n    {\n        void this.timer;" }] },
+  { name: "a reset leaves the timer off", expect: /reset must leave the republish timer running/, edits: [{ file: REPUBLISH, find: "resetRate() { this.writeRate(DEMO_REPUBLISH_RATE_DEFAULT_MS); this.startRepublishTimer(); }", replace: "resetRate() { this.writeRate(0); this.stopRepublishTimer(); }" }] },
+  { name: "a rate below zero is taken as a rate", expect: /an invalid rate \(-5\) turns the republish timer off/, edits: [{ file: REPUBLISH, find: "if (Number.isFinite(raw) && raw > 0)", replace: "if (Number.isFinite(raw) && raw !== 0)" }] },
+  { name: "an explicit zero is replaced by the default", expect: /explicit zero turns the republish timer off/, edits: [{ file: REPUBLISH, find: "        let applied = 0;", replace: "        let applied = DEMO_REPUBLISH_RATE_DEFAULT_MS;" }] },
 ];
 if (process.argv.includes("--faults")) {
   runPlantedFaults({ file: "src/airport-seamless-backend-check.mjs", faults: REPUBLISH_FAULTS });
@@ -214,15 +215,15 @@ assert.equal(new Set(presence.occupancy.avatars.map((avatar) => avatar.player_id
 airportRuntime.departPresence({ player_id: "runtime-player-two", reason: "runtime-check" });
 assert.equal(airportRuntime.getFabricPresence().occupancy.registered_player_count, 1);
 
-const adapterSource = read("web/live-adapter.js");
+const exitPoseSource = read("web/live-adapter-navigation-exit-pose.mjs");
 const sceneSource = read("web/scene-runtime-controller.mjs");
 const previewReady = mutation !== "missing-prefetch-frames";
 assert.equal(previewReady, true, "authored airport aperture preview frames are required before crossing");
-// Kept as text: no world in the lab has a destination without ground, so this refusal cannot be run. Update when this code moves.
-assert.match(adapterSource, /portal exit has no classified destination ground/);
+// The refusal lives in the navigation leaf; require the guarded throw, not a stray message string.
+assert.match(exitPoseSource, /if \(!ground\.ok\) \{\s*throw new Error\(`portal exit has no classified destination ground/, "navigation exit must reject unclassified destination ground");
 assert.match(sceneSource, /source: "live_backend_authored_wow_graph"/);
 assert.match(sceneSource, /one_selected_renderer: true/);
-assert.match(sceneSource, /data-airport-backend-scene/);
+assert.match(read("web/scene-metadata.mjs"), /data-airport-backend-scene/);
 
 lobbyRuntime.stopPresenceSweeper();
 aRuntime.stopPresenceSweeper();

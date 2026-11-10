@@ -7,6 +7,7 @@
 //     update(dt, state)   state from Locomotion.motionState() or RemoteAvatar.sample(); ends with mixer.update(dt)
 //     weights()           { idle, walk, jog, jumpStart, jumpLoop, jumpLand, <overlay keys> } effective weights
 //     rates()             { walk, jog } effective time scales
+//     footPlantState()    prepared full walk/jog stride; vertical support only during an idle/walk blend
 //     setOverlays(list)   the overlays that should be on: [{ key, clip, covers: [groups] }] (an item's stance and
 //                         grip, from web/avatar/equipment.mjs); others fade out. Fade: STANCE_FADE_S (0.25 s).
 //     actionList()        [{ key, action, once }] every action in the mixer (the proof replays them)
@@ -24,7 +25,7 @@
 // jog stay in step: their normalized phases advance at the same rate and are aligned at the left foot's touchdown.
 // The jump layer fades the locomotion layer out and plays start, loop and land with timed cross-fades.
 
-import * as THREE from '../../vendor/scene-core/vendor/three/three.module.js';
+import * as THREE from 'three';
 import { canEquip, splitClip, GROUPS, STANCE_FADE_S } from './equipment.mjs';
 
 const approach = (cur, target, maxStep) => (cur < target ? Math.min(target, cur + maxStep) : Math.max(target, cur - maxStep));
@@ -33,6 +34,7 @@ const frac = (x) => x - Math.floor(x);
 export class AvatarMotion {
   constructor(instance, library, tuning, { turnStep = true } = {}) {
     this.tuning = tuning;
+    this.clipData = library.data.clips;
     this.turnStep = turnStep;
     this.mixer = new THREE.AnimationMixer(instance.model);
     this.layered = canEquip(library);
@@ -299,5 +301,20 @@ export class AvatarMotion {
 
   rates() {
     return { walk: this.actions.walk.getEffectiveTimeScale(), jog: this.actions.jog.getEffectiveTimeScale() };
+  }
+
+  // Contact follows clip time, never the holder's velocity: a wrong playback rate must still slide.
+  footPlantState() {
+    for (const slot of ['walk', 'jog']) {
+      const a = this.actions[slot];
+      if (a.getEffectiveWeight() > 1 - 1e-6) return { slot, ...this.clipData[slot], rate: a.getEffectiveTimeScale() };
+    }
+    const walk = this.actions.walk, weight = walk.getEffectiveWeight();
+    // A late remote idle/walk blend is still grounded. Blend support with walk, but start no stride target until the
+    // gait is fully weighted; jog and jump blends keep their authored flight.
+    if (weight > 0 && weight + this.actions.idle.getEffectiveWeight() > 1 - 1e-6) {
+      return { slot: 'walk', ...this.clipData.walk, rate: walk.getEffectiveTimeScale(), support_only: true, support_weight: weight };
+    }
+    return null;
   }
 }

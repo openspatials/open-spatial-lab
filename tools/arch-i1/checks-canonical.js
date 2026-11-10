@@ -36,10 +36,14 @@ function embeddedNodes(root) {
   return { nodes, repeated };
 }
 
-/** The client's reader (web/wow-scene.mjs normalizeGraph), real or mutated. */
+/**
+ * The client's reader (web/wow-scene.mjs normalizeGraph), real or mutated. wow-scene.mjs now imports
+ * normalizeGraph from the shared scene description (#scene-description), so a mutant edits that module.
+ */
+const SCENE_DESCRIPTION = 'runtime/scene-core/public/scene-description.mjs';
 async function clientReader(impl) {
   if (impl && impl.clientEdits) {
-    return (await loadEsmMutant('web/wow-scene.mjs', impl.clientEdits, ['wow-graph.mjs'])).default.normalizeGraph;
+    return (await loadEsmMutant(SCENE_DESCRIPTION, impl.clientEdits, [])).normalizeGraph;
   }
   return (await import(require('url').pathToFileURL(path.join(ROOT, 'web', 'wow-scene.mjs')).href)).default.normalizeGraph;
 }
@@ -133,9 +137,9 @@ async function canonicalChecks(ports) {
     { name: 'a client that does not flatten embedded children', impl: { clientEdits: clientIgnoresEmbedded } },
   ]);
 
-  const idAsString = { runtime: [['            id : store.graphId,', '            id : String(store.graphId),']] };
+  const idAsString = { 'runtime-spatial.js': [['            id : store.graphId,', '            id : String(store.graphId),']] };
   const returnsRootNode = { server: [["                if (spatialForm === 'node')\n                {", "                if (true)\n                {"]] };
-  const wrongRoot = { runtime: [['            rootNodeID : rootNodeID,', '            rootNodeID : rootNodeID + 1,']] };
+  const wrongRoot = { 'runtime-spatial.js': [['            rootNodeID : rootNodeID,', '            rootNodeID : rootNodeID + 1,']] };
   const contractTypesIdAsString = (doc) => {
     const param = doc.paths['/wow/spatial/{spatialID}'].get.parameters.find((p) => p.name === 'spatialID');
     param.schema = { type: 'string' };

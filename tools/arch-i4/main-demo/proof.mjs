@@ -756,6 +756,12 @@ const CHECKS = {
     const label = await page.$("#wow-place-label");
     await label.click({ clickCount: 3 });
     await page.keyboard.type("Placed door");
+    // No active radius: the portal is awake wherever the visitor stands. The panel's default of 3 m would put it to sleep
+    // after the move below (the visitor is then 3.21 m away), and an asleep portal loads no preview by design.
+    await page.click("#wow-place-radius");
+    await page.keyboard.press("End");
+    for (let i = 0; i < 24; i += 1) await page.keyboard.press("Backspace");
+    expectTrue(await page.$eval("#wow-place-radius", (el) => el.value === ""), "the active radius field did not clear");
     // On the floor in view, clear of the panel at the page's right.
     const spot = [1.2, 0, -0.4];
     const point = await screenPointOf(page, spot);
@@ -763,7 +769,7 @@ const CHECKS = {
     await page.waitForFunction(() => window.__wowPlacement.last && window.__wowPlacement.last.action === "placed", { timeout: 30000 });
     const last = await page.evaluate(() => window.__wowPlacement.last);
     const resource = (await getJson(`${lobby}wow/portal/${last.portal}`)).json;
-    expectTrue(resource.placed === true && resource.label === "Placed door" && resource.destination === ctx.lab.address("a"), `the world holds ${JSON.stringify(resource)}`);
+    expectTrue(resource.placed === true && resource.label === "Placed door" && resource.destination === ctx.lab.address("a") && resource.active_radius_m == null, `the world holds ${JSON.stringify(resource)}`);
     const node = await nodePose(lobby, 1, last.node);
     expectTrue(Math.hypot(node.position[0] - spot[0], node.position[2] - spot[2]) < 0.25, `the click at ${spot} placed the node at ${node.position}`);
     await sleep(1500);

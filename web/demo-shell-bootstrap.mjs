@@ -68,7 +68,7 @@ async function startApp() {
   if (url.searchParams.has("renderer")) {
     const boundary = await import("./vendor/scene-core/render-adapter/render-adapter.mjs");
     const choice = boundary.chooseRendererAtBoot(location.search);
-    if (choice.active.kind !== "three") {
+    if (choice.active.kind === "x3dom" || choice.active.kind === "x_ite") {
       const module = await import(choice.active.kind === "x3dom" ? "./x3dom-live-mode.mjs" : "./x-ite-live-mode.mjs");
       void module.startLiveMode();
       return;

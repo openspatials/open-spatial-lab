@@ -46,6 +46,9 @@ async function browserChecks(ports) {
       const A = await w.world('a', ports.next(), edits);
       const player = (world, join) => `${FRONT}/index.html?role=source&intro=bypass&wow=${encodeURIComponent(world.spatialUrl(1))}${join == null ? '' : `#join=node.${join}`}`;
       const page = await browser.newPage();
+      const consoleLines = [];
+      page.on('console', (msg) => consoleLines.push(msg.type() + ': ' + String(msg.text()).slice(0, 240)));
+      page.on('pageerror', (error) => consoleLines.push('pageerror: ' + String(error && error.message || error).slice(0, 240)));
       try {
         const [hall] = await B.add(1, await B.rootOf(1), [{ label: 'hall', localTransform: lab.placed(30, 0, 10, 70) }]);
         const [n] = await B.add(1, hall, [{ label: 'arrival n', localTransform: lab.placed(2, 0, 1, 180) }]);
@@ -90,10 +93,25 @@ async function browserChecks(ports) {
         // Cross as a person does: a mouse click on the portal where it is drawn on the page.
         const point = await page.evaluate((id) => window.__wowPortals.screenPoint(id), ids[0]);
         if (!point) return { ok: false, detail: failures.concat(['the portal to B is not in view, so it cannot be clicked']).join('; ') };
-        await Promise.all([
+        const clickError = await Promise.all([
           page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
           page.mouse.click(point.x, point.y),
-        ]);
+        ]).then(() => null, (error) => error);
+        if (clickError) {
+          // The same timeout, unchanged; what the page shows after the click is added so the cause can be read from the log.
+          const after = await page.evaluate((p) => {
+            const hit = document.elementFromPoint(p.x, p.y);
+            return {
+              url: location.href,
+              point: p,
+              hit: hit ? hit.tagName.toLowerCase() + (hit.id ? '#' + hit.id : '') + (hit.className && typeof hit.className === 'string' ? '.' + hit.className.trim().split(/\s+/).join('.') : '') : null,
+              viewControls: Boolean(window.__wowViewControls),
+              portalsReady: document.body.dataset.wowPortalsReady || null,
+            };
+          }, point).catch((error) => ({ evaluateFailed: String(error && error.message || error) }));
+          clickError.message += ' | after the click: ' + JSON.stringify(after) + ' | last console lines: ' + JSON.stringify(consoleLines.slice(-12));
+          throw clickError;
+        }
         await page.waitForFunction(() => document.body.dataset.wowArrival, { timeout: 180000 });
         const arrival = await page.evaluate(() => ({ url: location.href, arrival: window.__wowArrival }));
         const ref = lab.reference({ chains: { n: await lab.chainOf(B, 1, n) } }).positions.n;

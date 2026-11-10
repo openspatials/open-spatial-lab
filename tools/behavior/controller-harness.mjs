@@ -1,3 +1,4 @@
+import { createThreeCameraBridge } from "../../web/three-camera-bridge.mjs";
 // The movement and camera controller, run in Node with fakes for the window, the document and the scene runtime. The
 // controller is the real module; what it is given records what it does, so a check reads that record.
 import assert from "node:assert/strict";
@@ -104,6 +105,7 @@ export function createHarness({
   elements = {},
   model = null,
   onStep = null,
+  cameraBridge = null,
 } = {}) {
   const trace = [];
   const stepped = [];
@@ -121,7 +123,7 @@ export function createHarness({
     renderPortalPreviews: () => trace.push("portal"),
   };
   const controller = createMovementCameraController({
-    THREE, isPlayer, role: isPlayer ? "player" : "source", windowTarget, documentTarget,
+    cameraBridge: cameraBridge || createThreeCameraBridge({ THREE, sceneRuntime, getAvatarLayers: () => ({ local: scene.localLayer, peers: [] }), getRuntime: () => runtime }), isPlayer, role: isPlayer ? "player" : "source", windowTarget, documentTarget,
     lookup: (id) => (id === "scene-mount" ? currentMount : elements[id] || null),
     requestFrame: queue.request, cancelFrame: queue.cancel, now: () => clock,
     getRuntime: () => runtime, sceneRuntime,

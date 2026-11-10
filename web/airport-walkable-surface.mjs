@@ -7,6 +7,19 @@
 const CONTRACT_SCHEMA = "osl.airport-walkable-surface.v1";
 const QUERY_EPSILON_M = 1e-9;
 
+/** Bounds of the supplied surface records in the existing x/z movement frame. */
+export function airportSurfaceBounds(surfaces) {
+  const bounds = surfaces.reduce((result, surface) => {
+    const halfX = surface.size_m[0] / 2, halfZ = surface.size_m[2] / 2;
+    result.minX = Math.min(result.minX, surface.center_m[0] - halfX);
+    result.maxX = Math.max(result.maxX, surface.center_m[0] + halfX);
+    result.minZ = Math.min(result.minZ, surface.center_m[2] - halfZ);
+    result.maxZ = Math.max(result.maxZ, surface.center_m[2] + halfZ);
+    return result;
+  }, { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity });
+  return Number.isFinite(bounds.minX) ? bounds : null;
+}
+
 function terminalDefinition(graph) {
   const raw = graph && graph.nodes;
   const nodes = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];

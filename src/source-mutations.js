@@ -134,17 +134,17 @@ const MUTATIONS = {
    * supplied to the portal-preview manager. The same live/snapshot inputs,
    * render path, real peer, and pixels remain; the self proxy comes back. */
   'runtime-self-filter-off': {
-    file: 'app.js',
+    file: 'application-state.mjs',
     describes:
       'runtime NEGATIVE: the portal preview receives no controlled player_id, so a deliberately ' +
       'delivered same-identity avatar renders as a self ghost while the real peer still renders',
     anchor:
-      '    isHandoffInFlight: () => adapter._portalTraversalController?.inFlight?.() === true,\n' +
-      '    controlledPlayerId: () => adapter.controlledIdentity().player_id,\n',
+      '      isHandoffInFlight: () => live._portalTraversalController?.inFlight?.() === true,\n' +
+      '      controlledPlayerId: () => live.controlledIdentity().player_id,\n',
     replace:
-      '    isHandoffInFlight: () => adapter._portalTraversalController?.inFlight?.() === true,\n' +
-      '    /* runtime NEGATIVE CONTROL: controlled identity withheld from proxy creation. */\n' +
-      '    controlledPlayerId: () => null,\n',
+      '      isHandoffInFlight: () => live._portalTraversalController?.inFlight?.() === true,\n' +
+      '      /* runtime NEGATIVE CONTROL: controlled identity withheld from proxy creation. */\n' +
+      '      controlledPlayerId: () => null,\n',
   },
 
   /** Part B negative arm: the /events frame reaches the browser and is

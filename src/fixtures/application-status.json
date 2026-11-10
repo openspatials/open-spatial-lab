@@ -1,0 +1,2915 @@
+[
+  {
+    "name": "player-loading",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "loading",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "none"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Loading",
+          "html": "",
+          "className": "live-tag connection-loading",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-loading\">loading</span> connecting to components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "loading",
+          "html": "",
+          "className": "prov prov-loading",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "connecting to components 3 backend",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--warn)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "<section class=\"player-first-frame\" data-testid=\"player-connection-card\"\n      data-connection-state=\"loading\"\n      data-failure-kind=\"none\"\n      data-recoverable=\"false\"\n      data-current-runtime=\"none\"\n      role=\"status\" aria-live=\"polite\">\n      <div class=\"eyebrow\">Loading</div>\n      <h1>Opening your world</h1>\n      <p>Connecting</p>\n      \n    </section>",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "loading",
+      "detail": "Connecting",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "none",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update"
+    ],
+    "toasts": []
+  },
+  {
+    "name": "player-orientation",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "<section class=\"player-first-frame\" data-testid=\"player-first-frame\"\n      data-connection-state=\"live\" role=\"region\" aria-label=\"Player orientation\">\n      <div class=\"eyebrow\">Live · A &amp; B</div>\n      <h1>You’re in A &amp; B</h1>\n      <p>Explore this world as the player, then walk through a lit portal to continue into the connected space.</p>\n      <div class=\"player-first-frame-controls\">W A S D to walk · drag to look · scroll to zoom · Shift to run</div>\n      <div class=\"player-first-frame-actions\">\n        <button class=\"primary\" id=\"btn-start-exploring\" data-testid=\"start-exploring\" type=\"button\">Start exploring</button>\n      </div>\n    </section>",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "Connected",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": []
+  },
+  {
+    "name": "player-phases-once",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay arrived",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "Connected",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "player-equipment-empty",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay arrived",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row\" data-reconcile-key=\"equipment-empty\">No equipment manifest on this view yet.</div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "waiting for arrival packet",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "Connected",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "player-equipment-failed",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay arrived",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "Connected",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "player-unrelated-recovery",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "disconnected",
+        "data-connection-recoverable": "true",
+        "data-connection-current": "none",
+        "data-connection-failure-kind": "disconnected"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Disconnected",
+          "html": "",
+          "className": "live-tag connection-disconnected",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-disconnected\">disconnected</span> components 3 backend unavailable</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "disconnected",
+          "html": "",
+          "className": "prov prov-disconnected",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "components 3 backend unavailable",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--bad)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "<section class=\"player-first-frame\" data-testid=\"player-connection-card\"\n      data-connection-state=\"disconnected\"\n      data-failure-kind=\"disconnected\"\n      data-recoverable=\"true\"\n      data-current-runtime=\"none\"\n      role=\"alert\" aria-live=\"assertive\">\n      <div class=\"eyebrow\">Disconnected</div>\n      <h1>World connection unavailable</h1>\n      <p>Offline</p>\n      <div class=\"player-first-frame-actions\">\n        <button class=\"primary\" id=\"btn-connection-retry\" data-testid=\"connection-retry\" type=\"button\"\n          aria-label=\"Reload and retry this world\">Reload &amp; retry</button>\n        <span class=\"recovery-note\">Reloads this view because the live runtime boots as one coherent session.</span>\n      </div>\n    </section>",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "disconnected",
+      "detail": "Offline",
+      "failed_path": "/state",
+      "failure_kind": "disconnected",
+      "source_state": null,
+      "current": "none",
+      "recoverable": true,
+      "recovery": {
+        "kind": "reload",
+        "label": "Reload & retry",
+        "aria_label": "Reload and retry this world",
+        "note": "Reloads this view because the live runtime boots as one coherent session."
+      }
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "player-recovered",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "The live world connection recovered.",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "player-refused",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "refused",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "none",
+        "data-connection-failure-kind": "policy"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Runtime refused",
+          "html": "",
+          "className": "live-tag connection-refused",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-refused\">refused</span> trust or policy refusal</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "refused",
+          "html": "",
+          "className": "prov prov-refused",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "trust or policy refusal",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--bad)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "<section class=\"player-first-frame\" data-testid=\"player-connection-card\"\n      data-connection-state=\"refused\"\n      data-failure-kind=\"policy\"\n      data-recoverable=\"false\"\n      data-current-runtime=\"none\"\n      role=\"alert\" aria-live=\"assertive\">\n      <div class=\"eyebrow\">Runtime refused</div>\n      <h1>This world was refused</h1>\n      <p>Policy</p>\n      <div class=\"recovery-note\" data-testid=\"connection-terminal-refusal\">Retry is unavailable because this is a trust or policy refusal.</div>\n    </section>",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "refused",
+      "detail": "Policy",
+      "failed_path": null,
+      "failure_kind": "policy",
+      "source_state": null,
+      "current": "none",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "player-return-current",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "unavailable",
+        "data-connection-recoverable": "true",
+        "data-connection-current": "live-world-projection",
+        "data-connection-failure-kind": "unavailable"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Temporarily unavailable",
+          "html": "",
+          "className": "live-tag connection-unavailable",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-unavailable\">unavailable</span> runtime temporarily unavailable</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "unavailable",
+          "html": "",
+          "className": "prov prov-unavailable",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "runtime temporarily unavailable",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--bad)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "<section class=\"player-first-frame\" data-testid=\"player-connection-card\"\n      data-connection-state=\"unavailable\"\n      data-failure-kind=\"unavailable\"\n      data-recoverable=\"true\"\n      data-current-runtime=\"live-world-projection\"\n      role=\"alert\" aria-live=\"assertive\">\n      <div class=\"eyebrow\">Temporarily unavailable</div>\n      <h1>The world is temporarily unavailable</h1>\n      <p>Child unavailable</p>\n      <div class=\"player-first-frame-actions\">\n        <button class=\"primary\" id=\"btn-connection-retry\" data-testid=\"connection-retry\" type=\"button\"\n          aria-label=\"Continue\">Continue</button>\n        <span class=\"recovery-note\">Keep live</span>\n      </div>\n    </section>",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "unavailable",
+      "detail": "Child unavailable",
+      "failed_path": null,
+      "failure_kind": "unavailable",
+      "source_state": null,
+      "current": "live-world-projection",
+      "recoverable": true,
+      "recovery": {
+        "kind": "return",
+        "label": "Continue",
+        "note": "Keep live",
+        "current": "live-world-projection"
+      }
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "player-continued",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world-projection"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "The last verified world remains active.",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world-projection",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "player-return-lobby",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world-projection"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-connection-retry": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-start-exploring": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-return-lobby": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {
+            "aria-disabled": "false"
+          }
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "The last verified world remains active.",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world-projection",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      {
+        "id": "return-to-lobby-1767225600000",
+        "kind": "navigation",
+        "event_type": "return_to_lobby",
+        "title": "Returned to lobby",
+        "summary": "Player returned to the lobby from the header control.",
+        "source": {
+          "location_id": "a"
+        },
+        "destination": {
+          "location_id": "location-lobby"
+        },
+        "no_page_reload": true
+      }
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Crossing",
+        "promoting target fabric to root — same context, no reload",
+        "toast-departed"
+      ],
+      [
+        "ARRIVED · A  B · 0 MS",
+        "cold crossing · live crossing · same page, no reload",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ],
+      [
+        "Returned to lobby",
+        "Player is back in the lobby.",
+        "arrived",
+        {
+          "notificationId": "return-to-lobby-1767225600000"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-loading",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "loading",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "none"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Loading",
+          "html": "",
+          "className": "live-tag connection-loading",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-loading\">loading</span> connecting to components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "loading",
+          "html": "",
+          "className": "prov prov-loading",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "connecting to components 3 backend",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--warn)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "loading",
+      "detail": "Connecting",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "none",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update"
+    ],
+    "toasts": []
+  },
+  {
+    "name": "observer-orientation",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "Connected",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": []
+  },
+  {
+    "name": "observer-phases-once",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay arrived",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "Connected",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-equipment-empty",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay arrived",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row\" data-reconcile-key=\"equipment-empty\">No equipment manifest on this view yet.</div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "waiting for arrival packet",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "Connected",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-equipment-failed",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay arrived",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "Connected",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-unrelated-recovery",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "disconnected",
+        "data-connection-recoverable": "true",
+        "data-connection-current": "none",
+        "data-connection-failure-kind": "disconnected"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Disconnected",
+          "html": "",
+          "className": "live-tag connection-disconnected",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-disconnected\">disconnected</span> components 3 backend unavailable</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "disconnected",
+          "html": "",
+          "className": "prov prov-disconnected",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "components 3 backend unavailable",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--bad)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "disconnected",
+      "detail": "Offline",
+      "failed_path": "/state",
+      "failure_kind": "disconnected",
+      "source_state": null,
+      "current": "none",
+      "recoverable": true,
+      "recovery": {
+        "kind": "reload",
+        "label": "Reload & retry",
+        "aria_label": "Reload and retry this world",
+        "note": "Reloads this view because the live runtime boots as one coherent session."
+      }
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-recovered",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "live",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "live-world"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Live backend",
+          "html": "",
+          "className": "live-tag connection-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-live\">live</span> real components 3 backend</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "live",
+          "html": "",
+          "className": "prov prov-live",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "http://fixture",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--ok)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "live",
+      "detail": "The live world connection recovered.",
+      "failed_path": null,
+      "failure_kind": null,
+      "source_state": null,
+      "current": "live-world",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-refused",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "refused",
+        "data-connection-recoverable": "false",
+        "data-connection-current": "none",
+        "data-connection-failure-kind": "policy"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Runtime refused",
+          "html": "",
+          "className": "live-tag connection-refused",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-refused\">refused</span> trust or policy refusal</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "refused",
+          "html": "",
+          "className": "prov prov-refused",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "trust or policy refusal",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--bad)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "refused",
+      "detail": "Policy",
+      "failed_path": null,
+      "failure_kind": "policy",
+      "source_state": null,
+      "current": "none",
+      "recoverable": false,
+      "recovery": null
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-return-current",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "unavailable",
+        "data-connection-recoverable": "true",
+        "data-connection-current": "live-world-projection",
+        "data-connection-failure-kind": "unavailable"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Temporarily unavailable",
+          "html": "",
+          "className": "live-tag connection-unavailable",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-unavailable\">unavailable</span> runtime temporarily unavailable</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "unavailable",
+          "html": "",
+          "className": "prov prov-unavailable",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "runtime temporarily unavailable",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--bad)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "unavailable",
+      "detail": "Child unavailable",
+      "failed_path": null,
+      "failure_kind": "unavailable",
+      "source_state": null,
+      "current": "live-world-projection",
+      "recoverable": true,
+      "recovery": {
+        "kind": "return",
+        "label": "Continue",
+        "note": "Keep live",
+        "current": "live-world-projection"
+      }
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-continued",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "unavailable",
+        "data-connection-recoverable": "true",
+        "data-connection-current": "live-world-projection",
+        "data-connection-failure-kind": "unavailable"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Temporarily unavailable",
+          "html": "",
+          "className": "live-tag connection-unavailable",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-unavailable\">unavailable</span> runtime temporarily unavailable</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "unavailable",
+          "html": "",
+          "className": "prov prov-unavailable",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "runtime temporarily unavailable",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--bad)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        }
+      }
+    },
+    "connection": {
+      "state": "unavailable",
+      "detail": "Child unavailable",
+      "failed_path": null,
+      "failure_kind": "unavailable",
+      "source_state": null,
+      "current": "live-world-projection",
+      "recoverable": true,
+      "recovery": {
+        "kind": "return",
+        "label": "Continue",
+        "note": "Keep live",
+        "current": "live-world-projection"
+      }
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update"
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "observer-return-lobby",
+    "dom": {
+      "attributes": {
+        "data-connection-state": "unavailable",
+        "data-connection-recoverable": "true",
+        "data-connection-current": "live-world-projection",
+        "data-connection-failure-kind": "unavailable"
+      },
+      "elements": {
+        "connection-status": {
+          "text": "Temporarily unavailable",
+          "html": "",
+          "className": "live-tag connection-unavailable",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-footer-status": {
+          "text": "",
+          "html": "<span><span class=\"prov prov-unavailable\">unavailable</span> runtime temporarily unavailable</span><span>correlate by <b>handoff_id</b></span>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "connection-provenance": {
+          "text": "unavailable",
+          "html": "",
+          "className": "prov prov-unavailable",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "live-backend": {
+          "text": "runtime temporarily unavailable",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {
+            "color": "var(--bad)"
+          },
+          "attributes": {}
+        },
+        "loc-title": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "state-overlay": {
+          "text": "",
+          "html": "",
+          "className": "state-overlay ",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-list": {
+          "text": "",
+          "html": "<div class=\"equipment-row equipment-bad\" data-reconcile-key=\"equipment:held:hand\">\n          <div><b>hold</b> held</div>\n          <div>hand</div>\n          <div>not loaded · visible fallback OFF</div>\n        </div>",
+          "className": "",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "equipment-summary": {
+          "text": "schema FAIL: missing",
+          "html": "",
+          "className": "v",
+          "hidden": false,
+          "disabled": false,
+          "style": {},
+          "attributes": {}
+        },
+        "btn-return-lobby": {
+          "text": "",
+          "html": "",
+          "className": "",
+          "hidden": true,
+          "disabled": true,
+          "style": {},
+          "attributes": {
+            "aria-disabled": "true"
+          }
+        }
+      }
+    },
+    "connection": {
+      "state": "unavailable",
+      "detail": "Child unavailable",
+      "failed_path": null,
+      "failure_kind": "unavailable",
+      "source_state": null,
+      "current": "live-world-projection",
+      "recoverable": true,
+      "recovery": {
+        "kind": "return",
+        "label": "Continue",
+        "note": "Keep live",
+        "current": "live-world-projection"
+      }
+    },
+    "notices": [
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      "semantic-update",
+      {
+        "id": "return-to-lobby-1767225600000",
+        "kind": "navigation",
+        "event_type": "return_to_lobby",
+        "title": "Returned to lobby",
+        "summary": "Player returned to the lobby from the header control.",
+        "source": {
+          "location_id": "a"
+        },
+        "destination": {
+          "location_id": "location-lobby"
+        },
+        "no_page_reload": true
+      }
+    ],
+    "toasts": [
+      [
+        "Portal active",
+        "at traversal trigger — walk through to cross",
+        "toast-departed"
+      ],
+      [
+        "Departed",
+        "exit intent POSTed · local avatar hidden",
+        "toast-departed"
+      ],
+      [
+        "ARRIVAL RECEIVED",
+        "arrival applied locally · return portal active",
+        "toast-arrived",
+        {
+          "notificationId": "loading-record"
+        }
+      ],
+      [
+        "Returned to lobby",
+        "Player is back in the lobby.",
+        "arrived",
+        {
+          "notificationId": "return-to-lobby-1767225600000"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "notification-dedup",
+    "notices": [
+      {
+        "id": "fabric-prefetch-edge-region_ready-now",
+        "kind": "fabric_prefetch_event",
+        "event_type": "region_ready",
+        "status": "ready",
+        "title": "region ready",
+        "summary": "b · 0/2 entities · 0 present",
+        "created_at": "now",
+        "updated_at": "now",
+        "source": {
+          "location_id": "a",
+          "world_id": "world-a",
+          "endpoint_key": "a"
+        },
+        "destination": {
+          "location_id": "b"
+        },
+        "prefetch": {
+          "status": "ready",
+          "address": {
+            "location_id": "b"
+          },
+          "zone": null,
+          "zones": null
+        },
+        "region": {
+          "loaded_at": null,
+          "age_ms": 0,
+          "totals": {}
+        },
+        "occupancy": {
+          "count": 0
+        },
+        "claim_boundary": {
+          "application_level": true,
+          "roi_standard_conformance": false,
+          "standards_conformance": false
+        },
+        "raw_event": {
+          "event": "region_ready",
+          "at": "now",
+          "region_entities": 0,
+          "fabric_entities": 2,
+          "occupancy_count": 0
+        }
+      },
+      {
+        "id": "fabric-prefetch-other-region_ready-now",
+        "kind": "fabric_prefetch_event",
+        "event_type": "region_ready",
+        "status": "ready",
+        "title": "region ready",
+        "summary": "b · 0/2 entities · 0 present",
+        "created_at": "now",
+        "updated_at": "now",
+        "source": {
+          "location_id": "a",
+          "world_id": "world-a",
+          "endpoint_key": "a"
+        },
+        "destination": {
+          "location_id": "b"
+        },
+        "prefetch": {
+          "status": "ready",
+          "address": {
+            "location_id": "b"
+          },
+          "zone": null,
+          "zones": null
+        },
+        "region": {
+          "loaded_at": null,
+          "age_ms": 0,
+          "totals": {}
+        },
+        "occupancy": {
+          "count": 0
+        },
+        "claim_boundary": {
+          "application_level": true,
+          "roi_standard_conformance": false,
+          "standards_conformance": false
+        },
+        "raw_event": {
+          "event": "region_ready",
+          "at": "now",
+          "region_entities": 0,
+          "fabric_entities": 2,
+          "occupancy_count": 0
+        }
+      },
+      {
+        "id": "fabric-completion-h",
+        "kind": "fabric_completion",
+        "event_type": "fabric_completion_reconciled",
+        "status": "complete",
+        "title": "background fabric completion",
+        "summary": "b · +0 entities in background · 0/0 reconciled · 0 ms · input during completion: 0 movement samples",
+        "created_at": "start",
+        "updated_at": "2026-01-01T00:00:00.000Z",
+        "destination": {
+          "location_id": "b"
+        },
+        "completion": {
+          "status": "complete",
+          "entities_added": 0,
+          "reconciliation": {
+            "received_unique_entities": 0,
+            "expected_fabric_entities": 0,
+            "match": true,
+            "duration_ms": 0,
+            "input_during_completion": {
+              "movement_samples": 0
+            }
+          }
+        },
+        "claim_boundary": {
+          "application_level": true,
+          "roi_standard_conformance": false,
+          "standards_conformance": false
+        }
+      }
+    ]
+  }
+]

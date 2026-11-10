@@ -1,0 +1,487 @@
+{
+  "schema": "osl-catalog-attachments/1",
+  "source": {
+    "sha256": "8a124b5477f16a29b4fecccb20c2faec23e2646a70eda1c5ccf42e85019f9547"
+  },
+  "qualification": {
+    "scope": "seven-item selection, attachment interface and preserved evaluated finger/grip poses only",
+    "visual_fit": "Existing visual fitting limitations remain unresolved.",
+    "unresolved": {
+      "shield": "Mira sleeve and Tavi mitten visibly penetrate the shield face",
+      "helmet": "Tavi helmet is oversized and obscures the upper face",
+      "hat": "closed-bottom mesh sits above the complete head envelope, stacking over baked headwear/antennae",
+      "mug": "handle is hidden by larger closed hands; contact/pose agreement is not skin-clearance proof"
+    },
+    "later_fit_change": "Fit-data changes require regenerating the catalog projection and verifying the evaluated attachment interface.",
+    "integration": "Lab-owned canonical merge and every-renderer integration remain separate; no live item retirement"
+  },
+  "entries": [
+    {
+      "key": "item-equip-hat",
+      "url": "/assets/equip-hat.glb",
+      "label": "Wide-brim explorer hat",
+      "file": "equip-hat.glb",
+      "asset_sha256": "850c6894ad2ef01a77e318b560c73c879c01855700cd57ee320aa882b7255c44",
+      "attachment": {
+        "schema": "osl-equipment-attachment/1",
+        "glb": {
+          "role": "head",
+          "bone_lookup": "body.roles",
+          "reference_rig": "actionforge",
+          "reference_bone": "Head"
+        },
+        "vrm": {
+          "humanoid_bone": "head"
+        },
+        "hanim": {
+          "name": "osl_head_equipment_pt",
+          "parent_segment": "skull",
+          "parent_joint": "skullbase",
+          "standard": "ISO/IEC 19774-1:2019",
+          "project_defined_site": true,
+          "transform": "inverse(parent_segment_in_avatar) * item_in_avatar",
+          "child_transform": "identity"
+        },
+        "fit": {
+          "mode": "worn",
+          "hands": 0,
+          "placement": {
+            "anchor": "head",
+            "rotation": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "attach_point": [
+              0,
+              0.5,
+              0
+            ],
+            "head_surface": {
+              "crown_span": [
+                0.84,
+                0.84
+              ],
+              "clearance_m": 0.003
+            }
+          }
+        },
+        "evaluated_pose": {
+          "frame": "avatar-holder",
+          "units": "metres",
+          "matrix": "column-major-4x4",
+          "update": "after existing avatar step"
+        }
+      }
+    },
+    {
+      "key": "item-equip-helmet",
+      "url": "/assets/equip-helmet.glb",
+      "label": "Iron helmet",
+      "file": "equip-helmet.glb",
+      "asset_sha256": "2cb7f2bf12579af3af46290c460493eefe447325aa6c7de9d67cbab8aad550c2",
+      "attachment": {
+        "schema": "osl-equipment-attachment/1",
+        "glb": {
+          "role": "head",
+          "bone_lookup": "body.roles",
+          "reference_rig": "actionforge",
+          "reference_bone": "Head"
+        },
+        "vrm": {
+          "humanoid_bone": "head"
+        },
+        "hanim": {
+          "name": "osl_head_equipment_pt",
+          "parent_segment": "skull",
+          "parent_joint": "skullbase",
+          "standard": "ISO/IEC 19774-1:2019",
+          "project_defined_site": true,
+          "transform": "inverse(parent_segment_in_avatar) * item_in_avatar",
+          "child_transform": "identity"
+        },
+        "fit": {
+          "mode": "worn",
+          "hands": 0,
+          "placement": {
+            "anchor": "head",
+            "rotation": [
+              0.016261,
+              0,
+              0,
+              0.999868
+            ],
+            "attach_point": [
+              0,
+              0.35,
+              -0.025
+            ],
+            "scale_with": "head_width_m",
+            "offset": {
+              "up": {
+                "measure": "head_height_m",
+                "factor": 0.3933
+              },
+              "forward": {
+                "measure": "head_depth_m",
+                "factor": -0.0323
+              },
+              "right": {
+                "measure": "head_width_m",
+                "factor": 0
+              }
+            }
+          },
+          "scale_m_per_unit": 0.24
+        },
+        "evaluated_pose": {
+          "frame": "avatar-holder",
+          "units": "metres",
+          "matrix": "column-major-4x4",
+          "update": "after existing avatar step"
+        }
+      }
+    },
+    {
+      "key": "item-equip-crown",
+      "url": "/assets/equip-crown.glb",
+      "label": "Gold crown",
+      "file": "equip-crown.glb",
+      "asset_sha256": "5a406e5e51efc1f0f46e045e7982c9582886ccc9ad20784d32f982e4b20b29c1",
+      "attachment": {
+        "schema": "osl-equipment-attachment/1",
+        "glb": {
+          "role": "head",
+          "bone_lookup": "body.roles",
+          "reference_rig": "actionforge",
+          "reference_bone": "Head"
+        },
+        "vrm": {
+          "humanoid_bone": "head"
+        },
+        "hanim": {
+          "name": "osl_head_equipment_pt",
+          "parent_segment": "skull",
+          "parent_joint": "skullbase",
+          "standard": "ISO/IEC 19774-1:2019",
+          "project_defined_site": true,
+          "transform": "inverse(parent_segment_in_avatar) * item_in_avatar",
+          "child_transform": "identity"
+        },
+        "fit": {
+          "mode": "worn",
+          "hands": 0,
+          "placement": {
+            "anchor": "head",
+            "rotation": [
+              0.016261,
+              0,
+              0,
+              0.999868
+            ],
+            "attach_point": [
+              0,
+              0.6,
+              0
+            ],
+            "scale_with": "head_width_m",
+            "offset": {
+              "up": {
+                "measure": "head_height_m",
+                "factor": 0.5868
+              },
+              "forward": {
+                "measure": "head_depth_m",
+                "factor": 0.0013
+              },
+              "right": {
+                "measure": "head_width_m",
+                "factor": 0
+              }
+            }
+          },
+          "scale_m_per_unit": 0.155
+        },
+        "evaluated_pose": {
+          "frame": "avatar-holder",
+          "units": "metres",
+          "matrix": "column-major-4x4",
+          "update": "after existing avatar step"
+        }
+      }
+    },
+    {
+      "key": "item-equip-hammer",
+      "url": "/assets/equip-hammer.glb",
+      "label": "War hammer",
+      "file": "equip-hammer.glb",
+      "asset_sha256": "5389974f4990a2995b00fb29d4156c15449ad3d09f4e549e52e61b9717f4d7af",
+      "attachment": {
+        "schema": "osl-equipment-attachment/1",
+        "glb": {
+          "role": "rightHand",
+          "bone_lookup": "body.roles",
+          "reference_rig": "actionforge",
+          "reference_bone": "hand_r"
+        },
+        "vrm": {
+          "humanoid_bone": "rightHand"
+        },
+        "hanim": {
+          "name": "osl_right_hand_equipment_pt",
+          "parent_segment": "r_carpal",
+          "parent_joint": "r_radiocarpal",
+          "standard": "ISO/IEC 19774-1:2019",
+          "project_defined_site": true,
+          "transform": "inverse(parent_segment_in_avatar) * item_in_avatar",
+          "child_transform": "identity"
+        },
+        "fit": {
+          "mode": "held",
+          "hands": 1,
+          "hand": "r",
+          "stance": "sword_idle",
+          "grip": {
+            "clip": "sword_idle",
+            "time": 0
+          },
+          "contacts": {
+            "r": {
+              "point": [
+                0,
+                0.25,
+                0
+              ],
+              "grip_axis": [
+                0,
+                1,
+                0
+              ],
+              "forward_axis": [
+                1,
+                0,
+                0
+              ]
+            }
+          },
+          "placement": {
+            "anchor": "hand",
+            "contact_on_hand": "hollow"
+          },
+          "scale": 0.4
+        },
+        "evaluated_pose": {
+          "frame": "avatar-holder",
+          "units": "metres",
+          "matrix": "column-major-4x4",
+          "update": "after existing avatar step"
+        }
+      }
+    },
+    {
+      "key": "item-equip-torch",
+      "url": "/assets/equip-torch.glb",
+      "label": "Torch",
+      "file": "equip-torch.glb",
+      "asset_sha256": "240a10ba9ace4296cef98952efc6da3b900a870efdb2e64c3df52f8b28cb8eac",
+      "attachment": {
+        "schema": "osl-equipment-attachment/1",
+        "glb": {
+          "role": "leftHand",
+          "bone_lookup": "body.roles",
+          "reference_rig": "actionforge",
+          "reference_bone": "hand_l"
+        },
+        "vrm": {
+          "humanoid_bone": "leftHand"
+        },
+        "hanim": {
+          "name": "osl_left_hand_equipment_pt",
+          "parent_segment": "l_carpal",
+          "parent_joint": "l_radiocarpal",
+          "standard": "ISO/IEC 19774-1:2019",
+          "project_defined_site": true,
+          "transform": "inverse(parent_segment_in_avatar) * item_in_avatar",
+          "child_transform": "identity"
+        },
+        "fit": {
+          "mode": "held",
+          "hands": 1,
+          "hand": "l",
+          "stance": "idle_torch_loop",
+          "grip": {
+            "clip": "idle_torch_loop",
+            "time": 0
+          },
+          "contacts": {
+            "l": {
+              "point": [
+                0,
+                0.3,
+                0
+              ],
+              "grip_axis": [
+                0,
+                1,
+                0
+              ],
+              "forward_axis": [
+                0,
+                0,
+                1
+              ]
+            }
+          },
+          "placement": {
+            "anchor": "hand",
+            "contact_on_hand": "hollow"
+          },
+          "scale": 0.35
+        },
+        "evaluated_pose": {
+          "frame": "avatar-holder",
+          "units": "metres",
+          "matrix": "column-major-4x4",
+          "update": "after existing avatar step"
+        }
+      }
+    },
+    {
+      "key": "item-equip-shield",
+      "url": "/assets/equip-shield.glb",
+      "label": "Round shield",
+      "file": "equip-shield.glb",
+      "asset_sha256": "3831b2eeacc3f1b8657c87be8aa856bb0c28588d4edb4a3eb89b033c388d4eeb",
+      "attachment": {
+        "schema": "osl-equipment-attachment/1",
+        "glb": {
+          "role": "leftHand",
+          "bone_lookup": "body.roles",
+          "reference_rig": "actionforge",
+          "reference_bone": "hand_l"
+        },
+        "vrm": {
+          "humanoid_bone": "leftHand"
+        },
+        "hanim": {
+          "name": "osl_left_hand_equipment_pt",
+          "parent_segment": "l_carpal",
+          "parent_joint": "l_radiocarpal",
+          "standard": "ISO/IEC 19774-1:2019",
+          "project_defined_site": true,
+          "transform": "inverse(parent_segment_in_avatar) * item_in_avatar",
+          "child_transform": "identity"
+        },
+        "fit": {
+          "mode": "held",
+          "hands": 1,
+          "hand": "l",
+          "stance": "idle_shield_loop",
+          "grip": {
+            "clip": "idle_shield_loop",
+            "time": 0
+          },
+          "contacts": {
+            "l": {
+              "point": [
+                0,
+                0,
+                0.165
+              ],
+              "grip_axis": [
+                0,
+                1,
+                0
+              ],
+              "forward_axis": [
+                1,
+                0,
+                0
+              ]
+            }
+          },
+          "placement": {
+            "anchor": "hand",
+            "contact_on_hand": "hollow"
+          },
+          "scale": 0.38
+        },
+        "evaluated_pose": {
+          "frame": "avatar-holder",
+          "units": "metres",
+          "matrix": "column-major-4x4",
+          "update": "after existing avatar step"
+        }
+      }
+    },
+    {
+      "key": "item-equip-mug",
+      "url": "/assets/equip-mug.glb",
+      "label": "Tankard",
+      "file": "equip-mug.glb",
+      "asset_sha256": "d4fbaf4895ee84691aa499bacfbc609bfde4b46029cd3ec2acdf3267e6393cfb",
+      "attachment": {
+        "schema": "osl-equipment-attachment/1",
+        "glb": {
+          "role": "leftHand",
+          "bone_lookup": "body.roles",
+          "reference_rig": "actionforge",
+          "reference_bone": "hand_l"
+        },
+        "vrm": {
+          "humanoid_bone": "leftHand"
+        },
+        "hanim": {
+          "name": "osl_left_hand_equipment_pt",
+          "parent_segment": "l_carpal",
+          "parent_joint": "l_radiocarpal",
+          "standard": "ISO/IEC 19774-1:2019",
+          "project_defined_site": true,
+          "transform": "inverse(parent_segment_in_avatar) * item_in_avatar",
+          "child_transform": "identity"
+        },
+        "fit": {
+          "mode": "held",
+          "hands": 1,
+          "hand": "l",
+          "stance": "idle_torch_loop",
+          "grip": {
+            "clip": "consume",
+            "time": 0.6667
+          },
+          "contacts": {
+            "l": {
+              "point": [
+                0.35,
+                0.3,
+                0
+              ],
+              "grip_axis": [
+                0,
+                1,
+                0
+              ],
+              "forward_axis": [
+                -1,
+                0,
+                0
+              ]
+            }
+          },
+          "placement": {
+            "anchor": "hand",
+            "contact_on_hand": "hollow"
+          },
+          "scale": 0.28
+        },
+        "evaluated_pose": {
+          "frame": "avatar-holder",
+          "units": "metres",
+          "matrix": "column-major-4x4",
+          "update": "after existing avatar step"
+        }
+      }
+    }
+  ]
+}

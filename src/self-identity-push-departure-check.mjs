@@ -330,9 +330,9 @@ check("a targeted departure preserves canonical content identity while preservin
 });
 
 const SELF_FILTER_SOURCE_ANCHOR =
-  "    isHandoffInFlight: () => adapter._portalTraversalController?.inFlight?.() === true,\n" +
-  "    controlledPlayerId: () => adapter.controlledIdentity().player_id,\n";
-const appSource = readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
+  "      isHandoffInFlight: () => live._portalTraversalController?.inFlight?.() === true,\n" +
+  "      controlledPlayerId: () => live.controlledIdentity().player_id,\n";
+const appSource = readFileSync(path.join(ROOT, "web", "application-state.mjs"), "utf8");
 const runtimeStreamSource = readFileSync(
   path.join(ROOT, "web", "live-adapter-runtime-stream-controller.mjs"),
   "utf8",
@@ -354,26 +354,26 @@ check("source mutation arms apply and the self-filter anchor fails closed", () =
   try {
     assert.equal(appSource.split(SELF_FILTER_SOURCE_ANCHOR).length - 1, 1);
     process.env.OSL_SOURCE_MUTATION = "runtime-self-filter-off";
-    const selfMutated = applySourceMutation("app.js", Buffer.from(appSource)).toString("utf8");
+    const selfMutated = applySourceMutation("application-state.mjs", Buffer.from(appSource)).toString("utf8");
     assert.match(selfMutated, /controlledPlayerId:\s*\(\) => null/);
     assert.doesNotMatch(
       selfMutated,
-      /controlledPlayerId:\s*\(\) => adapter\.controlledIdentity\(\)\.player_id/,
+      /controlledPlayerId:\s*\(\) => live\.controlledIdentity\(\)\.player_id/,
     );
     assert.match(
       selfMutated,
-      /isHandoffInFlight:\s*\(\) => adapter\._portalTraversalController\?\.inFlight\?\.\(\) === true/,
+      /isHandoffInFlight:\s*\(\) => live\._portalTraversalController\?\.inFlight\?\.\(\) === true/,
     );
     assert.throws(
       () => applySourceMutation(
-        "app.js",
+        "application-state.mjs",
         Buffer.from(appSource.replace(SELF_FILTER_SOURCE_ANCHOR, "")),
       ),
       /anchor NOT FOUND/,
     );
     assert.throws(
       () => applySourceMutation(
-        "app.js",
+        "application-state.mjs",
         Buffer.from(`${appSource}\n${SELF_FILTER_SOURCE_ANCHOR}`),
       ),
       /anchor AMBIGUOUS/,

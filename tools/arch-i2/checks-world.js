@@ -79,7 +79,7 @@ async function worldChecks(ports) {
     '        } else {\n          inclusion.graphs.push({ url, shown: false, reason: "no anchor" });\n        }',
     '        } else {\n          graphs.push({ url, spatial: spatial.body, placement: IDENTITY.slice() });\n        }',
   ]] };
-  const ownIdSpaces = { serverEdits: { runtime: [['            ids : spatialStore.ids,', '            ids : undefined,']] } };
+  const ownIdSpaces = { serverEdits: { 'runtime-spatial.js': [['                ids : this.primary.ids, rootId : this.primary.ids.issue(),', '                ids : undefined, rootId : this.primary.ids.issue(),']] } };
   await run('I9', 'X links {B}/wow/world: graph 1 is shown at X, graph 2 at (199.9999991 m, -3.1300 mm, -3.4398 mm) from graph 1 within 0.05 mm, as the Python reference puts it; graph 3 has no anchor and is not shown; node ids are unique across the three graphs', async (impl) => {
     const ref = reference(python);
     const { B } = await threeGraphWorld(impl, ports.next());

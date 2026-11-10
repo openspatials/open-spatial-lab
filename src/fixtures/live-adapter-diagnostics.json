@@ -1,0 +1,1274 @@
+{
+  "debug-full": {
+    "output": {
+      "role": "player",
+      "mode": "live",
+      "client_mode": "player",
+      "provenance": "live",
+      "active": {
+        "name": "_activeDebug"
+      },
+      "preview": {
+        "name": "_previewDebug"
+      },
+      "portal_previews": {
+        "p": {
+          "loaded": false
+        }
+      },
+      "controlled_identity": {
+        "name": "controlledIdentity"
+      },
+      "player_context_marker": {
+        "name": "_playerContextMarkerDebug"
+      },
+      "navigator": {
+        "name": "_navigatorDebug"
+      },
+      "crossing": {
+        "accepted": false
+      },
+      "client_scene_load": {
+        "active": false
+      },
+      "wow_scene_source": {
+        "graph_url": "fixture",
+        "node_count": 0
+      },
+      "um_signing": {
+        "signed_on_exit": false,
+        "verified_on_arrival": null,
+        "scope_note": "v0.4 UM manifest signed on exit (Signature Profile A: Ed25519 + JCS-RFC8785 + did:key subject binding) and verified on arrival (runtime verifier). Schema-valid v0.4 + real signature; NOT evaluator conformance. um_conformance unchanged."
+      },
+      "um_identity": {
+        "verified": false,
+        "value": "identity",
+        "scope_note": "UM IDENTITY spine (Ed25519 + JCS-RFC8785 + did:key) over the OpenUserManifest content {name,age,avatarAssetURI}, fronted via /wow/user as a labeled non-canonical additive field. REAL signature, byte-exact verify; NOT standards conformance (standards_conformance stays false). Separate from um_signing (crossing) and the deferred .msf RS256/x5c engine spine."
+      },
+      "rp1_fail_closed": {
+        "name": "_rp1FailClosedDebug"
+      },
+      "fabric_prefetch": {
+        "name": "_fabricPrefetchDebug"
+      },
+      "presence_registration": {
+        "name": "_presenceDebug"
+      },
+      "presence_push": {
+        "name": "_presencePushDebug"
+      },
+      "wow_endpoints": {
+        "resolved_from_services": true,
+        "base": "/api/a",
+        "provenance": {
+          "world": {
+            "resolved_path": "/wow/world/1"
+          },
+          "user": {
+            "resolved_path": "/wow/user/1"
+          },
+          "portal": {
+            "resolved_path": "/wow/portal/1"
+          },
+          "view": {
+            "resolved_path": "/wow/view/1"
+          }
+        },
+        "resolution_rule": "advertised"
+      },
+      "view_match": {
+        "matches": false
+      },
+      "player_handoff_profile": null,
+      "location_id": "location-a",
+      "world_id": "world-a",
+      "session_id": "session",
+      "phase": "idle",
+      "handoff_id": null,
+      "session": {
+        "arrival_count": 0
+      },
+      "avatar": {
+        "position": [
+          1,
+          2,
+          3
+        ],
+        "rotation_y": 0,
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "controls": {
+        "enabled": false
+      },
+      "portal_transition": {
+        "phase": "idle"
+      },
+      "visibility": {
+        "name": "_visibilityDebug"
+      },
+      "live_player_pose": {
+        "sequence": 0
+      },
+      "peer_players": {
+        "name": "_peerPlayersDebug"
+      },
+      "co_present_peer_count": 0,
+      "player_pose_broadcast": {
+        "name": "_playerPoseBroadcastDebug"
+      },
+      "last_handoff_direction": "a-to-b",
+      "last_handoff_payload": {
+        "avatar_context": {
+          "geopose_shaped_pose": {
+            "fallback": true
+          }
+        }
+      },
+      "last_pose_payload": {
+        "sequence": 0
+      },
+      "geopose_shaped_pose": {
+        "_claim": "OGC GeoPose 1.0 Basic-YPR/Quaternion SDU — SCHEMA-VALID (structural/data conformance, validated against the official OGC JSON Schemas) but NOT georeferenced and NOT full GeoPose conformance. See ogc_geopose_conformance.",
+        "_spec": "OGC GeoPose 1.0 (21-056r11) Basic targets — Clause 2.3 / Clause 8",
+        "_frame_note": "LOCAL Cartesian frame (Three.js metres) mapped into schema-valid GeoPose Basic SDUs; the lat/lon/h come from an ILLUSTRATIVE non-authoritative fake origin (flat local-tangent approximation), not a geodetic projection. georeferenced:false.",
+        "frame_reference": {
+          "outer_frame": "EPSG:4979 (WGS-84 lat/lon/ellipsoidal height) — frame LABEL only",
+          "inner_frame": "LTP-ENU (Local Tangent Plane East-North-Up) — frame LABEL only",
+          "georeferenced": false,
+          "origin_is_illustrative": true,
+          "illustrative_origin": {
+            "lat": 0,
+            "lon": 0,
+            "h": 0
+          }
+        },
+        "basic_ypr": {
+          "position": {
+            "lat": -0.00002695,
+            "lon": 0.00000898,
+            "h": 2
+          },
+          "angles": {
+            "yaw": 0,
+            "pitch": 0,
+            "roll": 0
+          },
+          "_angles_units": "degrees; yaw about up axis. pitch/roll carried from the transform when present; 0 today because the avatar's DoF is yaw-only — this is its true upright orientation, not a placeholder."
+        },
+        "basic_quaternion": {
+          "position": {
+            "lat": -0.00002695,
+            "lon": 0.00000898,
+            "h": 2
+          },
+          "quaternion": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          }
+        },
+        "local_source_transform": {
+          "position": [
+            1,
+            2,
+            3
+          ],
+          "rotation_y_radians": 0,
+          "pitch_radians": 0,
+          "roll_radians": 0
+        },
+        "standards_conformance": false,
+        "ogc_geopose_conformance": {
+          "basic_sdu_schema_valid": true,
+          "georeferenced": false,
+          "full_conformance": false,
+          "claim": "OGC GeoPose 1.0 Basic-YPR/Quaternion SDU — schema-valid (structural/data conformance); georeferenced:false; NOT full GeoPose conformance beyond the Basic-SDU schema"
+        },
+        "georeferenced": false
+      },
+      "equipment_status": {
+        "count": 0
+      },
+      "claim_boundary": {
+        "application_level_handoff": true
+      },
+      "proof_boundary": {
+        "application_level_handoff": true,
+        "native_teleportxr_teleport": false,
+        "first_party_teleportxr_browser_rendering": false,
+        "standards_conformance": false,
+        "um_conformance": {
+          "standard": "Universal Manifest",
+          "conformance_level": "v0.1-baseline (UM conformance runner)",
+          "passes_runner_matrix": true,
+          "badge": "v0.1-baseline",
+          "matrix": "conformance/v0.1/expected.json (21 valid accepted, 11 invalid rejected)",
+          "runner": "universalmanifest/conformance/runner (determineConformanceLevel === v0.1-baseline)",
+          "evaluator_conformance": false,
+          "v04_baseline": false,
+          "full_conformance": false,
+          "claim": "Universal Manifest v0.1-baseline: passes the UM conformance runner's v0.1 accept/reject matrix (the demo's own manifest + all v0.1 fixtures). NOT v0.4, NOT evaluator conformance, NOT full conformance."
+        },
+        "iwps_conformance": {
+          "standard": "OMA3 IWPS Base Specification v0.3",
+          "iwps_conformance": false,
+          "shaped": true,
+          "base_query_teleport": false,
+          "wire_vocabulary": "demo-native snake_case ({portal_id}, handoff_id). IWPS camelCase is a POST-HOC READING, never transmitted.",
+          "mandatory_response_fields": "approval + destinationUrl (§5.3.2 Table 2, both M) are SYNTHESIZED IN THE BROWSER, not returned by a server",
+          "ack_nack": "NOT IMPLEMENTED — sourceAckUrl/sourceNackUrl (§5.3.3 step 9, a SHALL) are served by no route and never called",
+          "teleport_id": "handoff_id alias; NOT a UUID v4 (§5.3.2 Table 1)",
+          "teleport_pin": "deterministic hash of handoff_id; NOT randomly generated (§5.3.2 Table 1); no PIN UX",
+          "expiration": "hardcoded 0; enforced nowhere (§5.3.3 step 4)",
+          "profile": "No-Security (§5.4.1) — per §5.4 this build SHALL NOT interoperate with Internet- or OMA3-security IWPS worlds",
+          "assets": "blocked upstream — §5.6 Asset Transfer Framework is the literal word 'TBD' in the shipped v0.3 spec",
+          "full_conformance": false,
+          "spec_sections": {
+            "query_api": "§5.3.2 Query API (Table 1/2) — NOT IMPLEMENTED by our destination",
+            "teleport_api": "§5.3.3 Teleport API (Table 3/4) — NOT IMPLEMENTED by our destination",
+            "naming": "§3.5 Naming Conventions (camelCase keys, kebab-case URL paths)",
+            "uris": "§5.2 Uniform Resource Identifiers and Locators",
+            "call_order": "§5.1.1 API Flow Overview (Query then Teleport) — the one property we genuinely hold",
+            "security": "§5.4.1 No Security profile",
+            "assets": "§5.6 Asset Transfer Framework (TBD in the spec — nothing to conform to)"
+          },
+          "claim": "IWPS-SHAPED, NOT IWPS-CONFORMANT: Query->Teleport call order and vocabulary, rendered post-hoc from our own crossing. No IWPS parameter is on the wire; the destination implements neither API."
+        },
+        "web_of_worlds_conformance": false,
+        "spatial_fabric_conformance": false
+      },
+      "proof_boundary_check": {
+        "name": "boundaryStatus"
+      }
+    },
+    "calls": [
+      "traversal",
+      "_activeDebug",
+      "_previewDebug",
+      "controlledIdentity",
+      "_playerContextMarkerDebug",
+      "_navigatorDebug",
+      "client-scene",
+      "_rp1FailClosedDebug",
+      "_fabricPrefetchDebug",
+      "_presenceDebug",
+      "_presencePushDebug",
+      "_visibilityDebug",
+      "live-pose",
+      "_peerPlayersDebug",
+      "_coPresentPeerCount",
+      "_playerPoseBroadcastDebug",
+      "boundaryStatus"
+    ]
+  },
+  "debug-null-replaced": {
+    "output": {
+      "role": "player",
+      "mode": "live",
+      "client_mode": "player",
+      "provenance": "live",
+      "active": {
+        "name": "_activeDebug"
+      },
+      "preview": {
+        "name": "_previewDebug"
+      },
+      "portal_previews": null,
+      "controlled_identity": {
+        "name": "controlledIdentity"
+      },
+      "player_context_marker": {
+        "name": "_playerContextMarkerDebug"
+      },
+      "navigator": {
+        "name": "_navigatorDebug"
+      },
+      "crossing": {
+        "accepted": false
+      },
+      "client_scene_load": {
+        "active": false
+      },
+      "wow_scene_source": null,
+      "um_signing": {
+        "signed_on_exit": false,
+        "verified_on_arrival": null,
+        "scope_note": "v0.4 UM manifest signed on exit (Signature Profile A: Ed25519 + JCS-RFC8785 + did:key subject binding) and verified on arrival (runtime verifier). Schema-valid v0.4 + real signature; NOT evaluator conformance. um_conformance unchanged."
+      },
+      "um_identity": null,
+      "rp1_fail_closed": {
+        "name": "_rp1FailClosedDebug"
+      },
+      "fabric_prefetch": {
+        "name": "_fabricPrefetchDebug"
+      },
+      "presence_registration": {
+        "name": "_presenceDebug"
+      },
+      "presence_push": {
+        "name": "_presencePushDebug"
+      },
+      "wow_endpoints": null,
+      "view_match": null,
+      "player_handoff_profile": null,
+      "location_id": "location-b",
+      "world_id": "world-a",
+      "session_id": "session",
+      "phase": "idle",
+      "handoff_id": null,
+      "session": {
+        "arrival_count": 0
+      },
+      "avatar": null,
+      "controls": {
+        "enabled": false
+      },
+      "portal_transition": {
+        "phase": "idle"
+      },
+      "visibility": {
+        "name": "_visibilityDebug"
+      },
+      "live_player_pose": {
+        "sequence": 0
+      },
+      "peer_players": {
+        "name": "_peerPlayersDebug"
+      },
+      "co_present_peer_count": 0,
+      "player_pose_broadcast": {
+        "name": "_playerPoseBroadcastDebug"
+      },
+      "last_handoff_direction": "a-to-b",
+      "last_handoff_payload": {
+        "avatar_context": {
+          "geopose_shaped_pose": {
+            "fallback": true
+          }
+        }
+      },
+      "last_pose_payload": {
+        "sequence": 0
+      },
+      "geopose_shaped_pose": {
+        "fallback": true
+      },
+      "equipment_status": {
+        "count": 0
+      },
+      "claim_boundary": {
+        "application_level_handoff": true
+      },
+      "proof_boundary": {
+        "application_level_handoff": true,
+        "native_teleportxr_teleport": false,
+        "first_party_teleportxr_browser_rendering": false,
+        "standards_conformance": false,
+        "um_conformance": {
+          "standard": "Universal Manifest",
+          "conformance_level": "v0.1-baseline (UM conformance runner)",
+          "passes_runner_matrix": true,
+          "badge": "v0.1-baseline",
+          "matrix": "conformance/v0.1/expected.json (21 valid accepted, 11 invalid rejected)",
+          "runner": "universalmanifest/conformance/runner (determineConformanceLevel === v0.1-baseline)",
+          "evaluator_conformance": false,
+          "v04_baseline": false,
+          "full_conformance": false,
+          "claim": "Universal Manifest v0.1-baseline: passes the UM conformance runner's v0.1 accept/reject matrix (the demo's own manifest + all v0.1 fixtures). NOT v0.4, NOT evaluator conformance, NOT full conformance."
+        },
+        "iwps_conformance": {
+          "standard": "OMA3 IWPS Base Specification v0.3",
+          "iwps_conformance": false,
+          "shaped": true,
+          "base_query_teleport": false,
+          "wire_vocabulary": "demo-native snake_case ({portal_id}, handoff_id). IWPS camelCase is a POST-HOC READING, never transmitted.",
+          "mandatory_response_fields": "approval + destinationUrl (§5.3.2 Table 2, both M) are SYNTHESIZED IN THE BROWSER, not returned by a server",
+          "ack_nack": "NOT IMPLEMENTED — sourceAckUrl/sourceNackUrl (§5.3.3 step 9, a SHALL) are served by no route and never called",
+          "teleport_id": "handoff_id alias; NOT a UUID v4 (§5.3.2 Table 1)",
+          "teleport_pin": "deterministic hash of handoff_id; NOT randomly generated (§5.3.2 Table 1); no PIN UX",
+          "expiration": "hardcoded 0; enforced nowhere (§5.3.3 step 4)",
+          "profile": "No-Security (§5.4.1) — per §5.4 this build SHALL NOT interoperate with Internet- or OMA3-security IWPS worlds",
+          "assets": "blocked upstream — §5.6 Asset Transfer Framework is the literal word 'TBD' in the shipped v0.3 spec",
+          "full_conformance": false,
+          "spec_sections": {
+            "query_api": "§5.3.2 Query API (Table 1/2) — NOT IMPLEMENTED by our destination",
+            "teleport_api": "§5.3.3 Teleport API (Table 3/4) — NOT IMPLEMENTED by our destination",
+            "naming": "§3.5 Naming Conventions (camelCase keys, kebab-case URL paths)",
+            "uris": "§5.2 Uniform Resource Identifiers and Locators",
+            "call_order": "§5.1.1 API Flow Overview (Query then Teleport) — the one property we genuinely hold",
+            "security": "§5.4.1 No Security profile",
+            "assets": "§5.6 Asset Transfer Framework (TBD in the spec — nothing to conform to)"
+          },
+          "claim": "IWPS-SHAPED, NOT IWPS-CONFORMANT: Query->Teleport call order and vocabulary, rendered post-hoc from our own crossing. No IWPS parameter is on the wire; the destination implements neither API."
+        },
+        "web_of_worlds_conformance": false,
+        "spatial_fabric_conformance": false
+      },
+      "proof_boundary_check": {
+        "name": "boundaryStatus"
+      }
+    },
+    "calls": [
+      "traversal",
+      "_activeDebug",
+      "_previewDebug",
+      "controlledIdentity",
+      "_playerContextMarkerDebug",
+      "_navigatorDebug",
+      "client-scene",
+      "_rp1FailClosedDebug",
+      "_fabricPrefetchDebug",
+      "_presenceDebug",
+      "_presencePushDebug",
+      "_visibilityDebug",
+      "live-pose",
+      "_peerPlayersDebug",
+      "_coPresentPeerCount",
+      "_playerPoseBroadcastDebug",
+      "boundaryStatus"
+    ]
+  },
+  "panel-full": {
+    "spec_identity": {
+      "spec_file": "OpenSpatialWorld API.yaml",
+      "openapi": "3.0.4",
+      "shape_validation": "shape-validated 22/22",
+      "standards_conformance": false,
+      "identity_line": "OpenSpatialWorld API.yaml · openapi 3.0.4 · shape-validated 22/22 · standards_conformance:false"
+    },
+    "wow_contract_validation": {
+      "verifier": "runtime backend AJV response validator",
+      "source": "X-OSL-WoW-Validation",
+      "status": "unavailable",
+      "observed": 0,
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "schemas": [],
+      "last": null,
+      "standards_conformance": false
+    },
+    "active": {
+      "endpoint_key": "a",
+      "proxy_base": "/api/a",
+      "location_id": "location-a",
+      "portal_id": "a-portal"
+    },
+    "target": {
+      "endpoint_key": "b",
+      "proxy_base": "/api/b",
+      "location_id": "location-b",
+      "portal_id": "b-portal"
+    },
+    "services": [
+      {
+        "name": "World",
+        "type": "world",
+        "endpoint": "./wow/world",
+        "default_id": 0
+      }
+    ],
+    "services_line": "fabric services[] → ./wow/world",
+    "resolved_endpoints": {
+      "resolved_from_services": true,
+      "resolution_rule": "advertised",
+      "world": "/wow/world/1",
+      "user": "/wow/user/1",
+      "portal": "/wow/portal/1",
+      "view": "/wow/view/1",
+      "provenance": {
+        "world": {
+          "resolved_path": "/wow/world/1"
+        },
+        "user": {
+          "resolved_path": "/wow/user/1"
+        },
+        "portal": {
+          "resolved_path": "/wow/portal/1"
+        },
+        "view": {
+          "resolved_path": "/wow/view/1"
+        }
+      },
+      "line": "resolved from services[] → /wow/world/1, /wow/user/1, /wow/portal/1, /wow/view/1"
+    },
+    "view_match": {
+      "matches": false
+    }
+  },
+  "panel-focus": {
+    "spec_identity": {
+      "spec_file": "OpenSpatialWorld API.yaml",
+      "openapi": "3.0.4",
+      "shape_validation": "shape-validated 22/22",
+      "standards_conformance": false,
+      "identity_line": "OpenSpatialWorld API.yaml · openapi 3.0.4 · shape-validated 22/22 · standards_conformance:false"
+    },
+    "wow_contract_validation": {
+      "verifier": "runtime backend AJV response validator",
+      "source": "X-OSL-WoW-Validation",
+      "status": "unavailable",
+      "observed": 0,
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "schemas": [],
+      "last": null,
+      "standards_conformance": false
+    },
+    "active": {
+      "endpoint_key": "lobby",
+      "proxy_base": "/api/lobby",
+      "location_id": "location-a",
+      "portal_id": "lobby-portal"
+    },
+    "target": {
+      "endpoint_key": "airport",
+      "proxy_base": "/api/airport",
+      "location_id": "location-airport",
+      "portal_id": "airport-portal"
+    },
+    "services": [
+      {
+        "name": "World",
+        "type": "world",
+        "endpoint": "./wow/world",
+        "default_id": 0
+      }
+    ],
+    "services_line": "fabric services[] → ./wow/world",
+    "resolved_endpoints": {
+      "resolved_from_services": true,
+      "resolution_rule": "advertised",
+      "world": "/wow/world/1",
+      "user": "/wow/user/1",
+      "portal": "/wow/portal/1",
+      "view": "/wow/view/1",
+      "provenance": {
+        "world": {
+          "resolved_path": "/wow/world/1"
+        },
+        "user": {
+          "resolved_path": "/wow/user/1"
+        },
+        "portal": {
+          "resolved_path": "/wow/portal/1"
+        },
+        "view": {
+          "resolved_path": "/wow/view/1"
+        }
+      },
+      "line": "resolved from services[] → /wow/world/1, /wow/user/1, /wow/portal/1, /wow/view/1"
+    },
+    "view_match": {
+      "matches": false
+    }
+  },
+  "panel-empty": {
+    "spec_identity": {
+      "spec_file": "OpenSpatialWorld API.yaml",
+      "openapi": "3.0.4",
+      "shape_validation": "shape-validated 22/22",
+      "standards_conformance": false,
+      "identity_line": "OpenSpatialWorld API.yaml · openapi 3.0.4 · shape-validated 22/22 · standards_conformance:false"
+    },
+    "wow_contract_validation": {
+      "verifier": "runtime backend AJV response validator",
+      "source": "X-OSL-WoW-Validation",
+      "status": "unavailable",
+      "observed": 0,
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "schemas": [],
+      "last": null,
+      "standards_conformance": false
+    },
+    "active": {
+      "endpoint_key": "lobby",
+      "proxy_base": "/api/lobby",
+      "location_id": "location-a",
+      "portal_id": "lobby-portal"
+    },
+    "target": {
+      "endpoint_key": "airport",
+      "proxy_base": "/api/airport",
+      "location_id": "location-airport",
+      "portal_id": "airport-portal"
+    },
+    "services": [],
+    "services_line": "fabric services[] → (root fabric not loaded)",
+    "resolved_endpoints": null,
+    "view_match": null
+  },
+  "resource-inspection": {
+    "results": [
+      {
+        "ok": true,
+        "status": 200,
+        "url": "/api/a/wow/world",
+        "schema": "World",
+        "json": {
+          "resource": "world"
+        }
+      },
+      {
+        "ok": true,
+        "status": 200,
+        "url": "/api/a/wow/user/0",
+        "schema": "User",
+        "json": {
+          "resource": "user"
+        }
+      },
+      {
+        "ok": true,
+        "status": 200,
+        "url": "/api/a/wow/user/1",
+        "schema": "User",
+        "json": {
+          "resource": "user"
+        }
+      },
+      {
+        "ok": true,
+        "status": 200,
+        "url": "/api/a/wow/view/a%2Fb",
+        "schema": "View",
+        "json": {
+          "resource": "view"
+        }
+      },
+      {
+        "ok": true,
+        "status": 200,
+        "url": "/api/a/wow/portal/alias%2Fportal",
+        "schema": "Portal",
+        "json": {
+          "resource": "portal"
+        }
+      },
+      {
+        "ok": true,
+        "status": 200,
+        "url": "/api/a/fabric.json",
+        "schema": "fabric manifest",
+        "json": {
+          "resource": "fabric"
+        }
+      },
+      {
+        "ok": false,
+        "status": 0,
+        "url": null,
+        "schema": "unknown",
+        "json": {
+          "error": "unknown endpoint kind: missing"
+        }
+      },
+      {
+        "ok": false,
+        "status": 404,
+        "url": "/api/a/wow/user/bad",
+        "schema": "User",
+        "json": {
+          "error": "absent"
+        }
+      },
+      {
+        "ok": false,
+        "status": 0,
+        "url": "/api/a/wow/view/9",
+        "schema": "View",
+        "json": {
+          "error": "still offline"
+        }
+      },
+      {
+        "ok": false,
+        "status": 404,
+        "url": "/api/a/wow/portal/%3F",
+        "schema": "Portal",
+        "json": {
+          "error": "404"
+        }
+      }
+    ],
+    "requests": [
+      [
+        "/api/a/wow/world",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/wow/user/0",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/wow/user/1",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/wow/view/a%2Fb",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/wow/portal/alias%2Fportal",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/fabric.json",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/wow/user/bad",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/wow/user/bad",
+        {
+          "headers": {
+            "Accept": "application/json"
+          }
+        }
+      ],
+      [
+        "/api/a/wow/view/9",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/wow/view/9",
+        {
+          "headers": {
+            "Accept": "application/json"
+          }
+        }
+      ],
+      [
+        "/api/a/wow/portal/%3F",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/a/wow/portal/%3F",
+        {
+          "headers": {
+            "Accept": "application/json"
+          }
+        }
+      ]
+    ],
+    "events": [
+      {
+        "id": 1,
+        "method": "GET",
+        "url": "/api/a/wow/world",
+        "path": "/api/a/wow/world",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "World",
+        "validation": {
+          "source": "X-OSL-WoW-Validation",
+          "status": "pass",
+          "schema": "World",
+          "raw": "pass:World",
+          "at": "fixture-time"
+        },
+        "at": "fixture-time"
+      },
+      {
+        "id": 2,
+        "method": "GET",
+        "url": "/api/a/wow/user/0",
+        "path": "/api/a/wow/user/0",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "User",
+        "validation": {
+          "source": "X-OSL-WoW-Validation",
+          "status": "pass",
+          "schema": "World",
+          "raw": "pass:World",
+          "at": "fixture-time"
+        },
+        "at": "fixture-time"
+      },
+      {
+        "id": 3,
+        "method": "GET",
+        "url": "/api/a/wow/user/1",
+        "path": "/api/a/wow/user/1",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "User",
+        "validation": {
+          "source": "X-OSL-WoW-Validation",
+          "status": "pass",
+          "schema": "World",
+          "raw": "pass:World",
+          "at": "fixture-time"
+        },
+        "at": "fixture-time"
+      },
+      {
+        "id": 4,
+        "method": "GET",
+        "url": "/api/a/wow/view/a%2Fb",
+        "path": "/api/a/wow/view/a%2Fb",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "View",
+        "validation": {
+          "source": "X-OSL-WoW-Validation",
+          "status": "pass",
+          "schema": "World",
+          "raw": "pass:World",
+          "at": "fixture-time"
+        },
+        "at": "fixture-time"
+      },
+      {
+        "id": 5,
+        "method": "GET",
+        "url": "/api/a/wow/portal/alias%2Fportal",
+        "path": "/api/a/wow/portal/alias%2Fportal",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "Portal",
+        "validation": {
+          "source": "X-OSL-WoW-Validation",
+          "status": "pass",
+          "schema": "World",
+          "raw": "pass:World",
+          "at": "fixture-time"
+        },
+        "at": "fixture-time"
+      },
+      {
+        "id": 6,
+        "method": "GET",
+        "url": "/api/a/fabric.json",
+        "path": "/api/a/fabric.json",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "fabric manifest",
+        "validation": null,
+        "at": "fixture-time"
+      },
+      {
+        "id": 7,
+        "method": "GET",
+        "url": "/api/a/wow/user/bad",
+        "path": "/api/a/wow/user/bad",
+        "status": 404,
+        "ok": false,
+        "ms": 0,
+        "schema": "User",
+        "validation": {
+          "source": "X-OSL-WoW-Validation",
+          "status": "unavailable",
+          "schema": null,
+          "raw": null,
+          "at": "fixture-time"
+        },
+        "error": "GET /api/a/wow/user/bad -> 404",
+        "at": "fixture-time"
+      },
+      {
+        "id": 8,
+        "method": "GET",
+        "url": "/api/a/wow/view/9",
+        "path": "/api/a/wow/view/9",
+        "status": 0,
+        "ok": false,
+        "ms": 0,
+        "schema": "View",
+        "validation": null,
+        "error": "offline",
+        "at": "fixture-time"
+      },
+      {
+        "id": 9,
+        "method": "GET",
+        "url": "/api/a/wow/portal/%3F",
+        "path": "/api/a/wow/portal/%3F",
+        "status": 404,
+        "ok": false,
+        "ms": 0,
+        "schema": "Portal",
+        "validation": {
+          "source": "X-OSL-WoW-Validation",
+          "status": "unavailable",
+          "schema": null,
+          "raw": null,
+          "at": "fixture-time"
+        },
+        "error": "GET /api/a/wow/portal/%3F -> 404",
+        "at": "fixture-time"
+      }
+    ]
+  },
+  "presenter-actions": {
+    "results": [
+      {
+        "ok": true,
+        "status": 201,
+        "url": "/api/a/portal/exit-intent",
+        "endpoint_key": "b",
+        "packet": {
+          "handoff_id": "h"
+        }
+      },
+      {
+        "ok": true,
+        "status": 201,
+        "url": "/api/airport/portal/arrival",
+        "delivered_to_endpoint": "airport",
+        "wrong_node": false,
+        "arrival_count_before": 2,
+        "arrival_count_after": 3,
+        "arrival_count_delta": 1,
+        "response": {
+          "accepted": true
+        }
+      },
+      {
+        "ok": false,
+        "status": 400,
+        "url": "/api/lobby/portal/arrival",
+        "delivered_to_endpoint": "lobby",
+        "wrong_node": true,
+        "arrival_count_before": 0,
+        "arrival_count_after": 0,
+        "arrival_count_delta": 0,
+        "response": {
+          "error": "wrong node"
+        }
+      },
+      {
+        "ok": true,
+        "status": 201,
+        "url": "/api/airport/portal/arrival",
+        "delivered_to_endpoint": "airport",
+        "wrong_node": false,
+        "arrival_count_before": null,
+        "arrival_count_after": null,
+        "arrival_count_delta": null,
+        "response": {}
+      },
+      {
+        "ok": false,
+        "status": 0,
+        "url": "/api/airport/portal/arrival",
+        "delivered_to_endpoint": "airport",
+        "wrong_node": false,
+        "arrival_count_before": null,
+        "arrival_count_after": null,
+        "arrival_count_delta": 0,
+        "response": {
+          "error": "post unavailable"
+        }
+      }
+    ],
+    "requests": [
+      [
+        "/api/a/portal/exit-intent",
+        {
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          "body": "{\"portal_id\":\"alias/portal\"}"
+        }
+      ],
+      [
+        "/api/airport/debug/state",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/airport/portal/arrival",
+        {
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          "body": "{\"target\":{\"location_id\":\"location-airport\"},\"handoff_id\":\"h\",\"edited\":true}"
+        }
+      ],
+      [
+        "/api/airport/debug/state",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/lobby/debug/state",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/lobby/portal/arrival",
+        {
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          "body": "{\"target\":{\"location_id\":\"location-airport\"},\"handoff_id\":\"h\",\"edited\":true}"
+        }
+      ],
+      [
+        "/api/airport/debug/state",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/airport/portal/arrival",
+        {
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          "body": "{}"
+        }
+      ],
+      [
+        "/api/airport/debug/state",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/airport/debug/state",
+        {
+          "headers": {
+            "Accept": "application/json"
+          },
+          "cache": "no-store"
+        }
+      ],
+      [
+        "/api/airport/portal/arrival",
+        {
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          "body": "{\"target\":{\"location_id\":\"location-airport\"},\"handoff_id\":\"h\",\"edited\":true}"
+        }
+      ],
+      [
+        "/api/a/portal/exit-intent",
+        {
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          "body": "{\"portal_id\":\"alias/portal\"}"
+        }
+      ]
+    ],
+    "events": [
+      {
+        "id": 1,
+        "method": "POST",
+        "url": "/api/a/portal/exit-intent",
+        "path": "/api/a/portal/exit-intent",
+        "status": 201,
+        "ok": true,
+        "ms": 0,
+        "schema": "exit-intent (extension)",
+        "validation": null,
+        "at": "fixture-time"
+      },
+      {
+        "id": 2,
+        "method": "GET",
+        "url": "/api/airport/debug/state",
+        "path": "/api/airport/debug/state",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "debug/state (non-spec)",
+        "validation": null,
+        "at": "fixture-time"
+      },
+      {
+        "id": 3,
+        "method": "POST",
+        "url": "/api/airport/portal/arrival",
+        "path": "/api/airport/portal/arrival",
+        "status": 201,
+        "ok": true,
+        "ms": 0,
+        "schema": "arrival (extension)",
+        "validation": null,
+        "at": "fixture-time"
+      },
+      {
+        "id": 4,
+        "method": "GET",
+        "url": "/api/airport/debug/state",
+        "path": "/api/airport/debug/state",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "debug/state (non-spec)",
+        "validation": null,
+        "at": "fixture-time"
+      },
+      {
+        "id": 5,
+        "method": "GET",
+        "url": "/api/lobby/debug/state",
+        "path": "/api/lobby/debug/state",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "debug/state (non-spec)",
+        "validation": null,
+        "at": "fixture-time"
+      },
+      {
+        "id": 6,
+        "method": "POST",
+        "url": "/api/lobby/portal/arrival",
+        "path": "/api/lobby/portal/arrival",
+        "status": 400,
+        "ok": false,
+        "ms": 0,
+        "schema": "arrival (extension)",
+        "validation": null,
+        "at": "fixture-time"
+      },
+      {
+        "id": 7,
+        "method": "GET",
+        "url": "/api/airport/debug/state",
+        "path": "/api/airport/debug/state",
+        "status": 0,
+        "ok": false,
+        "ms": 0,
+        "schema": "debug/state (non-spec)",
+        "validation": null,
+        "error": "before unavailable",
+        "at": "fixture-time"
+      },
+      {
+        "id": 8,
+        "method": "POST",
+        "url": "/api/airport/portal/arrival",
+        "path": "/api/airport/portal/arrival",
+        "status": 201,
+        "ok": true,
+        "ms": 0,
+        "schema": "arrival (extension)",
+        "validation": null,
+        "at": "fixture-time"
+      },
+      {
+        "id": 9,
+        "method": "GET",
+        "url": "/api/airport/debug/state",
+        "path": "/api/airport/debug/state",
+        "status": 0,
+        "ok": false,
+        "ms": 0,
+        "schema": "debug/state (non-spec)",
+        "validation": null,
+        "error": "after unavailable",
+        "at": "fixture-time"
+      },
+      {
+        "id": 10,
+        "method": "GET",
+        "url": "/api/airport/debug/state",
+        "path": "/api/airport/debug/state",
+        "status": 200,
+        "ok": true,
+        "ms": 0,
+        "schema": "debug/state (non-spec)",
+        "validation": null,
+        "at": "fixture-time"
+      }
+    ]
+  }
+}

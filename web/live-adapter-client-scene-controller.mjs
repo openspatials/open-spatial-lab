@@ -27,7 +27,7 @@ export function createClientSceneLifecycleController({
     return resolveClientGraph(target);
   }
 
-  async function enter({ target, contract, resolved, bounds } = {}) {
+  async function enter({ target, contract, resolved, bounds, isCurrent = () => true } = {}) {
     const host = readHostState();
     if (host.clientMode !== "player") return { ok: false, reason: "not_player" };
     if (activeRecord) return { ok: false, reason: "client_scene_load_active" };
@@ -69,6 +69,7 @@ export function createClientSceneLifecycleController({
     };
 
     await presence.departPresence({ base: host.base, reason: "client_scene_load" });
+    if (!isCurrent()) return { ok: false, reason: "client_scene_load_retired" };
     presence.stopHeartbeat();
     presence.clearRegistration();
     runtimeStreams.closeRuntimeStream();
@@ -148,6 +149,7 @@ export function createClientSceneLifecycleController({
     updatePortalStatus();
     runtimeStreams.connectRuntimeStream(restored.activeEndpointKey);
     await presence.registerPresence({ spawnReason: "return_from_client_scene_load" });
+    if (options.isCurrent && !options.isCurrent()) return { ok: false, reason: "client_scene_return_retired" };
     peers.broadcastPlayerPose({ force: true });
     emitState();
 

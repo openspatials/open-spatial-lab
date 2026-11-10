@@ -337,6 +337,29 @@ await check("targeted departure and BroadcastChannel routing retain distinct deb
   assert.notDeepEqual(fixture.reducer.visibilityDebug(), fixture.reducer.peerPlayersDebug());
 });
 
+await check("disposed owners cannot reopen channels, sockets or a delayed registration timer", async () => {
+  const timers = fakeTimers(), target = fakeTarget();
+  let finish;
+  const presence = createPresenceController({
+    transport:{postJson:()=>new Promise(resolve=>{finish=resolve;})},
+    clientMode:"player",playerId:"retired",clientId:"retired",supported:true,
+    getBase:()=>"/api/a",getLocationId:()=>"location-a",getAvatar:()=>({}),
+    pagehideTarget:target,visibilityTarget:target,...timers,
+  });
+  const pending=presence.registerPresence();
+  presence.dispose(); finish({location_id:"location-a"}); await pending;
+  presence.startHeartbeat(); await presence.heartbeat();
+  assert.equal(timers.intervals.size,0);
+  assert.equal(target.listeners.size,0);
+  let sockets=0;
+  const streams=createRuntimeStreamController({createWebSocket:()=>{sockets++;return new FakeSocket("test");},getActiveEndpointKey:()=>"a",isEndpointKey:()=>true,locationLike:{protocol:"http:",host:"example.test"}});
+  streams.dispose(); streams.connectRuntimeStream(); streams.openEventStream("a");
+  assert.equal(sockets,0);
+  const peers=peerFixture(); peers.reducer.listenForCrossWindow();
+  const count=peers.channels.length; peers.reducer.dispose(); peers.reducer.broadcastPlayerPose({force:true});
+  assert.equal(peers.channels.length,count);
+});
+
 if (!mutation) {
   for (const name of Object.keys(mutations)) {
     let red = false;

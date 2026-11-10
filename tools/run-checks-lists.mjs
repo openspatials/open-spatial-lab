@@ -1,7 +1,7 @@
 // The lists behind tools/run-checks.mjs: which checks exist, which need a browser, which ports each takes from
 // its base, and which are known to be red.
 //
-// A step is { file, args, groups, browser, lab, timeoutS, ports }. The groups "test" and "test-fast" are not
+// A step is { file, nodeArgs, args, groups, browser, lab, timeoutS, ports }. The groups "test" and "test-fast" are not
 // tagged here: "test" is every step below plus the files named tools/behavior/*.check.mjs, and "test-fast" is the
 // steps that need neither a browser nor a running lab.
 
@@ -26,6 +26,27 @@ const IDENTITY = [
 ];
 
 const CLIENT = [
+  "src/wow-inclusion-lifecycle-check.mjs",
+  "src/live-adapter-crossing-manifest-check.mjs",
+  "src/live-adapter-navigation-check.mjs",
+  "src/live-adapter-lifecycle-check.mjs",
+  "src/live-adapter-picker-fixture-check.mjs",
+  "src/live-adapter-world-reader-check.mjs",
+  "src/application-core-check.mjs",
+  "src/application-state-check.mjs",
+  "src/application-boundary-check.mjs",
+  "src/scene-lifecycle-check.mjs",
+  "src/application-debug-check.mjs",
+  "src/own-x3d-integration-check.mjs",
+  "src/live-adapter-diagnostics-check.mjs",
+  "src/application-status-check.mjs",
+  "src/application-boot-check.mjs",
+  "src/application-assembly-check.mjs",
+  "src/peer-avatar-presentation-check.mjs",
+  "src/live-viewport-check.mjs",
+  "src/avatar-resources-check.mjs",
+  "src/portal-traversal-lifecycle-check.mjs",
+  "src/render-adapter-contract-check.mjs",
   "src/airport-boarding-check.mjs",
   "src/airport-hud-lifecycle-check.mjs",
   "src/airport-lobby-portal-phase1-check.mjs",
@@ -45,6 +66,8 @@ const CLIENT = [
   "src/live-lobby-portals-check.mjs",
   "src/meeting-critical-visuals-check.mjs",
   "src/movement-camera-controller-check.mjs",
+  "src/live-adapter-movement-check.mjs",
+  "src/crossing-camera-validation-check.mjs",
   "src/no-equipment-modal-contract-check.mjs",
   "src/notification-toast-controller-check.mjs",
   "src/p3-exit-pose-parity-proof.mjs",
@@ -75,10 +98,15 @@ const CLIENT_PORTS = {
 
 // Client proofs that carry planted faults behind a --faults flag.
 const WITH_FAULTS = new Set(["src/self-identity-push-departure-check.mjs"]);
-const groupStep = (group, file) => ({ file, groups: [group], ports: CLIENT_PORTS[file], ...(WITH_FAULTS.has(file) ? { faultsFlag: true } : {}) });
+const NODE_ARGS = {
+  "src/live-adapter-movement-check.mjs": ["--experimental-vm-modules"], "src/live-adapter-lifecycle-check.mjs": ["--experimental-vm-modules"], "src/live-adapter-navigation-check.mjs": ["--experimental-vm-modules"], "src/live-adapter-crossing-manifest-check.mjs": ["--experimental-vm-modules"], "src/avatar-resources-check.mjs": ["--loader", "./tools/renderer/node-fixture-loader.mjs"] };
+const groupStep = (group, file) => ({ file, nodeArgs: NODE_ARGS[file], groups: [group], ports: CLIENT_PORTS[file], ...(WITH_FAULTS.has(file) ? { faultsFlag: true } : {}) });
 
 // Steps outside the three older groups. Each runs on its own as `node <file> <args>`.
 const MORE = [
+  { file: "src/server-runtime-owners-check.mjs", groups: ["server"] },
+  { file: "src/server-runtime-projections-check.mjs", groups: ["server"] },
+  { file: "src/server-runtime-composition-check.mjs", groups: ["server"] },
   { file: "tools/verify-release.mjs" },
   { file: "tools/trace-check.mjs" },
   { file: "tools/check-request-target.js", ports: one("OSL_REQUEST_TARGET_PORT") },
@@ -106,6 +134,8 @@ const MORE = [
   { file: "src/clean-webgl-ui-smoke.mjs", ports: one("OSL_CLEAN_WEBGL_PORT"), browser: true, timeoutS: 600 },
   { file: "src/header-navigation-e2e.mjs", ports: one("OSL_HEADER_NAV_PORT"), browser: true, timeoutS: 600 },
   { file: "src/homepage-scroll-e2e.mjs", ports: one("OSL_HOMEPAGE_SCROLL_PORT"), browser: true, timeoutS: 600 },
+  { file: "src/x3d-route-check.mjs", ports: (p) => ({ OSL_TEST_PORT_BASE: p(0) }), browser: true, timeoutS: 1800, faultsFlag: true, faultsTimeoutS: 3600 },
+  { file: "src/x3d-portal-optics-check.mjs", ports: (p) => ({ OSL_TEST_PORT_BASE: p(0) }), browser: true, timeoutS: 1800, faultsFlag: true, faultsTimeoutS: 3600 },
   { file: "tools/check-worlds.mjs", lab: true },
 ];
 

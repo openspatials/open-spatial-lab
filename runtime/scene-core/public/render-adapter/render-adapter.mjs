@@ -1,6 +1,7 @@
 // Ported by hand from Nicholas Polys's public fork npolys/open-spatial-lab, commit 99175b4b6,
 // runtime/scene-core/public/render-adapter/render-adapter.mjs. Apache-2.0, like the rest of the lab. Nicholas Polys is co-author of lab commit ef702ec.
-// Changes in this copy: his class is unchanged; the code that chooses an engine from ?renderer= is the lab's, added below it.
+// The Lab adds capability, completed-pose, lighting and preview lifecycle methods,
+// plus the engine selection policy below the original construction interface.
 
 // Engine-agnostic contract for scene construction + a render loop, so scene-building code
 // (scene.js, canonical-world-content.js, wow-scene.mjs, ...) does not import an engine module
@@ -26,15 +27,13 @@ export class RenderAdapter {
     setBackgroundColor(color) { throw new Error("not implemented"); }
     /**
      * Creates the renderer/canvas and appends it into containerEl. Throws if the engine can't
-     * run here. Synchronous: only does setup that doesn't require a live runtime — scene
-     * construction (createGroup/createMesh/add/...) may proceed immediately after this returns,
-     * without awaiting ready(). Some engines (X3DOM) attach their runtime asynchronously; mount()
-     * itself never waits for that.
+     * run here. Call ready() after mount() before constructing or querying scene content.
+     * options.frameLoop=false lets the application own evaluation and frame scheduling.
      */
     mount(containerEl, options = {}) { throw new Error("not implemented"); }
     /**
      * Resolves once the engine's runtime can actually render/pick/query (camera pose reads,
-     * picking, screenshots, etc.) — NOT a precondition for scene construction. Resolves
+     * picking, screenshots, etc.). New common-core consumers await this before construction. Resolves
      * immediately on engines that are fully synchronous after mount() (e.g. three.js).
      */
     ready() { throw new Error("not implemented"); }
@@ -44,6 +43,35 @@ export class RenderAdapter {
     dispose() { throw new Error("not implemented"); }
     /** Registers a callback invoked once per rendered frame, before that frame is drawn. */
     onEnterFrame(callback) { throw new Error("not implemented"); }
+    /** Additive capabilities are opt-in; a legacy binding never silently earns support. */
+    getCapabilities() { return { engine: this.kind, version: null, features: {} }; }
+    bindSkin() { return { supported: false, reason: "Shared skin binding is not implemented." }; }
+    setSkinPose() { return { supported: false, reason: "Shared skin updates are not implemented." }; }
+    disposeSkin() { return false; }
+    setLighting() { return { supported: false, reason: "Lighting descriptions are not implemented." }; }
+    /**
+     * Host hook for neutral environment assets in setLighting({environment:{asset}}). The adapter
+     * never fetches: resolver(uri, { signal }) returns a Promise of
+     * { kind: "equirect-linear-rgb" | "equirect-linear-rgba", width, height, data: Float32Array }
+     * with rows from top (+Y) to bottom; signal aborts when the request is superseded. Pass null
+     * to remove it. Every adapter stores it; supported is true only when this adapter's
+     * capability report says its lighting consumes it (features.environment.resolver).
+     */
+    setEnvironmentResolver(resolver) {
+        if (resolver !== null && typeof resolver !== "function") throw new TypeError("environment resolver must be a function or null");
+        this._environmentResolver = resolver;
+        let consumed = false;
+        try { consumed = this.getCapabilities()?.features?.environment?.resolver === "supported"; } catch { consumed = false; }
+        return consumed
+            ? { supported: true, resolver: resolver !== null }
+            : { supported: false, reason: "This adapter does not load neutral environment assets; the resolver is stored but unused." };
+    }
+    requestRender() { return { supported: false, reason: "Explicit drawing is not implemented." }; }
+    createRenderedTexture() { return { supported: false, reason: "Portal textures are not implemented." }; }
+    bindRenderedTextureScene() { return { supported: false, reason: "Portal scene binding is not implemented." }; }
+    setRenderedTextureUpdate() { return { supported: false, reason: "Portal refresh control is not implemented." }; }
+    disposeRenderedTexture() { return { supported: false, reason: "Portal texture disposal is not implemented." }; }
+    setClipPlane() { return { supported: false, reason: "Clip planes are not implemented." }; }
     createPerspectiveCamera({ fov, aspect, near, far }) { throw new Error("not implemented"); }
     setCameraPose(camera, { position, lookAt }) { throw new Error("not implemented"); }
     /**
@@ -129,7 +157,11 @@ export const DEFAULT_RENDER_ADAPTER_KIND = "three";
 
 /** Every method and field of the interface above, read from the class itself. */
 export const RENDER_ADAPTER_METHODS = Object.freeze(
-    Object.getOwnPropertyNames(RenderAdapter.prototype).filter((name) => name !== "constructor"),
+    Object.getOwnPropertyNames(RenderAdapter.prototype).filter((name) => name !== "constructor" && ![
+        "getCapabilities", "bindSkin", "setSkinPose", "setLighting", "setEnvironmentResolver", "requestRender",
+        "createRenderedTexture", "bindRenderedTextureScene", "setRenderedTextureUpdate",
+        "disposeRenderedTexture", "setClipPlane",
+    ].includes(name)),
 );
 
 // Spellings a person may type for the same engine. The kind on the right is canonical.
@@ -137,6 +169,7 @@ const RENDERER_ALIASES = Object.freeze({
     three: "three",
     "three.js": "three",
     threejs: "three",
+    "own-x3d": "own-x3d",
     x3dom: "x3dom",
     x_ite: "x_ite",
     "x-ite": "x_ite",
@@ -146,6 +179,7 @@ const RENDERER_ALIASES = Object.freeze({
 // What the boot needs to know of each engine, with no engine loaded.
 const RENDERER_CHOICES = Object.freeze({
     three: Object.freeze({ kind: "three", label: "three.js" }),
+    "own-x3d": Object.freeze({ kind: "own-x3d", label: "Own X3D" }),
     x3dom: Object.freeze({ kind: "x3dom", label: "X3DOM" }),
     x_ite: Object.freeze({ kind: "x_ite", label: "X_ITE" }),
 });

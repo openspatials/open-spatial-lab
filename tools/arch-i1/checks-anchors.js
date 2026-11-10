@@ -17,9 +17,9 @@ const close = (a, b, tol) => Math.abs(a - b) <= tol;
 const GET = (port, p) => httpReq('GET', port, p);
 
 async function anchorChecks(ports) {
-  const ignoresFixture = { runtime: [['const SPATIAL_ANCHORS = loadAnchors(cfg.spatial_anchor_fixture !== undefined ? cfg.spatial_anchor_fixture : cfg.spatial_anchors);', 'const SPATIAL_ANCHORS = loadAnchors(cfg.spatial_anchors);']] };
+  const ignoresFixture = { 'runtime-initialization.js': [['const anchors = loadAnchors(cfg.spatial_anchor_fixture !== undefined ? cfg.spatial_anchor_fixture : cfg.spatial_anchors);', 'const anchors = loadAnchors(cfg.spatial_anchors);']] };
   // The Spatial's geoPose is served per graph, from that graph's anchor.
-  const coarseAnchor = { runtime: [['            ...(anchor ? { geoPose : clone(anchor) } : {}),', '            ...(anchor ? { geoPose : { position : { lat : anchor.position.lat, lon : Number(anchor.position.lon.toFixed(5)), h : anchor.position.h }, angles : anchor.angles } } : {}),']] };
+  const coarseAnchor = { 'runtime-spatial.js': [['            ...(anchor ? { geoPose : JSON.parse(JSON.stringify(anchor)) } : {}),', '            ...(anchor ? { geoPose : { position : { lat : anchor.position.lat, lon : Number(anchor.position.lon.toFixed(5)), h : anchor.position.h }, angles : anchor.angles } } : {}),']] };
   await run('F2h', "two world servers, one anchor fixture each: the client reads both Spatial.geoPose values and finds G2 100.0000033 m east of G1, with the curvature", async (impl) => {
     const a = await boot('a', ports.next(), { edits: impl.edits, config: { spatial_anchor_fixture: path.join(FIXTURES, 'anchor-g2.json') } });
     const b = await boot('lobby', ports.next(), { edits: impl.edits, config: { spatial_anchor_fixture: path.join(FIXTURES, 'anchor-g1.json') } });
@@ -77,10 +77,10 @@ async function anchorChecks(ports) {
 
   // A portal's and the view's GeoPose come from the node that places them, or, without one, from the
   // local position; the old mapping is planted in both.
-  const flatMapping = { runtime: [
-    ['        return roundedGeoPose(wowGeo.localPoseToGeoPose(WORLD_ANCHOR, local, Number(yawRad) || 0, Number(pitchRad) || 0));', '        return roundedGeoPose({ position : { lat : -local[2], lon : local[0], h : local[1] }, angles : { yaw : (Number(yawRad) || 0) * 180 / Math.PI, pitch : (Number(pitchRad) || 0) * 180 / Math.PI, roll : 0 } });'],
-    ['        return anchor ? roundedGeoPose(wowGeo.localPoseToGeoPose(anchor, at.position, at.yaw, at.pitch)) : undefined;', '        return anchor ? roundedGeoPose({ position : { lat : -at.position[2], lon : at.position[0], h : at.position[1] }, angles : { yaw : at.yaw * 180 / Math.PI, pitch : at.pitch * 180 / Math.PI, roll : 0 } }) : undefined;'],
-  ] };
+  const flatMapping = {
+    'runtime-view-projection.js': [['    return roundedGeoPose(wowGeo.localPoseToGeoPose(WORLD_ANCHOR, local, Number(yawRad) || 0, Number(pitchRad) || 0));', '    return roundedGeoPose({ position : { lat : -local[2], lon : local[0], h : local[1] }, angles : { yaw : (Number(yawRad) || 0) * 180 / Math.PI, pitch : (Number(pitchRad) || 0) * 180 / Math.PI, roll : 0 } });']],
+    'runtime-placements.js': [['        return anchor ? this.roundGeoPose(wowGeo.localPoseToGeoPose(anchor, at.position, at.yaw, at.pitch)) : undefined;', '        return anchor ? this.roundGeoPose({ position : { lat : -at.position[2], lon : at.position[0], h : at.position[1] }, angles : { yaw : at.yaw * 180 / Math.PI, pitch : at.pitch * 180 / Math.PI, roll : 0 } }) : undefined;']],
+  };
   await run('G1', 'the GeoPose of a portal and of the view is its local position converted by real geodesy: converted back through EPSG 9837, it returns the local position to 0.2 mm', async (impl) => {
     const s = await boot('a', ports.next(), { edits: impl.edits, config: { spatial_anchor_fixture: path.join(FIXTURES, 'anchor-g1.json') } });
     try {
@@ -110,7 +110,7 @@ async function anchorChecks(ports) {
     graph.world.geoPose = { position: { lat: 0, lan: 0, h: 0 }, angles: { yaw: 0, pitch: 0, roll: 0 } };
     return graph;
   };
-  const authoredWins = { edits: { runtime: [['            geoPose : projected.geoPose,\n', '']] }, airportAuthored: placeholderAuthored };
+  const authoredWins = { edits: { 'runtime-world-projection.js': [['        geoPose : projected.geoPose,\n', '']] }, airportAuthored: placeholderAuthored };
   const { SPATIAL_ANCHORS } = require(path.join(ROOT, 'runtime', 'world-server', 'src', 'config.js'));
   const { createValidator } = require(path.join(ROOT, 'wow-spec', 'validate'));
   const validator = createValidator();

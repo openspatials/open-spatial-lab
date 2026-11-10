@@ -18,9 +18,10 @@
 
 import { HANDOFF_PHASES } from "./frontend-contract.js";
 import { mountCanonicalWorldContent } from "./canonical-world-content.js";
+import { ThreeRenderAdapter } from "./render-adapter/three-render-adapter.mjs";
 
 export class Scene {
-  constructor(mount, role, world) {
+  constructor(mount, role, world, options = {}) {
     this.mount = mount;
     this.role = role;
     this.world = world;
@@ -33,11 +34,11 @@ export class Scene {
 
     let impl = null;
     try {
-      impl = new WebGLScene(mount, role, world);
-      this.rendererKind = "webgl";
+      impl = options.canvasOnly ? new Canvas2DScene(mount, role, world, options) : new WebGLScene(mount, role, world, options);
+      this.rendererKind = options.canvasOnly ? "canvas2d" : "webgl";
     } catch (err) {
       console.warn(`[scene-runtime] WebGL unavailable, degrading to canvas2d fallback: ${err.message}`);
-      impl = new Canvas2DScene(mount, role, world);
+      impl = new Canvas2DScene(mount, role, world, options);
       this.rendererKind = "canvas2d";
     }
     this._impl = impl;
@@ -47,12 +48,13 @@ export class Scene {
   setPhase(phase) { this.phase = phase; this._impl.setPhase(phase); }
   setAvatar(avatar) { this.avatar = avatar; this._impl.setAvatar(avatar); }
   resize() { this._impl.resize && this._impl.resize(); }
+  renderFrame(timestamp) { this._impl._loop(timestamp); }
   dispose() { this._impl.dispose && this._impl.dispose(); }
 }
 
 /* --------------------------- WebGL implementation --------------------------- */
 class WebGLScene {
-  constructor(mount, role, world) {
+  constructor(mount, role, world, options = {}) {
     // dynamic-ish import already done at module load; but throwing before we
     // touch three keeps construction cheap. We import three lazily via a getter.
     const THREE = WebGLScene._three;
@@ -68,18 +70,13 @@ class WebGLScene {
     const h = mount.clientHeight || 420;
 
     // WebGLRenderer throws if no context — that's our degrade trigger.
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true, alpha: true, preserveDrawingBuffer: true, failIfMajorPerformanceCaveat: false,
-    });
-    // force a context check: getContext returns null-ish on failure in some builds
-    if (!this.renderer.getContext()) throw new Error("no webgl context");
-
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.setSize(w, h);
-    mount.appendChild(this.renderer.domElement);
-
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 100);
+    this.renderAdapter = options.renderAdapter || new ThreeRenderAdapter(THREE);
+    if (!options.renderAdapter) this.renderAdapter.mount(mount, { antialias: true, alpha: true, preserveDrawingBuffer: true, frameLoop: false, width: w, height: h });
+    this.renderer = this.renderAdapter.renderer;
+    this.scene = this.renderAdapter.sceneRoot;
+    this.camera = this.renderAdapter.camera;
+    this.sceneDescription = options.sceneDescription;
+    this.externalFrame = options.frameLoop === false;
     this.camera.position.set(0, 6.2, 8.4);
     this.camera.lookAt(0, 0, 0);
     this._buildRoom();
@@ -89,7 +86,7 @@ class WebGLScene {
     this.phase = role === "source" ? HANDOFF_PHASES.IDLE : HANDOFF_PHASES.WAITING;
     this._t0 = performance.now();
     this._loop = this._loop.bind(this);
-    this._raf = requestAnimationFrame(this._loop);
+    if (!this.externalFrame) this._raf = requestAnimationFrame(this._loop);
     this._onResize = () => this.resize();
     window.addEventListener("resize", this._onResize);
   }
@@ -99,7 +96,7 @@ class WebGLScene {
       this.scene,
       this.THREE,
       this.world,
-      { includeDebugGrid: true },
+      { includeDebugGrid: true, sceneDescription: this.sceneDescription },
     );
   }
   _buildPortal() {
@@ -158,8 +155,8 @@ class WebGLScene {
     } else if (this.role === "source") {
       this.avatarBodyMat.opacity = 1; this.avatarGroup.scale.setScalar(1);
     }
-    this.renderer.render(this.scene, this.camera);
-    this._raf = requestAnimationFrame(this._loop);
+    this.renderAdapter.requestRender();
+    if (!this.externalFrame) this._raf = requestAnimationFrame(this._loop);
   }
   resize() {
     const w = this.mount.clientWidth || 640, h = this.mount.clientHeight || 420;
@@ -168,15 +165,15 @@ class WebGLScene {
   dispose() {
     cancelAnimationFrame(this._raf);
     window.removeEventListener("resize", this._onResize);
-    this.renderer.dispose();
-    if (this.renderer.domElement.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+    this.renderAdapter.dispose();
   }
 }
 WebGLScene._three = null; // set by module init below
 
 /* --------------------------- Canvas2D degrade ------------------------------ */
 class Canvas2DScene {
-  constructor(mount, role, world) {
+  constructor(mount, role, world, options = {}) {
+    this.externalFrame = options.frameLoop === false;
     this.mount = mount; this.role = role; this.world = world;
     this.roomColor = world.color || (role === "source" ? "#3aa0ff" : "#ff7a3a");
     this.canvas = document.createElement("canvas");
@@ -188,7 +185,7 @@ class Canvas2DScene {
     this.avatar = role === "source" ? { position: (world.avatar && world.avatar.spawn_position) || [0, 0, 3.2] } : null;
     this._t0 = performance.now();
     this._loop = this._loop.bind(this);
-    this._raf = requestAnimationFrame(this._loop);
+    if (!this.externalFrame) this._raf = requestAnimationFrame(this._loop);
     this._onResize = () => { this._resizeCanvas(); };
     window.addEventListener("resize", this._onResize);
   }
@@ -260,7 +257,7 @@ class Canvas2DScene {
     ctx.fillText("canvas2d fallback (no GPU) — top-down depiction", 12, this._h - 12);
 
     ctx.restore();
-    this._raf = requestAnimationFrame(this._loop);
+    if (!this.externalFrame) this._raf = requestAnimationFrame(this._loop);
   }
   resize() { this._resizeCanvas(); }
   dispose() {

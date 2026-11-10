@@ -47,11 +47,11 @@ export const ACTIONFORGE_TO_VRM = Object.freeze({
 const VRM_TO_ACTIONFORGE = Object.freeze(Object.fromEntries(Object.entries(ACTIONFORGE_TO_VRM).map(([a, v]) => [v, a])));
 const LIBRARIES = new Map();
 const LAB_JOG_RATE = 0.8;
-const ITEMS_URL = "/assets/actionforge/items/items.json";
+const ITEMS_URL = "/vendor/avatar-evaluator-v1/mannequin/assets/items/items.json";
 let itemLibrary = null;
 export const RUNTIME_ITEMS = Object.freeze({
   "equip-hammer": "hammer", "equip-torch": "torch", "equip-shield": "shield", "equip-mug": "mug",
-  "equip-helmet": "helmet", "equip-crown": "crown",
+  "equip-helmet": "helmet", "equip-crown": "crown", "equip-hat": "hat",
 });
 const readBytes = async (url) => {
   const response = await fetch(url);
@@ -101,7 +101,7 @@ function humanoidFacade(instance) {
 
 function itemsFor() {
   if (!itemLibrary) {
-    itemLibrary = loadItemLibrary({ readBytes, readJson, url: withBase(ITEMS_URL), assetBase: new URL(withBase("/assets/"), location.href).href });
+    itemLibrary = loadItemLibrary({ readBytes, readJson, url: withBase(ITEMS_URL), assetBase: new URL(withBase("/vendor/avatar-evaluator-v1/mannequin/assets/items/"), location.href).href });
     itemLibrary.catch(() => { itemLibrary = null; });
   }
   return itemLibrary;

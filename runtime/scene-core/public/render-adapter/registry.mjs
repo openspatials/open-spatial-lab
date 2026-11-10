@@ -11,16 +11,21 @@ import { assertRenderAdapterEntry, resolveRenderAdapter } from "./render-adapter
 import { ThreeRenderAdapter } from "./three-render-adapter.mjs";
 import { X3DOMRenderAdapter } from "./x3dom-render-adapter.mjs";
 import { XIteRenderAdapter } from "./x-ite-render-adapter.mjs";
+import { OwnX3dRenderAdapter } from "../x3d/own-x3d-render-adapter.mjs";
 
 export const RENDER_ADAPTER_CLASSES = Object.freeze({
   three: ThreeRenderAdapter,
+  "own-x3d": OwnX3dRenderAdapter,
   x3dom: X3DOMRenderAdapter,
   x_ite: XIteRenderAdapter,
 });
 
-export function createRenderAdapterRegistry(THREE) {
+export function createRenderAdapterRegistry(THREE, { ownX3d = {} } = {}) {
   const registry = {
     three: { ...ThreeRenderAdapter.info, version: `r${THREE.REVISION}`, adapter: new ThreeRenderAdapter(THREE) },
+    "own-x3d": { ...OwnX3dRenderAdapter.info, licence: "Apache-2.0",
+      source: "Open Spatial Lab: runtime/scene-core/public/x3d (own interpretation; Three drawing backend)",
+      boot: "app", adapter: new OwnX3dRenderAdapter(THREE, ownX3d) },
     x3dom: { ...X3DOMRenderAdapter.info },
     x_ite: { ...XIteRenderAdapter.info },
   };
@@ -29,6 +34,6 @@ export function createRenderAdapterRegistry(THREE) {
 }
 
 /** Resolves ?renderer= against the registry for this copy. */
-export function chooseRenderAdapter(THREE, search) {
-  return resolveRenderAdapter(search, createRenderAdapterRegistry(THREE));
+export function chooseRenderAdapter(THREE, search, options) {
+  return resolveRenderAdapter(search, createRenderAdapterRegistry(THREE, options));
 }

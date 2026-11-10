@@ -1,0 +1,102 @@
+{
+  "schema": "osl-avatars-asset-licences/1",
+  "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "files": [
+    {
+      "path": "assets/items/equip-helmet.glb",
+      "role": "test item (helmet), byte-for-byte copy of the lab's model",
+      "author": "Open Spatial Lab",
+      "licence": "CC0-1.0",
+      "bytes": 5324,
+      "sha256": "2cb7f2bf12579af3af46290c460493eefe447325aa6c7de9d67cbab8aad550c2"
+    },
+    {
+      "path": "assets/items/equip-crown.glb",
+      "role": "test item (crown), byte-for-byte copy of the lab's model",
+      "author": "Open Spatial Lab",
+      "licence": "CC0-1.0",
+      "bytes": 11560,
+      "sha256": "5a406e5e51efc1f0f46e045e7982c9582886ccc9ad20784d32f982e4b20b29c1"
+    },
+    {
+      "path": "assets/items/equip-hammer.glb",
+      "role": "test item (hammer), byte-for-byte copy of the lab's model",
+      "author": "Open Spatial Lab",
+      "licence": "CC0-1.0",
+      "bytes": 4492,
+      "sha256": "5389974f4990a2995b00fb29d4156c15449ad3d09f4e549e52e61b9717f4d7af"
+    },
+    {
+      "path": "assets/items/equip-torch.glb",
+      "role": "test item (torch), byte-for-byte copy of the lab's model",
+      "author": "Open Spatial Lab",
+      "licence": "CC0-1.0",
+      "bytes": 5628,
+      "sha256": "240a10ba9ace4296cef98952efc6da3b900a870efdb2e64c3df52f8b28cb8eac"
+    },
+    {
+      "path": "assets/items/equip-shield.glb",
+      "role": "test item (shield), byte-for-byte copy of the lab's model",
+      "author": "Open Spatial Lab",
+      "licence": "CC0-1.0",
+      "bytes": 7988,
+      "sha256": "3831b2eeacc3f1b8657c87be8aa856bb0c28588d4edb4a3eb89b033c388d4eeb"
+    },
+    {
+      "path": "assets/items/equip-mug.glb",
+      "role": "test item (mug), byte-for-byte copy of the lab's model",
+      "author": "Open Spatial Lab",
+      "licence": "CC0-1.0",
+      "bytes": 5612,
+      "sha256": "d4fbaf4895ee84691aa499bacfbc609bfde4b46029cd3ec2acdf3267e6393cfb"
+    },
+    {
+      "path": "assets/items/pistol.glb",
+      "role": "test item (pistol)",
+      "author": "SCRAP Avatars build",
+      "licence": "CC0-1.0",
+      "bytes": 15920,
+      "sha256": "a117d8a227449b27751c17f4f108b1ef29b51e2897cf3ab373633284524b105e"
+    },
+    {
+      "path": "assets/items/sword.glb",
+      "role": "test item (sword)",
+      "author": "SCRAP Avatars build",
+      "licence": "CC0-1.0",
+      "bytes": 18560,
+      "sha256": "3b68ae492419e43e955deaeffbeed83241c1f0652ac7eceda7ca5ade6469c639"
+    },
+    {
+      "path": "assets/items/lantern.glb",
+      "role": "test item (lantern)",
+      "author": "SCRAP Avatars build",
+      "licence": "CC0-1.0",
+      "bytes": 27316,
+      "sha256": "544c3451ad8c00325ab04c976429674c20faee6fe1f643e2cdaa635a780b43a7"
+    },
+    {
+      "path": "assets/items/box.glb",
+      "role": "test item (carried box)",
+      "author": "SCRAP Avatars build",
+      "licence": "CC0-1.0",
+      "bytes": 4164,
+      "sha256": "d952499c459866b162d1996ede5a417a61ad3dcbd50a923adda9c76bc07f6c9b"
+    },
+    {
+      "path": "assets/items/items.json",
+      "role": "item catalog (kinds, files, hands, stance clips, grips, grip points and axes, worn places, page keys)",
+      "author": "SCRAP Avatars build",
+      "licence": "CC0-1.0",
+      "bytes": 6405,
+      "sha256": "2e85bcf66e2f085909b958e72675103bce93505e7ab4ebad45757225e070edf0"
+    },
+    {
+      "path": "assets/items/equip-hat.glb",
+      "role": "canonical catalog production equipment",
+      "author": "Open Spatial Lab",
+      "licence": "CC0-1.0",
+      "bytes": 5316,
+      "sha256": "850c6894ad2ef01a77e318b560c73c879c01855700cd57ee320aa882b7255c44"
+    }
+  ]
+}

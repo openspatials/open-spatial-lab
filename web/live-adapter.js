@@ -1,3 +1,20 @@
+import { projectLiveDebug, projectApiPanel } from "./live-adapter-debug.mjs";
+import { fetchLiveApiEndpoint, postPresenterExit, postPresenterArrival } from "./live-adapter-operator.mjs";
+import { MOVE_SPEED_MPS, facingSemanticsFromDelta, runCalibrationSnapshot, runCalibration, applyRunCalibration, movementFrame, stepLegacyMovement } from "./live-adapter-movement.mjs";
+import { resolveAvatarGround, publishGroundSurface, restoredAvatarPose, localWalkState } from "./live-adapter-movement-ground.mjs";
+import { runtimeLocomotion, publishRuntimeGroundMotion, stepRuntimeMovement } from "./live-adapter-movement-runtime.mjs";
+import { snapshotVisualState, visualRuntimeProjection, visualDebugProjection, restoreVisualState } from "./live-adapter-visual-projection.mjs";
+import { bindLivePresence } from "./live-adapter-presence-binding.mjs";
+import { clientSceneWorld, clientScenePreview, clientSceneControls } from "./live-adapter-client-scene-projection.mjs";
+import { initialSessionControls } from "./live-adapter-session-controls.mjs";
+import { deriveFabricExitPose, counterpartExitPose } from "./live-adapter-navigation-exit-pose.mjs";
+import { adoptHostedPortalPose, adoptHostedTargetPortalPose, adoptDestinationPortalPose } from "./live-adapter-navigation-portal-pose.mjs";
+import { projectWorldNavigator, navigatorSpawn, endpointPreview, updateNavigatorMarker } from "./live-adapter-navigation-projection.mjs";
+import { readNavigationDestination, readNavigationResources, promotionRecord } from "./live-adapter-world-navigation.mjs";
+import {
+  authoredWowGraphEndpoint, resolveEndpoints as resolveWowEndpoints,
+} from "./live-adapter-world-discovery.mjs";
+import { readWorld, readSceneGraph, readGraph, walkCanonicalGraph, readRootFabric, readPortals } from "./live-adapter-world-reader.mjs";
 /**
  * LiveAdapter — Integration Assembly.
  *
@@ -35,8 +52,8 @@
  * standards_conformance:false. Integration upgrades no claim.
  */
 
-import { Locomotion } from "./avatar/runtime/locomotion.mjs";
-import { motionRecord } from "./avatar/actionforge-avatar.mjs";
+
+
 import {
   HANDOFF_PHASES,
   PROVENANCE,
@@ -56,11 +73,6 @@ import { AVATAR_VARIANTS, DEFAULT_AVATAR_VARIANT } from "./avatar-equipment-laye
 // the public prefix in subpath mode, and is byte-for-byte identical in root mode.
 import { apiBase, serverRootUrl, BASE_PATH, SERVER_ORIGIN } from "./base-path.mjs";
 import { worldEndpoints } from "./worlds-list.mjs";
-// child/portal fabric sReference resolution routed through
-// the public base path (pure + Node-testable; unit-proven by the check).
-import { resolveFabricReference as resolveFabricReferenceForBase } from "./live-adapter-fabric-reference.mjs";
-import { readGeoPose } from "./wow-geopose.mjs";
-import { flattenCanonicalNode } from "./wow-graph.mjs";
 // the OGC GeoPose 1.0 Basic-YPR/Quaternion SDU builder lives in a
 // SHARED leaf module so the exact object emitted here is the exact object the
 // network-free schema validator (web/geopose-schema-conformance-check.mjs)
@@ -91,21 +103,16 @@ import {
 } from "./live-adapter-transport.mjs";
 export { API_EVENTS } from "./live-adapter-transport.mjs";
 import {
-  PORTAL_EXIT_OFFSET_MIN_M,
-  PORTAL_EXIT_OFFSET_MAX_M,
-  addScaled3,
   clamp,
   clonePosition,
   cloneScale,
   fabricPortalKey,
   mapCameraBetweenPortalFrames,
   normalizePortalTraversal,
-  normalizeVec3,
   portalEntrySideAllowed,
   portalFrameForLocation,
   roundNumber,
   roundVec3,
-  yawFromVector,
   yawQuaternion,
 } from "./live-adapter-portal-geometry.mjs";
 export { mapCameraBetweenPortalFrames } from "./live-adapter-portal-geometry.mjs";
@@ -117,29 +124,22 @@ import {
   checkCrossing,
   poseOfMatrix,
   portalSignature,
-  readPortalResources,
   resolveBoundedPreview,
 } from "./main-demo-portals.mjs";
 import { arrivalAt } from "./wow-portal.mjs";
 import {
-  createPresenceController,
   PRESENCE_TIMING,
 } from "./live-adapter-presence-controller.mjs";
 import {
-  createRuntimeStreamController,
-} from "./live-adapter-runtime-stream-controller.mjs";
-import {
-  createPeerPresenceReducer,
   PEER_PRESENCE_TIMING,
 } from "./live-adapter-peer-presence-reducer.mjs";
-import { createFabricPrefetchController } from "./live-adapter-fabric-prefetch-controller.mjs";
-import { createClientSceneLifecycleController } from "./live-adapter-client-scene-controller.mjs";
-import { createPortalTraversalHandoffController } from "./live-adapter-portal-traversal-controller.mjs";
+import { bindFabricPrefetch, installFabricPrefetchViews } from "./live-adapter-prefetch-binding.mjs";
+import { bindClientScene } from "./live-adapter-client-scene-binding.mjs";
+import { bindPortalTraversal } from "./live-adapter-traversal-binding.mjs";
 import { automaticReciprocalPortal } from "./airport-lobby-transition.mjs";
 import {
+  airportSurfaceBounds,
   createAirportWalkableSurfaceContract,
-  integrateAirportVerticalMotion,
-  resolveAirportGroundSurface,
 } from "./airport-walkable-surface.mjs";
 // Compatibility ownership trace: worldFromLive now consumes
 // clientSceneLoadFieldsFromWowPortal.
@@ -148,124 +148,9 @@ export {
   portalEntryFromWowPortal,
 } from "./live-adapter-world-projection.mjs";
 
-// sign the emitted v0.4 UM manifest at crossing time (Signature Profile A:
-// Ed25519 + JCS-RFC8785 + did:key subject binding) using the crypto (via the
-// emitter), carry it through the exit-intent/arrival handoff, and VERIFY it on arrival. This
-// is signing WIRING only: it flips NO conformance flag (um_conformance stays the scoped
-// object). A verify FAILURE is surfaced honestly in debugState, never swallowed.
-import {
-  buildAndSignManifest as umBuildAndSignManifest,
-  verifyManifestSignatureDetailed as umVerifyManifestSignatureDetailed,
-} from "./manifest/um-manifest-emitter.mjs";
-import { makeAvatarDefinition as umMakeAvatarDefinition, makeLoadingPointer as umMakeLoadingPointer } from "./manifest/interfaces.mjs";
-
-// RP1 fail-closed traversal gate (journey-07 + J22). The live crossing
-// consults gateChildScopeTraversal() BEFORE the portal traversal commits: on the happy path
-// (demo mode "off") the gate ALLOWS and the crossing proceeds unchanged; when the crossing
-// UI arms a fail-closed demo mode ("stale-attachment" / "revoked-session") the model
-// hooks (attachmentStatus / sessionContextStatus via demoModeToRp1Options) emit that posture
-// and the gate DENIES — the child scope does NOT open, and a `rejected` receipt is surfaced
-// in debugState().rp1_fail_closed. Verified by web/rp1-fail-closed-verify.mjs. This wiring
-// flips NO um_conformance flag (the ONLY scoped flag is RP1_FAIL_CLOSED.fail_closed_conformance).
-import {
-  RP1_FAIL_CLOSED,
-  RP1_FAIL_CLOSED_MODES,
-  demoModeToRp1Options,
-  traversalRequestForDemoMode,
-  gateChildScopeTraversal,
-} from "./rp1-fail-closed.mjs";
+import { RP1_FAIL_CLOSED, RP1_FAIL_CLOSED_MODES, demoModeToRp1Options, traversalRequestForDemoMode, gateChildScopeTraversal } from "./rp1-fail-closed.mjs";
 import { buildRp1Section } from "./manifest/rp1-model.mjs";
-
-// integration — trust-tier engine: negotiated bilateral floor (Base §6.4.6)
-// + a Tier-2 sample panel for the crossing UI (records a REAL trustTierUnsupported on our
-// Tier-1 evaluator, §6.4.5). Flips NO um_conformance flag (TRUST_TIER_ENGINE is scoped).
-import { buildTierDemoSurface, DEFAULT_MAX_SUPPORTED_TRUST_TIER } from "./manifest/trust-tier.mjs";
-// integration — holder-binding / presentation-proof demo surface. The
-// interactive did-auth attach binds the manifest SIGNING key (not exposed at the additive
-// sign-on-exit site), so the live crossing uses the offline evaluator posture; the full
-// interactive attach + replay-reject path is proven in web/manifest/verify.mjs (34/34).
-import {
-  issueVerifierChallenge as featureIssueVerifierChallenge,
-  evaluateHolderBinding as featureEvaluateHolderBinding,
-} from "./manifest/holder-binding.mjs";
-// JWE sealed-facet surface (P6): REAL crypto is proven in
-// web/manifest/verify.mjs (34/34); this attaches the receipt rows the
-// portaling page's receipt table shows ("sealed entry / opaque").
-import { demoSealedFacetSurface as featureDemoSealedFacetSurface } from "./manifest/jwe-sealed-facets.mjs";
-// agent-delegation inspect panel (P4): O7 scope registry + the
-// expired-toggle reject path, proven in web/manifest/verify.mjs (19/19). Builds a
-// self-contained signed demo delegation (fresh key) so the panel travels beside the crossing
-// manifest without mutating/re-signing it (same additive posture as the surfaces).
-import { emitAgentDelegationPointer, buildDelegationDemoSurface } from "./manifest/delegation-registry.mjs";
-import { generateKeyPair as featureGenerateKeyPair } from "./signing/ed25519.mjs";
-import { attachSignatureProfileA as featureAttachSignatureProfileA } from "./signing/um-signature-profile-a.mjs";
-// canonical um:Receipt hub. The crossing evaluation is composed into a
-// canonical um:Receipt (createReceipt -> mergeFragment -> finalizeReceipt) and surfaced as a
-// live "RECEIPT" row on the WoW API bus (receiptPanelRecord). Hub proven in verify.mjs (61/61).
-import {
-  createReceipt as featureCreateReceipt,
-  mergeFragment as featureMergeFragment,
-  finalizeReceipt as featureFinalizeReceipt,
-  receiptPanelRecord as featureReceiptPanelRecord,
-} from "./manifest/receipt-hub.mjs";
-// entity-type attestation (human/ai_agent/npc) + proof-of-personhood demo
-// surface (P4/P5): issuer-signed VCs, tier-honest cap for unbound claims. Proven in verify.mjs (29/29).
-import { buildEntityPersonhoodDemoSurface } from "./manifest/entity-personhood.mjs";
-// statusRef revocation-resolution demo surface (R9 fail-closed journey:
-// baseline active -> revoke mid-session -> non-resolving unchecked). Proven in verify.mjs (38/38).
-import {
-  makeDemoStatusAuthority as featureMakeDemoStatusAuthority,
-  buildStatusRefDemoSurface as featureBuildStatusRefDemoSurface,
-} from "./manifest/statusref-resolution.mjs";
-// integration — liveness/assurance locked-facet demo surface (fail-closed
-// floors; EXT-T1 PREVIEW). Proven headless in verify.mjs (41/41). Travels beside the crossing.
-import { demoLockedFacetScenario } from "./manifest/liveness-assurance.mjs";
-// integration — higher-tier proof-shapes inspector (EXT-T2 ZKP binding / EXT-T3
-// threshold ceremony; structural-only, PREVIEW — no zero-knowledge verification claimed). Proven in
-// verify.mjs (26/26).
-import { buildProofShapesDemoSurface } from "./manifest/zkp-ceremony.mjs";
-// integration — bilateral session + paired-receipt correlation + THE receipt
-// hash-chain (EXT-OPT O3/O4 PREVIEW). The live chain-verify pins expectHead to the SIGNED
-// departure-facet seal (V1 tail-truncation protection, FIX-). Proven in verify.mjs (59/59)
-// + attack harness exit 0.
-import {
-  conductBilateralExchange,
-  verifyReceiptChain as featureVerifyReceiptChain,
-  correlateReceiptPair,
-  buildSealedDepartureManifest,
-  bilateralPanelRecord,
-} from "./manifest/bilateral-chain.mjs";
-// needs the hub's EVENT-chain helpers to seal a departure manifest (the SIGNED head anchor).
-import {
-  createReceiptChain as featureCreateEventChain,
-  appendChainEvent as featureAppendChainEvent,
-  sealReceiptChain as featureSealEventChain,
-} from "./manifest/receipt-hub.mjs";
-// needs REAL did:key parties (evaluatorId == the signing key, so the V2 signer↔identity bind passes).
-import { derivePublicKeyRaw as featureDerivePublicKeyRaw } from "./signing/ed25519.mjs";
-import { publicKeyToDidKey as featurePublicKeyToDidKey } from "./signing/did.mjs";
-import { verifyManifestProfileA as featureVerifyManifestProfileA } from "./signing/um-signature-profile-a.mjs";
-// verify the SIGNED OpenUserManifest identity fronted on
-// /wow/user (the retained UM IDENTITY spine: Ed25519 / JCS-RFC8785 / did:key). Same
-// proven verifier binding, named for the identity path; separate from the crossing-
-// manifest and.msf engine spines. No crypto is reimplemented.
 import { verifyManifestProfileA as umIdentityVerifyManifest } from "./signing/um-signature-profile-a.mjs";
-// integration — private-data family panel (write-authorization / timed unlock
-// windows / facet-key rotate-shred lifecycle; Grade-1 PREVIEW, fail-closed). Proven in verify.mjs (49/49).
-import { buildPrivateDataPanel } from "./manifest/private-data.mjs";
-// integration — CBOR-LD second-encoding format independence (EXT-OPT O1 PREVIEW):
-// the SAME manifest produced through BOTH production rules yields byte-equal receipts; signature
-// portability + COSE profile NOT claimed. Proven in verify.mjs (50/50).
-import {
-  runFormatIndependenceScenario,
-  buildFormatIndependencePanel,
-  feature_CBOR_LD_PREVIEW,
-} from "./manifest/cbor-ld.mjs";
-// integration — RP1 SOM branch-authorization + inter-service message gating
-// (R6/R7) factory-floor demo (Bucket-3 demonstration-only; NO v0.4 conformance claim). Proven in
-// verify.mjs (44/44).
-import { runFactoryFloorSomDemo, somGatingPanelRecord, feature_SOM_CONFORMANCE } from "./manifest/som-branch-auth.mjs";
-
 // Same-origin proxy paths served by src/serve.js (adds CORS, forwards to the
 // LIVE Lane 3 backends without altering payloads). Using the
 // proxy avoids cross-origin CORS blocks against Lane 3 (which is intentionally
@@ -285,16 +170,16 @@ const HOSTED_ATTACH_POINT_EVENT = "hostedattachpoint";
 // The stream itself is untouched; only how often its arrival is narrated is.
 const RUNTIME_STATE_LOG_INTERVAL_MS = 5000;
 const ENDPOINTS = worldEndpoints();
-const WORLD_LIMIT = 5.4;
+
 // The lab's own walk and run, used only until the avatar runtime gives its tuning (setAvatarLocomotionTuning) and for an
 // avatar outside the runtime. The runtime's Locomotion moves every avatar of the roster at its own clips' pace (walk
 // 1.06 to 1.15 m/s, jog 4.8 to 5.0 m/s for the four collection avatars), so the feet do not race or float.
-const MOVE_SPEED_MPS = 1.4;
-const RUN_MOVE_SPEED_MPS = 4.5;
-const RUN_MAX_CYCLE_SPEED = 1.6257644280216694;
-const RUN_MIN_CYCLE_DISTANCE_M = 0.5;
-const JUMP_SPEED_MPS = 4.25;
-const GRAVITY_MPS2 = 10.5;
+
+
+
+
+
+
 // CONTINUOUS seamless crossing — the winning Demo-A
 // controller's walk-through, grafted into the live World Navigator.
 // (no walk-to-center, no control seizure, no held pose, no shrink, no hide).
@@ -453,214 +338,8 @@ function makePlayerContextMarker() {
  * with an "action:" resource. NOTE: in this project "MSF" always means
  * Metaverse Standards Forum, never a file format. */
 
-const FABRIC_PORTAL_ATTACHMENT_SUBTYPE = 255;
-
-function fabricChildNodes(manifest) {
-  const root = manifest && manifest.data;
-  return root && Array.isArray(root.Children) ? root.Children : [];
-}
-
-function fabricNodeId(node) {
-  return node && node.Head && node.Head.Self ? String(node.Head.Self) : null;
-}
-
-function fabricNodePosition(node) {
-  const t = node && node.Transform;
-  return clonePosition(t && t.Position, [0, 0, 0]);
-}
-
-function findFabricPortalAttachmentNode(manifest) {
-  return (
-    fabricChildNodes(manifest).find(
-      (node) => node && node.Type && Number(node.Type.bSubtype) === FABRIC_PORTAL_ATTACHMENT_SUBTYPE
-    ) || null
-  );
-}
-
 /** ALL portal attachment nodes (an N-portal fabric — the
  *  lobby — carries one per portal; single-portal fabrics carry exactly one). */
-function findFabricPortalAttachmentNodes(manifest) {
-  return fabricChildNodes(manifest).filter(
-    (node) => node && node.Type && Number(node.Type.bSubtype) === FABRIC_PORTAL_ATTACHMENT_SUBTYPE
-  );
-}
-
-function findFabricActionTriggerNode(manifest) {
-  return (
-    fabricChildNodes(manifest).find(
-      (node) =>
-        node &&
-        node.Resource &&
-        typeof node.Resource.sReference === "string" &&
-        node.Resource.sReference.startsWith("action:")
-    ) || null
-  );
-}
-
-function findFabricSpawnNode(manifest) {
-  const nodes = fabricChildNodes(manifest);
-  return (
-    nodes.find((node) => node && node.Name === "Avatar Spawn") ||
-    nodes.find(
-      (node) =>
-        node && node.Transform && !node.Type && !(node.Resource && node.Resource.sReference)
-    ) ||
-    null
-  );
-}
-
-/** Map a fabric sReference onto the same-origin proxy (backend origins have no CORS). */
-// bind the active injected base to the pure resolver. A
-// root-absolute sReference (/api/a/fabric.json) resolves BENEATH the prefix
-// (/open-spatial-lab/api/a/fabric.json) in subpath mode instead of 404-ing at the
-// origin; loopback-URL rewriting and root-mode output are unchanged.
-function resolveFabricReference(ref) {
-  return resolveFabricReferenceForBase(BASE_PATH, ref, SERVER_ORIGIN);
-}
-
-/** Return the backend-advertised authored graph through the active proxy. */
-function authoredWowGraphEndpoint(wowWorld, base) {
-  const endpoint = wowWorld?.webofworlds_extension?.authored_graph?.endpoint;
-  if (typeof endpoint !== "string" || !endpoint) return null;
-  if (/^https?:\/\//i.test(endpoint)) return endpoint;
-  return `${String(base || "").replace(/\/$/, "")}/${endpoint.replace(/^\//, "")}`;
-}
-
-/* ---------------- resolve WoW endpoints from services[] ----
- * The demo must LEARN its Web of Worlds endpoints from the loaded fabric
- * manifest instead of hardcoding proxy bases + string-alias routes. Each
- * fabric advertises a `services[]` array whose entries are fabric-relative
- * endpoint templates against the URL the Navigator loaded the manifest from
- * (documented resolution rule at 041 runtime-state.js:683-687), e.g.:
- *   { name:'wow',       endpoint:'/wow/world' }
- *   { name:'wow-user',  endpoint:'/wow/user/{userId}',   default_id: 1 }
- *   { name:'wow-portal',endpoint:'/wow/portal/{portalId}',default_id: 1 }
- *   { name:'wow-view',  endpoint:'/wow/view/{viewId}',   default_id: 1 }
- * `{userId}/{portalId}/{viewId}` are INTEGERS per the WoW OpenAPI, filled from
- * `default_id` (this world's live instance of each resource). We resolve those
- * templates against the manifest base so the browser calls the spec's integer
- * routes (/wow/user/1, /wow/portal/1, /wow/view/1) that it discovered from the
- * manifest — not the pre-097 hardcoded /api/{a,b} bases + string aliases. The
- * hardcoded integer routes remain ONLY as a fallback when a service entry is
- * absent, so a manifest that omits services[] still boots.
- */
-const WOW_SERVICE_TYPE = "web-of-worlds";
-// service `name` -> logical WoW resource key + whether it carries an id param.
-const WOW_SERVICE_MAP = Object.freeze({
-  wow: { key: "world", param: null },
-  "wow-user": { key: "user", param: "{userId}" },
-  "wow-portal": { key: "portal", param: "{portalId}" },
-  "wow-view": { key: "view", param: "{viewId}" },
-});
-
-/**
- * Resolve this fabric's Web of Worlds endpoint paths from `services[]` against
- * the manifest base (the same-origin proxy base the manifest was loaded from,
- * e.g. "/api/a"). Returns { world, user, portal, view } absolute proxy paths
- * plus per-resource provenance (whether each came from services[] or fallback,
- * the raw template, and the integer id used). Fallback is the hardcoded integer
- * route so the client still boots if a manifest omits a service entry.
- */
-function resolveWowEndpoints(rootManifest, base) {
-  const services = Array.isArray(rootManifest && rootManifest.services)
-    ? rootManifest.services
-    : [];
-  // Fallbacks: the WoW spec integer routes (id 1 = this world's live instance).
-  const fallback = Object.freeze({
-    world: { path: `${base}/wow/world`, id: null },
-    user: { path: `${base}/wow/user/1`, id: 1 },
-    portal: { path: `${base}/wow/portal/1`, id: 1 },
-    view: { path: `${base}/wow/view/1`, id: 1 },
-  });
-  const resolved = {};
-  const provenance = {};
-  for (const svc of services) {
-    if (!svc || typeof svc.endpoint !== "string") continue;
-    if (svc.type && String(svc.type) !== WOW_SERVICE_TYPE) continue;
-    const mapping = WOW_SERVICE_MAP[String(svc.name)];
-    if (!mapping) continue;
-    let endpoint = svc.endpoint;
-    let id = null;
-    if (mapping.param) {
-      // Spec path params are integers; fill from default_id (this world's
-      // live instance of the resource). If missing, fall back to 1.
-      id = svc.default_id != null ? svc.default_id : 1;
-      endpoint = endpoint.replace(mapping.param, String(id));
-    }
-    // Resolve the fabric-relative endpoint against the manifest base.
-    const path = endpoint.startsWith("/") ? `${base}${endpoint}` : `${base}/${endpoint}`;
-    resolved[mapping.key] = { path, id };
-    provenance[mapping.key] = {
-      source: "services[]",
-      service_name: svc.name,
-      template: svc.endpoint,
-      default_id: svc.default_id != null ? svc.default_id : null,
-      resolved_id: id,
-      resolved_path: displayPath(path),
-    };
-  }
-  const out = {};
-  for (const key of ["world", "user", "portal", "view"]) {
-    if (resolved[key]) {
-      out[key] = resolved[key];
-    } else {
-      out[key] = { ...fallback[key] };
-      provenance[key] = {
-        source: "fallback_constant",
-        service_name: null,
-        template: null,
-        default_id: null,
-        resolved_id: fallback[key].id,
-        resolved_path: displayPath(fallback[key].path),
-      };
-    }
-  }
-  return {
-    base,
-    endpoints: out,
-    provenance,
-    services_present: services.length > 0,
-    resolved_from_services: Object.values(provenance).some((p) => p.source === "services[]"),
-    resolution_rule:
-      "fabric services[] endpoint templates resolved against the manifest base; " +
-      "{userId}/{portalId}/{viewId} filled from default_id (WoW integer spec routes)",
-  };
-}
-
-function yawFromQuaternionY(q) {
-  if (!Array.isArray(q) || q.length < 4) return 0;
-  const y = Number(q[1]) || 0;
-  const w = Number(q[3]) || 0;
-  return roundNumber(2 * Math.atan2(y, w), 6);
-}
-
-function fabricSummary(url, manifest) {
-  const nodes = fabricChildNodes(manifest);
-  const trust = manifest && manifest.trust ? manifest.trust : {};
-  const camera = manifest && manifest.primary && manifest.primary.camera ? manifest.primary.camera : null;
-  return {
-    url: url || null,
-    container: manifest && manifest.container ? manifest.container : null,
-    format: trust.format || "plain-json",
-    signed: trust.signed === true,
-    trust_note: trust.note || "unsigned local demonstration fabric (claim boundary)",
-    node_count: nodes.length,
-    node_names: nodes.map((node) => node && node.Name).filter(Boolean),
-    services: Array.isArray(manifest && manifest.services)
-      ? manifest.services.map((svc) => ({ name: svc.name, type: svc.type, endpoint: svc.endpoint }))
-      : [],
-    primary_camera: camera
-      ? {
-          position: roundVec3(camera.position, 4),
-          rotation: Array.isArray(camera.rotation) ? camera.rotation.slice(0, 4) : [0, 0, 0, 1],
-          yaw_radians: yawFromQuaternionY(camera.rotation),
-        }
-      : null,
-    background: manifest && manifest.primary ? manifest.primary.background || null : null,
-    status: "loaded",
-    loaded_at: new Date().toISOString(),
-  };
-}
 
 function distance2d(a, b) {
   const dx = (a[0] || 0) - (b[0] || 0);
@@ -746,21 +425,9 @@ function transformSnapshot(avatar) {
 // no geodetic anchor); full GeoPose conformance beyond the Basic-SDU schema STAYS
 // false. See the SCOPE block in web/geopose-basic-sdu.mjs and GEOPOSE_CONFORMANCE.
 
-function directionFromInput(forward, strafe) {
-  if (forward > 0 && strafe === 0) return "away_from_camera";
-  if (forward < 0 && strafe === 0) return "toward_camera";
-  if (forward === 0 && strafe > 0) return "right";
-  if (forward === 0 && strafe < 0) return "left";
-  if (forward || strafe) return "diagonal";
-  return "none";
-}
 
-function facingSemanticsFromDelta(dx, dz) {
-  if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return "still";
-  if (dz > 1e-4) return "front_faces_camera";
-  if (dz < -1e-4) return "back_faces_camera";
-  return dx > 0 ? "front_faces_avatar_right" : "front_faces_avatar_left";
-}
+
+
 
 // verify the SIGNED OpenUserManifest identity carried on the
 // /wow/user response (`open_user_manifest`). The retained UM IDENTITY spine: a REAL
@@ -821,520 +488,6 @@ async function verifyUmIdentity(wowUser) {
       reason: `verify-threw:${(e && e.message) || "error"}`,
       status_label: "unverified (verifier error) — degraded honestly",
     };
-  }
-}
-
-// sign-on-exit / verify-on-arrival helpers for the live crossing.
-//
-// The signed v0.4 UM manifest rides in the handoff packet at
-// `packet.avatar_context.um_manifest_v04`. It is built from the SAME crossing state the
-// packet already carries (continuity/handoff ids, source/target location ids, the avatar
-// equipment, the destination URL as a loading pointer). Signature Profile A + a did:key
-// subject binding come from the emitter. This is EMISSION+SIGNING
-// only — it flips no conformance flag.
-
-/** Build the emitter's crossing-state object from a live handoff packet. */
-function featureCrossingStateFromPacket(packet, world) {
-  const ctx = (packet && packet.avatar_context) || {};
-  const continuityId =
-    (world && world.avatar && world.avatar.continuity_id) ||
-    (packet && packet.source && packet.source.continuity_id) ||
-    "avatar-local-001";
-  const handoffId = (packet && packet.handoff_id) || null;
-  const sourceLocationId =
-    (packet && packet.source && packet.source.location_id) ||
-    (ctx.source_location_id) ||
-    (world && world.location_id) ||
-    null;
-  const targetLocationId =
-    (packet && packet.target && packet.target.location_id) || ctx.target_location_id || null;
-  const equippedItems = Array.isArray(ctx.equippedItems) ? ctx.equippedItems : [];
-  const state = {
-    continuityId,
-    handoffId,
-    sourceLocationId,
-    targetLocationId,
-    avatar: umMakeAvatarDefinition({
-      avatarId: (world && world.avatar && world.avatar.avatar_id) || continuityId || "avatar",
-      variant: ctx.avatar_variant || DEFAULT_AVATAR_VARIANT,
-      displayName: (world && world.avatar && world.avatar.display_name) || null,
-      equipmentProfile: ctx.equipment_profile || null,
-      equippedItems,
-      poseRef: "avatar_context.geopose_shaped_pose",
-    }),
-  };
-  // Destination loading pointer, if the crossing negotiated a target base/URL.
-  const destUrl =
-    (packet && packet.target && (packet.target.base_url || packet.target.destination_url)) || null;
-  if (destUrl) {
-    state.loading = umMakeLoadingPointer({
-      target: destUrl,
-      pointerId: `loading-${handoffId || continuityId || "crossing"}`,
-      label: "destination loading target",
-    });
-  }
-  return state;
-}
-
-/**
- * SIGN ON EXIT (source). Build + sign a v0.4 UM manifest from the crossing packet and
- * attach it to `packet.avatar_context.um_manifest_v04`, so it crosses the wire through the
- * existing exit-intent -> arrival handoff. Returns a small provenance record (also stored on
- * the packet). Best-effort: a signing failure records an error but never blocks the crossing.
- */
-async function featureSignManifestOntoPacket(packet, world, transport) {
-  if (!packet || typeof packet !== "object") return null;
-  try {
-    const state = featureCrossingStateFromPacket(packet, world);
-    const { manifest, signed, didKey } = await umBuildAndSignManifest(state, { bindDidSubject: true });
-    if (!signed || !manifest || !manifest.signature || !manifest.signature.value) {
-      return { signed: false, error: "emitter did not return a signed manifest" };
-    }
-    packet.avatar_context = packet.avatar_context || {};
-    packet.avatar_context.um_manifest_v04 = manifest;
-    // integration — attach the crossing's trust-tier panel (negotiated
-    // bilateral floor Base §6.4.6 + a deliberate Tier-2 sample recording trustTierUnsupported
-    // on our Tier-1 evaluator §6.4.5). remoteRequiredTrustTier is 0 until bilateral
-    // session supplies the real remote floor. Best-effort: never blocks the signed crossing.
-    try {
-      packet.avatar_context.um_trust_tier_v04 = buildTierDemoSurface({
-        localRequiredTrustTier: manifest.requiredTrustTier ?? 0,
-        remoteRequiredTrustTier: 0,
-        maxSupportedTrustTier: DEFAULT_MAX_SUPPORTED_TRUST_TIER,
-      });
-    } catch (tierErr) {
-      packet.avatar_context.um_trust_tier_v04 = { error: (tierErr && tierErr.message) || "tier-surface-threw" };
-    }
-    // integration — holder-binding / presentation-proof demo surface. The
-    // destination issues an interactive verifier challenge (EXT-T1 §T1.2) and the just-signed
-    // crossing manifest is evaluated through Stage-2 evaluator (offline/cached-display
-    // posture: no presentationProof attached here because the interactive attach binds the
-    // signing key this path does not expose — that path is proven in verify.mjs, 34/34).
-    try {
-      const featureChallenge = featureIssueVerifierChallenge({
-        audience: `did:web:${(packet.target && packet.target.location_id) || "destination"}`,
-      });
-      const featureEval = await featureEvaluateHolderBinding(manifest, {
-        now: new Date().toISOString(),
-        maxSupportedTrustTier: DEFAULT_MAX_SUPPORTED_TRUST_TIER,
-      });
-      packet.avatar_context.um_holder_binding_v04 = {
-        challenge_issued: featureChallenge.verifierChallenge,
-        challenge_audience: featureChallenge.verifierAudience,
-        offline_evaluation: {
-          outcome: featureEval.receipt.outcome,
-          signature_check: featureEval.receipt.signatureCheck,
-          freshness_check: featureEval.receipt.freshnessCheck,
-          key_ref_resolution: featureEval.receipt.keyRefResolution,
-          presentation_proof_status: featureEval.receipt.presentationProofStatus || "not-challenged-offline",
-          holder_binding_status: featureEval.receipt.holderBindingStatus || "absent",
-        },
-        um_conformance_claimed: false,
-        note: "runtime holder-binding/presentation-validation evaluator surface (offline posture; interactive did-auth attach + replay-reject proven in runtime-verify.mjs). NOT full evaluator conformance.",
-      };
-    } catch (hbErr) {
-      packet.avatar_context.um_holder_binding_v04 = { error: (hbErr && hbErr.message) || "holder-binding-surface-threw" };
-    }
-    // integration — P6 sealed-facet receipt surface. Two REAL
-    // JWE-sealed facets (government ID + full birth date; ECDH-ES+A256KW / A256GCM,
-    // distinct kid + iv per facet) evaluated WITHOUT keys on the destination side:
-    // receipt rows read "sealed entry / opaque" and the outcome is accepted-partial
-    // (Base 3.1.4 — never rejected solely for undecryptability). Best-effort: never
-    // blocks the signed crossing.
-    try {
-      packet.avatar_context.um_sealed_facets_v04 = await featureDemoSealedFacetSurface();
-    } catch (sealErr) {
-      packet.avatar_context.um_sealed_facets_v04 = { error: (sealErr && sealErr.message) || "sealed-facet-surface-threw" };
-    }
-    // integration — P4 agent-delegation inspect panel. Emit a live
-    // delegation from the crossing subject to the scene ai_agent (registered O7 scopes ONLY;
-    // delegatedBy = subject), sign a self-contained demo manifest with a fresh key (the
-    // crossing manifest is NOT mutated/re-signed — this panel travels BESIDE it, exactly like
-    // the surfaces), then build the inspect-panel + expired-toggle view-model.
-    // Authoritative gate: verify.mjs (19/19). Best-effort: never blocks the crossing.
-    try {
-      const featureSubject = manifest.subject || didKey || "did:web:demo.local:user:runtime";
-      const featureNowIso = new Date().toISOString();
-      const featureDelegation = emitAgentDelegationPointer({
-        delegatedBy: featureSubject,
-        delegateId: "did:key:z6MkWorldNavigatorAiAgent",
-        delegateType: "ai-agent",
-        scope: ["spatial.session", "social.messaging", "identity.attestation"],
-        delegatedAt: featureNowIso,
-        expiresAt: "2030-06-01T00:00:00.000Z",
-      });
-      const featureKeys = await featureGenerateKeyPair();
-      const featureDemoManifest = await featureAttachSignatureProfileA(
-        {
-          "@context": "https://universalmanifest.net/ns/v0.4",
-          "@id": "urn:uuid:runtime-demo-delegation",
-          "@type": "um:Manifest",
-          manifestVersion: "0.4",
-          subject: featureSubject,
-          issuedAt: featureNowIso,
-          expiresAt: "2030-06-01T00:00:00.000Z",
-          pointers: [featureDelegation],
-        },
-        featureKeys.seed,
-      );
-      packet.avatar_context.um_agent_delegation_v04 = await buildDelegationDemoSurface({
-        manifest: featureDemoManifest,
-        now: featureNowIso,
-        ai_agentLabel: "ai_agent",
-      });
-    } catch (delErr) {
-      packet.avatar_context.um_agent_delegation_v04 = { error: (delErr && delErr.message) || "agent-delegation-surface-threw" };
-    }
-    // integration — canonical um:Receipt hub surface. Compose the crossing
-    // evaluation into a canonical um:Receipt
-    // through the hub lifecycle (createReceipt -> mergeFragment -> finalizeReceipt, which
-    // fail-closed validates the MUST §2.5/§2.6 shape), then surface it as a live "RECEIPT" row on
-    // the WoW API bus (receiptPanelRecord) and beside the crossing in avatar_context. The hub owns
-    // no engine; it composes fragments. NO conformance flag flipped. Best-effort:
-    // never blocks the signed crossing. Full 72-fixture matrix run is (out of scope here).
-    try {
-      const featureEval = await featureEvaluateHolderBinding(manifest, {
-        now: new Date().toISOString(),
-        maxSupportedTrustTier: DEFAULT_MAX_SUPPORTED_TRUST_TIER,
-      });
-      const featureReceipt = featureCreateReceipt({ manifestId: manifest["@id"] || undefined });
-      featureMergeFragment(featureReceipt, featureEval.receipt);
-      featureFinalizeReceipt(featureReceipt, { now: new Date().toISOString() });
-      const featurePanel = featureReceiptPanelRecord(featureReceipt, { label: "portal crossing" });
-      packet.avatar_context.um_receipt_v04 = {
-        receipt: featureReceipt,
-        panel: featurePanel,
-        um_conformance_claimed: false,
-        note: "canonical um:Receipt composed from the runtime crossing evaluation via the runtime hub (createReceipt/mergeFragment/finalizeReceipt). NOT a full evaluator-conformance claim; full matrix is runtime.",
-      };
-      transport.emitSyntheticApiRequest({
-        method: "RECEIPT",
-        url: featureReceipt.manifestId,
-        path: featureReceipt.manifestId,
-        status: featureReceipt.outcome === "rejected" ? 403 : 200,
-        ok: featureReceipt.outcome !== "rejected",
-        ms: 0,
-        schema: `um:Receipt · ${featureReceipt.outcome}`,
-        ...featurePanel,
-      });
-    } catch (rcptErr) {
-      packet.avatar_context.um_receipt_v04 = { error: (rcptErr && rcptErr.message) || "receipt-surface-threw" };
-    }
-    // integration — P4/P5 entity-type attestation + proof-of-personhood demo
-    // surface: human/ai_agent/npc issuer-signed VCs verified for real, an unbound row VISIBLY
-    // capped at Tier 0, a signed-VC age proof (FORWARD ZK boundary), and the ai_agent
-    // personhood negative control. Self-contained (its own demo manifests + keys); travels beside
-    // the crossing manifest without mutating it. Authoritative gate: verify.mjs (29/29).
-    // Best-effort: never blocks the crossing.
-    try {
-      packet.avatar_context.um_entity_personhood_v04 = await buildEntityPersonhoodDemoSurface({
-        maxSupportedTrustTier: DEFAULT_MAX_SUPPORTED_TRUST_TIER,
-      });
-    } catch (entErr) {
-      packet.avatar_context.um_entity_personhood_v04 = { error: (entErr && entErr.message) || "entity-personhood-surface-threw" };
-    }
-    // integration — statusRef revocation-resolution demo surface (R9). Stand up
-    // a demo-local status authority (labeled; NOT a live external service), register the crossing
-    // manifest as active, then drive the honest journey: baseline active => accept, holder revokes
-    // mid-session => DENY (revoked), non-resolving mode => "unchecked" (§2.18). The shared crossing
-    // manifest is NOT mutated (the journey surface needs no signature embedding). Authoritative
-    // gate: verify.mjs (38/38). Best-effort: never blocks the crossing.
-    try {
-      const featureAuthority = featureMakeDemoStatusAuthority();
-      const featureManifestId = manifest["@id"] || "urn:uuid:runtime-demo-crossing";
-      featureAuthority.register(featureManifestId, { status: "active" });
-      packet.avatar_context.um_statusref_v04 = featureBuildStatusRefDemoSurface({
-        manifestId: featureManifestId,
-        statusRef: featureAuthority.statusRefFor(featureManifestId),
-        authority: featureAuthority,
-        policy: "active-required",
-      });
-    } catch (srErr) {
-      packet.avatar_context.um_statusref_v04 = { error: (srErr && srErr.message) || "statusref-surface-threw" };
-    }
-    // integration — liveness/assurance locked-facet demo surface. Build +
-    // evaluate the fixture-derived locked facet with FRESH keys (REAL Ed25519 manifest + demo
-    // attestation; the presented assurance class is a SIMULATED toggle, labeled). LOCKED pass:
-    // presented "software" (fail-closed default) ⇒ the facet is visibly WITHHELD
-    // (assuranceInsufficient, outcome rejected) — the fail-closed floor beside the crossing.
-    // Authoritative gate: verify.mjs (41/41). Best-effort: never blocks the crossing.
-    try {
-      const featureDemo = await demoLockedFacetScenario({ demoUnlock: false });
-      packet.avatar_context.um_liveness_assurance_v04 = featureDemo;
-      transport.emitSyntheticApiRequest({
-        method: "RECEIPT",
-        url: featureDemo.lockedReceipt.manifestId,
-        path: featureDemo.lockedReceipt.manifestId,
-        status: featureDemo.lockedReceipt.outcome === "rejected" ? 403 : 200,
-        ok: featureDemo.lockedReceipt.outcome !== "rejected",
-        ms: 0,
-        schema: `um:Receipt · ${featureDemo.lockedReceipt.outcome} · liveness/assurance floor (PREVIEW)`,
-        ...featureDemo.lockedPanelRow,
-      });
-    } catch (livErr) {
-      packet.avatar_context.um_liveness_assurance_v04 = { error: (livErr && livErr.message) || "liveness-assurance-surface-threw" };
-    }
-    // integration — higher-tier proof-shapes inspector (EXT-T2 ZKP binding /
-    // EXT-T3 threshold ceremony). Structural shape validation ONLY; on our Tier-1 evaluator every
-    // disposition fails closed (trustTierUnsupported) and NOTHING is reported verified — the label
-    // "no zero-knowledge verification performed or claimed" ships verbatim on every row.
-    // Authoritative gate: verify.mjs (26/26). Best-effort: never blocks the crossing.
-    try {
-      packet.avatar_context.um_higher_tier_proofs_v04 = buildProofShapesDemoSurface({
-        maxSupportedTrustTier: DEFAULT_MAX_SUPPORTED_TRUST_TIER,
-      });
-    } catch (zkpErr) {
-      packet.avatar_context.um_higher_tier_proofs_v04 = { error: (zkpErr && zkpErr.message) || "higher-tier-validation-surface-threw" };
-    }
-    // integration — bilateral session + paired-receipt correlation + THE receipt
-    // hash-chain (EXT-OPT O3/O4 PREVIEW). Two REAL did:key parties (visitor initiator / world
-    // responder) each independently evaluate the other's freshly-signed manifest through the hub;
-    // receipts are paired (one exchangeId, distinct evaluatorIds) and appended to ONE Profile-A-
-    // signed hash chain (chainId = sessionId). The chain is then sealed into a signed departure
-    // manifest, and the live chain-verify pins expectHead to that SIGNED departure-facet seal
-    // (entity.seq/entity.prevHash, protected by entity.sealSignature) — NOT the raw mutable
-    // chain.headSeq/headHash — so the V1 tail-truncation protection is LIVE on the demo path
-    // (FIX-). Authoritative gate: verify.mjs (59/59) + attack harness exit 0.
-    // Self-contained; travels beside the crossing. Best-effort: never blocks the crossing.
-    try {
-      const featureNow = new Date().toISOString();
-      const featureMakeParty = async (tier) => {
-        const kp = await featureGenerateKeyPair();
-        const partyDid = featurePublicKeyToDidKey(await featureDerivePublicKeyRaw(kp.privateKey));
-        const partyManifest = await featureAttachSignatureProfileA(
-          {
-            "@context": "https://universalmanifest.net/ns/v0.4",
-            "@id": `urn:uuid:${globalThis.crypto.randomUUID()}`,
-            "@type": "um:Manifest",
-            manifestVersion: "0.4",
-            subject: partyDid,
-            issuedAt: featureNow,
-            expiresAt: new Date(Date.parse(featureNow) + 3600_000).toISOString(),
-            ...(tier !== undefined ? { requiredTrustTier: tier } : {}),
-          },
-          kp.privateKey
-        );
-        return { did: partyDid, manifest: partyManifest, privateKeyInput: kp.privateKey };
-      };
-      // REAL counterparty evaluation: Ed25519 verify + freshness composed through the hub.
-      // declaredEffectiveTier is a labeled DRIVER INPUT standing in's verified tier
-      // (this surface enforces the floor; it does not itself verify tiers).
-      const featureEvaluator = (declaredEffectiveTier) => async (counterpartyManifest, { now }) => {
-        const r = featureCreateReceipt({ manifestId: counterpartyManifest["@id"] });
-        const sig = await featureVerifyManifestProfileA(counterpartyManifest);
-        r.signatureCheck = sig.ok
-          ? "valid"
-          : sig.reason === "unsupported-profile"
-            ? "unsupported-profile"
-            : sig.reason === "missing-signature"
-              ? "missing"
-              : "invalid";
-        const nowMs = Date.parse(now);
-        r.freshnessCheck =
-          Date.parse(counterpartyManifest.issuedAt) > nowMs
-            ? "stale"
-            : Date.parse(counterpartyManifest.expiresAt) < nowMs
-              ? "expired"
-              : "fresh";
-        if (Number.isInteger(declaredEffectiveTier)) featureMergeFragment(r, { effectiveTrustTier: declaredEffectiveTier });
-        return featureFinalizeReceipt(r, { rejected: !sig.ok || r.freshnessCheck !== "fresh", now });
-      };
-      const featureVisitor = await featureMakeParty(undefined); // visitor: no floor of its own
-      const featureWorld = await featureMakeParty(1); // world demands Tier 1
-      const featureCrossing = await conductBilateralExchange({
-        initiator: { ...featureVisitor, evaluateCounterparty: featureEvaluator(1) },
-        responder: { ...featureWorld, evaluateCounterparty: featureEvaluator(1) },
-        now: featureNow,
-        ttlSeconds: 3600,
-      });
-      // Seal a departure manifest so the head anchor is SIGNED (R11): build + seal a event
-      // chain, then fill the reserved facet seal fields against the receipt hash chain.
-      const featureEventChain = featureCreateEventChain({ subject: featureVisitor.did });
-      featureAppendChainEvent(featureEventChain, { eventClass: "session-admitted", subject: featureVisitor.did, reason: "bilateral-authorisation-completed" });
-      featureAppendChainEvent(featureEventChain, { eventClass: "cross-fabric-portal-cleared", subject: featureVisitor.did, reason: "portal-crossing-cleared" });
-      featureAppendChainEvent(featureEventChain, { eventClass: "departure", subject: featureVisitor.did, reason: "session-completed" });
-      featureSealEventChain(featureEventChain, { at: featureNow });
-      const featureDeparture = await buildSealedDepartureManifest({
-        eventChain: featureEventChain,
-        hashChain: featureCrossing.chain,
-        subject: featureVisitor.did,
-        issuedAt: featureNow,
-        privateKeyInput: featureVisitor.privateKeyInput,
-      });
-      const featureSealedEntity = featureDeparture.facets[0].entity;
-      // THE FIX: pin the verified head to the SIGNED departure-facet seal anchor —
-      // NOT the raw, attacker-mutable chain.headSeq/headHash.
-      const featureChainReport = await featureVerifyReceiptChain(featureCrossing.chain, {
-        expectChainId: featureCrossing.session.sessionId,
-        expectHead: { headSeq: featureSealedEntity.seq, headHash: featureSealedEntity.prevHash },
-      });
-      const featurePair = correlateReceiptPair(
-        [featureCrossing.receipts.byInitiator, featureCrossing.receipts.byResponder],
-        featureCrossing.exchangeId
-      );
-      const featurePanel = bilateralPanelRecord(featureCrossing.session, {
-        floor: featureCrossing.floor,
-        admission: featureCrossing.admission,
-        chainReport: featureChainReport,
-      });
-      packet.avatar_context.um_bilateral_session_v04 = {
-        panel: featurePanel,
-        admitted: featureCrossing.admitted,
-        exchangeId: featureCrossing.exchangeId,
-        chain_verified: featureChainReport.valid,
-        head_anchor: "SIGNED departure-facet seal (expectHead) — V1 tail-truncation protection live",
-        correlated_pair_found: featurePair.ok && featurePair.found === 2,
-        departure_manifest_id: featureDeparture["@id"] || null,
-        um_conformance_claimed: false,
-        note: "runtime bilateral crossing: paired receipts + Profile-A-signed hash chain (chainId = sessionId), head pinned to the SIGNED departure-facet seal. EXT-OPT O3/O4 PREVIEW; Base §4 fields not preview. Authoritative gate runtime-verify.mjs.",
-      };
-      transport.emitSyntheticApiRequest({
-        method: "BILATERAL",
-        url: featureCrossing.session.sessionId,
-        path: featureCrossing.exchangeId,
-        status: featureCrossing.admitted ? 200 : 403,
-        ok: featureCrossing.admitted,
-        ms: 0,
-        schema: `um:BilateralSession · ${featureCrossing.session.state} · chain ${featureChainReport.valid ? "verified" : "BROKEN"}`,
-        ...featurePanel,
-      });
-    } catch (bilErr) {
-      packet.avatar_context.um_bilateral_session_v04 = { error: (bilErr && bilErr.message) || "bilateral-session-surface-threw" };
-    }
-    // integration — private-data family panel (write-authorization / timed unlock
-    // windows / facet-key rotate-shred lifecycle; Grade-1 PREVIEW, fail-closed). A denied write (no
-    // governing consent) is refused; a granted write records 'written'; a timed unlock window opens
-    // then re-seals after expiry; key-lifecycle events carry facetKeyRef only (no key material).
-    // The panel builder pins its own demo dates (open→expired window), so `now` is left DEFAULT to
-    // preserve the verified behavior. Authoritative gate: verify.mjs (49/49). Never blocks.
-    try {
-      const featurePanel = buildPrivateDataPanel();
-      packet.avatar_context.um_private_data_v04 = featurePanel;
-      for (const row of featurePanel.rows) {
-        transport.emitSyntheticApiRequest({
-          method: "PRIVATE-DATA",
-          url: row.facet || row.facetKeyRef || featurePanel.label,
-          path: row.kind,
-          status: row.decision === "reject" ? 403 : 200,
-          ok: row.decision !== "reject",
-          ms: 0,
-          schema: `um:PrivateData · ${row.code || row.kind} (PREVIEW)`,
-        });
-      }
-    } catch (pdErr) {
-      packet.avatar_context.um_private_data_v04 = { error: (pdErr && pdErr.message) || "private-data-surface-threw" };
-    }
-    // integration — CBOR-LD second-encoding format independence (EXT-OPT O1
-    // PREVIEW). The SAME abstract v0.4 manifest is produced through BOTH production rules (JSON-LD
-    // reference + CBOR-LD), each signed under ITS OWN rule with the same key, evaluated back — and
-    // the two receipts are BYTE-EQUAL (JCS). Signature portability + COSE profile NOT claimed.
-    // Authoritative gate: verify.mjs (50/50). Best-effort: never blocks the crossing.
-    try {
-      const featureNow = new Date().toISOString();
-      const featureKeys = await featureGenerateKeyPair();
-      const featureUnsigned = {
-        "@context": "https://universalmanifest.net/ns/v0.4",
-        "@id": `urn:uuid:${globalThis.crypto.randomUUID()}`,
-        "@type": "um:Manifest",
-        manifestVersion: "0.4",
-        subject: manifest.subject || didKey || "did:web:demo.local:user:runtime",
-        issuedAt: featureNow,
-        expiresAt: new Date(Date.parse(featureNow) + 3600_000).toISOString(),
-      };
-      const featureScenario = await runFormatIndependenceScenario({
-        name: "portal-crossing (format independence)",
-        unsignedManifest: featureUnsigned,
-        evaluationContext: { now: featureNow, intendedScope: ["read"] },
-        privateKeyInput: featureKeys.privateKey,
-      });
-      packet.avatar_context.um_format_independence_v04 = buildFormatIndependencePanel(featureScenario);
-    } catch (fmtErr) {
-      packet.avatar_context.um_format_independence_v04 = { error: (fmtErr && fmtErr.message) || "format-independence-surface-threw" };
-    }
-    // integration — RP1 SOM branch-authorization + inter-service message gating
-    // (R6/R7) factory-floor demo. Cross-branch writes are DENIED (glob-scope enforcement); the
-    // browser-mediated channel passes ONLY the manifest-named (source, targetCategory, messageType)
-    // triple (hazard-reroute crosses; ad-push refused undelivered); every decision rides
-    // event chain and lands on REUSED hash chain (verified by recomputation). Bucket-3
-    // DEMONSTRATION-ONLY — FORWARD registered-profile candidate; NO v0.4 conformance claim.
-    // Authoritative gate: verify.mjs (44/44). Best-effort: never blocks the crossing.
-    try {
-      const featureKeys = await featureGenerateKeyPair();
-      const featureDemo = await runFactoryFloorSomDemo({ privateKeyInput: featureKeys.privateKey, now: new Date().toISOString() });
-      const featurePanel = somGatingPanelRecord(featureDemo.session, { chainReport: featureDemo.sealed && featureDemo.sealed.chainReport });
-      packet.avatar_context.um_rp1_som_gating_v04 = {
-        panel: featurePanel,
-        bucket: feature_SOM_CONFORMANCE.bucket,
-        cross_branch_write_blocked: featureDemo?.writes?.crossBranchBlocked?.allowed === false,
-        hazard_reroute_delivered: featureDemo?.messages?.hazardReroute?.delivered === true,
-        ad_push_refused: featureDemo?.messages?.adPushRefused?.allowed === false,
-        chain_verified: !!(featureDemo.sealed && featureDemo.sealed.chainReport && featureDemo.sealed.chainReport.valid),
-        um_conformance_claimed: false,
-        claim_label: feature_SOM_CONFORMANCE.claim_label,
-      };
-      transport.emitSyntheticApiRequest({
-        method: "RP1-SOM",
-        url: (featureDemo.session && featureDemo.session.hashChain && featureDemo.session.hashChain.chainId) || "R6+R7",
-        path: "R6+R7",
-        status: featureDemo?.writes?.crossBranchBlocked?.allowed === false && featureDemo?.messages?.hazardReroute?.delivered === true ? 200 : 500,
-        ok: !!(featureDemo.sealed && featureDemo.sealed.chainReport && featureDemo.sealed.chainReport.valid) &&
-          featureDemo?.writes?.crossBranchBlocked?.allowed === false &&
-          featureDemo?.messages?.adPushRefused?.allowed === false,
-        ms: 0,
-        schema: `rp1:SOMBranchAuthorization+rp1:InterServiceAuthorization · ${feature_SOM_CONFORMANCE.bucket}`,
-        ...featurePanel,
-      });
-    } catch (somErr) {
-      packet.avatar_context.um_rp1_som_gating_v04 = { error: (somErr && somErr.message) || "rp1-som-gating-surface-threw" };
-    }
-    return {
-      signed: true,
-      standard: "Universal Manifest v0.4",
-      signature_profile: "A (Ed25519 + JCS-RFC8785)",
-      did_subject: didKey || manifest.subject || null,
-      key_ref: manifest.signature.keyRef || null,
-      manifest_id: manifest["@id"] || null,
-      // Signing != conformance — say so on the exit record too.
-      um_conformance_claimed: false,
-      note: "signed on exit; verified on arrival. Schema-valid v0.4 + Signature Profile A; NOT evaluator-conformant.",
-    };
-  } catch (e) {
-    return { signed: false, error: (e && e.message) || "sign-on-exit threw" };
-  }
-}
-
-/**
- * VERIFY ON ARRIVAL (target). If the arrived packet carries a signed manifest, verify it via
- * the Profile A verifier ladder and return an HONEST result record (verified true/
- * false + reason + which checks ran + the did:key subject). A failure is NOT swallowed — the
- * caller stores this in adapter state so debugState()/the UI can surface it.
- */
-async function featureVerifyManifestFromPacket(packet) {
-  const manifest =
-    packet && packet.avatar_context && packet.avatar_context.um_manifest_v04
-      ? packet.avatar_context.um_manifest_v04
-      : null;
-  if (!manifest) {
-    return { present: false, verified: null, reason: "no-signed-manifest-in-packet" };
-  }
-  try {
-    const report = await umVerifyManifestSignatureDetailed(manifest);
-    return {
-      present: true,
-      verified: report.ok === true,
-      reason: report.reason,
-      checks: report.checks || {},
-      did_subject: manifest.subject || null,
-      key_ref: manifest.signature && manifest.signature.keyRef ? manifest.signature.keyRef : null,
-      manifest_id: manifest["@id"] || null,
-      handoff_id: (packet && packet.handoff_id) || null,
-      standard: "Universal Manifest v0.4 · Signature Profile A",
-      // Verifying the signature is NOT an evaluator-conformance claim.
-      um_conformance_claimed: false,
-      verified_at: new Date().toISOString(),
-    };
-  } catch (e) {
-    return { present: true, verified: false, reason: `verify-threw:${(e && e.message) || "error"}` };
   }
 }
 
@@ -1420,67 +573,7 @@ export class LiveAdapter extends EventTarget {
       // (keyed by fabricPortalKey; null on single-portal worlds).
       portal_previews: null,
       _provenance: PROVENANCE.LIVE,
-      controls: {
-        enabled: this._startsEmbodied,
-        moving: false,
-        movement_mode: "idle",
-        run_mode: false,
-        speed_mps: 0,
-        grounded: true,
-        jump_height_m: 0,
-        portal_distance_m: null,
-        portal_center: null,
-        portal_radius_m: null,
-        portal_frame: null,
-        portal_target_frame: null,
-        portal_frame_id: null,
-        portal_frame_position: null,
-        portal_frame_forward: null,
-        portal_frame_up: null,
-        portal_frame_right: null,
-        portal_frame_width_m: null,
-        portal_frame_height_m: null,
-        portal_trigger_depth_m: null,
-        portal_linked_target_portal_id: null,
-        portal_local_coordinates: null,
-        portal_signed_plane_distance_m: null,
-        portal_plane_distance_abs_m: null,
-        portal_inside_oval_aperture: false,
-        inside_oval_aperture: false,
-        inside_trigger_volume: false,
-        portal_crossing_direction: "unknown",
-        portal_last_crossing_direction: null,
-        portal_entry_crossing_direction: null,
-        // traversal-direction rule + evidence surface.
-        portal_traversal_mode: null,
-        portal_allowed_entry_side: null,
-        portal_blocked_entry_side: null,
-        portal_current_entry_side: null,
-        portal_entry_side_allowed: true,
-        portal_traversal_rejected_count: 0,
-        portal_last_traversal_rejection: null,
-        portal_frame_mapping: null,
-        mapped_exit_transform: null,
-        mapped_exit_yaw: null,
-        portal_target_location_id: null,
-        portal_target_world_id: null,
-        portal_trigger_rearmed: this._startsEmbodied,
-        portal_rearm_required: false,
-        portal_exited_since_arrival: this._startsEmbodied,
-        portal_handoff_source_ready: false,
-        portal_handoff_target_ready: false,
-        portal_handshake_ready: false,
-        return_handshake_ready: false,
-        portal_ready_blocker: "init",
-        inside_portal_trigger: false,
-        auto_handoff_ready: false,
-        movement_direction: "none",
-        last_planar_delta: [0, 0, 0],
-        facing_semantics: "still",
-        portal_transition_phase: "none",
-        portal_transition_elapsed_s: 0,
-        portal_transition_phase_history: [],
-      },
+      controls: initialSessionControls(this._startsEmbodied, "init"),
       last_handoff_direction: null,
       last_handoff_payload: null,
       last_pose_payload: null,
@@ -1550,194 +643,65 @@ export class LiveAdapter extends EventTarget {
     // prefetch machines, scheduling, cache, occupancy, proof/promotion state,
     // and paced completion. LiveAdapter keeps only cross-domain callbacks and
     // compatibility views; the controller has no traversal authority.
-    this._fabricPrefetchController = createFabricPrefetchController({
+    this._fabricPrefetchController = bindFabricPrefetch({
       getJson: (url) => this._transport.getJson(url),
-      nowMs: () => Date.now(),
-      nowIso: () => new Date().toISOString(),
-      setIntervalFn: (fn, ms) => setInterval(fn, ms),
-      clearIntervalFn: (id) => clearInterval(id),
-      setTimeoutFn: (fn, ms) => setTimeout(fn, ms),
       resolveProxyBase: (address) => this._fabricProxyBaseForAddress(address),
-      portalKey: fabricPortalKey,
-      normalizeTraversal: normalizePortalTraversal,
-      portalEntrySideAllowed,
-      adoptDestinationPortalPose: (machine, portalPose) =>
-        this._adoptDestinationPortalPoseForMachine(machine, portalPose),
-      onTargetSetChanged: () => {
-        if (this._runtimeStreams) this._syncPresenceEventStreams();
-      },
-      emitState: () => this._emit(),
-      log: (message) => this._log(message),
-      readCacheCapFixture: () => {
-        if (typeof window === "undefined" || !window.location || !window.location.search) return null;
-        return new URLSearchParams(window.location.search).get("fabric_cache_cap_bytes");
-      },
-      getActiveBase: () => this.base,
-      getAvatarPose: () => (this.state ? this.state.avatar : null),
-      // No read of a destination before a visitor nears its portal.
-      destinationOccupancy: false,
+      adoptDestinationPortalPose: (machine, pose) => this._adoptDestinationPortalPoseForMachine(machine, pose),
+      onTargetSetChanged: () => { if (this._runtimeStreams) this._syncPresenceEventStreams(); },
+      emitState: () => this._emit(), log: (message) => this._log(message),
+      getActiveBase: () => this.base, getAvatarPose: () => this.state ? this.state.avatar : null,
     });
-    const fabricCompatibilityViews = {
-      _fabricPrefetchMachines: "machines",
-      _fabricPrefetchScheduler: "scheduler",
-      _fabricCompletion: "completion",
-      _lastPromotedFabricPrefetch: "lastPromoted",
-      _lobbyDestinationOccupancy: "lobbyOccupancy",
-      _fabricPresenceTimer: "presenceTimer",
-      _lobbyDestinationOccupancyTimer: "lobbyOccupancyTimer",
-      _fabricCacheCap: "cacheCap",
-      _fabricCacheStats: "cacheStats",
-    };
-    for (const [property, stateKey] of Object.entries(fabricCompatibilityViews)) {
-      Object.defineProperty(this, property, {
-        configurable: true,
-        enumerable: false,
-        get: () => this._fabricPrefetchController.compatibilityState()[stateKey],
-      });
-    }
-    for (const property of [
-      "FABRIC_PREFETCH_PRESENCE_REFRESH_MS",
-      "FABRIC_PREFETCH_MAX_ATTEMPTS",
-      "FABRIC_PREFETCH_RETRY_BACKOFF_MS",
-      "FABRIC_PREFETCH_MAX_ACTIVE_LOADS",
-      "FABRIC_PREFETCH_PREEMPT_MARGIN_M",
-      "LOBBY_DESTINATION_OCCUPANCY_REFRESH_MS",
-      "FABRIC_PREFETCH_CHUNKED_ENABLED",
-      "FABRIC_PREFETCH_CHUNK_MAX_ENTITIES",
-      "FABRIC_PREFETCH_CHUNK_MAX_BYTES",
-      "FABRIC_PREFETCH_CHUNK_YIELD_MS",
-      "FABRIC_PREFETCH_CACHE_MAX_BYTES",
-      "FABRIC_COMPLETION_PACING_MS",
-      "FABRIC_COMPLETION_CHUNK_MAX_ENTITIES",
-      "FABRIC_COMPLETION_MAX_CHUNKS",
-    ]) {
-      Object.defineProperty(this, property, {
-        configurable: true,
-        enumerable: false,
-        get: () => this._fabricPrefetchController[property],
-        set: (value) => { this._fabricPrefetchController[property] = value; },
-      });
-    }
+    installFabricPrefetchViews({
+      defineProperty: (name, descriptor) => Object.defineProperty(this, name, descriptor),
+      readController: () => this._fabricPrefetchController,
+    });
     // server-side presence registration lifecycle. The
     // player_id is this window's client id (one player session = one window).
     // Registration targets ONLY this.base (the player's own active server) —
     // never the prefetch destination; prefetch presence reads stay GET-only.
-    this._presenceController = createPresenceController({
-      transport: this._transport,
-      clientMode: this.clientMode,
-      playerId: this._clientId,
-      clientId: this._clientId,
+    const presenceBindings = bindLivePresence({
+      transport: this._transport, clientMode: this.clientMode, clientId: this._clientId,
       supported: this._wowRegistersPresence,
-      getBase: () => this.base,
-      getLocationId: () => (this.world ? this.world.location_id : null),
+      getBase: () => this.base, getLocationId: () => this.world ? this.world.location_id : null,
       getAvatar: () => this.state.avatar || (this.world && this.world.avatar),
-      getHandoffInFlight: () =>
-        this._nonPortalHandoffInFlight ||
+      getHandoffInFlight: () => this._nonPortalHandoffInFlight ||
         !!(this._portalTraversalController && this._portalTraversalController.inFlight()),
       onForcePose: (input) => this._maybeBroadcastPlayerPose(input),
       onCloseEventStreams: () => this._closePresenceEventStreams(),
       onLog: (message) => this._log(message),
-    });
-    this._peers = createPeerPresenceReducer({
-      clientMode: this.clientMode,
-      clientId: this._clientId,
-      controlledIdentity: () => this._presenceController.controlledIdentity(),
-      getContext: () => ({
-        world: this.world,
-        avatar: this.state.avatar,
-        controls: this.state.controls,
-        phase: this.state.phase,
-        wowLocalWalk: this._wowLocalWalk,
-      }),
-      defaultAvatarVariant: DEFAULT_AVATAR_VARIANT,
-      onEmit: (input) => this._emit(input),
-      onArrival: (packet) => this.applyArrival(packet),
+      getPeerContext: () => ({ world: this.world, avatar: this.state.avatar,
+        controls: this.state.controls, phase: this.state.phase, wowLocalWalk: this._wowLocalWalk }),
+      onEmit: (input) => this._emit(input), onArrival: (packet) => this.applyArrival(packet),
       onDepartureMirror: (packet) => this._applyDepartureMirror(packet),
       onArrivalMirror: (packet) => this._applyArrivalMirror(packet),
-      onResolveEquipment: (items) => resolveEquipmentItems(items),
       onEquipmentStatus: (status) => { this.state.equipment_status = status; },
       onExternalPresenceDeparture: (input) => this._applyPresenceDepartureProjections(input),
-    });
-    this._runtimeStreams = createRuntimeStreamController({
       getActiveEndpointKey: () => this.activeEndpointKey,
       getDesiredEventEndpointKeys: () => this._presenceEventEndpointKeys(),
-      isEndpointKey: (endpointKey) => !!ENDPOINTS[endpointKey],
-      onRuntimeState: (message) => {
-        const debug = message && message.state && message.state.debug;
-        // At most one line per RUNTIME_STATE_LOG_INTERVAL_MS: a line per runtime-state frame is a console line every 100 ms per window, retained by the console buffer. The line is journal noise (panel-truth-chrome-controller `isJournalNoise`); the revision, the last input source and the suppressed tick count are still reported.
-        this._runtimeStateTickCount = (this._runtimeStateTickCount || 0) + 1;
-        const now = Date.now();
-        if (now - (this._runtimeStateLogAtMs || 0) < RUNTIME_STATE_LOG_INTERVAL_MS) return;
-        const ticks = this._runtimeStateTickCount - (this._runtimeStateLoggedTicks || 0);
-        this._runtimeStateLogAtMs = now;
-        this._runtimeStateLoggedTicks = this._runtimeStateTickCount;
-        this._log(
-          `runtime-state tick rev=${debug && debug.state_revision} input=${debug && debug.last_input_source}` +
-            ` (+${ticks} ticks since last line; ${this._runtimeStateTickCount} total)`,
-        );
-      },
-      onPresenceDeparture: (endpointKey, message) => this._applyPresenceDeparture(endpointKey, message),
+      isEndpointKey: (key) => !!ENDPOINTS[key],
+      onRuntimeState: (message) => this._observeRuntimeState(message),
+      onPresenceDeparture: (key, message) => this._applyPresenceDeparture(key, message),
       onPresenceDepartureApplied: (record) => this._emitPresenceDeparture(record),
-      onLog: (message) => this._log(message),
       fallbackPollMs: () => this.FABRIC_PREFETCH_PRESENCE_REFRESH_MS,
-      fallbackPeerStaleMs: PEER_PRESENCE_TIMING.stale_ms,
-      fallbackServerTtlMs: PRESENCE_TIMING.requested_ttl_ms,
     });
+    this._presenceController = presenceBindings.presence;
+    this._peers = presenceBindings.peers;
+    this._runtimeStreams = presenceBindings.streams;
 
-    const readTraversalHostSnapshot = () => ({
-      role: this.role,
-      clientMode: this.clientMode,
-      startsEmbodied: this._startsEmbodied,
-      clientId: this._clientId,
-      activeEndpointKey: this.activeEndpointKey,
-      endpoint: this.endpoint,
-      resolveEndpoint: (endpointKey) => ENDPOINTS[endpointKey],
-      base: this.base,
-      world: this.world,
-      phase: this.state.phase,
-      handoffId: this.state.handoff_id,
-      arrivalCount: this.state.arrival_count,
-      avatar: this.state.avatar,
-      controls: this.state.controls,
-      portalId: this._portalId,
-      lastCameraTransform: this._lastCameraTransform,
-      playerContextMarker: this._playerContextMarkerDebug(),
-    });
-    const applyTraversalPatch = (patch) => {
-      const has = (name) => Object.prototype.hasOwnProperty.call(patch, name);
-      if (has("phase")) this.state.phase = patch.phase;
-      if (has("handoffId")) this.state.handoff_id = patch.handoffId;
-      if (has("arrivalCount")) this.state.arrival_count = patch.arrivalCount;
-      if (has("controls")) Object.assign(this.state.controls, patch.controls || {});
-      if (has("avatar")) {
-        if (patch.avatarMode === "merge" && this.state.avatar && patch.avatar) {
-          Object.assign(this.state.avatar, patch.avatar);
-        } else {
-          this.state.avatar = patch.avatar;
-        }
-      }
-      if (has("equipmentStatus")) this.state.equipment_status = patch.equipmentStatus;
-      if (has("lastHandoffDirection")) this.state.last_handoff_direction = patch.lastHandoffDirection;
-      if (has("lastHandoffPayload")) this.state.last_handoff_payload = patch.lastHandoffPayload;
-      if (has("lastPosePayload")) this.state.last_pose_payload = patch.lastPosePayload;
-      if (has("playerHandoffProfile")) this.state.player_handoff_profile = patch.playerHandoffProfile;
-    };
-    this._portalTraversalController = createPortalTraversalHandoffController({
-      handoffPhases: HANDOFF_PHASES,
-      provenance: PROVENANCE,
+    this._portalTraversalController = bindPortalTraversal({
       transport: {
         getJson: (url) => this._transport.getJson(url),
         postJson: (url, body) => this._transport.postJson(url, body),
       },
       nowMs: () => Date.now(),
       nowIso: () => new Date().toISOString(),
-      readHostSnapshot: readTraversalHostSnapshot,
-      applyTraversalPatch,
+      readHostSnapshot: () => this._readTraversalHostSnapshot(),
+      applyTraversalPatch: (patch) => this._applyTraversalHostPatch(patch),
       resolveEndpointForLocation: endpointKeyForLocation,
       oppositeEndpointKey,
       endpointDebug,
-      promoteActiveEndpoint: async (targetKey, packet) => {
-        const promotion = await this._promoteActiveEndpoint(targetKey, packet);
+      promoteActiveEndpoint: async (targetKey, packet, isCurrent) => {
+        const promotion = await this._promoteActiveEndpoint(targetKey, packet, isCurrent);
         return { promotion, destinationSceneSource: this._lastCrossingSceneSource || null };
       },
       deriveFabricExitPose: (frameMapping) => this._fabricDerivedExitPose(frameMapping),
@@ -1779,19 +743,10 @@ export class LiveAdapter extends EventTarget {
       policy: {
         evaluateRp1Gate: () => this._rp1GateCheck(),
       },
-      crypto: {
-        signManifest: (packet) =>
-          featureSignManifestOntoPacket(packet, this.world, this._transport),
-        verifyManifest: (packet) => featureVerifyManifestFromPacket(packet),
-      },
-      assets: {
-        defaultEquippedItems,
-        resolveEquipmentItems,
-        defaultAvatarVariant: DEFAULT_AVATAR_VARIANT,
-      },
-      validation: {
-        transformSnapshot,
-      },
+      getSigningWorld: () => this.world,
+      getSigningTransport: () => this._transport,
+      isDisposed: () => this._disposed === true,
+      validation: { transformSnapshot },
       motionPreference: opts.motionPreference,
       movement: {
         speedMps: MOVE_SPEED_MPS,
@@ -1799,18 +754,58 @@ export class LiveAdapter extends EventTarget {
       },
     });
 
-    const resolveClientGraph = async (target) => {
-      const previousRef = this.wowRef;
-      const previousResolved = this._wowResolved;
-      this.wowRef = target.graph_endpoint;
-      try {
-        return await this.initWow();
-      } finally {
-        this.wowRef = previousRef;
-        this._wowResolved = previousResolved;
-      }
-    };
-    const readClientSceneHostState = () => ({
+    this._clientSceneController = bindClientScene({
+      nowIso: () => new Date().toISOString(),
+      resolveClientGraph: (target) => readWorld({ wowRef: target.graph_endpoint, base: this.base,
+        transport: this._transport, onLog: (message) => this._log(message) }),
+      readHostState: () => this._readClientSceneHostState(),
+      installClientSceneState: (input) => this._installClientSceneState(input),
+      restoreLobbyState: (input) => this._restoreClientLobbyState(input),
+      endpointDebug,
+      defaultEquippedItems,
+      presence: {
+        departPresence: (input) => this.departPresence(input),
+        stopHeartbeat: () => this.stopPresenceHeartbeat(),
+        clearRegistration: () => this.clearPresenceRegistration(),
+        registerPresence: (input) => this.registerPresence(input),
+      },
+      log: (message) => this._log(message),
+      commitVisualTransition: () => this.commitVisualTransition(),
+      runtimeStreams: {
+        closeRuntimeStream: () => this.closeRuntimeStream(),
+        connectRuntimeStream: (endpointKey) => this.connectRuntimeStream(endpointKey),
+      },
+      peers: {
+        snapshot: () => this.peerPresenceSnapshot(),
+        clear: () => this.clearPeerPresence(),
+        restore: (snapshot) => this.restorePeerPresence(snapshot),
+        broadcastPlayerPose: (input) => this.broadcastPlayerPose(input),
+      },
+      prefetch: {
+        reset: (input) => this._fabricPrefetchController.reset(input),
+      },
+      updatePortalStatus: () => this._updatePortalStatus(),
+      emitState: () => this._emit(),
+      dispatchCrossing: (detail) => this.dispatchEvent(new CustomEvent("crossing", { detail })),
+    });
+  }
+
+  _observeRuntimeState(message) {
+        const debug = message && message.state && message.state.debug;
+        this._runtimeStateTickCount = (this._runtimeStateTickCount || 0) + 1;
+        const now = Date.now();
+        if (now - (this._runtimeStateLogAtMs || 0) < RUNTIME_STATE_LOG_INTERVAL_MS) return;
+        const ticks = this._runtimeStateTickCount - (this._runtimeStateLoggedTicks || 0);
+        this._runtimeStateLogAtMs = now;
+        this._runtimeStateLoggedTicks = this._runtimeStateTickCount;
+        this._log(
+          `runtime-state tick rev=${debug && debug.state_revision} input=${debug && debug.last_input_source}` +
+            ` (+${ticks} ticks since last line; ${this._runtimeStateTickCount} total)`,
+        );
+  }
+
+  _readClientSceneHostState() {
+    return {
       clientMode: this.clientMode,
       activeEndpointKey: this.activeEndpointKey,
       previewEndpointKey: this.previewEndpointKey,
@@ -1832,8 +827,10 @@ export class LiveAdapter extends EventTarget {
       boundaryProblems: this._boundaryProblems,
       avatar: this.state.avatar,
       equipmentStatus: this.state.equipment_status,
-    });
-    const installClientSceneState = ({ origin, target, contract, resolved, bounds, spawn, avatar }) => {
+    };
+  }
+
+  _installClientSceneState({ origin, target, contract, resolved, bounds, spawn, avatar }) {
       this._airportWalkableSurface = createAirportWalkableSurfaceContract(resolved.graph);
       if (!this._airportWalkableSurface.ok) {
         throw new Error(`airport walkable-surface contract invalid: ${this._airportWalkableSurface.reason}`);
@@ -1861,32 +858,7 @@ export class LiveAdapter extends EventTarget {
         node_count: resolved.node_count,
         resolved_at: new Date().toISOString(),
       };
-      this.world = {
-        _provenance: PROVENANCE.LIVE,
-        role_binding: this.role,
-        location_id: contract.spatial_id,
-        world_id: contract.spatial_id,
-        session_id: origin.world ? origin.world.session_id : null,
-        title: resolved.graph.title || "Denver Skyport",
-        claim_boundary: {
-          application_level_handoff: false,
-          native_teleportxr_teleport: false,
-          first_party_teleportxr_browser_rendering: false,
-          standards_conformance: false,
-        },
-        portal: reciprocalPortal,
-        portals: reciprocalPortal ? [reciprocalPortal] : [],
-        avatar: {
-          _provenance: PROVENANCE.LIVE,
-          avatar_id: avatar.avatar_id,
-          continuity_id: avatar.continuity_id,
-          display_name: avatar.display_name,
-          spawn_position: spawn.slice(),
-          rotation_y: contract.entry_spawn.rotation_y,
-        },
-        arrival: { kind: "client_scene_load", position: spawn.slice() },
-        initial_arrival_count: 0,
-      };
+      this.world = clientSceneWorld({ origin, contract, resolved, spawn, avatar, reciprocalPortal, role: this.role, provenance: PROVENANCE.LIVE });
       this._boundaryOk = true;
       this._boundaryProblems = [];
       this._wowLocalWalk = true;
@@ -1903,45 +875,9 @@ export class LiveAdapter extends EventTarget {
       avatar.rotation_y = contract.entry_spawn.rotation_y;
       this.state.phase = HANDOFF_PHASES.IDLE;
       this.state.arrival_count = 0;
-      this.state.preview = reciprocalPortal ? {
-        state: "active",
-        source_type: "automatic_reciprocal_origin_snapshot_labeled",
-        readonly: true,
-        location_id: origin.world.location_id,
-        world_id: origin.world.world_id,
-        target_portal_id: target.portal_id,
-        linked_source_portal_id: reciprocalPortal.string_portal_id,
-        captured_at: new Date().toISOString(),
-        fallback_reason: null,
-        projection_frame_source: "automatic_reciprocal_inverse_frames",
-        source_camera_relative_to_portal: {},
-        target_preview_camera_transform: {},
-        preview_projection_transform: {},
-      } : null;
+      this.state.preview = clientScenePreview({ origin, target, reciprocalPortal });
       this.state.portal_previews = null;
-      this.state.controls = {
-        ...origin.controls,
-        enabled: true,
-        moving: false,
-        movement_mode: "idle",
-        run_mode: false,
-        speed_mps: 0,
-        grounded: true,
-        jump_height_m: 0,
-        movement_direction: "none",
-        last_planar_delta: [0, 0, 0],
-        portal_focus_portal_id: null,
-        portal_count: 0,
-        portals: [],
-        ground_query_ok: true,
-        ground_query_reason: null,
-        ground_surface_id: entryGround.surface_id,
-        ground_y_m: entryGround.surface_y_m,
-        logical_ground_y_m: entryGround.surface_y_m,
-        rendered_surface_y_m: entryGround.surface_y_m,
-        ground_query_xz_m: [entryGround.query_x_m, entryGround.query_z_m],
-        ground_resolver_source: entryGround.resolver_source,
-      };
+      this.state.controls = clientSceneControls({ origin, entryGround });
       avatar.locomotion = this.state.controls;
       this._jumpVelocity = 0;
       this._portalTraversalController.reset({ reason: "client_scene_load", startsEmbodied: false });
@@ -1951,8 +887,9 @@ export class LiveAdapter extends EventTarget {
         world: this.world,
         reciprocal: reciprocalResult,
       };
-    };
-    const restoreLobbyState = ({ origin, avatar, equippedItems, arrival }) => {
+  }
+
+  _restoreClientLobbyState({ origin, avatar, equippedItems, arrival }) {
       this._airportWalkableSurface = null;
       this.activeEndpointKey = origin.activeEndpointKey;
       this.previewEndpointKey = origin.previewEndpointKey;
@@ -1993,76 +930,74 @@ export class LiveAdapter extends EventTarget {
         endpoint: this.endpoint,
         world: this.world,
       };
+  }
+
+  _readTraversalHostSnapshot() {
+    return {
+      role: this.role,
+      clientMode: this.clientMode,
+      startsEmbodied: this._startsEmbodied,
+      clientId: this._clientId,
+      activeEndpointKey: this.activeEndpointKey,
+      endpoint: this.endpoint,
+      resolveEndpoint: (endpointKey) => ENDPOINTS[endpointKey],
+      base: this.base,
+      world: this.world,
+      phase: this.state.phase,
+      handoffId: this.state.handoff_id,
+      arrivalCount: this.state.arrival_count,
+      avatar: this.state.avatar,
+      controls: this.state.controls,
+      portalId: this._portalId,
+      lastCameraTransform: this._lastCameraTransform,
+      playerContextMarker: this._playerContextMarkerDebug(),
     };
-    this._clientSceneController = createClientSceneLifecycleController({
-      nowIso: () => new Date().toISOString(),
-      resolveClientGraph,
-      readHostState: readClientSceneHostState,
-      installClientSceneState,
-      restoreLobbyState,
-      endpointDebug,
-      defaultEquippedItems,
-      presence: {
-        departPresence: (input) => this.departPresence(input),
-        stopHeartbeat: () => this.stopPresenceHeartbeat(),
-        clearRegistration: () => this.clearPresenceRegistration(),
-        registerPresence: (input) => {
-          const registration = this.registerPresence(input);
-          // on the local reciprocal return, the destination lobby
-          // registration starts in the required order but cannot hold the
-          // visual commit behind network latency. The promise remains live and
-          // is surfaced by the existing presence controller/debug contract.
-          if (input && input.spawnReason === "return_from_client_scene_load") {
-            void registration.catch((error) => this._log(
-              `return presence registration continued after visual commit and failed: ${error.message}`,
-            ));
-            return undefined;
-          }
-          return registration;
-        },
-      },
-      runtimeStreams: {
-        closeRuntimeStream: () => this.closeRuntimeStream(),
-        connectRuntimeStream: (endpointKey) => this.connectRuntimeStream(endpointKey),
-      },
-      peers: {
-        snapshot: () => this.peerPresenceSnapshot(),
-        clear: () => this.clearPeerPresence(),
-        restore: (snapshot) => this.restorePeerPresence(snapshot),
-        broadcastPlayerPose: (input) => this.broadcastPlayerPose(input),
-      },
-      prefetch: {
-        reset: (input) => this._fabricPrefetchController.reset(input),
-      },
-      updatePortalStatus: () => this._updatePortalStatus(),
-      emitState: () => this._emit(),
-      dispatchCrossing: (detail) => {
-        // The return controller emits while the source visual projection is
-        // still staged, then this exact synchronous edge releases destination
-        // state before the app recomposes/rehosts/remaps in its crossing handler.
-        this.commitVisualTransition();
-        this.dispatchEvent(new CustomEvent("crossing", { detail }));
-      },
-    });
+  }
+
+  _applyTraversalHostPatch(patch) {
+      const has = (name) => Object.prototype.hasOwnProperty.call(patch, name);
+      if (has("phase")) this.state.phase = patch.phase;
+      if (has("handoffId")) this.state.handoff_id = patch.handoffId;
+      if (has("arrivalCount")) this.state.arrival_count = patch.arrivalCount;
+      if (has("controls")) Object.assign(this.state.controls, patch.controls || {});
+      if (has("avatar")) {
+        if (patch.avatarMode === "merge" && this.state.avatar && patch.avatar) {
+          Object.assign(this.state.avatar, patch.avatar);
+        } else {
+          this.state.avatar = patch.avatar;
+        }
+      }
+      if (has("equipmentStatus")) this.state.equipment_status = patch.equipmentStatus;
+      if (has("lastHandoffDirection")) this.state.last_handoff_direction = patch.lastHandoffDirection;
+      if (has("lastHandoffPayload")) this.state.last_handoff_payload = patch.lastHandoffPayload;
+      if (has("lastPosePayload")) this.state.last_pose_payload = patch.lastPosePayload;
+      if (has("playerHandoffProfile")) this.state.player_handoff_profile = patch.playerHandoffProfile;
   }
 
   async init() {
+    const current = this._beginWorldNavigation();
+    this._portalTraversalController.cancel();
     // learn the WoW endpoints from the fabric manifest's services[]
     // (spec integer routes) before touching any /wow resource; the root fabric
     // fetched here is cached and reused by _initWorldNavigator().
     const ep = await this._resolveWowEndpoints();
+    if (!current()) return this;
     const wowWorld = await this._transport.getJson(ep.world.path);
+    if (!current()) return this;
     // fetch the FULL portal set (spec integer routes
     // resolved from services[]; the /wow/world portal index gives the count).
     // The first resource's webofworlds_extension.portal_id gives back the
     // string frame id used by portal-frame descriptors + POST bodies.
     const wowPortals = await this._fetchWowPortals(ep, wowWorld);
+    if (!current()) return this;
     const wowPortal = wowPortals[0] || null;
     let wowUser = null;
     try {
       // Spec integer route (/wow/user/1) resolved from services[].
       wowUser = await this._transport.getJson(ep.user.path);
+      if (!current()) return this;
     } catch (e) {
+        if (!current()) return this;
       /* ignore */
     }
     this._adoptPortalFrameId(wowPortal);
@@ -2075,7 +1010,9 @@ export class LiveAdapter extends EventTarget {
     // for debugState().um_identity + the avatar identity badge. Best-effort +
     // non-fatal: a missing/failed signature degrades honestly, never blocks init.
     // Kept SEPARATE from the crossing-manifest signing (um_signing) + .msf spine.
-    this._umIdentity = await verifyUmIdentity(wowUser);
+    const identity = await verifyUmIdentity(wowUser);
+    if (!current()) return this;
+    this._umIdentity = identity;
     if (this.world && this.world.avatar) this.world.avatar.identity = this._umIdentity;
 
     // HARD GUARD: validate the four proof-boundary flags on the LIVE payload.
@@ -2085,7 +1022,9 @@ export class LiveAdapter extends EventTarget {
 
     if (this._startsEmbodied) this._spawnEmbodiedAvatarState();
     if (this.role === "player") await this._initPlayerPreview();
-    if (this.role === "player") await this._initWorldNavigator();
+    if (!current()) return this;
+    if (this.role === "player") await this._initWorldNavigator(current);
+    if (!current()) return this;
     // re-source the ACTIVE world's SCENE from its WoW
     // Spatial Composition Graph (/wow/spatial/{id}) so the world renders from the
     // GRAPH — node counts / positions graph-sourced.
@@ -2101,6 +1040,7 @@ export class LiveAdapter extends EventTarget {
           ? "active backend /wow/world advertised authored /wow/graph (initial load)"
           : "active world /wow/world spatialID (initial load)",
       });
+      if (!current()) return this;
       this._adoptLiveAirportScenePhysics(this._wowResolved);
     }
     this.state.arrival_count = this.world.initial_arrival_count ?? 0;
@@ -2111,6 +1051,7 @@ export class LiveAdapter extends EventTarget {
     // init; the heartbeat upsert self-heals and the server TTL guards ghosts.
     if (this.clientMode === "player" && this.state.avatar) {
       await this._registerPresence("spawn");
+      if (!current()) return this;
     }
 
     this._connectRuntimeStream();
@@ -2144,15 +1085,7 @@ export class LiveAdapter extends EventTarget {
     }
     const walkable = contract.surfaces.filter((surface) => surface.classification === "walkable");
     this._airportWalkableSurface = contract;
-    this._movementBounds = walkable.reduce((bounds, surface) => {
-      const halfX = surface.size_m[0] / 2;
-      const halfZ = surface.size_m[2] / 2;
-      bounds.minX = Math.min(bounds.minX, surface.center_m[0] - halfX);
-      bounds.maxX = Math.max(bounds.maxX, surface.center_m[0] + halfX);
-      bounds.minZ = Math.min(bounds.minZ, surface.center_m[2] - halfZ);
-      bounds.maxZ = Math.max(bounds.maxZ, surface.center_m[2] + halfZ);
-      return bounds;
-    }, { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity });
+    this._movementBounds = airportSurfaceBounds(walkable);
 
     // Initial airport boot may already have an embodied avatar. A crossing is
     // still visually staged here, so its destination avatar is grounded later
@@ -2185,57 +1118,24 @@ export class LiveAdapter extends EventTarget {
    * pose was applied so the caller can log/verify the round-trip.
    */
   _resolveAvatarGround(x, z) {
-    if (!this._airportWalkableSurface) {
-      return {
-        ok: true,
-        reason: null,
-        query_x_m: Number(x),
-        query_z_m: Number(z),
-        surface_id: "legacy-world-ground-plane",
-        surface_y_m: 0,
-        classification: "walkable",
-        resolver_source: "legacy_world_ground_plane",
-      };
-    }
-    return resolveAirportGroundSurface(this._airportWalkableSurface, x, z);
+    return resolveAvatarGround(this._airportWalkableSurface, x, z);
   }
 
   _publishGroundSurface(query) {
-    if (!this.state?.controls || !query) return;
-    this.state.controls.ground_query_ok = query.ok === true;
-    this.state.controls.ground_query_reason = query.reason || null;
-    this.state.controls.ground_surface_id = query.surface_id || null;
-    this.state.controls.ground_y_m = Number.isFinite(query.surface_y_m) ? query.surface_y_m : null;
-    this.state.controls.logical_ground_y_m = Number.isFinite(query.surface_y_m) ? query.surface_y_m : null;
-    this.state.controls.rendered_surface_y_m = Number.isFinite(query.surface_y_m) ? query.surface_y_m : null;
-    this.state.controls.ground_query_xz_m = [query.query_x_m, query.query_z_m];
-    this.state.controls.ground_resolver_source = query.resolver_source || null;
+    publishGroundSurface(this.state.controls, query);
   }
 
   applyRestoredPose(pose) {
-    if (this.role !== "player" || !this._startsEmbodied) return false;
-    if (!pose || !Array.isArray(pose.position)) return false;
-    if (this.state.phase !== HANDOFF_PHASES.IDLE) return false;
-    const px = Number(pose.position[0]);
-    const pz = Number(pose.position[2]);
-    if (!Number.isFinite(px) || !Number.isFinite(pz)) return false;
-    const ground = this._resolveAvatarGround(px, pz);
-    if (!ground.ok) return false;
-    const py = this._airportWalkableSurface
-      ? ground.surface_y_m
-      : Number.isFinite(Number(pose.position[1])) ? Number(pose.position[1]) : ground.surface_y_m;
-    const restored = [px, py, pz];
-    const yaw = Number.isFinite(Number(pose.rotation_y))
-      ? Number(pose.rotation_y)
-      : this.world && this.world.avatar
-        ? this.world.avatar.rotation_y
-        : 0;
+    if (this.role !== "player" || !this._startsEmbodied || this.state.phase !== HANDOFF_PHASES.IDLE) return false;
+    const restored = restoredAvatarPose(pose, this.world?.avatar, this._airportWalkableSurface);
+    if (!restored) return false;
+    const { position, yaw, ground } = restored;
     if (this.world && this.world.avatar) {
-      this.world.avatar.spawn_position = restored.slice();
+      this.world.avatar.spawn_position = position.slice();
       this.world.avatar.rotation_y = yaw;
     }
     if (this.state.avatar) {
-      this.state.avatar.position = restored.slice();
+      this.state.avatar.position = position.slice();
       this.state.avatar.rotation_y = yaw;
     }
     this._jumpVelocity = 0;
@@ -2249,13 +1149,12 @@ export class LiveAdapter extends EventTarget {
       this._navigator.restored_pose = {
         source: "manual_reload_session_restore",
         active_endpoint_key: this.activeEndpointKey,
-        position: roundVec3(restored, 4),
+        position: roundVec3(position, 4),
         rotation_y: roundNumber(yaw, 6),
       };
     }
     this._updatePortalStatus();
     this._emit();
-    // Re-broadcast so any already-open observers snap to the restored spot.
     if (this.clientMode === "player") this._maybeBroadcastPlayerPose({ force: true });
     return true;
   }
@@ -2318,65 +1217,16 @@ export class LiveAdapter extends EventTarget {
    *                        spatialID, title }
    */
   spawnWowLocalAvatar(opts = {}) {
-    const spawn = Array.isArray(opts.spawn) ? opts.spawn : [0, 0, 0, 0];
-    const spawnPos = [Number(spawn[0]) || 0, Number(spawn[1]) || 0, Number(spawn[2]) || 0];
-    const spawnYaw = Number.isFinite(Number(spawn[3])) ? Number(spawn[3]) : 0;
-    const resolved = this._wowResolved || {};
-    const spatialID = opts.spatialID || resolved.spatialID || "wow-world";
-    this._airportWalkableSurface = spatialID === "world-airport-terminal"
-      ? createAirportWalkableSurfaceContract(resolved.graph)
-      : null;
-    if (this._airportWalkableSurface && !this._airportWalkableSurface.ok) {
-      throw new Error(`airport walkable-surface contract invalid: ${this._airportWalkableSurface.reason}`);
-    }
-    const spawnGround = this._resolveAvatarGround(spawnPos[0], spawnPos[2]);
-    if (!spawnGround.ok) throw new Error(`avatar spawn has no classified walkable surface: ${spawnGround.reason}`);
-    if (this._airportWalkableSurface) spawnPos[1] = spawnGround.surface_y_m;
-    this.world = {
-      _provenance: PROVENANCE.LIVE,
-      role_binding: this.role,
-      location_id: spatialID,
-      world_id: spatialID,
-      session_id: null,
-      title: opts.title || "WoW world",
-      // Honest proof boundary: a pure fixture load carries none (initWow reports
-      // it null), so we stamp the same four-flag boundary the demo worlds author
-      // (application-level only; native/first-party/standards all false).
-      claim_boundary: resolved.proof_boundary || {
-        application_level_handoff: true,
-        native_teleportxr_teleport: false,
-        first_party_teleportxr_browser_rendering: false,
-        standards_conformance: false,
-      },
-      portal: null,
-      portals: [],
-      avatar: {
-        _provenance: PROVENANCE.LIVE,
-        avatar_id: "avatar-local-001",
-        continuity_id: "avatar-local-001",
-        display_name: "poc-user",
-        spawn_position: spawnPos.slice(),
-        rotation_y: spawnYaw,
-      },
-      arrival: null,
-      initial_arrival_count: 0,
-    };
+    const spawn = localWalkState(opts, this._wowResolved || {}, { role: this.role, provenance: PROVENANCE.LIVE },
+      surface => { this._airportWalkableSurface = surface; });
+    this.world = spawn.world;
     this._boundaryOk = true;
     this._boundaryProblems = [];
     this._wowLocalWalk = true;
-    const b = opts.bounds;
-    this._movementBounds =
-      b && Number.isFinite(Number(b.minX)) && Number.isFinite(Number(b.maxX))
-        ? {
-            minX: Number(b.minX),
-            maxX: Number(b.maxX),
-            minZ: Number(b.minZ),
-            maxZ: Number(b.maxZ),
-          }
-        : null;
+    this._movementBounds = spawn.bounds;
     this.state.phase = HANDOFF_PHASES.IDLE;
     this._spawnEmbodiedAvatarState();
-    this._publishGroundSurface(spawnGround);
+    this._publishGroundSurface(spawn.ground);
     if (this._airportWalkableSurface) {
       this.state.controls.grounded = true;
       this.state.controls.jump_height_m = 0;
@@ -2397,9 +1247,12 @@ export class LiveAdapter extends EventTarget {
   /** What a portal shows of its destination: only what the destination's World resource declares. Does not change
    * the active world, reads no other node of the destination and creates no user there. */
   async resolvePortalDestinationContent(portalEntry) {
+    const world = this.world;
+    const navigation = this._worldNavigationOperation;
+    const current = () => !this._disposed && this.world === world && this._worldNavigationOperation === navigation;
     const content = await resolveBoundedPreview(portalEntry, { fetch: (url, init) => fetch(url, init) });
     // A preview in the world's own frame also says where this portal arrives, before anyone crosses.
-    if (content.world_frame_known && portalEntry) portalEntry.target_frame = content.window_frame;
+    if (current() && content.world_frame_known && portalEntry) portalEntry.target_frame = content.window_frame;
     return content;
   }
 
@@ -2416,8 +1269,12 @@ export class LiveAdapter extends EventTarget {
 
   /** Put the embodied player at node `nodeId` of the active world (a page opened at `#join=node.{n}`). */
   async applyJoinArrival(nodeId) {
+    const world = this.world;
+    const navigation = this._worldNavigationOperation;
+    const current = () => !this._disposed && this.world === world && this._worldNavigationOperation === navigation;
     const address = this.endpoint && this.endpoint.backend_base_url ? `${this.endpoint.backend_base_url}/` : null;
     const arrival = address ? await arrivalAt(address, Number(nodeId), { fetch: (url, init) => fetch(url, init) }).catch(() => null) : null;
+    if (!current()) return { arrived: false, reason: "navigation_retired" };
     if (!arrival) return { arrived: false, reason: `arrival node ${nodeId} not found` };
     const pose = poseOfMatrix(arrival.matrix);
     return { arrived: this.applyRestoredPose({ position: pose.position, rotation_y: pose.yaw }), node: arrival.node, ...pose };
@@ -2425,23 +1282,35 @@ export class LiveAdapter extends EventTarget {
 
   /** True when the active world's portals differ from the portals shown (web/main-demo-portals.mjs, portalSignature). */
   async portalsChanged() {
+    const world = this.world;
+    const navigation = this._worldNavigationOperation;
+    const current = () => !this._disposed && this.world === world && this._worldNavigationOperation === navigation;
     const ep = this._wowEndpoints;
     if (!ep || !ep.world || !this.world) return false;
     const wowWorld = await this._transport.getJson(ep.world.path);
-    return portalSignature(await this._fetchWowPortals(ep, wowWorld)) !== this._lastPortalSignature;
+    if (!current()) return false;
+    const portals = await this._fetchWowPortals(ep, wowWorld);
+    return current() && portalSignature(portals) !== this._lastPortalSignature;
   }
 
   /** Read the active world's portals again and show the difference, as a visit to the world would. */
   async refreshWorldPortals() {
-    const ep = await this._resolveWowEndpoints();
-    const wowWorld = await this._transport.getJson(ep.world.path);
-    const wowPortals = await this._fetchWowPortals(ep, wowWorld);
-    const projected = worldFromLive(this.role, wowWorld, wowPortals, null);
-    this.world.portal = projected.portal;
-    this.world.portals = projected.portals;
+    const operation = this._portalRefreshOperation = {};
+    const navigation = this._worldNavigationOperation;
+    const current = () => !this._disposed && this._portalRefreshOperation === operation && this._worldNavigationOperation === navigation;
+    const { world, endpoint } = this;
+    const destination = await readNavigationResources({ endpoint, role: this.role,
+      transport: this._transport, isCurrent: () => current() && this.world === world });
+    if (!current() || this.world !== world || !destination) return null;
+    this.world.portal = destination.world.portal;
+    this.world.portals = destination.world.portals;
+    this._wowEndpoints = destination.resolution.endpoints;
+    this._wowEndpointResolution = destination.resolution;
+    this._rootFabricManifest = destination.rootFabric;
+    this._rootFabricManifestUrl = destination.rootFabric ? `${this.base}/fabric.json` : null;
     this._portalTraversalController.forgetPortalSides();
-    this._lastPortalSignature = portalSignature(wowPortals);
-    await this._initPlayerPreview();
+    this._lastPortalSignature = destination.portalSignature;
+    this._initPlayerPreview();
     this._updatePortalStatus();
     this._emit();
     return this.world.portals;
@@ -2452,17 +1321,20 @@ export class LiveAdapter extends EventTarget {
    * No exit-intent/arrival backend handoff is emitted. The same avatar object,
    * identity, equipment, movement integrator, and browser context continue.
    */
-  async enterClientSceneLoad({ target, contract, resolved, bounds } = {}) {
-    return this._clientSceneController.enter({ target, contract, resolved, bounds });
+  async enterClientSceneLoad({ target, contract, resolved, bounds, isCurrent } = {}) {
+    const current = this._beginWorldNavigation(isCurrent);
+    if (!isCurrent) this._portalTraversalController.cancel();
+    return this._clientSceneController.enter({ target, contract, resolved, bounds, isCurrent: current });
   }
 
   /** Restore the saved live lobby after a client scene load. */
   async returnFromClientSceneLoad(options) {
-    if (!options) return this._clientSceneController.returnToLobby();
-    return this._clientSceneController.returnToLobby(options);
+    const current = this._beginWorldNavigation(options?.isCurrent);
+    if (!options?.isCurrent) this._portalTraversalController.cancel();
+    return this._clientSceneController.returnToLobby({ ...options, isCurrent: current });
   }
 
-  async _initPlayerPreview() {
+  _initPlayerPreview() {
     // a multi-portal world (the lobby) has no single
     // preview endpoint — every portal gets its own preview built against ITS
     // destination endpoint, keyed in state.portal_previews; state.preview
@@ -2482,45 +1354,8 @@ export class LiveAdapter extends EventTarget {
   /** The record of what one portal previews. It reads nothing from the destination: the see-through view comes
    *  from the destination's own preview (resolvePortalDestinationContent). */
   _buildEndpointPreview(portal) {
-    const epKey = endpointKeyForLocation(portal && portal.target_location_id);
-    const endpoint = epKey ? ENDPOINTS[epKey] : {};
-    const preview = {
-      state: "bounded_preview",
-      source_type: "wow_bounded_preview",
-      preview_source_type: "wow_bounded_preview",
-      readonly: true,
-      preview_readonly: true,
-      endpoint_key: endpoint.endpoint_key || null,
-      proxy_base: endpoint.proxy_base || null,
-      backend_base_url: endpoint.backend_base_url || null,
-      location_id: endpoint.location_id || null,
-      preview_target_location_id: endpoint.location_id || null,
-      world_id: endpoint.world_id || null,
-      preview_target_world_id: endpoint.world_id || null,
-      session_id: endpoint.session_id || null,
-      target_portal_id: endpoint.portal_id || null,
-      preview_target_portal_id: endpoint.portal_id || null,
-      linked_source_portal_id: this.endpoint.portal_id,
-      freshness_ms: 0,
-      preview_freshness_ms: 0,
-      captured_at: null,
-      fallback_reason: null,
-      preview_fallback_reason: null,
-      projection_frame_source: "source_portal_frame+target_portal_frame",
-      target_arrival_count_before_preview: null,
-      target_arrival_count_current: null,
-      target_state_revision_before_preview: null,
-      target_state_revision_current: null,
-      target_handoff_context_before_preview: false,
-      target_handoff_context_current: false,
-      target_debug_last_input_source: null,
-      target_avatar_presence_created: false,
-      target_mutation_count_during_preview: 0,
-      source_camera_relative_to_portal: {},
-      target_preview_camera_transform: {},
-      preview_projection_transform: {},
-    };
-    return preview;
+    const key = endpointKeyForLocation(portal && portal.target_location_id);
+    return endpointPreview(key ? ENDPOINTS[key] : {}, this.endpoint);
   }
 
   /**
@@ -2535,323 +1370,70 @@ export class LiveAdapter extends EventTarget {
    * graph into buildWowScene (the additive seam), mirroring the ?fabric= path.
    */
   async initWow() {
-    if (!this.wowRef) throw new Error("initWow requires a wowRef (?wow=<url|id>)");
-    // A ref containing a slash/dot or an http(s) scheme is a direct graph
-    // document (dev fixture / URL); a bare token is a spatialID resolved against
-    // the canonical endpoint on the current base.
-    const looksLikeDoc = /[/.]/.test(this.wowRef) || /^https?:/i.test(this.wowRef);
-    const graphUrl = looksLikeDoc
-      ? this.wowRef
-      : `${this.base}/wow/spatial/${encodeURIComponent(this.wowRef)}`;
-    this._log(`wow: opening world "${this.wowRef}" -> graph ${graphUrl}`);
-    const doc = await this._transport.getJson(graphUrl);
-
-    let graph, source, canonicalWalk = null;
-    if (doc && doc.nodes && (Array.isArray(doc.nodes) || typeof doc.nodes === "object")) {
-      // BUNDLE shape: canonical Node objects packaged in one document. Two flavors,
-      // both consumed identically downstream (buildWowScene normalizes either):
-      //   - DEV-FIXTURE bundle: { spatialID, root, nodes:{id:Node} } (explicit root).
-      //   - WORLD doc: { spatialID, nodes:[Node...] } with NO explicit root
-      //     (the __wow_internal_root node is inferred by parent==null). needs
-      //     this so the demo worlds' real `spatialAssetURI` glTF assets can load.
-      const hasExplicitRoot = doc.root != null || doc.rootId != null;
-      graph = {
-        spatialID: doc.spatialID || doc.spatial_id || this.wowRef,
-        root: doc.root != null ? doc.root : doc.rootId != null ? doc.rootId : null,
-        nodes: doc.nodes,
-        title: doc.title || null,
-        world: doc.world || null,
-      };
-      source = hasExplicitRoot ? "bundled-world-graph" : "bundled-world-graph";
-    } else if (doc && doc.id !== undefined) {
-      // CANONICAL shape. `doc` is the graph's Spatial (id, rootNodeID, geoPose), or a root Node.
-      const read = await this._readGraphDocument(graphUrl, doc);
-      graph = { spatialID: this.wowRef, root: read.rootId, nodes: read.nodes, anchor: read.anchor };
-      source = "canonical-walk";
-      canonicalWalk = read.stats;
-    } else {
-      throw new Error(
-        `wow graph at ${graphUrl} is neither a dev-bundle {root,nodes} nor a canonical root Node {id,children}`
-      );
-    }
-
-    const nodeCount =
-      graph.nodes && !Array.isArray(graph.nodes)
-        ? Object.keys(graph.nodes).length
-        : (graph.nodes || []).length;
-
-    const resolved = {
-      graph,
-      source,
-      spatialID: graph.spatialID,
-      node_count: nodeCount,
-      graph_url: graphUrl,
-      // the world/asset base URL a relative `spatialAssetURI`
-      // resolves against (declared in the world doc; null for a bare canonical
-      // root). All demo assets are ABSOLUTE URLs, so this is future-proofing.
-      base_url: (doc && doc.base_url) || null,
-      canonical_walk: canonicalWalk,
-      // Best-effort world metadata (proof_boundary) is only meaningful against a
-      // LIVE base. A pure fixture load carries none — reported honestly as null,
-      // never faked. worldFromLive re-basing onto this graph is.
-      world: null,
-      proof_boundary: null,
-    };
-    this._wowResolved = resolved;
-    this._log(
-      `wow: resolved spatialID=${graph.spatialID} nodes=${nodeCount} source=${source}` +
-        (canonicalWalk ? ` (walk: fetched=${canonicalWalk.fetched} failed=${canonicalWalk.failed})` : "")
-    );
+    const operation = this._wowReadOperation = {};
+    const { base, wowRef, world } = this;
+    const resolved = await readWorld({ wowRef, base, transport: this._transport, onLog: (message) => this._log(message) });
+    if (!this._disposed && this._wowReadOperation === operation && this.base === base && this.wowRef === wowRef && this.world === world) this._wowResolved = resolved;
     return resolved;
   }
 
-  /**
-   * Read what a graph URL answered. It answers a Spatial by default: the graph's id, the id of its
-   * root node and its GeoPose anchor. The root node is then read at `${graphUrl}/node/{rootNodeID}`,
-   * a canonical Node whose children come embedded. A server that answers a root node instead is read
-   * the same way. The anchor goes through the one GeoPose reader (web/wow-geopose.js), so the browser
-   * refuses what the world server refuses. Returns `{ rootId, nodes, stats, anchor, anchorError }`,
-   * with `nodes` a flat `{ id: Node }` map whose children are ids.
-   */
-  async _readGraphDocument(graphUrl, doc) {
-    let rootNode = doc;
-    let anchor = null;
-    let anchorError = null;
-    if (doc && doc.rootNodeID !== undefined && doc.children === undefined) {
-      const read = readGeoPose(doc.geoPose);
-      if (read.ok) anchor = read.geoPose;
-      else anchorError = read.error;
-      const base = String(graphUrl).replace(/\/$/, "");
-      rootNode = await this._transport.getJson(`${base}/node/${encodeURIComponent(doc.rootNodeID)}`);
-    }
-    const walked = await this._walkCanonicalGraph(graphUrl, rootNode);
-    return { rootId: Number(rootNode.id), nodes: walked.nodes, stats: walked.stats, anchor, anchorError };
+  _readGraphDocument(graphUrl, doc) {
+    return readGraph(graphUrl, doc, { transport: this._transport, onLog: (message) => this._log(message) });
   }
 
-  /**
-   * Collect the composition graph from a root Node into a flat { [id]: Node } map. Embedded children
-   * are flattened where they arrive; children that are ids (a flat server) are fetched from
-   * `${graphUrl}/node/{nodeId}`. Cycle- and cap-guarded.
-   */
-  async _walkCanonicalGraph(graphUrl, rootNode) {
-    const CAP = 4096;
-    const base = String(graphUrl).replace(/\/$/, "");
-    const nodes = {};
-    const stats = { fetched: 0, failed: 0, cap_hit: false };
-    const queue = [];
-    const take = (node) => {
-      const flat = flattenCanonicalNode(node);
-      Object.assign(nodes, flat.nodes);
-      for (const child of Array.isArray(node.children) ? node.children : []) {
-        if (typeof child === "number" || typeof child === "string") queue.push(Number(child));
-      }
-    };
-    take(rootNode);
-    const seen = new Set([Number(rootNode.id)]);
-    while (queue.length) {
-      if (Object.keys(nodes).length >= CAP) { stats.cap_hit = true; break; }
-      const id = Number(queue.shift());
-      if (seen.has(id) || nodes[id]) continue;
-      seen.add(id);
-      try {
-        const n = await this._transport.getJson(`${base}/node/${encodeURIComponent(id)}`);
-        if (n && n.id != null) {
-          take(n);
-          stats.fetched += 1;
-        } else {
-          stats.failed += 1;
-        }
-      } catch (err) {
-        stats.failed += 1;
-        this._log(`wow: node ${id} fetch failed (${err.message})`);
-      }
-    }
-    return { nodes, stats };
+  _walkCanonicalGraph(graphUrl, rootNode) {
+    return walkCanonicalGraph(graphUrl, rootNode, { transport: this._transport, onLog: (message) => this._log(message) });
   }
 
-  /**
-   * re-source a world's SCENE from its WoW Spatial
-   * Composition Graph (GET /wow/spatial/{spatialID} root Node + the canonical
-   * /node/{nodeId} walk), REPLACING the prefetched Sneeze.msf
-   * child-fabric as the scene source of record. The destination is reached from
-   * the crossing portal's Portal.destination — never
-   * webofworlds_extension.target_* — then confirmed against the world's own
-   * /wow/world spatialID here.
-   *
-   * REUSE, NOT REBUILD: this resolves the SAME { spatialID, root, nodes } graph
-   * `initWow` produces (so `wowResolved()` / `buildWowScene` consume it
-   * identically) and REUSES `_walkCanonicalGraph`. It changes only the DATA
-   * SOURCE — the crossing controller (`createPortalTraversalHandoffController`,
-   * `_promoteActiveEndpoint`), the (x,y,z)->(-x,y,-z) isometry, handoff_id
-   * correlation, the no-reload in-memory promotion, and the procedural render
-   * machinery are all untouched. Best-effort + NON-FATAL: a failure logs and
-   * leaves the /wow-projected world as the fallback. Returns a provenance record (also stored on
-   * `this._wowSceneSource`, surfaced in debugState().wow_scene_source).
-   *
-   * @param {{ base?:string, spatialId?:string, graphEndpoint?:string, resolvedFrom?:string }} o
-   */
   async _resolveWowSceneGraph(o = {}) {
-    const base = o.base || this.base;
-    const spatialId = o.spatialId || null;
-    const record = {
-      ok: false,
-      via: "wow_composition_graph",
-      // The scene comes from the WoW graph.
-      resolved_from: o.resolvedFrom || null,
-      graph_url: null,
-      spatialID: null,
-      root_id: null,
-      node_count: 0,
-      canonical_walk: null,
-      // The graph's GeoPose anchor, read through the shared GeoPose reader (null when the server
-      // answered no Spatial, or the reader refused what it sent: see anchor_error).
-      anchor: null,
-      anchor_error: null,
-      // node positions are read VERBATIM from each node's column-major
-      // localTransform by buildWowScene — not procedurally synthesized.
-      node_positions_source: "node.localTransform (graph-sourced)",
-      resolved_at: new Date().toISOString(),
-      error: null,
-    };
-    try {
-      const url =
-        o.graphEndpoint ||
-        (spatialId ? `${base}/wow/spatial/${encodeURIComponent(spatialId)}` : null);
-      if (!url) throw new Error("no spatialId / graphEndpoint to resolve");
-      record.graph_url = url;
-      const doc = await this._transport.getJson(url);
-      let graph;
-      if (doc && doc.nodes && (Array.isArray(doc.nodes) || typeof doc.nodes === "object")) {
-        // bundle shape (dev-fixture / world-doc) — consumed identically downstream.
-        graph = {
-          spatialID: doc.spatialID || doc.spatial_id || spatialId,
-          root: doc.root != null ? doc.root : doc.rootId != null ? doc.rootId : null,
-          nodes: doc.nodes,
-        };
-      } else if (doc && doc.id !== undefined) {
-        // canonical live shape: the Spatial (then its root node, children embedded), or a root Node.
-        const read = await this._readGraphDocument(url, doc);
-        graph = { spatialID: spatialId || String(doc.id), root: read.rootId, nodes: read.nodes, anchor: read.anchor };
-        record.canonical_walk = read.stats;
-        record.anchor = read.anchor;
-        record.anchor_error = read.anchorError;
-      } else {
-        throw new Error("neither a bundle {root,nodes} nor a canonical root Node {id,children}");
-      }
-      const nodeCount =
-        graph.nodes && !Array.isArray(graph.nodes)
-          ? Object.keys(graph.nodes).length
-          : (graph.nodes || []).length;
-      const resolved = {
-        graph,
-        source: "wow_composition_graph",
-        spatialID: graph.spatialID,
-        node_count: nodeCount,
-        graph_url: url,
-        base_url: (doc && doc.base_url) || null,
-        canonical_walk: record.canonical_walk,
-        // per-world, data-driven signal for the
-        // render selector. TRUE iff this world's backend ADVERTISED an authored
-        // /wow/graph (webofworlds_extension.authored_graph.endpoint — the value
-        // `authoredWowGraphEndpoint()` returns and both live callers pass here as
-        // `graphEndpoint`). A world that only resolved its /wow/spatial
-        // composition graph (A/B/lobby today) is NOT authored, so it falls back
-        // to the procedural placeholder. This flips to true for a world the
-        // moment its 041 config gains `authored_wow_graph` — no client change and
-        // no world-identity literal anywhere in the render decision.
-        authored_graph: Boolean(o.graphEndpoint),
-        world: null,
-        proof_boundary: null,
-      };
-      // stored so wowResolved()/buildWowScene render THIS world from the graph.
-      this._wowResolved = resolved;
-      record.ok = true;
-      record.spatialID = graph.spatialID;
-      record.root_id = graph.root;
-      record.node_count = nodeCount;
-      this._log(
-        `wow-scene-source: ${graph.spatialID} graph-sourced (${nodeCount} nodes) from ${url} — ` +
-          `replaces the .msf child-fabric as the scene source; .msf not required`
-      );
-    } catch (e) {
-      record.error = e.message;
-      this._log(
-        `wow-scene-source: graph resolve best-effort failed (${e.message}); ` +
-          `crossing continues on the /wow projection (no .msf dependency)`
-      );
+    const operation = this._wowSceneReadOperation = {};
+    const { base, world, wowRef } = this;
+    const result = await readSceneGraph({ ...o, base: o.base || base }, { transport: this._transport, onLog: (message) => this._log(message) });
+    if (!this._disposed && this._wowSceneReadOperation === operation && this.base === base && this.world === world && this.wowRef === wowRef) {
+      if (result.resolved) this._wowResolved = result.resolved;
+      this._wowSceneSource = result.record;
     }
-    this._wowSceneSource = record;
-    return record;
+    return result.record;
   }
 
-  /** the resolved WoW graph (or null before initWow). */
   wowResolved() {
     return this._wowResolved;
   }
 
-  /** the active/last-resolved WoW composition-graph scene
-   *  source provenance (or null before the first resolve). Surfaced in
-   *  debugState().wow_scene_source; the crossing destination variant rides on
-   *  debugState().crossing.destination_scene_source. */
   wowSceneSource() {
     return this._wowSceneSource;
   }
 
-  /**
-   * fetch (and cache) the ACTIVE world's fabric manifest. Reused by
-   * both endpoint resolution and _initWorldNavigator so a single world (re)load
-   * hits /fabric.json once. Returns the manifest or null; failure is non-fatal.
-   */
   async _ensureRootFabric() {
-    const rootUrl = `${this.base}/fabric.json`;
-    if (this._rootFabricManifest && this._rootFabricManifestUrl === rootUrl) {
-      return this._rootFabricManifest;
-    }
-    try {
-      const manifest = await this._transport.getJson(rootUrl);
+    const { base, world } = this;
+    const rootUrl = `${base}/fabric.json`;
+    if (this._rootFabricManifest && this._rootFabricManifestUrl === rootUrl) return this._rootFabricManifest;
+    const operation = this._rootFabricReadOperation = {};
+    const manifest = await readRootFabric(base, this._transport);
+    if (manifest && !this._disposed && this._rootFabricReadOperation === operation && this.base === base && this.world === world) {
       this._rootFabricManifest = manifest;
       this._rootFabricManifestUrl = rootUrl;
-      return manifest;
-    } catch (e) {
-      return null;
     }
+    return manifest;
   }
 
-  /**
-   * resolve the WoW endpoint paths for the ACTIVE base from the loaded
-   * fabric's services[] (spec integer routes), with the hardcoded /wow/*
-   * integer routes as fallback. Records provenance on the adapter so the panel
-   * can SHOW that the browser learned the API from the manifest (not from
-   * hardcoded /api/{a,b} bases). Returns the resolved endpoints map.
-   */
   async _resolveWowEndpoints() {
+    const operation = this._wowEndpointReadOperation = {};
+    const { base, world } = this;
     const manifest = await this._ensureRootFabric();
-    const resolution = resolveWowEndpoints(manifest, this.base);
-    this._wowEndpoints = resolution.endpoints;
-    this._wowEndpointResolution = resolution;
-    this._log(
-      `wow-endpoints: ${resolution.resolved_from_services ? "resolved from fabric services[]" : "using fallback constants"} ` +
+    const resolution = resolveWowEndpoints(manifest, base);
+    if (!this._disposed && this._wowEndpointReadOperation === operation && this.base === base && this.world === world) {
+      this._wowEndpoints = resolution.endpoints;
+      this._wowEndpointResolution = resolution;
+      this._log(`wow-endpoints: ${resolution.resolved_from_services ? "resolved from fabric services[]" : "using fallback constants"} ` +
         `world=${resolution.provenance.world.resolved_path} user=${resolution.provenance.user.resolved_path} ` +
-        `portal=${resolution.provenance.portal.resolved_path} view=${resolution.provenance.view.resolved_path}`
-    );
-    return this._wowEndpoints;
+        `portal=${resolution.provenance.portal.resolved_path} view=${resolution.provenance.view.resolved_path}`);
+    }
+    return resolution.endpoints;
   }
 
-  /**
-   * fetch the world's FULL portal set. The /wow/world
-   * resource lists every portal in webofworlds_extension.portals (id 1..n);
-   * each is fetched via the spec integer route derived from the resolved
-   * portal endpoint (swap the trailing id segment). A world that lists one
-   * portal (or an older backend that lists none) degrades to a
-   * single fetch of ep.portal.path.
-   */
-  async _fetchWowPortals(ep, wowWorld) {
-    return readPortalResources({
-      getJson: (url) => this._transport.getJson(url),
-      base: this.base,
-      wowWorld,
-      onSkip: (resource, why) => this._log(`portal ${resource.id} not shown: ${why}`),
-    });
+  _fetchWowPortals(ep, wowWorld) {
+    return readPortals(this.base, wowWorld, { transport: this._transport, onLog: (message) => this._log(message) });
   }
 
   /**
@@ -2935,179 +1517,38 @@ export class LiveAdapter extends EventTarget {
    * All failures are non-fatal: the legacy /wow-projected world remains the
    * fallback and is recorded as such.
    */
-  async _initWorldNavigator() {
-    const rootUrl = `${this.base}/fabric.json`;
-    const navigator = {
-      subsystem: "world_navigator",
-      profile: "omb.world-navigator.local-validation.v0.1",
-      claim: "local web validation; plain-JSON unsigned fabrics; no standards-conformance claim",
-      context_id: this._playerContextMarker ? this._playerContextMarker.context_id : null,
-      context_marker_id: this._playerContextMarker ? this._playerContextMarker.marker_id : null,
-      single_context: true,
-      status: "loading",
-      root_fabric: { url: rootUrl, status: "loading" },
-      child_fabric: null,
-      portal_attachment: null,
-      trigger_node: null,
-      spawn: { source: "legacy_wow_projection", applied: false },
-      fabrics_loaded: [],
-      fabrics_loaded_count: 0,
-      child_render: { active: false, reason: "renderer_not_attached_yet" },
-      promotion_count: this._navigatorPromotions.length,
-      last_promotion: this._navigatorPromotions.length
-        ? this._navigatorPromotions[this._navigatorPromotions.length - 1]
-        : null,
-    };
-    this._navigator = navigator;
+  async _initWorldNavigator(isCurrent = () => true) {
+    const { base, world } = this;
+    const operation = this._navigatorReadOperation = {};
+    const rootFabric = await this._ensureRootFabric();
+    if (this._disposed || !isCurrent() || this._navigatorReadOperation !== operation || this.base !== base || this.world !== world) return null;
+    this._adoptWorldNavigator(projectWorldNavigator({ base, rootFabric, world,
+      marker: this._playerContextMarker, promotions: this._navigatorPromotions }));
+    return this._navigator;
+  }
 
-    // reuse the manifest already fetched by _resolveWowEndpoints for
-    // THIS base (single /fabric.json fetch per world load); refetch only if the
-    // cache is empty or stale for the current base.
-    let rootFabric = null;
-    try {
-      rootFabric = await this._ensureRootFabric();
-      if (!rootFabric) throw new Error("root fabric manifest unavailable");
-      navigator.root_fabric = { ...fabricSummary(rootUrl, rootFabric), fabric_role: "root" };
-    } catch (err) {
+  _adoptWorldNavigator(navigator) {
+    this._navigator = navigator;
+    const spawn = this._rootFabricManifest ? navigatorSpawn(this._rootFabricManifest) : navigator.spawn;
+    if (spawn.applied) {
+      this.world.avatar.spawn_position = spawn.position.slice();
+      this.world.avatar.rotation_y = spawn.rotation_y;
+      if (this.state.avatar && this._startsEmbodied && this.state.phase === HANDOFF_PHASES.IDLE) {
+        this.state.avatar.position = spawn.position.slice();
+        this.state.avatar.rotation_y = spawn.rotation_y;
+      }
+    }
+    if (navigator.status === "root_fabric_unavailable") {
       this._rootFabricManifest = null;
       this._rootFabricManifestUrl = null;
-      navigator.status = "root_fabric_unavailable";
-      navigator.root_fabric = {
-        url: rootUrl,
-        status: "error",
-        fabric_role: "root",
-        error: `root fabric manifest unavailable: ${err.message}`,
-      };
-      navigator.child_render = { active: false, reason: "root_fabric_unavailable" };
-      this._log(`world-navigator: root fabric unavailable (${err.message}); staying on /wow projection`);
       return;
     }
-
-    // Spawn the avatar at the root fabric's primary.camera pose.
-    // spawn FACING the root fabric's portal attachment node when one
-    // exists. The manifest's primary.camera rotation is [0,0,0,1] (yaw 0,
-    // facing +Z) which points AWAY from the portal, so the over-shoulder
-    // camera framed the aperture back-face instead of the world + portal.
-    const cam = rootFabric.primary && rootFabric.primary.camera;
-    if (cam && Array.isArray(cam.position)) {
-      const spawn = [Number(cam.position[0]) || 0, 0, Number(cam.position[2]) || 0];
-      const manifestYaw = yawFromQuaternionY(cam.rotation);
-      // face the CENTROID of the portal attachment nodes
-      // (single portal -> that node, facing it; the lobby ->
-      // the midpoint between its two portals).
-      const spawnPortalNodes = findFabricPortalAttachmentNodes(rootFabric);
-      const portalPos = spawnPortalNodes.length
-        ? spawnPortalNodes
-            .map((node) => fabricNodePosition(node))
-            .reduce(
-              (acc, p, _i, arr) => [
-                acc[0] + Number(p[0] || 0) / arr.length,
-                acc[1] + Number(p[1] || 0) / arr.length,
-                acc[2] + Number(p[2] || 0) / arr.length,
-              ],
-              [0, 0, 0]
-            )
-        : null;
-      const toPortal = portalPos
-        ? [Number(portalPos[0]) - spawn[0], 0, Number(portalPos[2]) - spawn[2]]
-        : null;
-      const facesPortal = !!(toPortal && Math.hypot(toPortal[0], toPortal[2]) > 1e-6);
-      const yaw = facesPortal ? roundNumber(yawFromVector(toPortal, manifestYaw), 6) : manifestYaw;
-      this.world.avatar.spawn_position = spawn.slice();
-      this.world.avatar.rotation_y = yaw;
-      if (this.state.avatar && this._startsEmbodied && this.state.phase === HANDOFF_PHASES.IDLE) {
-        this.state.avatar.position = spawn.slice();
-        this.state.avatar.rotation_y = yaw;
-      }
-      navigator.spawn = {
-        source: "root_fabric_primary_camera",
-        applied: true,
-        position: roundVec3(spawn, 4),
-        rotation_y: yaw,
-        rotation_source: facesPortal
-          ? "faced_toward_portal_attachment_node"
-          : "root_fabric_primary_camera_rotation",
-        manifest_rotation_y: manifestYaw,
-      };
-    }
-
-    // The portal is a child-fabric attachment node (bSubtype 255) + action trigger.
-    const portalNode = findFabricPortalAttachmentNode(rootFabric);
-    const triggerNode = findFabricActionTriggerNode(rootFabric);
-    const spawnNode = findFabricSpawnNode(rootFabric);
-    if (triggerNode) {
-      navigator.trigger_node = {
-        node_id: fabricNodeId(triggerNode),
-        name: triggerNode.Name || null,
-        action: triggerNode.Resource ? triggerNode.Resource.sReference : null,
-        position: roundVec3(fabricNodePosition(triggerNode), 4),
-        bound_max: triggerNode.Bound && Array.isArray(triggerNode.Bound.Max)
-          ? triggerNode.Bound.Max.slice(0, 3)
-          : null,
-      };
-    }
-    navigator.root_spawn_node = spawnNode
-      ? {
-          node_id: fabricNodeId(spawnNode),
-          name: spawnNode.Name || null,
-          position: roundVec3(fabricNodePosition(spawnNode), 4),
-        }
-      : null;
-    if (!portalNode) {
-      navigator.status = "no_portal_attachment_node";
-      navigator.child_render = { active: false, reason: "no_portal_attachment_node_in_root_fabric" };
-      this._updateMarkerFromNavigator();
-      return;
-    }
-    const sReference = portalNode.Resource ? portalNode.Resource.sReference : null;
-    const childUrl = resolveFabricReference(sReference);
-    const portalNodePosition = roundVec3(fabricNodePosition(portalNode), 4);
-    const wowFrameGround = this.world.portal && this.world.portal.frame
-      ? clonePosition(this.world.portal.frame.ground_center, [0, 0, 0])
-      : null;
-    navigator.portal_attachment = {
-      node_id: fabricNodeId(portalNode),
-      name: portalNode.Name || null,
-      bSubtype: FABRIC_PORTAL_ATTACHMENT_SUBTYPE,
-      sReference: sReference || null,
-      resolved_url: childUrl,
-      transform_position: portalNodePosition,
-      matches_wow_portal_frame: wowFrameGround
-        ? distance2d(portalNodePosition, wowFrameGround) <= 0.01
-        : null,
-    };
-
-    // A portal shows its destination through that world's own preview, so no child fabric is loaded here: the
-    // destination is not read at all until the visitor nears its portal.
-    this._childFabricManifest = null;
-    navigator.status = "root_fabric_loaded_destinations_previewed_by_their_own_data";
-    navigator.child_render = { active: false, reason: "destination_shown_by_its_bounded_preview" };
+    if (navigator.portal_attachment) this._childFabricManifest = null;
     this._updateMarkerFromNavigator();
-    this._log(
-      `world-navigator: ${navigator.status} root=${navigator.root_fabric.container || "?"} child=${
-        navigator.child_fabric && navigator.child_fabric.container ? navigator.child_fabric.container : "none"
-      } context=${navigator.context_id}`
-    );
   }
 
   _updateMarkerFromNavigator() {
-    const navigator = this._navigator;
-    const marker = this._playerContextMarker;
-    if (!navigator || !marker) return;
-    const loaded = [];
-    if (navigator.root_fabric && navigator.root_fabric.status === "loaded") {
-      loaded.push(navigator.root_fabric.container || navigator.root_fabric.url);
-    }
-    if (navigator.child_fabric && navigator.child_fabric.status === "loaded") {
-      loaded.push(navigator.child_fabric.container || navigator.child_fabric.url);
-    }
-    navigator.fabrics_loaded = loaded;
-    navigator.fabrics_loaded_count = loaded.length;
-    marker.fabrics_loaded = loaded.slice();
-    marker.fabrics_loaded_count = loaded.length;
-    marker.root_fabric_url = navigator.root_fabric ? navigator.root_fabric.url : null;
-    marker.child_fabric_url = navigator.child_fabric ? navigator.child_fabric.url : null;
-    marker.upgraded_at = new Date().toISOString();
+    updateNavigatorMarker(this._navigator, this._playerContextMarker);
   }
 
   /** Child fabric manifest for the renderer (app.js) — read-only data. */
@@ -3193,14 +1634,19 @@ export class LiveAdapter extends EventTarget {
   }
 
   async refreshPreviewReadOnlyState() {
+    const world = this.world;
+    const navigation = this._worldNavigationOperation;
+    const current = () => !this._disposed && this.world === world && this._worldNavigationOperation === navigation;
     if (!this.previewEndpoint || !this.state.preview) return this._previewDebug();
     try {
       const debugState = await this._transport.getJson(`${this.previewEndpoint.proxy_base}/debug/state`);
+      if (!current()) return;
       this._applyPreviewReadOnlyDebug(debugState);
       this.state.preview.captured_at = new Date().toISOString();
       this.state.preview.freshness_ms = 0;
       this.state.preview.preview_freshness_ms = 0;
     } catch (err) {
+      if (!current()) return;
       this.state.preview.state = "error";
       this.state.preview.fallback_reason = `target preview readonly refresh failed: ${err.message}`;
       this.state.preview.preview_fallback_reason = this.state.preview.fallback_reason;
@@ -3440,32 +1886,10 @@ export class LiveAdapter extends EventTarget {
    * hosted (possibly dragged) portal position together.
    */
   applyHostedPortalPose(triggerPosition) {
-    const portal = this.world && this.world.portal;
-    if (!portal || !Array.isArray(triggerPosition)) return { changed: false, frame: portal ? portal.frame : null };
-    const current = clonePosition(portal.trigger && portal.trigger.position, [2.8, 0, -2.8]);
-    const next = clonePosition(triggerPosition, current);
-    next[1] = 0;
-    if (Math.abs(next[0] - current[0]) < 1e-4 && Math.abs(next[2] - current[2]) < 1e-4) {
-      return { changed: false, frame: portal.frame };
-    }
-    const radius = Number(portal.trigger && portal.trigger.radius_m) || 1.25;
-    portal.trigger = { position: next, radius_m: radius };
-    const rebuilt = portalFrameForLocation({
-      portalId: portal.portal_id,
-      locationId: this.world.location_id,
-      triggerPosition: next,
-      triggerRadius: radius,
-      targetLocationId: portal.target_location_id,
-      forward: portal.frame ? portal.frame.forward : undefined,
-    });
-    portal.frame = {
-      ...rebuilt,
-      target_world_id: portal.target_world_id || null,
-      target_base_url: portal.target_base_url || null,
-    };
-    this._updatePortalStatus();
-    this._emit();
-    return { changed: true, frame: portal.frame };
+    const result = adoptHostedPortalPose(this.world, triggerPosition);
+    if (result.changed) this._updatePortalStatus();
+    if (result.changed) this._emit();
+    return result;
   }
 
   /**
@@ -3474,33 +1898,9 @@ export class LiveAdapter extends EventTarget {
    * exits at the destination portal's CURRENT (possibly dragged) position.
    */
   applyHostedTargetPortalPose(triggerPosition) {
-    const portal = this.world && this.world.portal;
-    if (!portal || !portal.target_frame || !Array.isArray(triggerPosition)) {
-      return { changed: false, frame: portal ? portal.target_frame : null };
-    }
-    const current = clonePosition(portal.target_frame.ground_center, [2.8, 0, -2.8]);
-    const next = clonePosition(triggerPosition, current);
-    next[1] = 0;
-    if (Math.abs(next[0] - current[0]) < 1e-4 && Math.abs(next[2] - current[2]) < 1e-4) {
-      return { changed: false, frame: portal.target_frame };
-    }
-    const rebuilt = portalFrameForLocation({
-      portalId: portal.target_frame.portal_id,
-      locationId: portal.target_location_id,
-      triggerPosition: next,
-      triggerRadius: Number(portal.trigger && portal.trigger.radius_m) || 1.25,
-      targetLocationId: this.world.location_id,
-      forward: portal.target_frame.forward,
-    });
-    portal.target_frame = {
-      ...rebuilt,
-      target_world_id: null,
-      target_base_url: null,
-      linked_target_portal_id: portal.frame ? portal.frame.portal_id : rebuilt.linked_target_portal_id,
-      pose_source: "hosted_point_reload",
-    };
-    this._updatePortalStatus();
-    return { changed: true, frame: portal.target_frame };
+    const result = adoptHostedTargetPortalPose(this.world, triggerPosition);
+    if (result.changed) this._updatePortalStatus();
+    return result;
   }
 
   /**
@@ -3517,67 +1917,9 @@ export class LiveAdapter extends EventTarget {
    * real portal. Same rebuild recipe as the hosted-point adoption.
    */
   _adoptDestinationPortalPoseForMachine(machine, portalPose) {
-    if (
-      !machine ||
-      !machine.portal_key ||
-      !portalPose ||
-      !Array.isArray(portalPose.trigger_position) ||
-      !this.world
-    ) {
-      return { changed: false, frame: null };
-    }
-    const entries =
-      Array.isArray(this.world.portals) && this.world.portals.length
-        ? this.world.portals
-        : this.world.portal
-          ? [this.world.portal]
-          : [];
-    const entry = entries.find((p) => fabricPortalKey(p) === machine.portal_key) || null;
-    if (!entry || !entry.target_frame) return { changed: false, frame: null };
-    // A standard portal's arrival comes from its destination's node. The prefetch never feeds it.
-    if (entry.wow_resource) return { changed: false, frame: entry.target_frame };
-    const next = clonePosition(portalPose.trigger_position, null);
-    if (!next) return { changed: false, frame: entry.target_frame };
-    next[1] = 0;
-    const tf = entry.target_frame;
-    const current = clonePosition(
-      tf.ground_center,
-      Array.isArray(tf.position) ? [tf.position[0], 0, tf.position[2]] : [0, 0, 0]
-    );
-    const alreadyAdopted = tf.pose_source === "destination_region_portal_pose";
-    if (
-      alreadyAdopted &&
-      Math.abs(next[0] - current[0]) < 1e-4 &&
-      Math.abs(next[2] - current[2]) < 1e-4
-    ) {
-      return { changed: false, frame: tf };
-    }
-    const rebuilt = portalFrameForLocation({
-      portalId: tf.portal_id,
-      locationId: entry.target_location_id,
-      triggerPosition: next,
-      triggerRadius:
-        Number(portalPose.trigger_radius_m) ||
-        Number(entry.trigger && entry.trigger.radius_m) ||
-        1.25,
-      targetLocationId: this.world.location_id,
-      forward: Array.isArray(portalPose.forward) ? portalPose.forward : tf.forward,
-    });
-    entry.target_frame = {
-      ...rebuilt,
-      target_world_id: null,
-      target_base_url: null,
-      linked_target_portal_id: entry.frame ? entry.frame.portal_id : rebuilt.linked_target_portal_id,
-      pose_source: "destination_region_portal_pose",
-      pose_adopted_at: new Date().toISOString(),
-    };
-    const moved = Math.hypot(next[0] - current[0], next[2] - current[2]);
-    this._log(
-      `fabric region: destination portal pose adopted for ${machine.portal_key} -> ` +
-        `[${next[0]}, 0, ${next[2]}]${moved > 1e-4 ? ` (placeholder was ${moved.toFixed(2)} m off)` : " (placeholder already matched)"}`
-    );
-    this._updatePortalStatus();
-    return { changed: true, frame: entry.target_frame };
+    const result = adoptDestinationPortalPose(this.world, machine, portalPose, (message) => this._log(message));
+    if (result.changed) this._updatePortalStatus();
+    return result;
   }
 
   /** Operator/debug activation; the normal path starts when the avatar enters the trigger. */
@@ -3593,19 +1935,7 @@ export class LiveAdapter extends EventTarget {
    * mounts, translation is the coherent product of the two independent values.
    */
   runCalibrationSnapshot() {
-    const sourceSpeed = RUN_MOVE_SPEED_MPS;
-    const calibration = this._runCalibration;
-    return {
-      run_cycle_speed: calibration ? calibration.run_cycle_speed : null,
-      run_cycle_distance: calibration ? calibration.run_cycle_distance : null,
-      run_cadence_steps_per_min: calibration ? calibration.run_cycle_speed * 120 : null,
-      effective_run_translation_speed_mps: calibration
-        ? calibration.run_cycle_speed * calibration.run_cycle_distance
-        : sourceSpeed,
-      source_translation_speed_mps: sourceSpeed,
-      calibrated: calibration !== null,
-      persistence: "session-local-memory-only",
-    };
+    return runCalibrationSnapshot(this._runCalibration);
   }
 
   /**
@@ -3623,84 +1953,22 @@ export class LiveAdapter extends EventTarget {
    * lab does: on the ground, at the speed of the last planar step. The runtime's Locomotion starts again at the arrival.
    */
   _publishRuntimeGroundMotion(dt) {
-    const tuning = this._avatarLocomotionTuning;
-    if (!tuning || !this.state.avatar) return;
-    const d = (dt > 0 && this.state.controls.moving && this.state.controls.last_planar_delta) || [0, 0, 0];
-    const speed = dt > 0 ? Math.hypot(d[0], d[2]) / dt : 0;
-    const nowS = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
-    this.state.controls.speed_mps = Number(speed.toFixed(4));
-    this.state.controls.jump_height_m = 0;
-    this.state.controls.grounded = true;
-    this.state.controls.motion = {
-      runtime: "actionforge", speed_mps: Number(speed.toFixed(4)), phase: "none", phase_started_s: nowS,
-      crouch_time_s: tuning.crouchStanding, jump_style: "standing", land_moving: false, vy_mps: 0, turn_rate: 0, at_s: nowS,
-    };
-    this.state.avatar.locomotion = { ...this.state.controls };
-    this._avatarLocomotion = null;
+    if (publishRuntimeGroundMotion(this.state.avatar, this.state.controls, this._avatarLocomotionTuning, dt)) {
+      this._avatarLocomotion = null;
+    }
   }
 
   /** The runtime's Locomotion for this avatar, made at the avatar's place; it follows any jump in place (a crossing). */
   _runtimeLocomotion(avatar, groundY) {
-    const tuning = this._avatarLocomotionTuning;
-    if (!tuning) return null;
-    const p = clonePosition(avatar.position, [0, 0, 0]);
-    let loco = this._avatarLocomotion;
-    const moved = loco && Math.hypot(loco.position.x - p[0], loco.position.z - p[2]) > 1e-4;
-    if (!loco || moved) {
-      const yaw = Number(avatar.rotation_y) || 0;
-      if (!loco) loco = new Locomotion(tuning, { x: p[0], z: p[2], yaw });
-      else {
-        loco.position.set(p[0], 0, p[2]);
-        loco.quaternion.setFromAxisAngle({ x: 0, y: 1, z: 0 }, yaw);
-        loco.yaw = yaw;
-        loco.speed = 0;
-        loco.vy = 0;
-        loco.grounded = true;
-        loco._setPhase("none");
-      }
-      loco.position.y = Math.max(0, (Number(p[1]) || 0) - groundY);
-      this._avatarLocomotion = loco;
-    }
-    return loco;
+    if (!this._avatarLocomotionTuning) return null;
+    this._avatarLocomotion = runtimeLocomotion(this._avatarLocomotion, this._avatarLocomotionTuning, avatar, groundY);
+    return this._avatarLocomotion;
   }
 
   /** Install both run-cycle values atomically; no server/URL/storage default is written. */
   setRunCalibration(input) {
-    const runCycleSpeed = Number(input && input.run_cycle_speed);
-    const runCycleDistance = Number(input && input.run_cycle_distance);
-    if (!Number.isFinite(runCycleSpeed) || runCycleSpeed <= 0) {
-      throw new RangeError("run_cycle_speed must be a positive finite cycles/s value");
-    }
-    if (runCycleSpeed > RUN_MAX_CYCLE_SPEED + 1e-12) {
-      throw new RangeError("run_cycle_speed exceeds the measured 195.092 steps/min hard envelope");
-    }
-    if (!Number.isFinite(runCycleDistance) || runCycleDistance < RUN_MIN_CYCLE_DISTANCE_M) {
-      throw new RangeError("run_cycle_distance must be a finite, non-near-zero metres/cycle value");
-    }
-    this._runCalibration = Object.freeze({
-      run_cycle_speed: runCycleSpeed,
-      run_cycle_distance: runCycleDistance,
-    });
-    const snapshot = this.runCalibrationSnapshot();
-    this.state.controls.run_cycle_speed = runCycleSpeed;
-    this.state.controls.run_cycle_distance = runCycleDistance;
-    this.state.controls.run_cadence_steps_per_min = runCycleSpeed * 120;
-    this.state.controls.run_translation_speed_mps = snapshot.effective_run_translation_speed_mps;
-    if (this.state.avatar) {
-      const locomotion = {
-        ...this.state.controls,
-        ...(this.state.avatar.locomotion || {}),
-        run_cycle_speed: runCycleSpeed,
-        run_cycle_distance: runCycleDistance,
-        run_cadence_steps_per_min: runCycleSpeed * 120,
-        run_translation_speed_mps: snapshot.effective_run_translation_speed_mps,
-      };
-      if (locomotion.moving === true && locomotion.run_mode === true) {
-        locomotion.speed_mps = snapshot.effective_run_translation_speed_mps;
-        this.state.controls.speed_mps = snapshot.effective_run_translation_speed_mps;
-      }
-      this.state.avatar.locomotion = locomotion;
-    }
+    this._runCalibration = runCalibration(input);
+    const snapshot = applyRunCalibration(this.state.controls, this.state.avatar, this._runCalibration);
     this._emit();
     return snapshot;
   }
@@ -3709,175 +1977,26 @@ export class LiveAdapter extends EventTarget {
     if (!this.state.avatar) return this.state.controls;
     const dt = clamp(Number(deltaSeconds) || 0, 0, 0.05);
     if (dt <= 0) return this.state.controls;
-
     if (this._portalTraversalController.inTransition()) {
       this._stepPortalTransition(dt);
       this._publishRuntimeGroundMotion(dt);
       return this.state.controls;
     }
-
-    if (
-      this.state.phase !== HANDOFF_PHASES.IDLE &&
-      this.state.phase !== HANDOFF_PHASES.ARRIVED &&
-      this.state.phase !== HANDOFF_PHASES.PORTAL_ACTIVE
-    ) {
+    if (![HANDOFF_PHASES.IDLE, HANDOFF_PHASES.ARRIVED, HANDOFF_PHASES.PORTAL_ACTIVE].includes(this.state.phase)) {
       this._publishRuntimeGroundMotion(0);
       return this.state.controls;
     }
-
-    const controls = input || {};
-    const forward = (controls.forward ? 1 : 0) - (controls.back ? 1 : 0);
-    const strafe = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);
-    const hasPlanarInput = forward !== 0 || strafe !== 0;
-    const runMode = hasPlanarInput && controls.run === true;
-    const runCalibration = this.runCalibrationSnapshot();
-    const effectiveSpeedMps = hasPlanarInput
-      ? runMode
-        ? runCalibration.effective_run_translation_speed_mps
-        : MOVE_SPEED_MPS
-      : 0;
-    const wasMoving = this.state.controls.moving === true;
-    const avatar = this.state.avatar;
-    const p = clonePosition(avatar.position, [0, 0, 0]);
-    const previousPosition = p.slice();
-    const currentGround = this._resolveAvatarGround(previousPosition[0], previousPosition[2]);
-    if (!currentGround.ok) {
-      this._publishGroundSurface(currentGround);
+    const frame = movementFrame(this.state.avatar, this.state.controls, input, dt);
+    frame.currentGround = this._resolveAvatarGround(frame.p[0], frame.p[2]);
+    if (!frame.currentGround.ok) {
+      this._publishGroundSurface(frame.currentGround);
       return this.state.controls;
     }
-    let verticalChanged = false;
-    let groundQueryBlocked = false;
-    let rejectedGroundQuery = null;
-
-    // camera/facing-relative locomotion. The planar input
-    // basis is rotated by the CAMERA look yaw supplied per tick by the player
-    // client (`camera_yaw` = the yaw the active player camera looks along), so
-    // W always walks where the avatar/camera faces — in BOTH worlds, including
-    // after the crossing camera remap. Callers that omit camera_yaw
-    // (observer windows, external drivers) keep the historical world-fixed
-    // basis, which equals the spawn camera's look yaw π (W=-Z, S=+Z, A=-X,
-    // D=+X) — so behavior is bit-identical whenever the camera is un-orbited.
-    const basisYaw = Number.isFinite(Number(controls.camera_yaw))
-      ? Number(controls.camera_yaw)
-      : Math.PI;
-    const runtimeLocomotion = this._runtimeLocomotion(avatar, currentGround.surface_y_m);
-    if (runtimeLocomotion) {
-      return this._stepRuntimeLocomotion(dt, controls, runtimeLocomotion, {
-        forward, strafe, hasPlanarInput, runMode, basisYaw, p, previousPosition, currentGround, wasMoving, avatar,
-      });
-    }
-    let dx = 0;
-    let dz = 0;
-    if (hasPlanarInput) {
-      const len = Math.hypot(forward, strafe) || 1;
-      const f = forward / len;
-      const s = strafe / len;
-      const sinB = Math.sin(basisYaw);
-      const cosB = Math.cos(basisYaw);
-      // forward basis = camera look direction (sinB, cosB); right basis = look
-      // yaw rotated -90° = (-cosB, sinB). At basisYaw π this reduces EXACTLY
-      // to the legacy mapping dx = s·v, dz = -f·v.
-      dx = (f * sinB - s * cosB) * effectiveSpeedMps * dt;
-      dz = (f * cosB + s * sinB) * effectiveSpeedMps * dt;
-      // clamp to the PER-WORLD walkable extent when one has
-      // been measured (the WoW local walk sets `_movementBounds` from the world's
-      // actual content extent). `_movementBounds` is null on the live path, so the
-      // clamp stays byte-identical ±WORLD_LIMIT there — nothing about live
-      // movement changes.
-      const mb = this._movementBounds;
-      p[0] = clamp(p[0] + dx, mb ? mb.minX : -WORLD_LIMIT, mb ? mb.maxX : WORLD_LIMIT);
-      p[2] = clamp(p[2] + dz, mb ? mb.minZ : -WORLD_LIMIT, mb ? mb.maxZ : WORLD_LIMIT);
-    }
-
-    let localGround = this._resolveAvatarGround(p[0], p[2]);
-    if (!localGround.ok) {
-      groundQueryBlocked = true;
-      rejectedGroundQuery = localGround;
-      p[0] = previousPosition[0];
-      p[2] = previousPosition[2];
-      dx = 0;
-      dz = 0;
-      localGround = currentGround;
-    }
-    if (hasPlanarInput && !groundQueryBlocked) avatar.rotation_y = Math.atan2(dx, dz);
-
-    const wasGrounded = this.state.controls.grounded !== false;
-    const vertical = integrateAirportVerticalMotion({
-      position_y_m: p[1],
-      ground_y_m: localGround.surface_y_m,
-      velocity_y_mps: this._jumpVelocity,
-      grounded: wasGrounded,
-      jump_requested: controls.jump === true,
-      delta_seconds: dt,
-      jump_speed_mps: JUMP_SPEED_MPS,
-      gravity_mps2: GRAVITY_MPS2,
-    });
-    p[1] = vertical.position_y_m;
-    this._jumpVelocity = vertical.velocity_y_mps;
-    this.state.controls.grounded = vertical.grounded;
-    verticalChanged = controls.jump === true || !wasGrounded || !vertical.grounded || Math.abs(p[1] - previousPosition[1]) > 1e-9;
-    this._publishGroundSurface(localGround);
-    if (groundQueryBlocked) {
-      this.state.controls.ground_query_ok = false;
-      this.state.controls.ground_query_reason = "outside_classified_walkable_surface_planar_move_rejected";
-      this.state.controls.ground_query_rejected_xz_m = [
-        Number(rejectedGroundQuery.query_x_m.toFixed(4)),
-        Number(rejectedGroundQuery.query_z_m.toFixed(4)),
-      ];
-    } else {
-      this.state.controls.ground_query_rejected_xz_m = null;
-    }
-
-    if (!hasPlanarInput && !controls.jump && !verticalChanged && this.state.controls.grounded && !wasMoving) {
-      return this.state.controls;
-    }
-
-    avatar.position = p;
-    this.state.controls.enabled = true;
-    const planarMoved = hasPlanarInput && !groundQueryBlocked;
-    this.state.controls.moving = planarMoved;
-    this.state.controls.movement_mode = hasPlanarInput ? (runMode ? "run" : "walk") : "idle";
-    if (groundQueryBlocked) this.state.controls.movement_mode = "idle";
-    this.state.controls.run_mode = runMode;
-    if (groundQueryBlocked) this.state.controls.run_mode = false;
-    this.state.controls.speed_mps = effectiveSpeedMps;
-    if (groundQueryBlocked) this.state.controls.speed_mps = 0;
-    this.state.controls.run_cycle_speed = runCalibration.run_cycle_speed;
-    this.state.controls.run_cycle_distance = runCalibration.run_cycle_distance;
-    this.state.controls.run_cadence_steps_per_min = runCalibration.run_cadence_steps_per_min;
-    this.state.controls.run_translation_speed_mps = runCalibration.effective_run_translation_speed_mps;
-    // evidence: which basis the planar input was resolved in.
-    this.state.controls.movement_basis_yaw = Number(basisYaw.toFixed(6));
-    this.state.controls.movement_basis_source = Number.isFinite(Number(controls.camera_yaw))
-      ? "camera_relative"
-      : "world_fixed_legacy";
-    this.state.controls.movement_direction = directionFromInput(forward, strafe);
-    this.state.controls.last_planar_delta = [Number(dx.toFixed(4)), 0, Number(dz.toFixed(4))];
-    this.state.controls.facing_semantics = facingSemanticsFromDelta(dx, dz);
-    this.state.controls.jump_height_m = Number(vertical.jump_height_m.toFixed(3));
-    avatar.locomotion = { ...this.state.controls };
-    this._updatePortalStatus();
-
-    this._serverSyncMs += dt * 1000;
-    if (planarMoved && this._serverSyncMs >= 250) {
-      this._serverSyncMs = 0;
-      // the fixture WoW walk is fully client-local — there is
-      // no live backend to POST movement to (and this must never touch the live
-      // demo server). Skip the /movement sync for a local walk; the live path is
-      // unchanged (`_wowLocalWalk` is false there).
-      if (!this._wowLocalWalk) {
-        this._transport.postJson(`${this.base}/movement`, {
-          forward,
-          strafe,
-          turn: 0,
-          source: "browser-real-avatar-controls",
-        }).catch(() => {});
-      }
-    }
-    // throttled live-pose broadcast for the same-location observer.
-    this._maybeBroadcastPlayerPose();
-    this._emit();
-    return this.state.controls;
+    const loco = this._runtimeLocomotion(frame.avatar, frame.currentGround.surface_y_m);
+    if (loco) return this._stepRuntimeLocomotion(dt, input || {}, loco, frame);
+    const result = stepLegacyMovement(frame, { bounds: this._movementBounds,
+      velocity: this._jumpVelocity, calibration: this.runCalibrationSnapshot() }, (x, z) => this._resolveAvatarGround(x, z));
+    return this._finishMovementStep(dt, result);
   }
 
   /**
@@ -3886,83 +2005,10 @@ export class LiveAdapter extends EventTarget {
    * ground (a step off it is refused) and the ground's height under the feet; the jump's height rides on top of it.
    */
   _stepRuntimeLocomotion(dt, controls, loco, ctx) {
-    const { forward, strafe, hasPlanarInput, runMode, basisYaw, p, previousPosition, currentGround, wasMoving, avatar } = ctx;
-    const start = { x: loco.position.x, z: loco.position.z };
-    loco.update(dt, { forward, right: strafe, jog: runMode, jump: controls.jump === true, cameraYaw: basisYaw });
-    const mb = this._movementBounds;
-    const wantX = previousPosition[0] + (loco.position.x - start.x);
-    const wantZ = previousPosition[2] + (loco.position.z - start.z);
-    p[0] = clamp(wantX, mb ? mb.minX : -WORLD_LIMIT, mb ? mb.maxX : WORLD_LIMIT);
-    p[2] = clamp(wantZ, mb ? mb.minZ : -WORLD_LIMIT, mb ? mb.maxZ : WORLD_LIMIT);
-    let localGround = this._resolveAvatarGround(p[0], p[2]);
-    const groundQueryBlocked = !localGround.ok;
-    const rejectedGroundQuery = groundQueryBlocked ? localGround : null;
-    if (groundQueryBlocked) {
-      p[0] = previousPosition[0];
-      p[2] = previousPosition[2];
-      localGround = currentGround;
-      loco.speed = 0;
-    } else if (p[0] !== wantX || p[2] !== wantZ) {
-      // A step the bounds cut short leaves the speed it made, so at a wall the avatar stands, or slides along it,
-      // instead of walking on the spot.
-      loco.speed = Math.min(loco.speed, Math.hypot(p[0] - previousPosition[0], p[2] - previousPosition[2]) / dt);
-    }
-    loco.position.x = p[0];
-    loco.position.z = p[2];
-    const dx = p[0] - previousPosition[0];
-    const dz = p[2] - previousPosition[2];
-    p[1] = localGround.surface_y_m + loco.position.y;
-    avatar.rotation_y = loco.yaw;
-    this._jumpVelocity = loco.vy;
-    this.state.controls.grounded = loco.grounded;
-    this._publishGroundSurface(localGround);
-    if (groundQueryBlocked) {
-      this.state.controls.ground_query_ok = false;
-      this.state.controls.ground_query_reason = "outside_classified_walkable_surface_planar_move_rejected";
-      this.state.controls.ground_query_rejected_xz_m = [
-        Number(rejectedGroundQuery.query_x_m.toFixed(4)),
-        Number(rejectedGroundQuery.query_z_m.toFixed(4)),
-      ];
-    } else {
-      this.state.controls.ground_query_rejected_xz_m = null;
-    }
-    const active = hasPlanarInput || controls.jump === true || loco.speed > 0 || loco.phase !== "none" ||
-      !loco.grounded || Math.abs(loco.turnRate) > 1e-6 || Math.abs(p[1] - previousPosition[1]) > 1e-9;
-    if (!active && !wasMoving) return this.state.controls;
-
-    avatar.position = p;
-    const tuning = this._avatarLocomotionTuning;
-    const moving = loco.speed > 0.01 && !groundQueryBlocked;
-    this.state.controls.enabled = true;
-    this.state.controls.moving = moving;
-    this.state.controls.movement_mode = moving ? (loco.speed > tuning.walkSpeed + 0.05 ? "run" : "walk") : "idle";
-    this.state.controls.run_mode = moving && runMode;
-    this.state.controls.speed_mps = Number(loco.speed.toFixed(4));
-    this.state.controls.movement_basis_yaw = Number(basisYaw.toFixed(6));
-    this.state.controls.movement_basis_source = Number.isFinite(Number(controls.camera_yaw)) ? "camera_relative" : "world_fixed_legacy";
-    this.state.controls.movement_direction = directionFromInput(forward, strafe);
-    this.state.controls.last_planar_delta = [Number(dx.toFixed(4)), 0, Number(dz.toFixed(4))];
-    this.state.controls.facing_semantics = facingSemanticsFromDelta(dx, dz);
-    this.state.controls.jump_height_m = Number(loco.position.y.toFixed(3));
-    this.state.controls.motion = motionRecord(loco, (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000);
-    avatar.locomotion = { ...this.state.controls };
-    this._updatePortalStatus();
-
-    this._serverSyncMs += dt * 1000;
-    if (moving && this._serverSyncMs >= 250) {
-      this._serverSyncMs = 0;
-      if (!this._wowLocalWalk) {
-        this._transport.postJson(`${this.base}/movement`, {
-          forward,
-          strafe,
-          turn: 0,
-          source: "browser-real-avatar-controls",
-        }).catch(() => {});
-      }
-    }
-    this._maybeBroadcastPlayerPose();
-    this._emit();
-    return this.state.controls;
+    const frame = { ...ctx, dt, controls, stateControls: this.state.controls };
+    const result = stepRuntimeMovement(frame, { bounds: this._movementBounds,
+      tuning: this._avatarLocomotionTuning }, loco, (x, z) => this._resolveAvatarGround(x, z));
+    return this._finishMovementStep(dt, result);
   }
 
   shouldAutoHandoff() {
@@ -4098,104 +2144,68 @@ export class LiveAdapter extends EventTarget {
 
   // Portal commit, phase history, player completion, signing/verification,
   // observer relay, and crossing evidence are owned by the traversal controller.
-  async _promoteActiveEndpoint(targetKey, packet) {
-    const previousRootContainer =
-      this._navigator && this._navigator.root_fabric
-        ? this._navigator.root_fabric.container
-        : this.world
-          ? this.world.location_id
-          : null;
-    // snapshot the prefetch proof at promotion time —
-    // this is the "seamless crossing promotes preloaded target data" record —
-    // then reset the machine below against the NEW active world's portal.
-    const prefetchAtPromotion =
-      packet && packet.fabric_prefetch_proof
-        ? packet.fabric_prefetch_proof
-        : this._fabricPrefetchProofBlock(new Date().toISOString());
-    const prefetchPromotionInput =
-      this._fabricPrefetchController.capturePromotionInput(prefetchAtPromotion);
-    this.activeEndpointKey = targetKey;
-    this.previewEndpointKey = oppositeEndpointKey(targetKey);
-    this.endpoint = ENDPOINTS[this.activeEndpointKey];
-    this.previewEndpoint = this.previewEndpointKey ? ENDPOINTS[this.previewEndpointKey] : null;
-    this.base = this.endpoint.proxy_base;
-    this._portalId = this.endpoint.portal_id;
-    // re-resolve endpoints from the NEW active world's fabric services[]
-    // (the base changed on promotion), then use the spec integer routes.
-    const ep = await this._resolveWowEndpoints();
-    const wowWorld = await this._transport.getJson(ep.world.path);
-    // the promoted world may itself carry N portals.
-    const wowPortals = await this._fetchWowPortals(ep, wowWorld);
-    const wowPortal = wowPortals[0] || null;
-    this._adoptPortalFrameId(wowPortal);
-    this.world = worldFromLive(this.role, wowWorld, wowPortals, null);
-    this._lastPortalSignature = portalSignature(wowPortals);
-    // re-source the PROMOTED (destination) world's SCENE
-    // from its OWN WoW Spatial Composition Graph (/wow/spatial/{id}) — the
-    // crossing's scene source of record, REPLACING the prefetched .msf
-    // child-fabric promotion as the scene source. The destination was reached
-    // from the source portal's Portal.destination (target_world_id /
-    // target_base_url — NOT webofworlds_extension.target_*), and is CONFIRMED
-    // here against the promoted world's own /wow/world spatialID. Best-effort +
-    // non-fatal: the promotion machinery, the (x,y,z)->(-x,y,-z) isometry,
-    // handoff_id correlation, the no-reload in-memory root-swap, and the
-    // ghost-free presence hand-off below are all UNCHANGED (data source only).
-    const authoredEndpoint = authoredWowGraphEndpoint(wowWorld, this.base);
-    const promotedSceneSource = await this._resolveWowSceneGraph({
-      base: this.base,
-      spatialId: wowWorldSpatialId(wowWorld),
-      graphEndpoint: authoredEndpoint,
-      resolvedFrom: authoredEndpoint
-        ? "crossing destination backend-advertised authored /wow/graph (reached via Portal.destination; confirmed vs promoted /wow/world)"
-        : "crossing destination /wow/spatial (reached via source portal Portal.destination; confirmed vs promoted /wow/world)",
-    });
-    this._adoptLiveAirportScenePhysics(this._wowResolved);
-    this._lastCrossingSceneSource = promotedSceneSource;
-    const check = validateProofBoundary(this.world.claim_boundary);
-    this._boundaryOk = check.ok;
-    this._boundaryProblems = check.problems;
-    await this._initPlayerPreview();
-    await this._initWorldNavigator();
+  async _promoteActiveEndpoint(targetKey, packet, isCurrent = () => true) {
+    const navigationCurrent = this._beginWorldNavigation(isCurrent);
+    const { base, world } = this;
+    const current = () => navigationCurrent() && this.base === base && this.world === world;
+    const previousRootContainer = this._navigator?.root_fabric?.container || this.world?.location_id || null;
+    const prefetch = packet?.fabric_prefetch_proof || this._fabricPrefetchProofBlock(new Date().toISOString());
+    const completion = this._fabricPrefetchController.capturePromotionInput(prefetch);
+    const destination = await readNavigationDestination({ endpoint: ENDPOINTS[targetKey], role: this.role,
+      transport: this._transport, isCurrent: current });
+    if (!current() || !destination) return null;
+    this._adoptNavigationDestination(targetKey, destination);
     this._closeRuntimeStream();
     this._connectRuntimeStream();
-    const record = {
-      promoted_root_container:
-        this._navigator && this._navigator.root_fabric
-          ? this._navigator.root_fabric.container
-          : this.world.location_id,
-      demoted_root_container: previousRootContainer,
-      handoff_id: packet ? packet.handoff_id || null : null,
-      context_id: this._playerContextMarker ? this._playerContextMarker.context_id : null,
-      single_context: true,
-      mechanism:
-        "child fabric promoted to the root frame of the SAME context; previous root disconnected and re-attached as child at the promoted fabric's portal-back node",
-      promoted_at: new Date().toISOString(),
-      // whether this promotion had warm prefetched
-      // destination data (the seamlessness evidence) — plus the proof snapshot.
-      promoted_with_prefetch: !!(prefetchAtPromotion && prefetchAtPromotion.used),
-      fabric_prefetch_at_promotion: prefetchAtPromotion || null,
-    };
-    // Reset the prefetch machine against the NEW active world's return portal
-    // (the promoted world's own portal carries the reverse fabric address).
-    this._fabricPrefetchController.recordPromotion(record, prefetchAtPromotion);
+    const record = promotionRecord({ navigator: this._navigator, world: this.world,
+      previousRootContainer, packet, marker: this._playerContextMarker, prefetch });
+    this._fabricPrefetchController.recordPromotion(record, prefetch);
     this._resetFabricPrefetch("promoted_to_" + this.world.location_id);
     this._navigatorPromotions.push(record);
     if (this._navigator) {
       this._navigator.promotion_count = this._navigatorPromotions.length;
       this._navigator.last_promotion = record;
     }
-    if (this._playerContextMarker) {
-      this._playerContextMarker.promotions = this._navigatorPromotions.slice();
-    }
-    // the promoted world finishes loading its remaining
-    // entities in the background (paced, read-only, never input-blocking);
-    // reconciliation lands back on this promotion record.
-    this._startFabricCompletion({
-      handoff_id: record.handoff_id,
-      promotion_record: record,
-      ...prefetchPromotionInput,
-    });
+    if (this._playerContextMarker) this._playerContextMarker.promotions = this._navigatorPromotions.slice();
+    this._startFabricCompletion({ handoff_id: record.handoff_id, promotion_record: record, ...completion });
     return record;
+  }
+
+  _beginWorldNavigation(isCurrent = () => true) {
+    const operation = this._worldNavigationOperation = {};
+    this._nonPortalHandoffInFlight = false;
+    this._wowReadOperation = this._wowSceneReadOperation = this._rootFabricReadOperation = null;
+    this._wowEndpointReadOperation = this._navigatorReadOperation = null;
+    return () => !this._disposed && this._worldNavigationOperation === operation && isCurrent();
+  }
+
+  _adoptNavigationDestination(targetKey, destination) {
+    this._adoptNavigationResources(targetKey, destination);
+    this._wowResolved = destination.scene.resolved;
+    this._wowSceneSource = this._lastCrossingSceneSource = destination.scene.record;
+    this._adoptLiveAirportScenePhysics(this._wowResolved);
+    const check = validateProofBoundary(this.world.claim_boundary);
+    this._boundaryOk = check.ok;
+    this._boundaryProblems = check.problems;
+    this._initPlayerPreview();
+    this._adoptWorldNavigator(projectWorldNavigator({ base: this.base, rootFabric: destination.rootFabric,
+      world: this.world, marker: this._playerContextMarker, promotions: this._navigatorPromotions }));
+    for (const message of destination.messages) this._log(message);
+  }
+
+  _adoptNavigationResources(targetKey, destination) {
+    this.activeEndpointKey = targetKey;
+    this.previewEndpointKey = oppositeEndpointKey(targetKey);
+    this.endpoint = destination.endpoint;
+    this.previewEndpoint = this.previewEndpointKey ? ENDPOINTS[this.previewEndpointKey] : null;
+    this.base = destination.base;
+    this._portalId = destination.portalId;
+    this.world = destination.world;
+    this._rootFabricManifest = destination.rootFabric;
+    this._rootFabricManifestUrl = destination.rootFabric ? `${this.base}/fabric.json` : null;
+    this._wowEndpoints = destination.resolution.endpoints;
+    this._wowEndpointResolution = destination.resolution;
+    this._lastPortalSignature = destination.portalSignature;
   }
 
   /**
@@ -4207,110 +2217,8 @@ export class LiveAdapter extends EventTarget {
    * mapping carried in the handoff packet.
    */
   _fabricDerivedExitPose(frameMapping) {
-    const mapped =
-      frameMapping && frameMapping.mapped_exit_transform ? frameMapping.mapped_exit_transform : null;
-    const root = this._rootFabricManifest;
-    // the LIVE crossing lands at
-    // the TRAVERSED EDGE's counterpart pose — the frame mapping's
-    // mapped_exit_transform, built from the crossing portal's target_frame
-    // (P1's shared_edge counterpart: the SAME pose the through-ring
-    // renders and P3's exit-distance parity measures against). It is NOT the
-    // promoted fabric's first portal-attachment node. Post-P1 an endpoint world
-    // hosts TWO attachment nodes (its A<->B edge AND its lobby edge); the
-    // retired derivation below anchored on findFabricPortalAttachmentNode(root)
-    // — whichever attachment node came FIRST — so a lobby->A crossing landed
-    // 5.6 m away at the A<->B portal instead of location-a-portal-lobby. The
-    // frame mapping already carries the correct counterpart exit (proven:
-    // through-ring target_frame_vs_payload_m: 0); the fabric-node re-derivation
-    // was a parallel path that predated the two-portal topology (same
-    // retirement family as the world.arrival dead lines P3 documented). The
-    // fabric-node / world.arrival branches below remain ONLY as a fallback for a
-    // crossing that arrives with no frame mapping (never the composition
-    // crossing, which always carries portal_frame_transform).
-    if (mapped && Array.isArray(mapped.position)) {
-      return this._counterpartExitPoseFromFrameMapping(frameMapping, mapped, root);
-    }
-    const portalBack = root ? findFabricPortalAttachmentNode(root) : null;
-    const cam =
-      root && root.primary && root.primary.camera && Array.isArray(root.primary.camera.position)
-        ? root.primary.camera.position
-        : null;
-    if (!portalBack || !cam) {
-      const fallbackPosition = mapped
-        ? clonePosition(mapped.position, this.world ? this.world.arrival.position : [0, 0, 3.6])
-        : this.world
-          ? this.world.arrival.position.slice()
-          : [0, 0, 3.6];
-      const fallbackGround = this._resolveAvatarGround(fallbackPosition[0], fallbackPosition[2]);
-      if (!fallbackGround.ok) {
-        throw new Error(`portal exit has no classified destination ground: ${fallbackGround.reason}`);
-      }
-      fallbackPosition[1] = fallbackGround.surface_y_m;
-      return {
-        source: "portal_frame_mapping_fallback",
-        position: fallbackPosition,
-        rotation_y: mapped
-          ? Number(mapped.rotation_y) || 0
-          : this.world
-            ? Number(this.world.arrival.rotation_y) || 0
-            : 0,
-        matches_frame_mapping: null,
-      };
-    }
-    const anchor = fabricNodePosition(portalBack);
-    const dir = normalizeVec3([Number(cam[0]) - anchor[0], 0, Number(cam[2]) - anchor[2]], [0, 0, 1]);
-    const right = [dir[2], 0, -dir[0]];
-    // fix #2: place the presence at the CLOSER, mirrored exit distance
-    // carried in the frame mapping (mirrors the source approach; clamped just
-    // outside the trigger). Fall back
-    // to the just-outside minimum if the mapping did not carry an offset.
-    const exitOffset =
-      frameMapping && Number.isFinite(Number(frameMapping.exit_offset_m))
-        ? clamp(Number(frameMapping.exit_offset_m), PORTAL_EXIT_OFFSET_MIN_M, PORTAL_EXIT_OFFSET_MAX_M)
-        : PORTAL_EXIT_OFFSET_MIN_M;
-    // the MAPPED (output-side) lateral — the entry lateral
-    // mirrored by the 180° portal rotation, matching mapped_exit_transform and
-    // the arrival the packet delivers. Using the raw entry-side lateral here
-    // made the LIVE avatar land mirrored from where the
-    // target server placed it (the observer/player position mismatch).
-    const lateral =
-      frameMapping && Number.isFinite(Number(frameMapping.mapped_lateral_offset_m))
-        ? Number(frameMapping.mapped_lateral_offset_m)
-        : frameMapping && Number.isFinite(Number(frameMapping.lateral_offset_m))
-          ? -Number(frameMapping.lateral_offset_m)
-          : 0;
-    const position = addScaled3(addScaled3([anchor[0], 0, anchor[2]], dir, exitOffset), right, lateral);
-    const ground = this._resolveAvatarGround(position[0], position[2]);
-    if (!ground.ok) {
-      throw new Error(`portal exit has no classified destination ground: ${ground.reason}`);
-    }
-    position[1] = ground.surface_y_m;
-    const rounded = roundVec3(position, 4);
-    const rotation =
-      mapped && Number.isFinite(Number(mapped.rotation_y))
-        ? Number(mapped.rotation_y)
-        : yawFromVector(dir, 0);
-    return {
-      source: "promoted_fabric_portal_back_node+primary_camera",
-      portal_back_node: { node_id: fabricNodeId(portalBack), position: roundVec3(anchor, 4) },
-      primary_camera_position: roundVec3(cam, 4),
-      into_world_direction: roundVec3(dir, 6),
-      exit_offset_m: roundNumber(exitOffset, 3),
-      lateral_offset_m: roundNumber(lateral, 3),
-      position: rounded,
-      rotation_y: roundNumber(rotation, 6),
-      yaw_from_fabric_direction: roundNumber(yawFromVector(dir, 0), 6),
-      frame_mapped_exit: mapped
-        ? {
-            position: roundVec3(mapped.position, 4),
-            rotation_y: roundNumber(Number(mapped.rotation_y) || 0, 6),
-          }
-        : null,
-      matches_frame_mapping: mapped
-        ? Math.abs(rounded[0] - Number(mapped.position[0] || 0)) <= 0.05 &&
-          Math.abs(rounded[2] - Number(mapped.position[2] || 0)) <= 0.05
-        : null,
-    };
+    return deriveFabricExitPose(frameMapping, { root: this._rootFabricManifest, world: this.world,
+      resolveGround: (x, z) => this._resolveAvatarGround(x, z) });
   }
 
   /**
@@ -4330,84 +2238,8 @@ export class LiveAdapter extends EventTarget {
    * source. `matches_frame_mapping` is true by construction here.
    */
   _counterpartExitPoseFromFrameMapping(frameMapping, mapped, root) {
-    const targetFrame =
-      frameMapping && frameMapping.target_portal_frame ? frameMapping.target_portal_frame : null;
-    const counterpartGround =
-      targetFrame && Array.isArray(targetFrame.ground_center)
-        ? [Number(targetFrame.ground_center[0]) || 0, 0, Number(targetFrame.ground_center[2]) || 0]
-        : targetFrame && Array.isArray(targetFrame.position)
-          ? [Number(targetFrame.position[0]) || 0, 0, Number(targetFrame.position[2]) || 0]
-          : null;
-    const exitPosition = clonePosition(
-      mapped.position,
-      this.world ? this.world.arrival.position : [0, 0, 3.6],
-    );
-    const ground = this._resolveAvatarGround(exitPosition[0], exitPosition[2]);
-    if (!ground.ok) {
-      throw new Error(`portal exit has no classified destination ground: ${ground.reason}`);
-    }
-    exitPosition[1] = ground.surface_y_m;
-    const rounded = roundVec3(exitPosition, 4);
-    // Name the attachment node that hosts the traversed edge (nearest the
-    // counterpart) for HONEST evidence — post-P1 this is the lobby-edge node,
-    // not the arbitrary first (A<->B) node the retired path stranded arrivals on.
-    const portalNodes = root ? findFabricPortalAttachmentNodes(root) : [];
-    let hostingNode = null;
-    if (counterpartGround) {
-      for (const node of portalNodes) {
-        const p = fabricNodePosition(node);
-        const d = Math.hypot(p[0] - counterpartGround[0], p[2] - counterpartGround[2]);
-        if (!hostingNode || d < hostingNode.distance_to_counterpart_m) {
-          hostingNode = {
-            node_id: fabricNodeId(node),
-            position: roundVec3(p, 4),
-            distance_to_counterpart_m: d,
-          };
-        }
-      }
-    }
-    const exitOffset =
-      frameMapping && Number.isFinite(Number(frameMapping.exit_offset_m))
-        ? Number(frameMapping.exit_offset_m)
-        : null;
-    const lateral =
-      frameMapping && Number.isFinite(Number(frameMapping.mapped_lateral_offset_m))
-        ? Number(frameMapping.mapped_lateral_offset_m)
-        : frameMapping && Number.isFinite(Number(frameMapping.lateral_offset_m))
-          ? -Number(frameMapping.lateral_offset_m)
-          : null;
-    return {
-      source: "traversed_edge_counterpart_frame_mapping",
-      // The target FRAME's declared ids (portal_id is the destination location's
-      // default/primary portal — it equals the traversed edge's counterpart only
-      // when that counterpart IS the primary portal, e.g. A<->B; for a lobby
-      // return edge it is the location default, NOT location-*-portal-lobby). The
-      // PRECISE counterpart pose is target_frame_ground_center + hosting_fabric_node.
-      target_frame_portal_id: targetFrame ? targetFrame.portal_id || null : null,
-      target_frame_location_id: targetFrame ? targetFrame.location_id || null : null,
-      target_frame_ground_center: counterpartGround ? roundVec3(counterpartGround, 4) : null,
-      hosting_fabric_node: hostingNode
-        ? {
-            node_id: hostingNode.node_id,
-            position: hostingNode.position,
-            distance_to_counterpart_m: roundNumber(hostingNode.distance_to_counterpart_m, 4),
-          }
-        : null,
-      fabric_portal_node_count: portalNodes.length,
-      exit_offset_m: exitOffset === null ? null : roundNumber(exitOffset, 3),
-      landing_policy:
-        frameMapping && frameMapping.landing_policy
-          ? { ...frameMapping.landing_policy }
-          : null,
-      lateral_offset_m: lateral === null ? null : roundNumber(lateral, 3),
-      position: rounded,
-      rotation_y: roundNumber(Number(mapped.rotation_y) || 0, 6),
-      frame_mapped_exit: {
-        position: roundVec3(mapped.position, 4),
-        rotation_y: roundNumber(Number(mapped.rotation_y) || 0, 6),
-      },
-      matches_frame_mapping: true,
-    };
+    return counterpartExitPose(frameMapping, mapped, { root, world: this.world,
+      resolveGround: (x, z) => this._resolveAvatarGround(x, z) });
   }
 
   /**
@@ -4487,50 +2319,53 @@ export class LiveAdapter extends EventTarget {
   }
 
   async reset() {
+    const current = this._beginWorldNavigation();
+    this._portalTraversalController.cancel();
     let pendingRecompose = null;
     if (this.clientMode === "player") {
       // player reset restores the BOOT world as the root fabric — in
       // the same context (demotion mirrors promotion; still no reload).
       try {
         await this._transport.postJson(`${this.baseA}/reset`, {});
+        if (!current()) return;
       } catch (e) {
+        if (!current()) return;
         /* best effort */
       }
       try {
         await this._transport.postJson(`${this.baseB}/reset`, {});
+        if (!current()) return;
       } catch (e) {
+        if (!current()) return;
         /* best effort */
       }
       try {
         // the lobby node resets with the pair.
         await this._transport.postJson(`${BASE_LOBBY}/reset`, {});
+        if (!current()) return;
       } catch (e) {
+        if (!current()) return;
         /* best effort */
       }
       const demoted = this.activeEndpointKey !== this._bootEndpointKey;
-      this.activeEndpointKey = this._bootEndpointKey;
-      this.previewEndpointKey = oppositeEndpointKey(this.activeEndpointKey);
-      this.endpoint = ENDPOINTS[this.activeEndpointKey];
-      this.previewEndpoint = this.previewEndpointKey ? ENDPOINTS[this.previewEndpointKey] : null;
-      this.base = this.endpoint.proxy_base;
-      this._portalId = this.endpoint.portal_id;
       try {
-        // re-resolve from the boot world's fabric services[] on demotion.
-        const ep = await this._resolveWowEndpoints();
-        const wowWorld = await this._transport.getJson(ep.world.path);
-        const wowPortals = await this._fetchWowPortals(ep, wowWorld);
-        this._adoptPortalFrameId(wowPortals[0] || null);
-        this.world = worldFromLive(this.role, wowWorld, wowPortals, null);
+        const destination = await readNavigationResources({ endpoint: ENDPOINTS[this._bootEndpointKey], role: this.role,
+          transport: this._transport, isCurrent: current });
+        if (!current() || !destination) return;
+        this._adoptNavigationResources(this._bootEndpointKey, destination);
         this._airportWalkableSurface = null;
         this._movementBounds = null;
         const check = validateProofBoundary(this.world.claim_boundary);
         this._boundaryOk = check.ok;
         this._boundaryProblems = check.problems;
       } catch (e) {
+        if (!current()) return;
         this._log(`reset: world refetch failed (${e.message}); keeping previous world`);
       }
       await this._initPlayerPreview();
-      await this._initWorldNavigator();
+      if (!current()) return;
+      await this._initWorldNavigator(current);
+      if (!current()) return;
       this.state.arrival_count = this.world.initial_arrival_count ?? 0;
       if (this._playerContextMarker) {
         this._playerContextMarker.same_marker_after_crossing = null;
@@ -4548,7 +2383,9 @@ export class LiveAdapter extends EventTarget {
     } else {
       try {
         await this._transport.postJson(`${this.base}/reset`, {});
+        if (!current()) return;
       } catch (e) {
+        if (!current()) return;
         /* best effort */
       }
     }
@@ -4595,66 +2432,7 @@ export class LiveAdapter extends EventTarget {
     }
     this._jumpVelocity = 0;
     this._nonPortalHandoffInFlight = false;
-    this.state.controls = {
-      enabled: this._startsEmbodied,
-      moving: false,
-      movement_mode: "idle",
-      run_mode: false,
-      speed_mps: 0,
-      grounded: true,
-      jump_height_m: 0,
-      portal_distance_m: null,
-      portal_center: null,
-      portal_radius_m: null,
-      portal_frame: null,
-      portal_target_frame: null,
-      portal_frame_id: null,
-      portal_frame_position: null,
-      portal_frame_forward: null,
-      portal_frame_up: null,
-      portal_frame_right: null,
-      portal_frame_width_m: null,
-      portal_frame_height_m: null,
-      portal_trigger_depth_m: null,
-      portal_linked_target_portal_id: null,
-      portal_local_coordinates: null,
-      portal_signed_plane_distance_m: null,
-      portal_plane_distance_abs_m: null,
-      portal_inside_oval_aperture: false,
-      inside_oval_aperture: false,
-      inside_trigger_volume: false,
-      portal_crossing_direction: "unknown",
-      portal_last_crossing_direction: null,
-      portal_entry_crossing_direction: null,
-      portal_traversal_mode: null,
-      portal_allowed_entry_side: null,
-      portal_blocked_entry_side: null,
-      portal_current_entry_side: null,
-      portal_entry_side_allowed: true,
-      portal_traversal_rejected_count: 0,
-      portal_last_traversal_rejection: null,
-      portal_frame_mapping: null,
-      mapped_exit_transform: null,
-      mapped_exit_yaw: null,
-      portal_target_location_id: null,
-      portal_target_world_id: null,
-      portal_trigger_rearmed: this._startsEmbodied,
-      portal_rearm_required: false,
-      portal_exited_since_arrival: this._startsEmbodied,
-      portal_handoff_source_ready: false,
-      portal_handoff_target_ready: false,
-      portal_handshake_ready: false,
-      return_handshake_ready: false,
-      portal_ready_blocker: "reset",
-      inside_portal_trigger: false,
-      auto_handoff_ready: false,
-      movement_direction: "none",
-      last_planar_delta: [0, 0, 0],
-      facing_semantics: "still",
-      portal_transition_phase: "none",
-      portal_transition_elapsed_s: 0,
-      portal_transition_phase_history: [],
-    };
+    this.state.controls = initialSessionControls(this._startsEmbodied, "reset");
     this._portalTraversalController.reset({ reason: "reset", startsEmbodied: this._startsEmbodied });
     if (this.state.avatar) this.state.avatar.locomotion = { ...this.state.controls };
     this._updatePortalStatus();
@@ -4677,6 +2455,8 @@ export class LiveAdapter extends EventTarget {
     }
     if (!ENDPOINTS.lobby) return { ok: false, reason: "missing_lobby_endpoint" };
 
+    const current = this._beginWorldNavigation();
+    this._portalTraversalController.cancel();
     const fromBase = this.base;
     const from = endpointDebug(this.endpoint, this.world);
     const previousAvatar = this.state.avatar ? JSON.parse(JSON.stringify(this.state.avatar)) : null;
@@ -4686,20 +2466,12 @@ export class LiveAdapter extends EventTarget {
 
     try {
       await this._departPresence(fromBase, "return_to_lobby");
+      if (!current()) return { ok: false, reason: "navigation_retired" };
 
-      this.activeEndpointKey = "lobby";
-      this.previewEndpointKey = null;
-      this.endpoint = ENDPOINTS.lobby;
-      this.previewEndpoint = null;
-      this.base = this.endpoint.proxy_base;
-      this._portalId = this.endpoint.portal_id;
-
-      const ep = await this._resolveWowEndpoints();
-      const wowWorld = await this._transport.getJson(ep.world.path);
-      const wowPortals = await this._fetchWowPortals(ep, wowWorld);
-      this._adoptPortalFrameId(wowPortals[0] || null);
-      this.world = worldFromLive(this.role, wowWorld, wowPortals, null);
-      this._lastPortalSignature = portalSignature(wowPortals);
+      const destination = await readNavigationResources({ endpoint: ENDPOINTS.lobby, role: this.role,
+        transport: this._transport, isCurrent: current });
+      if (!current() || !destination) return { ok: false, reason: "navigation_retired" };
+      this._adoptNavigationResources("lobby", destination);
       this._airportWalkableSurface = null;
       this._movementBounds = null;
       const check = validateProofBoundary(this.world.claim_boundary);
@@ -4773,14 +2545,17 @@ export class LiveAdapter extends EventTarget {
       };
 
       await this._initPlayerPreview();
-      await this._initWorldNavigator();
+      if (!current()) return { ok: false, reason: "navigation_retired" };
+      await this._initWorldNavigator(current);
+      if (!current()) return { ok: false, reason: "navigation_retired" };
       this._jumpVelocity = 0;
-      this._nonPortalHandoffInFlight = false;
+      if (current()) this._nonPortalHandoffInFlight = false;
       this._portalTraversalController.reset({ reason: "return_to_lobby", startsEmbodied: true });
       this._resetFabricPrefetch("return_to_lobby");
       this._closeRuntimeStream();
       this._connectRuntimeStream();
       await this._registerPresence("return_to_lobby");
+      if (!current()) return { ok: false, reason: "navigation_retired" };
       this._maybeBroadcastPlayerPose({ force: true });
       this._emit();
 
@@ -4795,7 +2570,8 @@ export class LiveAdapter extends EventTarget {
       this.dispatchEvent(new CustomEvent("crossing", { detail }));
       return { ok: true, ...detail };
     } catch (err) {
-      this._nonPortalHandoffInFlight = false;
+        if (!current()) return { ok: false, reason: "navigation_retired" };
+      if (current()) this._nonPortalHandoffInFlight = false;
       this._log(`return-to-lobby failed: ${err.message}`);
       this._emit();
       return { ok: false, reason: err.message };
@@ -4915,14 +2691,7 @@ export class LiveAdapter extends EventTarget {
       throw new Error("a visual transition is already staged");
     }
     const sourceDebug = this.debugState();
-    const state = {
-      ...this.state,
-      avatar: snapshotRenderFacingAvatar(this.state.avatar),
-      controls: { ...(this.state.controls || {}) },
-      preview: this.state.preview,
-      portal_previews: this.state.portal_previews,
-      equipment_status: this.state.equipment_status,
-    };
+    const state = snapshotVisualState(this.state, snapshotRenderFacingAvatar);
     this._visualTransitionSnapshot = {
       metadata: { ...metadata },
       staged_at: new Date().toISOString(),
@@ -4955,54 +2724,14 @@ export class LiveAdapter extends EventTarget {
   }
 
   visualRuntimeSnapshot() {
-    const staged = this._visualTransitionSnapshot;
-    if (!staged) {
-      return {
-        staged: false,
-        metadata: null,
-        state: this.state,
-        world: this.world,
-        base: this.base,
-        activeEndpointKey: this.activeEndpointKey,
-        previewEndpointKey: this.previewEndpointKey,
-      };
-    }
-    return {
-      staged: true,
-      metadata: { ...staged.metadata },
-      state: staged.state,
-      world: staged.world,
-      base: staged.base,
-      activeEndpointKey: staged.activeEndpointKey,
-      previewEndpointKey: staged.previewEndpointKey,
-    };
+    return visualRuntimeProjection(this._visualTransitionSnapshot, {
+      state: this.state, world: this.world, base: this.base,
+      activeEndpointKey: this.activeEndpointKey, previewEndpointKey: this.previewEndpointKey,
+    });
   }
 
   visualDebugState() {
-    const raw = this.debugState();
-    const staged = this._visualTransitionSnapshot;
-    if (!staged) return raw;
-    return {
-      ...staged.sourceDebug,
-      active: staged.activeDebug,
-      preview: staged.previewDebug,
-      portal_previews: staged.state.portal_previews || null,
-      location_id: staged.world.location_id,
-      world_id: staged.world.world_id,
-      session_id: staged.world.session_id,
-      phase: staged.state.phase,
-      handoff_id: staged.state.handoff_id,
-      session: { arrival_count: staged.state.arrival_count },
-      avatar: staged.state.avatar,
-      controls: staged.state.controls,
-      equipment_status: staged.state.equipment_status,
-      claim_boundary: staged.world.claim_boundary,
-      visual_transition: {
-        staged: true,
-        metadata: { ...staged.metadata },
-        staged_at: staged.staged_at,
-      },
-    };
+    return visualDebugProjection(this._visualTransitionSnapshot, this.debugState());
   }
 
   commitVisualTransition({ emit = false } = {}) {
@@ -5023,23 +2752,7 @@ export class LiveAdapter extends EventTarget {
       this.base = staged.base;
       this._portalId = staged.portalId;
       this.world = staged.world;
-      let restoredAvatar = staged.state.avatar;
-      if (staged.liveAvatar && staged.state.avatar) {
-        restoredAvatar = staged.liveAvatar;
-        for (const key of Object.keys(restoredAvatar)) delete restoredAvatar[key];
-        Object.assign(restoredAvatar, snapshotRenderFacingAvatar(staged.state.avatar));
-      }
-      let restoredControls = { ...(staged.state.controls || {}) };
-      if (staged.liveControls) {
-        restoredControls = staged.liveControls;
-        for (const key of Object.keys(restoredControls)) delete restoredControls[key];
-        Object.assign(restoredControls, staged.state.controls || {});
-      }
-      for (const key of Object.keys(this.state)) delete this.state[key];
-      Object.assign(this.state, staged.state, {
-        avatar: restoredAvatar,
-        controls: restoredControls,
-      });
+      restoreVisualState(this.state, staged, snapshotRenderFacingAvatar);
       const infrastructure = staged.infrastructure;
       this._wowEndpoints = infrastructure.wowEndpoints;
       this._wowEndpointResolution = infrastructure.wowEndpointResolution;
@@ -5058,120 +2771,38 @@ export class LiveAdapter extends EventTarget {
   /** /debug/state-shaped snapshot, matching Lane 1's fixture debugState() shape. */
   debugState() {
     const proofBoundary = strictProofBoundary(this.world && this.world.claim_boundary);
-    const traversalDebug = this._portalTraversalController.debug();
-    return {
+    const traversal = this._portalTraversalController.debug();
+    return projectLiveDebug(this.world, this.state, {
       role: this.role,
       mode: this.mode,
-      client_mode: this.clientMode,
+      clientMode: this.clientMode,
       provenance: PROVENANCE.LIVE,
       active: this._activeDebug(),
       preview: this._previewDebug(),
-      // per-portal previews for multi-portal worlds
-      // (null on single-portal worlds — additive, never replaces `preview`).
-      portal_previews: this.state.portal_previews || null,
-      controlled_identity: this.controlledIdentity(),
-      player_context_marker: this._playerContextMarkerDebug(),
+      controlledIdentity: this.controlledIdentity(),
+      playerContextMarker: this._playerContextMarkerDebug(),
       navigator: this._navigatorDebug(),
-      crossing: traversalDebug.crossing,
-      client_scene_load: this._clientSceneController.debug(),
-      // the active world's WoW Spatial Composition Graph
-      // scene source of record (graph_url, spatialID, node_count). This is the
-      // SCENE SOURCE the crossing re-based onto; the crossing DESTINATION variant
-      // rides on crossing.destination_scene_source. Honest — surfaced, never hidden.
-      wow_scene_source: this._wowSceneSource || null,
-      // live UM manifest signing status: what was signed on exit and the
-      // result of verifying on arrival. This is the observable proof that the crossing signs
-      // a REAL v0.4 manifest and VERIFIES it on the far side. Signing != conformance: this
-      // block does NOT set um_conformance (that stays the scoped object in
-      // proof_boundary.um_conformance).
-      um_signing: {
-        signed_on_exit: traversalDebug.um_signing.signed_on_exit,
-        verified_on_arrival: traversalDebug.um_signing.verified_on_arrival,
-        scope_note:
-          "v0.4 UM manifest signed on exit (Signature Profile A: Ed25519 + JCS-RFC8785 + did:key subject binding) " +
-          "and verified on arrival (runtime verifier). Schema-valid v0.4 + real signature; NOT evaluator conformance. " +
-          "um_conformance unchanged.",
-      },
-      // the retained UM IDENTITY spine, brought live on
-      // /wow/user: the honest result of VERIFYING the signed OpenUserManifest
-      // ({name,age,avatarAssetURI} signed with Ed25519 over JCS-RFC8785, bound to a
-      // did:key). This is the IDENTITY spine — SEPARATE from um_signing (the
-      // crossing-manifest sign-on-exit/verify-on-arrival) and from the deferred
-      // .msf RS256/x5c engine spine. Verified only when the byte-exact recompute +
-      // Ed25519 check pass; absent/failed signatures degrade honestly. Signing is
-      // NOT a conformance claim: standards_conformance stays false, the field is
-      // labeled non-canonical, and no proof_boundary flag flips.
-      um_identity: this._umIdentity
-        ? {
-            ...this._umIdentity,
-            scope_note:
-              "UM IDENTITY spine (Ed25519 + JCS-RFC8785 + did:key) over the OpenUserManifest content " +
-              "{name,age,avatarAssetURI}, fronted via /wow/user as a labeled non-canonical additive field. " +
-              "REAL signature, byte-exact verify; NOT standards conformance (standards_conformance stays false). " +
-              "Separate from um_signing (crossing) and the deferred .msf RS256/x5c engine spine.",
-          }
-        : null,
-      // RP1 fail-closed gate: visible demo mode + the last traversal
-      // receipt (accepted on the happy path; REJECTED on a fail-closed deny) + the SCOPED
-      // descriptor (fail_closed_conformance only; um_conformance untouched).
-      rp1_fail_closed: this._rp1FailClosedDebug(),
-      // addressable spatial fabric portal prefetch: the
-      // portal's fabric address, the two-zone state, the loaded portal-
-      // neighborhood region, and the destination occupancy read (all labeled
-      // local proof; read-only before crossing).
-      fabric_prefetch: this._fabricPrefetchDebug(),
-      // server-side presence registration lifecycle:
-      // which server this player session is registered with, heartbeat/depart
-      // bookkeeping, and the last lifecycle events (evidence surface).
-      presence_registration: this._presenceDebug(),
-      presence_push: this._presencePushDebug(),
-      // the WoW endpoints the browser resolved from the loaded fabric's
-      // services[] (spec integer routes) + the optional /wow/view/1 match.
-      wow_endpoints: this._wowEndpointResolution
-        ? {
-            resolved_from_services: this._wowEndpointResolution.resolved_from_services,
-            base: this._wowEndpointResolution.base,
-            provenance: this._wowEndpointResolution.provenance,
-            resolution_rule: this._wowEndpointResolution.resolution_rule,
-          }
-        : null,
-      view_match: this._viewMatch || null,
-      player_handoff_profile: traversalDebug.player_handoff_profile || null,
-      location_id: this.world.location_id,
-      world_id: this.world.world_id,
-      session_id: this.world.session_id,
-      phase: this.state.phase,
-      handoff_id: this.state.handoff_id,
-      session: { arrival_count: this.state.arrival_count },
-      avatar: this.state.avatar,
-      controls: this.state.controls,
-      portal_transition: traversalDebug.portal_transition,
+      traversal,
+      clientSceneLoad: this._clientSceneController.debug(),
+      wowSceneSource: this._wowSceneSource,
+      umIdentity: this._umIdentity,
+      rp1FailClosed: this._rp1FailClosedDebug(),
+      fabricPrefetch: this._fabricPrefetchDebug(),
+      presence: this._presenceDebug(),
+      presencePush: this._presencePushDebug(),
+      endpointResolution: this._wowEndpointResolution,
+      viewMatch: this._viewMatch,
       visibility: this._visibilityDebug(),
-      live_player_pose: this._peers.livePoseDebug(),
-      // tracked player avatars co-present in this
-      // window's current world. Player views exclude self; observer/server views
-      // list every received same-location player pose.
-      peer_players: this._peerPlayersDebug(),
-      co_present_peer_count: this._coPresentPeerCount(),
-      player_pose_broadcast: this._playerPoseBroadcastDebug(),
-      last_handoff_direction: this.state.last_handoff_direction,
-      last_handoff_payload: this.state.last_handoff_payload,
-      last_pose_payload: this.state.last_pose_payload,
-      // GeoPose-SHAPED positioning of the LIVE avatar (updates
-      // continuously). Demonstration mapping only — NOT OGC-conformant, NOT
-      // georeferenced; standards_conformance stays false. Falls back to the last
-      // handoff capture when no avatar is currently present (e.g. mid-crossing).
-      geopose_shaped_pose: this.state.avatar
+      livePose: this._peers.livePoseDebug(),
+      peers: this._peerPlayersDebug(),
+      peerCount: this._coPresentPeerCount(),
+      poseBroadcast: this._playerPoseBroadcastDebug(),
+      avatarGeoPose: this.state.avatar
         ? geoPoseShapedFromTransform(transformSnapshot(this.state.avatar))
-        : (this.state.last_handoff_payload &&
-            this.state.last_handoff_payload.avatar_context &&
-            this.state.last_handoff_payload.avatar_context.geopose_shaped_pose) ||
-          null,
-      equipment_status: this.state.equipment_status,
-      claim_boundary: this.world.claim_boundary,
-      proof_boundary: proofBoundary,
-      proof_boundary_check: this.boundaryStatus(),
-    };
+        : null,
+      proofBoundary,
+      boundaryStatus: this.boundaryStatus(),
+    });
   }
 
   /* ---------------- Web of Worlds API panel surface --------
@@ -5185,8 +2816,6 @@ export class LiveAdapter extends EventTarget {
   /** Spec identity + the services[] the loaded root fabric advertises. */
   apiPanelInfo() {
     const active = this.endpoint;
-    // a multi-portal world (the lobby) has no single
-    // "opposite" — the panel's target is the FOCUS/primary portal's target.
     const targetKey =
       oppositeEndpointKey(this.activeEndpointKey) ||
       endpointKeyForLocation(
@@ -5194,56 +2823,14 @@ export class LiveAdapter extends EventTarget {
       ) ||
       "a";
     const target = ENDPOINTS[targetKey];
-    const root = this._rootFabricManifest;
-    const services = Array.isArray(root && root.services) ? root.services : [];
-    return {
-      spec_identity: { ...SPEC_IDENTITY },
-      wow_contract_validation: this._transport.wowContractValidationSnapshot(),
-      active: {
-        endpoint_key: active.endpoint_key,
-        proxy_base: active.proxy_base,
-        location_id: this.world ? this.world.location_id : active.location_id,
-        portal_id: active.portal_id,
-      },
-      target: {
-        endpoint_key: target.endpoint_key,
-        proxy_base: target.proxy_base,
-        location_id: target.location_id,
-        portal_id: target.portal_id,
-      },
-      // services[] provenance: the manifest's advertised Web of Worlds surface.
-      services: services.map((svc) => ({
-        name: svc.name,
-        type: svc.type,
-        endpoint: svc.endpoint,
-        default_id: svc.default_id ?? null,
-      })),
-      services_line: services.length
-        ? "fabric services[] → " + services.map((svc) => svc.endpoint).join(", ")
-        : "fabric services[] → (root fabric not loaded)",
-      // the endpoints the browser ACTUALLY resolved from services[] and
-      // is calling (spec integer routes), with per-resource provenance. This is
-      // the on-screen proof that the demo learned the API from the manifest.
-      resolved_endpoints: this._wowEndpointResolution
-        ? {
-            resolved_from_services: this._wowEndpointResolution.resolved_from_services,
-            resolution_rule: this._wowEndpointResolution.resolution_rule,
-            world: this._wowEndpointResolution.provenance.world.resolved_path,
-            user: this._wowEndpointResolution.provenance.user.resolved_path,
-            portal: this._wowEndpointResolution.provenance.portal.resolved_path,
-            view: this._wowEndpointResolution.provenance.view.resolved_path,
-            provenance: this._wowEndpointResolution.provenance,
-            line: this._wowEndpointResolution.resolved_from_services
-              ? "resolved from services[] → " +
-                ["world", "user", "portal", "view"]
-                  .map((k) => this._wowEndpointResolution.provenance[k].resolved_path)
-                  .join(", ")
-              : "using fallback constants (manifest advertised no WoW services[])",
-          }
-        : null,
-      // last /wow/view/1 vs local-camera comparison.
-      view_match: this._viewMatch || null,
-    };
+    return projectApiPanel(active, target, {
+      root: this._rootFabricManifest,
+      world: this.world,
+      resolution: this._wowEndpointResolution,
+      viewMatch: this._viewMatch,
+      validation: this._transport.wowContractValidationSnapshot(),
+      specIdentity: SPEC_IDENTITY,
+    });
   }
 
   /**
@@ -5255,38 +2842,12 @@ export class LiveAdapter extends EventTarget {
    * the demonstrable payload).
    */
   async apiFetchEndpoint(kind, id) {
-    const base = this.base;
-    let url;
-    let schema;
-    switch (String(kind)) {
-      case "world": url = `${base}/wow/world`; schema = "World"; break;
-      case "user": url = `${base}/wow/user/${encodeURIComponent(id != null && id !== "" ? id : 1)}`; schema = "User"; break;
-      case "view": url = `${base}/wow/view/${encodeURIComponent(id != null && id !== "" ? id : 1)}`; schema = "View"; break;
-      case "portal":
-        url = `${base}/wow/portal/${encodeURIComponent(id != null && id !== "" ? id : this._portalId)}`;
-        schema = "Portal";
-        break;
-      case "fabric": url = `${base}/fabric.json`; schema = "fabric manifest"; break;
-      default:
-        return { ok: false, status: 0, url: null, schema: "unknown", json: { error: `unknown endpoint kind: ${kind}` } };
-    }
-    try {
-      const json = await this._transport.getJson(url);
-      return { ok: true, status: 200, url: this._transport.displayPath(url), schema, json };
-    } catch (err) {
-      // getJson attaches nothing structured on GET failure; re-fetch to surface
-      // the live 404 body (the resource domain is real and demonstrable).
-      let status = 0;
-      let json = { error: err.message };
-      try {
-        const res = await this._transport.rawFetch(url, { headers: { Accept: "application/json" } });
-        status = res.status;
-        json = await res.json().catch(() => ({ error: `${res.status}` }));
-      } catch (e2) {
-        json = { error: e2.message };
-      }
-      return { ok: false, status, url: this._transport.displayPath(url), schema, json };
-    }
+    return fetchLiveApiEndpoint(
+      this._transport,
+      { base: this.base, portalId: this._portalId },
+      kind,
+      id
+    );
   }
 
   /**
@@ -5298,9 +2859,12 @@ export class LiveAdapter extends EventTarget {
    * delivery needs no server change.
    */
   async presenterExitIntent() {
-    const url = `${this.base}/portal/exit-intent`;
-    const packet = await this._transport.postJson(url, { portal_id: this._portalId });
-    return { ok: true, status: 201, url: this._transport.displayPath(url), endpoint_key: this.activeEndpointKey, packet };
+    return postPresenterExit(
+      this._transport,
+      `${this.base}/portal/exit-intent`,
+      this._portalId,
+      () => this.activeEndpointKey
+    );
   }
 
   /**
@@ -5315,8 +2879,6 @@ export class LiveAdapter extends EventTarget {
   async presenterDeliverArrival(packet, opts = {}) {
     const pkt = packet && typeof packet === "object" ? packet : {};
     const target = pkt.target || {};
-    // resolve by location_id across ALL endpoints (the
-    // lobby included); the two-world opposite rule stays the final fallback.
     const realTargetKey =
       endpointKeyForLocation(target.location_id) ||
       oppositeEndpointKey(this.activeEndpointKey) ||
@@ -5327,39 +2889,11 @@ export class LiveAdapter extends EventTarget {
     const wrongKey = oppositeEndpointKey(realTargetKey) || this.activeEndpointKey;
     const deliverKey = opts.toWrongNode ? wrongKey : realTargetKey;
     const deliverBase = ENDPOINTS[deliverKey].proxy_base;
-
-    let before = null;
-    try {
-      const dbg = await this._transport.getJson(`${deliverBase}/debug/state`);
-      before = dbg && dbg.session ? dbg.session.arrival_count : null;
-    } catch (e) { /* best-effort */ }
-
-    const url = `${deliverBase}/portal/arrival`;
-    try {
-      const res = await this._transport.postJson(url, pkt);
-      let after = null;
-      try {
-        const dbg = await this._transport.getJson(`${deliverBase}/debug/state`);
-        after = dbg && dbg.session ? dbg.session.arrival_count : null;
-      } catch (e) { /* best-effort */ }
-      return {
-        ok: true, status: 201, url: this._transport.displayPath(url), delivered_to_endpoint: deliverKey,
-        wrong_node: !!opts.toWrongNode, arrival_count_before: before, arrival_count_after: after,
-        arrival_count_delta: (before != null && after != null) ? after - before : null,
-        response: res,
-      };
-    } catch (err) {
-      // The drift-guard 400 body IS the demonstrable "the API validates its
-      // contract" payload — return it, do not throw.
-      return {
-        ok: false, status: err.body ? 400 : 0, url: this._transport.displayPath(url), delivered_to_endpoint: deliverKey,
-        wrong_node: !!opts.toWrongNode, arrival_count_before: before, arrival_count_after: before,
-        arrival_count_delta: 0, response: err.body || { error: err.message },
-      };
-    }
+    return postPresenterArrival(this._transport, pkt, { deliverKey, deliverBase }, opts);
   }
 
   _emit(opts = {}) {
+    if (this._disposed) return;
     const detail = this.visualDebugState();
     this.dispatchEvent(new CustomEvent("state", { detail }));
     if (opts.broadcastVisibility !== false) this._broadcastVisibility();
@@ -5547,9 +3081,12 @@ export class LiveAdapter extends EventTarget {
    * `resumeSession()` can re-add the player when the launcher is dismissed.
    */
   async leaveSession(reason = "leave_session") {
+    const current = this._beginWorldNavigation();
+    this._portalTraversalController.cancel();
     if (this.clientMode !== "player") return null;
     this._stopPresenceHeartbeat();
     await this._departPresence(this.base, reason, { beacon: true });
+    if (!current()) return null;
     this._presenceController.clearRegistration();
     this._closeRuntimeStream();
     this._closePresenceEventStreams();
@@ -5826,5 +3363,31 @@ export class LiveAdapter extends EventTarget {
   listenForCrossWindow() {
     this._peers.listenForCrossWindow();
     return this;
+  }
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+    this._beginWorldNavigation();
+    this._portalTraversalController.cancel();
+    this._fabricPrefetchController.dispose();
+    this._runtimeStreams.dispose();
+    this._presenceController.dispose();
+    this._peers.dispose();
+  }
+
+  _finishMovementStep(dt, result) {
+    this._jumpVelocity = result.velocity;
+    if (!result.active) return this.state.controls;
+    this._updatePortalStatus();
+    this._serverSyncMs += dt * 1000;
+    if (result.moving && this._serverSyncMs >= 250) {
+      this._serverSyncMs = 0;
+      if (!this._wowLocalWalk) this._transport.postJson(`${this.base}/movement`, {
+        forward: result.forward, strafe: result.strafe, turn: 0, source: "browser-real-avatar-controls",
+      }).catch(() => {});
+    }
+    this._maybeBroadcastPlayerPose();
+    this._emit();
+    return this.state.controls;
   }
 }

@@ -2,6 +2,7 @@
 // in src/equipment-foundation.js requires it), so we keep new URL(…, origin) and only make the path
 // prefix-aware via the ONE base-path helper. Root mode: withBase() is identity -> unchanged.
 import { withBase } from "./base-path.mjs";
+import { SHARED_CATALOG_ITEMS } from "./shared-catalog-items.mjs";
 
 const VRM_ATTACHMENT_POINTS = new Set([
   "hips", "spine", "chest", "upperChest", "neck", "head",
@@ -19,15 +20,24 @@ const VRM_ATTACHMENT_POINTS = new Set([
  * layer_scale_factor note). assetUri is absolute (the node-side packet
  * validator in src/equipment-foundation.js requires an absolute http(s) URI).
  */
-function featureItem(itemId, attachmentPoint, mode, label, position, quaternion) {
-  const base = new URL(withBase("/assets/"), window.location.origin).href.replace(/\/$/, "");
+function featureItem(record) {
+  const itemId = record.key.replace(/^item-/, "");
+  const legacy = {
+    "equip-hat": [[0, .1, 0], [0, 0, 0, 1]], "equip-helmet": [[0, .08, 0], [0, 0, 0, 1]],
+    "equip-crown": [[0, .12, 0], [0, 0, 0, 1]], "equip-torch": [[0, .02, -.03], [0, 0, 0, 1]],
+    "equip-shield": [[0, 0, -.02], [0, .7071068, 0, .7071068]],
+    "equip-hammer": [[0, .02, -.04], [.5, 0, 0, .8660254]], "equip-mug": [[0, 0, -.03], [0, 0, 0, 1]],
+  }[itemId];
   return {
     itemId,
-    assetUri: `${base}/${itemId}.glb`,
-    attachmentPoint,
-    localTransform: { position, quaternion, scale: [1, 1, 1] },
-    mode,
-    label,
+    catalogKey: record.key,
+    assetUri: new URL(withBase(record.url), window.location.origin).href,
+    attachmentPoint: record.attachment.vrm.humanoid_bone,
+    // Retained only for legacy non-evaluator representations. The shared
+    // evaluator ignores this transform and publishes its completed body fit.
+    localTransform: { position: legacy[0], quaternion: legacy[1], scale: [1, 1, 1] },
+    mode: record.attachment.fit.mode,
+    label: record.label,
   };
 }
 
@@ -40,33 +50,9 @@ function featureItem(itemId, attachmentPoint, mode, label, position, quaternion)
  * variant including the dwarf.
  */
 export function inventorySlots() {
-  return [
-    {
-      slot: "head",
-      label: "Head",
-      options: [
-        featureItem("equip-hat", "head", "worn", "Wide-brim explorer hat", [0, 0.1, 0], [0, 0, 0, 1]),
-        featureItem("equip-helmet", "head", "worn", "Iron helmet", [0, 0.08, 0], [0, 0, 0, 1]),
-        featureItem("equip-crown", "head", "worn", "Gold crown", [0, 0.12, 0], [0, 0, 0, 1]),
-      ],
-    },
-    {
-      slot: "leftHand",
-      label: "Left hand",
-      options: [
-        featureItem("equip-torch", "leftHand", "held", "Torch", [0, 0.02, -0.03], [0, 0, 0, 1]),
-        featureItem("equip-shield", "leftHand", "held", "Round shield", [0, 0, -0.02], [0, 0.7071068, 0, 0.7071068]),
-      ],
-    },
-    {
-      slot: "rightHand",
-      label: "Right hand",
-      options: [
-        featureItem("equip-hammer", "rightHand", "held", "War hammer", [0, 0.02, -0.04], [0.5, 0, 0, 0.8660254]),
-        featureItem("equip-mug", "rightHand", "held", "Tankard", [0, 0, -0.03], [0, 0, 0, 1]),
-      ],
-    },
-  ];
+  return [["head", "Head"], ["leftHand", "Left hand"], ["rightHand", "Right hand"]].map(([slot, label]) => ({
+    slot, label, options: SHARED_CATALOG_ITEMS.filter(record => record.attachment.vrm.humanoid_bone === slot).map(featureItem),
+  }));
 }
 
 export function defaultEquippedItems() {

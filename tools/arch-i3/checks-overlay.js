@@ -73,7 +73,7 @@ async function overlayChecks(ports) {
   ]);
 
   const offerDrifts = { edits: { 'OpenSpatialWorld.API.yaml.patch': (p) => p.replace('This world\'s current revision, the count of its changes; each event carries the revision it made.', 'This world\'s current revision.') } };
-  const noTime = { serverEdits: { runtime: [['        evt.time = lastChangeTime;\n', '']] } };
+  const noTime = { serverEdits: { 'runtime-events.js': [['        event.time = this.time;\n', '']] } };
   await run('W2', 'the offered text and the lab\'s contract agree on World.revision, World.services, Node.properties and the events, stream-authentication and data-point paragraphs; the served context holds the offered terms; on the wire the World reports its revision and events service, an event carries revision, time and urls, and a write that changes nothing makes no event', async (impl) => {
     const failures = [];
     const offered = loadIteration3(impl.edits);

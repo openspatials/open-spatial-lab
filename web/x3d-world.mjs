@@ -7,6 +7,7 @@
 import { rendererKindFromSearch } from "./vendor/scene-core/render-adapter/render-adapter.mjs";
 import { SOFT_BODY_WORLD_FILE, loadAmmo, prepareWorld, runWorld } from "./soft-body-world.mjs";
 import { SERVER_ORIGIN, withBase, withServer } from "./base-path.mjs";
+import { ownX3dShellUrl, x3dDestinationUrl } from "./own-x3d-document.mjs";
 
 const WORLDS_ROOT = "./x3d-worlds/";
 const DEFAULT_WORLD = "anchor-portal-world.x3d.json";
@@ -28,15 +29,8 @@ document.body.dataset.x3dWorldRenderer = kind || "";
 // SERVER_ORIGIN) opens that world in the app's own first page instead, so the app's page policy and renderer go with
 // the Player: ?active={world} picks the world, and a Player with none starts in the Lobby. On the servers' own origin
 // the result stays the world's page path, as before.
-const WORLD_PAGE = /^\/w\/([a-z0-9-]+)\/$/;
 function destinationUrl(url) {
-  const world = SERVER_ORIGIN ? WORLD_PAGE.exec(url)?.[1] : null;
-  const target = new URL(world ? withBase("/") : withServer(url), location.href);
-  if (world && world !== "lobby") target.searchParams.set("active", world);
-  target.searchParams.set("renderer", kind);
-  target.searchParams.set("role", "player");
-  target.searchParams.set("intro", "bypass");
-  return target.origin === location.origin ? `${target.pathname}${target.search}` : target.href;
+  return x3dDestinationUrl(url, { renderer: kind, serverOrigin: SERVER_ORIGIN, withBase, withServer, locationHref: location.href });
 }
 
 function findNode(value, type) {
@@ -223,12 +217,16 @@ async function startX3dom() {
 }
 
 try {
+  if (requestedKind === "own-x3d") {
+    location.replace(ownX3dShellUrl(location.search, withBase));
+  } else {
   if (!kind) throw new Error("Add ?renderer=x_ite or ?renderer=x3dom to the address to open this world.");
   if (softBody) softBodyHud();
   const result = kind === "x3dom" ? await startX3dom() : await startXIte();
   hud(result);
   state.loaded = true;
   document.body.dataset.x3dWorldReady = "1";
+  }
 } catch (error) {
   state.error = (error && error.message) || String(error);
   document.body.dataset.x3dWorldError = state.error;

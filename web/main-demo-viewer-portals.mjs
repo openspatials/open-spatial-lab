@@ -8,6 +8,7 @@ import { mountPortals, mountPlacementTool, applyJoinArrival, playerUrlFor } from
 import { readPlacementPolicy } from "./wow-portal.mjs";
 
 export function mountViewerPortals({ THREE, document: doc, built, hostUrl, buildWowScene, canvas, viewControls, onModels, visitorPosition, logLine, listen }) {
+  let disposed=false, portalMount=null, placementMount=null;
   const fetchWow = window.fetch.bind(window);
   void mountPortals({
     built, hostUrl, THREE, document: doc, buildWowScene,
@@ -16,24 +17,28 @@ export function mountViewerPortals({ THREE, document: doc, built, hostUrl, build
     canvas,
     // A world's own address opens in this player; a player page opens as it is.
     navigate: (url) => {
+      if(disposed)return;
       // Placement mode is not carried across: the destination opens as a visitor sees it.
       const pageUrl = new URL(location.href);
       pageUrl.searchParams.delete("place");
       void playerUrlFor(url, { pageUrl: pageUrl.href, hostUrl, fetch: fetchWow })
-        .then((target) => window.location.assign(target))
-        .catch(() => window.location.assign(url));
+        .then((target) => {if(!disposed)window.location.assign(target);})
+        .catch(() => {if(!disposed)window.location.assign(url);});
     },
     onModels,
     // The visitor a portal's active radius measures from: the avatar when there is one, else the camera.
     visitor: () => visitorPosition() || built.camera.position.toArray(),
     // After a placement the portals are read back from the world: what a click can land on changes too.
-    onPickables: (list) => viewControls?.setPickables(list),
+    onPickables: (list) => {if(!disposed)viewControls?.setPickables(list);},
     onUpdate: (portals) => {
+      if(disposed)return;
       window.__wowPortals = Object.assign(window.__wowPortals || {}, { portals });
       doc.body.setAttribute("data-wow-portals", JSON.stringify(portals.map((p) => ({ id: p.id, preview: p.preview && p.preview.kind, refusal: p.refusal, awake: p.awake, active_radius_m: p.active_radius_m }))));
     },
   })
     .then((mounted) => {
+      if(disposed){mounted.dispose();return;}
+      portalMount=mounted;
       window.__wowPortals = Object.assign(window.__wowPortals || {}, { portals: mounted.summary(), cross: mounted.cross, summary: mounted.summary, screenPoint: mounted.screenPoint });
       viewControls?.setPickables(mounted.pickables());
       doc.body.setAttribute("data-wow-portals-ready", "1");
@@ -44,6 +49,7 @@ export function mountViewerPortals({ THREE, document: doc, built, hostUrl, build
       // portals are shown read-only.
       if (!viewControls || !canvas) return;
       void readPlacementPolicy(mounted.base, { fetch: fetchWow }).then((policy) => {
+        if(disposed)return;
         if (!policy.allowed) {
           window.__wowPlacement = { offered: false, on: false, reason: policy.reason };
           doc.body.setAttribute("data-wow-placement", JSON.stringify(window.__wowPlacement));
@@ -56,20 +62,23 @@ export function mountViewerPortals({ THREE, document: doc, built, hostUrl, build
           worldsUrl: new URL("worlds.json", location.href).href,
           startOn: new URLSearchParams(location.search).get("place") === "1",
           onChange: (summary) => {
+            if(disposed)return;
             window.__wowPlacement = { offered: true, ...summary };
             doc.body.setAttribute("data-wow-placement", JSON.stringify(window.__wowPlacement));
           },
         });
-        void placement.ready.then(() => doc.body.setAttribute("data-wow-placement-ready", "1"));
+        placementMount=placement;
+        void placement.ready.then(() => {if(!disposed)doc.body.setAttribute("data-wow-placement-ready", "1");});
       });
     })
     .catch((e) => {
+      if(disposed)return;
       doc.body.setAttribute("data-wow-portals-ready", "error");
       logLine(`wow portals ERROR: ${(e && e.message) || e}`);
     });
-  const arrive = () => applyJoinArrival({ hostUrl, camera: built.camera, hash: location.hash, fetch: fetchWow })
+  const arrive = () => disposed?Promise.resolve():applyJoinArrival({ hostUrl, camera: built.camera, hash: location.hash, fetch: fetchWow })
     .then((arrival) => {
-      if (!arrival) return;
+      if (disposed || !arrival) return;
       viewControls?.syncFromCamera();
       const camera = built.camera.position.toArray();
       window.__wowArrival = { ...arrival, camera };
@@ -80,4 +89,5 @@ export function mountViewerPortals({ THREE, document: doc, built, hostUrl, build
   void arrive();
   // A fragment change is no page load: arriving again at a new `#join=` is up to this page.
   listen(window, "hashchange", () => { void arrive(); });
+  return {dispose(){if(disposed)return;disposed=true;placementMount?.dispose();portalMount?.dispose();}};
 }

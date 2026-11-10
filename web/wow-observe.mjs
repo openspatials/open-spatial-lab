@@ -87,12 +87,14 @@ export function openWorldStream(base, opts) {
     try {
       url = await eventsUrl();
     } catch (error) {
+      if (state.closed) return;
       state.status = "unreachable";
       state.error = String((error && error.message) || error);
       if (opts.onStatus) opts.onStatus(state);
       scheduleReconnect();
       return;
     }
+    if (state.closed) return;
     if (state.revision !== null) url += (url.includes("?") ? "&" : "?") + "since=" + state.revision;
     if (opts.onRequest) opts.onRequest(url);
     state.connects += 1;

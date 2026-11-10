@@ -30,7 +30,7 @@ function percentile(values, p) {
 }
 
 async function liveChecks(ports) {
-  const dropsEveryTenth = { count: 20, interval: 150, serverEdits: { runtime: [['        for (const subscriber of eventSubscribers)\n', '        if (wowRevision % 10 === 0) return;\n        for (const subscriber of eventSubscribers)\n']] } };
+  const dropsEveryTenth = { count: 20, interval: 150, serverEdits: { 'runtime-events.js': [['        for (const subscriber of this.subscribers) {\n', '        if (this.revision % 10 === 0) return;\n        for (const subscriber of this.subscribers) {\n']] } };
   const ignoresRelativeUrls = { count: 20, interval: 150, observeEdits: [['        const changed = new Set((evt.urls || []).map((u) => new URL(u, base).href));', '        const changed = new Set(evt.urls || []);']] };
   await run('O1', 'B\'s simulator changes node n every second for 120 seconds with nobody in B; a separate observer process, given only two data-point URLs, receives every change: revisions one apart, values and times equal to the simulator\'s log, and 95% delivered within 500 ms on loopback', async (impl) => {
     const count = impl.count || 120;
@@ -70,7 +70,7 @@ async function liveChecks(ports) {
     { name: 'an observer that does not resolve an event\'s URLs against the world\'s base', impl: ignoresRelativeUrls },
   ]);
 
-  const observersAreUsers = { serverEdits: { runtime: [['                active_user_count : livePresenceEntries(Date.now()).length,', '                active_user_count : livePresenceEntries(Date.now()).length + eventSubscribers.size,']] } };
+  const observersAreUsers = { serverEdits: { 'runtime-world-reader.js': [['            activeUsers : this.presence.livePresenceEntries(Date.now()).length,', '            activeUsers : this.presence.livePresenceEntries(Date.now()).length + this.events.eventSubscriberCount(),']] } };
   await run('O2', 'with only observers connected (an observer of both worlds and a raw event stream to each), active_user_count stays 0 in both worlds while B changes', async (impl) => {
     const s = await twoWorlds(ports, impl);
     const { module: obs } = await lab.observe();
@@ -97,10 +97,10 @@ async function liveChecks(ports) {
     }
   }, {}, [{ name: 'a server that counts observers as users', impl: observersAreUsers }]);
 
-  const countNotNamed = { serverEdits: { runtime: [
-    ["            urls : [ 'wow/user/' + entry.wow_user_id, 'wow/world' ],", "            urls : [ 'wow/user/' + entry.wow_user_id ],"],
-    ["        evt.urls = Array.from(new Set((evt.urls || []).concat([ 'wow/world' ])));", '        evt.urls = Array.from(new Set(evt.urls || []));'],
-  ] } };
+  const countNotNamed = { serverEdits: {
+    'runtime-presence-projection.js': [["        urls : [ 'wow/user/' + entry.wow_user_id, 'wow/world' ],", "        urls : [ 'wow/user/' + entry.wow_user_id ],"]],
+    'runtime-events.js': [["        event.urls = Array.from(new Set((event.urls || []).concat([ 'wow/world' ])));", '        event.urls = Array.from(new Set(event.urls || []));']],
+  } };
   await run('O2b', 'a user joins A: the observer\'s active_user_count reads 1 from the user_joined event itself, and 0 again from the user_left event', async (impl) => {
     const s = await twoWorlds(ports, impl);
     const { module: obs } = await lab.observe();

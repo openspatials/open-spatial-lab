@@ -108,7 +108,7 @@ function limitOf(step, ctx) {
 }
 
 function spawnStep(step, ctx, env) {
-  const argv = step.argv || [process.execPath, step.file, ...(step.args || []), ...(step.faultsFlag && ctx.faults ? ["--faults"] : [])];
+  const argv = step.argv || [process.execPath, ...(step.nodeArgs || []), step.file, ...(step.args || []), ...(step.faultsFlag && ctx.faults ? ["--faults"] : [])];
   const logFile = join(ctx.out, `${slug(step)}.log`);
   const fd = openSync(logFile, "w");
   try {
@@ -178,6 +178,7 @@ function selfCheck() {
   const fake = (name, code, more = {}) => ({ file: name, argv: [process.execPath, "-e", code], ...more });
   const red = (name) => ({ [name]: { reason: "fake", phase: "phase 0" } });
   const cases = [
+    { name: "node options precede the script", step: { file: "--eval", nodeArgs: ["--input-type=module"], args: ["if (typeof require !== 'undefined') process.exit(4)"] }, status: "PASS", exit: 0 },
     { name: "a passing step", step: fake("fake-pass", "process.exit(0)"), status: "PASS", exit: 0 },
     { name: "a failing step", step: fake("fake-fail", "process.exit(3)"), status: "FAIL", exit: 1 },
     { name: "a known-red step that fails", step: fake("fake-red-fails", "process.exit(1)"), knownRed: red("fake-red-fails"), status: "KNOWN-RED", exit: 0 },
@@ -186,6 +187,15 @@ function selfCheck() {
     { name: "a step that times out", step: fake("fake-timeout", "setTimeout(() => {}, 20000)", { timeoutS: 0.5 }), status: "FAIL", exit: 1, says: "timed out" },
   ];
   let wrong = 0;
+  for (const group of ["test", "test-fast", "client"]) {
+    const selected = stepsOf(group);
+    const boundary = selected.filter(step => step.file === "src/application-boundary-check.mjs");
+    const resources = selected.filter(step => step.file === "src/avatar-resources-check.mjs");
+    const ok = boundary.length === 1 && resources.length === 1 &&
+      JSON.stringify(resources[0].nodeArgs) === JSON.stringify(["--loader", "./tools/renderer/node-fixture-loader.mjs"]);
+    if (!ok) wrong++;
+    console.log(`${ok ? "ok   " : "WRONG"}  ${group}: required boundary/resource checks and bundled loader selected`);
+  }
   for (const c of cases) {
     const ctx = { base: DEFAULT_BASE, out: join(OUT_DIR, "self-check"), chrome: { path: null, why: "self-check" }, knownRed: c.knownRed || {}, log: () => {} };
     const run = runSteps([c.step], ctx);

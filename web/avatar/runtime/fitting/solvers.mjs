@@ -2,9 +2,10 @@
 // may change a bone after it. The math is the viewer's (vendor/avatar-ik.mjs, see SOURCES.md); this file reads the body
 // details, turns three.js bones into the plain records that math takes, and writes its answers back.
 //
-//   plant-feet    two-bone legs. A foot whose sole would go through the floor is lifted straight up until its lowest sole
-//                 point is on the floor; the foot keeps the clip's turn. The foot's sideways place stays the clip's, so
-//                 a clip played at the wrong rate still shows as sliding (proof check A2).
+//   plant-feet    two-bone legs using the blended skin's sole. Lifts penetration and lowers steady walking support to the floor;
+//                 at full leg reach, a bounded ankle roll brings the toe onto the floor. During a steady gait's stance its target moves
+//                 backward in avatar coordinates at the measured stride speed times the actual clip rate. This corrects
+//                 proportion-dependent drift without following world movement: a wrong rate still slides (proof A2).
 //   reach-hands   two-bone arms. A carried item's contact points are hand targets: the palm goes onto the point and the
 //                 hand takes the contact's axes. A target beyond the arm's reach turns the shoulder toward it, up to
 //                 SOLVER_LIMITS.shoulderAssistDeg. Fades with the stance (STANCE_FADE_S).
@@ -27,7 +28,7 @@
 //   class SolverStack
 //     constructor(instance, body, { disable: [names], avoidTorso, fade })
 //     restore()                         before mixer.update
-//     run({ dt, floorY })               after mixer.update; floorY in world metres (default 0)
+//     run({ dt, floorY, gait })         after mixer.update; floorY in world metres (default 0); gait from AvatarMotion
 //     setCarry(carry)                   { item, node (the item's object: drawn only once the hands are on it), contacts (this body's, default item.contacts), anchor (bone), local (Matrix4:
 //                                       item in the anchor's frame) } or null
 //     report                            last frame: { changed: { name: Set(bone names) }, shortfall_m, push_m, residual_m, dip_m, weight }
@@ -36,10 +37,11 @@
 //
 // No DOM use: browser and Node.
 
-import * as THREE from '../../../vendor/scene-core/vendor/three/three.module.js';
+import * as THREE from 'three';
 import { solveTwoBoneLeg, solveArmAvoid } from './vendor/avatar-ik.mjs';
 import { SIDES, sideName } from './roles.mjs';
 import { SHOULDER_ASSIST_DEG } from './holds.mjs';
+import { strongestBoneVertices } from './rig.mjs';
 
 export const SOLVER_NAMES = ['plant-feet', 'reach-hands', 'avoid-arms'];
 export const STANCE_FADE_S = 0.25;
@@ -53,6 +55,8 @@ export const SOLVER_LIMITS = {
   avoidMaxPushShare: 0.5,
   // The most a shoulder (clavicle) may turn to help a hand reach. Above this a shoulder reads as dislocated on the test bodies.
   shoulderAssistDeg: SHOULDER_ASSIST_DEG,
+  // The viewer's maximum surface tilt (0.6 radians): a reach-limited walking foot may roll onto its sole.
+  footRollRadians: 0.6,
   // A capsule's radius as a share of the box's smallest side.
   capsuleCellShare: 0.34,
   // The exact pass: at most this many corrections a frame, each leaving this skin between the arm and the box.
@@ -73,6 +77,7 @@ const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
 const _m = new THREE.Matrix4();
+const _skinBase = new THREE.Vector4(), _skinVertex = new THREE.Vector4();
 
 // Fills a box's shell with parallel capsules along its longest side: a grid of axes across the other two sides, outer
 // cells only. The capsules stay inside the box and touch its faces; its corners are left to the exact pass in avoid-arms.
@@ -132,6 +137,11 @@ export class SolverStack {
     if (avoidTorso) for (const p of Object.values(body.volumes?.torso_parts || {})) { const x = vol(p); if (x) this.volumes.push(x); }
     this._holderInv = new THREE.Matrix4();
     this._targets = { l: null, r: null };
+    this._footContacts = { l: null, r: null };
+    // Select once; evaluate the actual blended vertices each frame, not rigid proxies in the strongest bone's axes.
+    this._soleVertices = Object.fromEntries(SIDES.map((s) => [s, strongestBoneVertices(instance.model,
+      ['Foot', 'Toes', 'ToeTip'].map((r) => body.roles[sideName(s) + r]).filter(Boolean))
+      .map(({ mesh, keep }) => ({ mesh, indices: Array.from(keep.keys()).filter((i) => keep[i]), skinMatrices: [], pass: 0 })).filter((x) => x.indices.length)]));
   }
 
   has(name) { return !this.disabled.has(name); }
@@ -166,14 +176,14 @@ export class SolverStack {
     return { wp: fs.map((f) => f.p), wr: fs.map((f) => f.q) };
   }
 
-  run({ dt = 0, floorY = 0 } = {}) {
+  run({ dt = 0, floorY = 0, gait = null } = {}) {
     const rep = this.report;
     for (const n of SOLVER_NAMES) rep.changed[n].clear();
     rep.shortfall_m = rep.push_m = rep.residual_m = rep.dip_m = 0;
     const holder = this.instance.holder;
     holder.updateMatrixWorld(true);
     this._holderInv.copy(holder.matrixWorld).invert();
-    if (this.has('plant-feet')) this._plantFeet(floorY - holder.position.y);
+    if (this.has('plant-feet')) this._plantFeet(floorY - holder.position.y, gait, dt);
     this._updateCarryWeight(dt);
     if (this.carry?.node) this.carry.node.visible = this.carryWeight >= 1; // a carried item appears when the hands arrive
     if (this.has('reach-hands')) this._reachHands();
@@ -182,52 +192,112 @@ export class SolverStack {
   }
 
   // ---------- plant-feet ----------
-  _solePoints(side) {
-    return this.body.feet?.[side]?.sole_points_m || null;
-  }
-
   // Lowest point of a foot's sole, holder frame.
-  _lowest(side) {
-    const n = sideName(side);
-    const pts = this._solePoints(side);
+  _lowest(side, point = null) {
     let low = Infinity;
-    const scan = (bone, list) => {
-      if (!bone || !list?.length) return;
-      _m.multiplyMatrices(this._holderInv, bone.matrixWorld).decompose(_p, _q, _s);
-      const m = _m.elements;
-      // A point in metres in the bone's axes: joint + rotation * point. y row of the rotation only.
-      const r10 = m[1] / _s.x, r11 = m[5] / _s.y, r12 = m[9] / _s.z;
-      for (const v of list) { const y = _p.y + r10 * v[0] + r11 * v[1] + r12 * v[2]; if (y < low) low = y; }
-    };
-    scan(this.bone(`${n}Foot`), pts.foot);
-    scan(this.bone(`${n}Toes`), pts.toes);
+    for (const batch of this._soleVertices[side]) {
+      const { mesh, indices, skinMatrices } = batch, pass = ++batch.pass;
+      const { skinIndex, skinWeight } = mesh.geometry.attributes;
+      _m.multiplyMatrices(this._holderInv, mesh.matrixWorld);
+      for (const i of indices) {
+        // Same morph and weighted-skin operations as SkinnedMesh.getVertexPosition; reuse each unchanged bone matrix.
+        THREE.Mesh.prototype.getVertexPosition.call(mesh, i, _p);
+        _skinBase.set(_p.x, _p.y, _p.z, 1).applyMatrix4(mesh.bindMatrix);
+        _p.set(0, 0, 0);
+        for (let k = 0; k < 4; k++) {
+          const weight = skinWeight.getComponent(i, k);
+          if (!weight) continue;
+          const j = skinIndex.getComponent(i, k), cached = skinMatrices[j] ??= { matrix: new THREE.Matrix4(), pass: 0 };
+          if (cached.pass !== pass) { cached.matrix.multiplyMatrices(mesh.skeleton.bones[j].matrixWorld, mesh.skeleton.boneInverses[j]); cached.pass = pass; }
+          _p.addScaledVector(_skinVertex.copy(_skinBase).applyMatrix4(cached.matrix), weight);
+        }
+        _p.applyMatrix4(mesh.bindMatrixInverse).applyMatrix4(_m);
+        if (_p.y < low) { low = _p.y; point?.copy(_p); }
+      }
+    }
     return low;
   }
 
-  _plantFeet(floor) {
+  _plantFeet(floor, gait, dt) {
+    const lows = Object.fromEntries(SIDES.map((s) => [s, this._lowest(s)]));
+    const support = Math.min(lows.l, lows.r);
     for (const s of SIDES) {
       const c = this.chains.leg[s];
-      if (!c || !this._solePoints(s)) continue;
-      const low = this._lowest(s);
-      const dip = floor - low;
-      if (!(dip > 0)) continue;
-      const { wp, wr } = this._chainRecords(c);
-      const target = [wp[3][0], wp[3][1] + dip, wp[3][2]];
-      const out = solveTwoBoneLeg(ENTRIES, CHAIN, wr, wp, target, null, cfgLeg);
+      const low = lows[s];
+      if (!c || !Number.isFinite(low)) continue;
+      // Walking has a supporting foot even when proportion differences lift both authored soles. Lower the support,
+      // blending out over the same 3 cm contact band; jogging and jump flight keep their authored vertical motion.
+      const supportWeight = gait?.slot === 'walk' ? (1 - THREE.MathUtils.smoothstep(low - support, 0, 0.03)) * (gait.support_weight ?? 1) : 0;
+      const dip = low > floor ? (floor - low) * supportWeight : floor - low;
+      let dx = 0, dz = 0;
+      const toe = this.bone(`${sideName(s)}Toes`);
+      const p = toe ? this._frame(toe).p : null;
+      const height = gait && !gait.support_only && p ? p[1] - this.instance.model.position.y - gait.toe_floor_height_m[s] : Infinity;
+      if (height < 0.03) {
+        let contact = this._footContacts[s];
+        if (!contact || contact.slot !== gait.slot) contact = this._footContacts[s] = { slot: gait.slot, p: [...p] };
+        else contact.p[2] -= gait.speed_mps * gait.rate * dt;
+        // Full correction inside the measured stance core; blend out through touchdown/toe-off, never into flight.
+        const weight = THREE.MathUtils.smoothstep(0.03 - height, 0, 0.015);
+        dx = (contact.p[0] - p[0]) * weight;
+        dz = (contact.p[2] - p[2]) * weight;
+      } else this._footContacts[s] = null;
+      if (!(dip || dx || dz)) continue;
+      const { wp } = this._chainRecords(c);
+      const target = [wp[3][0] + dx, wp[3][1] + dip, wp[3][2] + dz];
+      const out = this._placeFoot(c, target);
       if (!out) continue;
       this.report.dip_m = Math.max(this.report.dip_m, dip);
-      this.report.shortfall_m = Math.max(this.report.shortfall_m, out.shortfall);
-      const [up, lo] = out.joints;
-      // The foot keeps the clip's turn in the world.
-      const pw = new THREE.Quaternion().fromArray(wr[0]);
-      const upW = pw.clone().multiply(new THREE.Quaternion().fromArray(up.rotation));
-      const loW = upW.clone().multiply(new THREE.Quaternion().fromArray(lo.rotation));
-      const foot = loW.invert().multiply(new THREE.Quaternion().fromArray(wr[3]));
-      this._write('plant-feet', c.up, up.rotation);
-      this._write('plant-feet', c.lo, lo.rotation);
-      this._write('plant-feet', c.end, qArr(foot));
-      c.up.updateWorldMatrix(false, true);
+      // At full leg reach a walking foot can still touch by rolling toward the toe about the ankle. Find the smallest
+      // roll reaching contact; evaluate the blended mesh so the correction never drives another sole point under it.
+      if (gait?.slot === 'walk' && out.shortfall > 0) {
+        const point = new THREE.Vector3();
+        if (this._lowest(s, point) > floor) {
+          const f = this._frame(c.end), ankle = new THREE.Vector3().fromArray(f.p);
+          const toePoint = toe ? new THREE.Vector3().fromArray(this._frame(toe).p) : point;
+          const axis = new THREE.Vector3().crossVectors(toePoint.sub(ankle), new THREE.Vector3(0, -1, 0)).normalize();
+          const parent = new THREE.Quaternion().fromArray(this._frame(c.lo).q).invert();
+          const start = new THREE.Quaternion().fromArray(f.q);
+          const roll = (angle) => {
+            const q = parent.clone().multiply(new THREE.Quaternion().setFromAxisAngle(axis, angle)).multiply(start);
+            this._write('plant-feet', c.end, qArr(q));
+            c.end.updateWorldMatrix(false, true);
+            return this._lowest(s);
+          };
+          let loAngle = 0, hiAngle = SOLVER_LIMITS.footRollRadians;
+          if (axis.lengthSq() > 0 && roll(hiAngle) <= floor) {
+            for (let i = 0; i < 12; i++) { const angle = (loAngle + hiAngle) / 2; if (roll(angle) > floor) loAngle = angle; else hiAngle = angle; }
+            roll(hiAngle);
+          } else roll(0);
+        }
+      }
+      // Rolling about the ankle moves the toe. Restore the same clip-rate stance target with a leg solve while keeping
+      // the rolled foot's world turn; otherwise a grounded heel can reintroduce horizontal slide (Elizabeth A2).
+      if (gait?.slot === 'walk' && p && this._footContacts[s]) {
+        const actual = this._frame(toe).p;
+        const ex = p[0] + dx - actual[0], ez = p[2] + dz - actual[2];
+        if (Math.hypot(ex, ez) > 1e-7) {
+          const ankle = this._frame(c.end).p;
+          this._placeFoot(c, [ankle[0] + ex, ankle[1], ankle[2] + ez]);
+        }
+      }
     }
+  }
+
+  _placeFoot(c, target) {
+    const { wp, wr } = this._chainRecords(c);
+    const out = solveTwoBoneLeg(ENTRIES, CHAIN, wr, wp, target, null, cfgLeg);
+    if (!out) return null;
+    this.report.shortfall_m = Math.max(this.report.shortfall_m, out.shortfall);
+    const [up, lo] = out.joints;
+    const upW = new THREE.Quaternion().fromArray(wr[0]).multiply(new THREE.Quaternion().fromArray(up.rotation));
+    const loW = upW.multiply(new THREE.Quaternion().fromArray(lo.rotation));
+    const foot = loW.invert().multiply(new THREE.Quaternion().fromArray(wr[3]));
+    this._write('plant-feet', c.up, up.rotation);
+    this._write('plant-feet', c.lo, lo.rotation);
+    this._write('plant-feet', c.end, qArr(foot));
+    c.up.updateWorldMatrix(false, true);
+    return out;
   }
 
   // ---------- reach-hands ----------
@@ -379,7 +449,7 @@ export class SolverStack {
     const n = sideName(side);
     const P = (b) => new THREE.Vector3().fromArray(this._frame(b).p);
     const e = P(c.lo), w = P(c.end);
-    const out = [0.25, 0.5, 0.75, 1].map((t) => ({ p: e.clone().lerp(w, t), lever: t }));
+    const out = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ p: e.clone().lerp(w, t), lever: t }));
     const hand = this._frame(c.end);
     const q = new THREE.Quaternion().fromArray(hand.q);
     const palm = this.body.hands?.[side]?.palm_m;
@@ -388,6 +458,9 @@ export class SolverStack {
       const b = this.bone(r);
       if (b) out.push({ p: P(b), lever: 1 });
     }
+    // Both endpoints may clear a box corner while the wrist-to-knuckle span crosses it (E5 during a stance fade).
+    const knuckle = this.bone(`${n}MiddleProximal`);
+    if (knuckle) out.push({ p: w.clone().lerp(P(knuckle), 0.5), lever: 1 });
     return out;
   }
 
@@ -401,25 +474,38 @@ export class SolverStack {
           const faces = [q.x - v.min[0], v.max[0] - q.x, q.y - v.min[1], v.max[1] - q.y, q.z - v.min[2], v.max[2] - q.z].map((x) => x + SOLVER_LIMITS.clearMarginM);
           const depth = Math.min(...faces);
           if (depth <= 0) continue;
-          const need = (depth + SOLVER_LIMITS.clearSkinM) / lever;
+          const need = (depth + SOLVER_LIMITS.clearSkinM) / (lever || 1);
           if (!worst || need > worst.need) {
             const k = faces.indexOf(depth);
             const n = new THREE.Vector3(k === 0 ? -1 : k === 1 ? 1 : 0, k === 2 ? -1 : k === 3 ? 1 : 0, k === 4 ? -1 : k === 5 ? 1 : 0).applyQuaternion(R);
-            worst = { need, n };
+            worst = { need, n, elbow: lever === 0 };
           }
         }
       }
       if (!worst) return;
       const { wp, wr } = this._chainRecords(c);
-      const target = new THREE.Vector3().fromArray(wp[3]).addScaledVector(worst.n, worst.need).toArray();
-      const out = solveTwoBoneLeg(ENTRIES, CHAIN, wr, wp, target, null, cfgLeg);
-      if (!out) return;
+      let up, lo;
+      if (worst.elbow) {
+        // A wrist target has zero leverage at the elbow. Turn the upper arm toward the cleared elbow point,
+        // preserving its length and the forearm's local bend; subsequent passes check the rest of the arm again.
+        const shoulder = new THREE.Vector3().fromArray(wp[1]);
+        const elbow = new THREE.Vector3().fromArray(wp[2]).sub(shoulder);
+        const goal = elbow.clone().addScaledVector(worst.n, worst.need);
+        const turn = new THREE.Quaternion().setFromUnitVectors(elbow.normalize(), goal.normalize());
+        const local = new THREE.Quaternion().fromArray(wr[0]).invert().multiply(turn).multiply(new THREE.Quaternion().fromArray(wr[1]));
+        up = { rotation: qArr(local) };
+        lo = { rotation: qArr(c.lo.quaternion) };
+      } else {
+        const target = new THREE.Vector3().fromArray(wp[3]).addScaledVector(worst.n, worst.need).toArray();
+        const out = solveTwoBoneLeg(ENTRIES, CHAIN, wr, wp, target, null, cfgLeg);
+        if (!out) return;
+        [up, lo] = out.joints;
+      }
       this.report.push_m = Math.max(this.report.push_m, worst.need);
-      const [up, lo] = out.joints;
       const pw = new THREE.Quaternion().fromArray(wr[0]);
       const upW = pw.clone().multiply(new THREE.Quaternion().fromArray(up.rotation));
       const loW = upW.clone().multiply(new THREE.Quaternion().fromArray(lo.rotation));
-      // The hand keeps its local turn on the forearm.
+      // Keep the hand's pre-correction orientation in the holder frame.
       const handLocal = loW.clone().invert().multiply(new THREE.Quaternion().fromArray(wr[3]));
       this._write('avoid-arms', c.up, up.rotation);
       this._write('avoid-arms', c.lo, lo.rotation);

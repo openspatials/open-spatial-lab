@@ -103,6 +103,14 @@ export const ROLE_TABLES = {
   vrm: vrmTable(),
 };
 
+// H-Anim 2 accessory Sites are children of Segments, not aliases for Joints (19774-1:2019, 4.6/4.9.6.1).
+// These accessory Site names are project-defined; the parent Joint/Segment names are standard LOA-1 names.
+export const EQUIPMENT_SITES = {
+  head: { name: 'osl_head_equipment_pt', parent_segment: 'skull', parent_joint: 'skullbase' },
+  leftHand: { name: 'osl_left_hand_equipment_pt', parent_segment: 'l_carpal', parent_joint: 'l_radiocarpal' },
+  rightHand: { name: 'osl_right_hand_equipment_pt', parent_segment: 'r_carpal', parent_joint: 'r_radiocarpal' },
+};
+
 // Prefixes Mixamo exports carry, before or after three.js removes the colon.
 const MIXAMO_PREFIX = /^mixamorig\d*[:_]?/;
 

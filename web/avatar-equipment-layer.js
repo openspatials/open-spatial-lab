@@ -8,6 +8,7 @@ import "./gltf-webp-support.mjs"; // WebP textures on a host whose policy leaves
 // mode; in root mode withBase() is the identity,
 // so avatar behaviour is untouched (only the URL string is made prefix-aware).
 import { withBase } from "./base-path.mjs";
+import { readEvaluatedAvatarPose, readAvatarBindDescription } from "./evaluated-avatar-pose.mjs";
 
 const ATTACHMENT_PRESETS = {
   head: { position: [0, 1.55, 0.12], label: "head" },
@@ -529,6 +530,8 @@ export class AvatarEquipmentLayer {
     this.host = options && options.host && options.host.scene ? options.host : null;
     this.motionPreference = options && options.motionPreference ? options.motionPreference : null;
     this.sharedScene = !!this.host;
+    this.externalFrame = options?.frameLoop === false || !!this.host?.externalFrame;
+    this._disposed = false;
     this.avatar = null;
     this.vrm = null;
     this.loadedItemObjects = new Map();
@@ -648,9 +651,10 @@ export class AvatarEquipmentLayer {
     this.status.renderer = "webgl";
     await this._loadVrm();
     await this._loadLocomotionClips();
+    if (this._disposed) return this;
     this._syncAvatarTransform();
     this._loop = this._loop.bind(this);
-    this._raf = requestAnimationFrame(this._loop);
+    if (!this.externalFrame) this._raf = requestAnimationFrame(this._loop);
     if (!this.sharedScene) {
       // shared mode has no canvas of its own to refit — the host world's
       // renderer owns sizing, so a resize listener would have nothing to do.
@@ -718,6 +722,7 @@ export class AvatarEquipmentLayer {
     // prepared file (model, clips, measurements, body details) and animates it (avatar/actionforge-avatar.mjs).
     if (variant.runtime !== "actionforge") throw new Error(`avatar ${variant.key} is not on the avatar runtime`);
     const loaded = await loadActionForgeAvatar(variant);
+    loaded.model.userData.loaderOwnedResources = true;
     this._actionForge = loaded;
     return withRigMetrics(loaded.vrm, loaded.model);
   }
@@ -728,6 +733,7 @@ export class AvatarEquipmentLayer {
    * removed and disposed before the new one is added; never two).
    */
   _adoptVrmModel(variant, vrm, model, metrics = null) {
+    if (this._disposed) { this._disposeModel(model); return; }
     const support = variantSupportStatus(variant);
     this._rigMetrics = metrics || measureRigMetrics(model, vrm);
     const isStaticGlb = support.avatar_asset_type === "glb" && !vrm;
@@ -906,7 +912,18 @@ export class AvatarEquipmentLayer {
   }
 
   _disposeModel(root) {
+    const skeletons = new Set();
     root.traverse((node) => {
+      if (node.skeleton && !skeletons.has(node.skeleton)) {
+        skeletons.add(node.skeleton);
+        node.skeleton.dispose();
+      }
+      // Instance clones borrow immutable library geometry/materials/textures.
+      // The library cache, not a departing visitor, owns their lifetime.
+      for (let owner = node; owner; owner = owner.parent) {
+        if (owner.userData?.loaderOwnedResources) return;
+        if (owner === root) break;
+      }
       if (node.geometry && typeof node.geometry.dispose === "function") node.geometry.dispose();
       const materials = Array.isArray(node.material) ? node.material : node.material ? [node.material] : [];
       for (const material of materials) {
@@ -927,6 +944,7 @@ export class AvatarEquipmentLayer {
    * empty. Concurrent requests are queued last-write-wins.
    */
   async switchAvatarVariant(variantKey) {
+    if (this._disposed) return { ok: false, error: "avatar layer disposed" };
     const variant = AVATAR_VARIANTS[variantKey];
     if (!variant) return { ok: false, error: `unknown avatar variant '${variantKey}'` };
     if (
@@ -944,6 +962,7 @@ export class AvatarEquipmentLayer {
     this.status.settled = false;
     try {
       const { vrm, model, metrics } = await this._loadVrmModel(variant);
+      if (this._disposed) { this._disposeModel(model); return { ok: false, error: "avatar layer disposed" }; }
       if (!vrm && variant.type !== "glb") throw new Error(`${variant.url} is not a VRM`);
       this._adoptVrmModel(variant, vrm, model, metrics);
       await this._loadLocomotionClips(); // re-retarget the mocap set onto the new rig
@@ -981,6 +1000,8 @@ export class AvatarEquipmentLayer {
     }
     try {
       const { instance, library, tuning } = this._actionForge;
+      instance.holder.updateWorldMatrix(true, true);
+      this._bindDescription = readAvatarBindDescription(instance, this._actionForge.items);
       this._motionDriver = new ActionForgeMotionDriver(instance, library, tuning, this._actionForge.items);
       this.status.locomotion_clips = Object.entries(library.clips).map(([slot, clip]) => `${slot}(${clip.duration.toFixed(2)}s,${clip.tracks.length}t)`);
       this.status.animation_mixer_active = true;
@@ -1049,16 +1070,20 @@ export class AvatarEquipmentLayer {
    * attach items twice. The chain guarantees one _syncEquipmentNow at a time.
    */
   _syncEquipment() {
+    const generation = this._equipmentGeneration = (this._equipmentGeneration || 0) + 1;
     this._equipmentSyncChain = (this._equipmentSyncChain || Promise.resolve())
-      .then(() => this._syncEquipmentNow())
+      .then(() => this._syncEquipmentNow(generation))
       .catch((err) => {
+        if (this._disposed || generation !== this._equipmentGeneration) return;
         this.status.errors.push(`equipment sync failed: ${err.message}`);
         this.status.settled = true;
       });
     return this._equipmentSyncChain;
   }
 
-  async _syncEquipmentNow() {
+  async _syncEquipmentNow(generation = this._equipmentGeneration) {
+    if (this._disposed || generation !== this._equipmentGeneration) return;
+    const model = this._avatarModel;
     let items = this.avatar && Array.isArray(this.avatar.equippedItems) ? this.avatar.equippedItems : [];
     // On the avatar runtime, the items it knows are held and worn by its Equipment (stance on the arms, finger grip,
     // contact point in the hollow of the hand); only the others take the plain attach below.
@@ -1083,6 +1108,10 @@ export class AvatarEquipmentLayer {
     for (const item of items) {
       const target = this._attachmentTarget(item);
       const object = await this._loadItem(item);
+      if (this._disposed || generation !== this._equipmentGeneration || model !== this._avatarModel) {
+        this._disposeModel(object);
+        return;
+      }
       applyLocalTransform(object, item);
       // worn HEAD items are re-seated onto THIS rig's measured skull instead of
       // trusting the catalog's absolute offset (which floated the crown on every avatar).
@@ -1379,19 +1408,27 @@ export class AvatarEquipmentLayer {
     };
   }
 
-  _loop() {
-    const delta = this.clock ? this.clock.getDelta() : 0;
+  evaluateFrame(delta) {
+    if (this._disposed || !this.status.visual_layer_ready) return;
     if (this._motionDriver && this.avatarRig.visible) {
       this._motionDriver.update(Math.min(delta, 0.1), this.avatar);
       const s = this._motionDriver.lastState;
       this.status.current_animation_state = s.phase !== "none" ? `jump-${s.phase}` : s.speed > 0.05 ? (s.speed > this._actionForge.tuning.walkSpeed + 0.05 ? "jog" : "walk") : "idle";
       this.status.animation_time_seconds = Number((this.status.animation_time_seconds + delta).toFixed(3));
     }
-    // in shared-scene mode the HOST world's own render loop draws the one
-    // scene (avatars included) — a second render() here would double-draw every
-    // frame. The rAF above still runs so the avatar runtime keeps animating in both modes.
+    this.avatarRig.updateMatrixWorld(true);
+  }
+
+  evaluatedPose() {
+    const pose = readEvaluatedAvatarPose({ instance: this._motionDriver?.instance, equipment: this._motionDriver?.equipment, catalogKey: this.status.avatar_variant });
+    return pose ? { ...pose, rig: this._bindDescription } : null;
+  }
+
+  _loop() {
+    if (this._disposed) return;
+    this.evaluateFrame(this.clock ? this.clock.getDelta() : 0);
     if (!this.sharedScene) this.renderer.render(this.scene, this.camera);
-    this._raf = requestAnimationFrame(this._loop);
+    if (!this.externalFrame) this._raf = requestAnimationFrame(this._loop);
   }
 
   resize() {
@@ -1425,6 +1462,8 @@ export class AvatarEquipmentLayer {
   }
 
   dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
     if (this._raf) cancelAnimationFrame(this._raf);
     if (this._onResize) window.removeEventListener("resize", this._onResize);
     if (this.sharedScene) {
@@ -1440,6 +1479,7 @@ export class AvatarEquipmentLayer {
     }
     if (this.renderer) {
       this.renderer.dispose();
+      this.renderer.forceContextLoss?.();
       if (this.renderer.domElement.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
     }
   }

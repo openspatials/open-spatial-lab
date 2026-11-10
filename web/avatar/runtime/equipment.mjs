@@ -39,10 +39,10 @@
 // Holding hand from the clip: the hand whose arm moves most from idle_loop (hand and elbow, in the pelvis frame), among
 // the hands that stay closed (finger turn from rest at least half of idle_loop's fist). Both hands open: two-handed.
 
-import * as THREE from '../../vendor/scene-core/vendor/three/three.module.js';
-import { GLTFLoader } from '../../vendor-three-examples/loaders/GLTFLoader.js';
-import { fitHold, fitWorn, fitCarried, fitContacts, carryFrame, carryAnchor, hollowInBone, gripKey, reachRefusal } from './fitting/holds.mjs';
-import { ROLE_TABLES, SIDES, sideName, fingerRoles } from './fitting/roles.mjs';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { fitHold, fitWorn, fitCarried, fitContacts, carryFrame, carryAnchor, bodyOffset, hollowInBone, gripKey, reachRefusal } from './fitting/holds.mjs';
+import { ROLE_TABLES, SIDES, sideName, fingerRoles, EQUIPMENT_SITES } from './fitting/roles.mjs';
 import { STANCE_FADE_S } from './fitting/solvers.mjs';
 
 export { STANCE_FADE_S };
@@ -96,6 +96,16 @@ function near(base, file) {
 
 export async function loadItemLibrary({ readBytes, readJson, url, assetBase }) {
   const catalog = await readJson(url);
+  const derived = await readJson(near(url, 'catalog-attachments.json'));
+  const production = derived.entries.map((entry) => {
+    const item = catalog.items.find((it) => it.file === entry.file);
+    if (!item || JSON.stringify(entry.attachment) !== JSON.stringify(attachmentDefinition(item))) {
+      throw new Error(`catalog attachment missing or stale: ${entry.key}`);
+    }
+    item.catalog = { key: entry.key, url: entry.url, sha256: entry.asset_sha256 };
+    return item.id;
+  });
+  if (new Set(production).size !== production.length) throw new Error('duplicate catalog equipment');
   const loader = new GLTFLoader();
   const templates = new Map();
   for (const it of catalog.items) {
@@ -106,7 +116,30 @@ export async function loadItemLibrary({ readBytes, readJson, url, assetBase }) {
     templates.set(it.id, root);
   }
   const base = assetBase || 'http://127.0.0.1:30000/assets/items/';
-  return { catalog, items: new Map(catalog.items.map((i) => [i.id, i])), keys: catalog.keys || [], templates, url, assetUri: (it) => new URL(it.file, base).href };
+  const keys = production.map((id, i) => ({ key: String(i + 1), items: [id] }));
+  keys.push({ key: '0', items: [], note: 'drops everything' });
+  return { catalog, production, source: derived.source, items: new Map(catalog.items.map((i) => [i.id, i])), keys, templates, url, assetUri: (it) => new URL(it.file, base).href };
+}
+
+// One attachment definition, derived from the existing measured fit. The catalog merge tool and loader use this
+// same function; generated catalog data cannot silently replace the evaluator's grip or body-relative placement.
+export function attachmentDefinition(item) {
+  const role = item.mode === 'worn' ? item.placement?.anchor : `${sideName(item.hand)}Hand`;
+  const site = EQUIPMENT_SITES[role];
+  if (!site || !item.placement || (item.mode === 'held' &&
+    (!['l', 'r'].includes(item.hand) || item.hands !== 1 || !item.contacts?.[item.hand] || !item.grip?.clip || !item.stance))) {
+    throw new Error(`item ${item.id}: missing or incompatible attachment`);
+  }
+  const fields = ['mode', 'hands', 'hand', 'stance', 'grip', 'contacts', 'placement', 'scale', 'scale_m_per_unit'];
+  return {
+    schema: 'osl-equipment-attachment/1',
+    glb: { role, bone_lookup: 'body.roles', reference_rig: 'actionforge', reference_bone: ROLE_TABLES.actionforge[role] },
+    vrm: { humanoid_bone: role },
+    hanim: { ...site, standard: 'ISO/IEC 19774-1:2019', project_defined_site: true,
+      transform: 'inverse(parent_segment_in_avatar) * item_in_avatar', child_transform: 'identity' },
+    fit: Object.fromEntries(fields.filter(k => item[k] !== undefined).map(k => [k, item[k]])),
+    evaluated_pose: { frame: 'avatar-holder', units: 'metres', matrix: 'column-major-4x4', update: 'after existing avatar step' },
+  };
 }
 
 // ---------- Measurements on the avatar's own rest skeleton (library.template is never animated) ----------
@@ -150,15 +183,31 @@ export function heldPlacement(library, item) {
     const upper = sampler(subClip(stance, ['upper'], 'upper', body.roles));
     const lower = sampler(library.clips.idle);
     const read = (map, name, t) => { const f = map.get(name); return f ? Array.from(f.evaluate(t)) : null; };
-    const localAt = (bone, t) => {
-      const q = read(upper, `${bone}.quaternion`, t) || read(lower, `${bone}.quaternion`, 0);
-      const p = read(lower, `${bone}.position`, 0);
+    const localAt = (bone, t, lowerPose = lower, lowerTime = 0) => {
+      const q = read(upper, `${bone}.quaternion`, t) || read(lowerPose, `${bone}.quaternion`, lowerTime);
+      const p = read(lowerPose, `${bone}.position`, lowerTime);
       return { q: q && new THREE.Quaternion().fromArray(q).normalize(), p: p && new THREE.Vector3().fromArray(p) };
     };
     const times = Array.from({ length: 24 }, (_, i) => (i / 24) * stance.duration);
-    const frame = carryFrame(body, item, times.map((t) => (bone) => localAt(bone, t)));
-    const fit = fitContacts(body, item, (bone, t) => localAt(bone, t).q, times, frame);
-    out = { matrix: fitCarried(body, item, frame), centre: null, axes: null, pose, ...fit };
+    let frame = carryFrame(body, item, times.map((t) => (bone) => localAt(bone, t)));
+    // The lower spine keeps locomotion, including jump bends. Check contact clearance across those poses as well as
+    // the item's stance; an idle-only fit can put a wrist through the hips-aligned torso union in the air.
+    const clearancePoses = Object.values(library.clips).flatMap((clip) => {
+      const lowerPose = sampler(clip);
+      return times.flatMap((t) => Array.from({ length: 24 }, (_, i) => (bone) => localAt(bone, t, lowerPose, i * clip.duration / 24)));
+    });
+    let fit = fitContacts(body, item, (bone, t) => localAt(bone, t).q, times, frame, clearancePoses);
+    // A low carrying height can make a wide torso unreachable even when the same box fits higher. Before refusing,
+    // try heights up to the named anchor, keeping the box's size, forward clearance, contact and reach constraints.
+    if (fit.reach_beyond_m > 0) {
+      const maxRise = Math.max(0, -bodyOffset(body, item.placement.offset).y);
+      for (let i = 1; i <= 12 && maxRise > 0; i++) {
+        const raised = { ...frame, rise_m: maxRise * i / 12 };
+        const candidate = fitContacts(body, item, (bone, t) => localAt(bone, t).q, times, raised, clearancePoses);
+        if (candidate.reach_beyond_m <= 0 && candidate.wrists_clear) { frame = raised; fit = candidate; break; }
+      }
+    }
+    out = { matrix: fitCarried(body, item, frame), centre: null, axes: null, pose, rise_m: frame.rise_m ?? 0, ...fit };
   } else {
     // An item whose grip pose has no measured hollow (a new item, before the bodies are measured again) sits in the hand's
     // default fist; the proof's hollow check refuses it.
@@ -189,7 +238,8 @@ const attachRole = (library, item) => (item.mode === 'worn' ? item.placement.anc
 
 export function itemRecord(library, items, item) {
   const m = item.mode === 'worn' ? fitWorn(library.body, library.sourceBody || library.body, item) : heldPlacement(library, item).matrix;
-  return { itemId: item.id, assetUri: items.assetUri(item), mode: item.mode, attachmentPoint: attachRole(library, item), localTransform: decompose(m) };
+  return { itemId: item.id, assetUri: items.assetUri(item), mode: item.mode, attachmentPoint: attachRole(library, item), localTransform: decompose(m),
+    ...(item.catalog ? { catalogKey: item.catalog.key } : {}) };
 }
 
 // Box around the vertices whose strongest skin weight is on the head bone, in that bone's rest frame.
@@ -353,6 +403,20 @@ export class Equipment {
 
   records() {
     return [this.held, this.worn].filter(Boolean).map((x) => x.record);
+  }
+
+  // Read only after VisitorAvatar.step/RemoteVisitor.step. Plain evaluated data for the Lab-owned pose bridge;
+  // no animation advance, renderer object, rest-pose offset, or format-specific second fit escapes this boundary.
+  attachmentPoses() {
+    const inverse = this.instance.holder.matrixWorld.clone().invert();
+    return [this.held, this.worn].filter(Boolean).map(({ item, node, bone, record }) => ({
+      itemId: item.id, catalogKey: item.catalog?.key ?? null, assetUri: record.assetUri,
+      role: record.attachmentPoint, bone: bone.name,
+      frame: 'avatar-holder', units: 'metres', matrixOrder: 'column-major',
+      itemMatrix: inverse.clone().multiply(node.matrixWorld).toArray(),
+      parentMatrix: inverse.clone().multiply(bone.matrixWorld).toArray(),
+      hanimSite: item.catalog ? { ...EQUIPMENT_SITES[record.attachmentPoint] } : null,
+    }));
   }
 
   // Another visitor's snapshot: every snapshot carries the whole equipped list, so a lost snapshot only delays a

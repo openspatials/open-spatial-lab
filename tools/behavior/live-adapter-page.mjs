@@ -61,8 +61,8 @@ export async function wearViaPicker(page, picks) {
   await applyAndClose(page);
 }
 
-/** The loadout the picker accepts: a hat on the head and a mug in the right hand. */
-export const HAT_AND_MUG = [["head", "equip-hat"], ["rightHand", "equip-mug"]];
+/** The loadout the picker accepts: a hat on the head and a mug in the left hand. */
+export const HAT_AND_MUG = [["head", "equip-hat"], ["leftHand", "equip-mug"]];
 
 /** Take everything off through the picker's own "no equipment" choice, then press Apply. */
 export async function clearViaPicker(page) {

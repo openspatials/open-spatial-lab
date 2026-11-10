@@ -69,7 +69,7 @@ function assertContract(candidate) {
   );
   const hudDisposals = count(controller, /built\.airport_hud_overlay\?\.dispose\(\)/g);
   const entityDisposals = count(controller, /built\.airport_entity_runtime\?\.dispose\(\)/g);
-  assert.equal(hudDisposals, 2, "portal-preview and selected-renderer exits must dispose the HUD");
+  assert.equal(hudDisposals, 3, "portal-preview, selected-renderer and cancelled preparation exits must dispose the HUD");
   assert.equal(hudDisposals, entityDisposals, "HUD disposal must cover every entity-runtime exit");
   assert.equal(
     count(
@@ -243,6 +243,6 @@ console.log(JSON.stringify({
   hidden_states: ["distance", "offscreen", "overlap"],
   detail_card_dom: false,
   legacy_manifest_cards_visible: false,
-  owned_disposal_paths: 2,
+  owned_disposal_paths: 3,
   controlled_red_cases: redCases.map(({ name }) => name),
 }, null, 2));

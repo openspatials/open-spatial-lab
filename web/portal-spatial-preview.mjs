@@ -865,7 +865,8 @@ export class SpatialPortalPreviewManager {
 
   /** (Re)bind to the live scene internals. Called at boot and after every
    *  recompose — the old scene owned the takeover quad, so it dies with it. */
-  bindScene(renderer, camera, hostScene) {
+  bindScene(renderer, camera, hostScene, renderAdapter = null) {
+    this.renderAdapter = renderAdapter;
     const hostChanged = !!(this.hostScene && hostScene && this.hostScene !== hostScene);
     if (hostChanged) {
       for (const rec of this.records.values()) {
@@ -1226,7 +1227,7 @@ export class SpatialPortalPreviewManager {
           "player",
           { location_id: portalEntry.target_location_id },
           {
-            host: { scene: rec.scene, camera: rec.camera, renderer: this.renderer },
+            host: { scene: rec.scene, camera: rec.camera, renderer: this.renderer, externalFrame: true },
             motionPreference: this.motionPreference,
           }
         );
@@ -1496,17 +1497,20 @@ export class SpatialPortalPreviewManager {
     rec.contentInventoryRevision = rec.composition?.inventory_revision ?? null;
   }
 
+  /** Drop what a window drew of a destination its portal no longer leads to. */
+  _releaseDestinationContent(rec) {
+    this._disposeAvatarRepresentations(rec);
+    try { rec.composition?.dispose?.(); } catch {}
+    if (rec.scene) disposeObject(rec.scene);
+    rec.scene = null;
+    rec.composition = null;
+    rec.destinationContent = null;
+    rec.signature = null;
+  }
+
   _requestDestinationContent(rec, portalEntry) {
     const destinationKey = this._destinationKey(portalEntry);
-    if (rec.destinationKey && rec.destinationKey !== destinationKey) {
-      this._disposeAvatarRepresentations(rec);
-      try { rec.composition?.dispose?.(); } catch {}
-      if (rec.scene) disposeObject(rec.scene);
-      rec.scene = null;
-      rec.composition = null;
-      rec.destinationContent = null;
-      rec.signature = null;
-    }
+    if (rec.destinationKey && rec.destinationKey !== destinationKey) this._releaseDestinationContent(rec);
     rec.destinationKey = destinationKey;
     let source = this.destinationSources.get(destinationKey);
     if (!source) {
@@ -1712,7 +1716,17 @@ export class SpatialPortalPreviewManager {
     if (standard && this._asleep(portalEntry)) {
       attempt.reason = "asleep_until_a_visitor_is_near";
       const asleep = this.records.get(portalKey);
-      if (asleep) asleep.active = false;
+      if (asleep) {
+        asleep.active = false;
+        // A sleeping portal loads nothing, but what it read before must not stand for a destination it no longer
+        // leads to: it reads its new destination when the visitor comes near.
+        if (asleep.destinationKey && asleep.destinationKey !== this._destinationKey(portalEntry)) {
+          this._releaseDestinationContent(asleep);
+          asleep.destinationKey = null;
+          asleep.contentStatus = "asleep";
+          asleep.contentError = null;
+        }
+      }
       this._noteSurfaceGate(portalKey, false, attempt);
       return { material: this._asleepMaterial(), record: null, asleep: true, debug: { portal_key: portalKey, asleep: true } };
     }
@@ -1797,7 +1811,7 @@ export class SpatialPortalPreviewManager {
 
   /** Per-frame: map the live camera through each active portal's frame pair
    *  and render that portal's destination preview into its render target. */
-  renderActive() {
+  renderActive(deltaSeconds = 0) {
     if (!this.renderer || !this.mainCamera) return;
     const renderer = this.renderer;
     const drawing = typeof renderer.getDrawingBufferSize === "function"
@@ -1963,11 +1977,10 @@ export class SpatialPortalPreviewManager {
       if (rec.destRing) rec.destRing.secondary_ring_suppressed = secondaryRingSuppressed;
 
       const now = this.nowMs();
-      const elapsedSeconds = rec.lastRenderAtMs == null
-        ? 0
-        : Math.min(0.05, Math.max(0, (now - rec.lastRenderAtMs) / 1000));
+      const elapsedSeconds = Math.min(0.05, Math.max(0, Number(deltaSeconds) || 0));
       rec.lastRenderAtMs = now;
       rec.composition?.update?.(elapsedSeconds, rec.camera);
+      for (const representation of rec.avatarRepresentations.values()) representation.layer?.evaluateFrame?.(elapsedSeconds);
       const assetStatus = rec.composition?.presentation?.assets?.status || null;
       const contentInventoryRevision = rec.composition?.inventory_revision ?? null;
       if (
@@ -2028,11 +2041,16 @@ export class SpatialPortalPreviewManager {
         rec.avatarCulling.set(representation.player_id, culling);
       }
 
-      const prevTarget = renderer.getRenderTarget();
-      renderer.setRenderTarget(rec.renderTarget);
-      renderer.clear();
-      renderer.render(rec.scene, rec.camera);
-      renderer.setRenderTarget(prevTarget);
+      if (this.renderAdapter) {
+        this.renderAdapter.renderScene(rec.scene, rec.camera, { target: rec.renderTarget });
+      } else {
+        const prevTarget = renderer.getRenderTarget();
+        try {
+          renderer.setRenderTarget(rec.renderTarget);
+          renderer.clear();
+          renderer.render(rec.scene, rec.camera);
+        } finally { renderer.setRenderTarget(prevTarget); }
+      }
       rec.framesRendered += 1;
       const frameAt = this.nowMs();
       for (const representation of rec.avatarRepresentations.values()) {

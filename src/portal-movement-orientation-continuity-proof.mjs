@@ -1,3 +1,4 @@
+import { createThreeCameraBridge } from "../web/three-camera-bridge.mjs";
 /**
  * PORTAL MOVEMENT-ORIENTATION CONTINUITY PROOF
  * (deterministic; no browser, no load gate).
@@ -245,7 +246,7 @@ function createControllerHarness({ avatarPosition }) {
     markAutoHandoffObserved: () => {},
   };
   const controller = createMovementCameraController({
-    THREE,
+    cameraBridge: createThreeCameraBridge({ THREE, sceneRuntime: { avatarHost: () => null }, getAvatarLayers: () => ({ local: null, peers: [] }), getRuntime: () => capabilities }),
     isPlayer: true,
     role: "player",
     windowTarget,

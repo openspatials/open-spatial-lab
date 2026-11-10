@@ -1,0 +1,3824 @@
+[
+  {
+    "isPlayer": true,
+    "trace": [
+      [
+        "scene-phase",
+        "departed"
+      ],
+      [
+        "scene-avatar",
+        null
+      ],
+      [
+        "local-avatar",
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "peer-avatar",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "portal-peers",
+        [
+          {
+            "client_id": "peer"
+          }
+        ]
+      ],
+      [
+        "normalize"
+      ],
+      [
+        "destinations",
+        {
+          "world": {
+            "id": "world"
+          },
+          "debug": {
+            "phase": "departed",
+            "location_id": "a",
+            "peer_players": [
+              {
+                "client_id": "peer"
+              }
+            ],
+            "avatar": {
+              "avatar_id": "avatar",
+              "continuity_id": "same",
+              "display_name": "Visitor",
+              "position": [
+                1,
+                0,
+                2
+              ]
+            },
+            "session": {
+              "arrival_count": 0
+            },
+            "equipment_status": null,
+            "handoff_id": "handoff",
+            "fabric_prefetch": {
+              "portal_key": "edge"
+            },
+            "live_player_pose": {
+              "applied_count": 1,
+              "from_client_id": "peer",
+              "location_id": "a"
+            },
+            "canonical": true,
+            "portal_visual_alignment": {
+              "existing": true,
+              "preview_surface": {
+                "surface": "preview"
+              }
+            }
+          },
+          "connectionState": "live",
+          "isPlayer": true
+        }
+      ],
+      [
+        "world",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "dataset",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        },
+        "player"
+      ],
+      [
+        "return-button",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "shop",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "boarding",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "movement",
+        "departed"
+      ],
+      [
+        "takeover",
+        "edge"
+      ],
+      [
+        "overlay",
+        "departed",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "prefetch",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "ring",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "equipment",
+        null,
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "inventory",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "movement-debug",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "geopose",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "chrome",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "stage",
+        {
+          "id": "scene"
+        }
+      ],
+      [
+        "loading",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "scene-phase",
+        "departed"
+      ],
+      [
+        "scene-avatar",
+        null
+      ],
+      [
+        "local-avatar",
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "peer-avatar",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "portal-peers",
+        [
+          {
+            "client_id": "peer"
+          }
+        ]
+      ],
+      [
+        "normalize"
+      ],
+      [
+        "destinations",
+        {
+          "world": {
+            "id": "world"
+          },
+          "debug": {
+            "phase": "departed",
+            "location_id": "a",
+            "peer_players": [
+              {
+                "client_id": "peer"
+              }
+            ],
+            "avatar": {
+              "avatar_id": "avatar",
+              "continuity_id": "same",
+              "display_name": "Visitor",
+              "position": [
+                1,
+                0,
+                2
+              ]
+            },
+            "session": {
+              "arrival_count": 0
+            },
+            "equipment_status": null,
+            "handoff_id": "handoff",
+            "fabric_prefetch": {
+              "portal_key": "edge"
+            },
+            "live_player_pose": {
+              "applied_count": 1,
+              "from_client_id": "peer",
+              "location_id": "a"
+            },
+            "canonical": true,
+            "portal_visual_alignment": {
+              "existing": true,
+              "preview_surface": {
+                "surface": "preview"
+              }
+            }
+          },
+          "connectionState": "live",
+          "isPlayer": true
+        }
+      ],
+      [
+        "world",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "dataset",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        },
+        "player"
+      ],
+      [
+        "return-button",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "shop",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "boarding",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "movement",
+        "departed"
+      ],
+      [
+        "takeover",
+        "edge"
+      ],
+      [
+        "overlay",
+        "departed",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "prefetch",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "ring",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "equipment",
+        null,
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "inventory",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "movement-debug",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "geopose",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "chrome",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "stage",
+        {
+          "id": "scene"
+        }
+      ],
+      [
+        "loading",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "scene-phase",
+        "arrived"
+      ],
+      [
+        "scene-avatar",
+        null
+      ],
+      [
+        "local-avatar",
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "peer-avatar",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "portal-peers",
+        [
+          {
+            "client_id": "peer"
+          }
+        ]
+      ],
+      [
+        "normalize"
+      ],
+      [
+        "destinations",
+        {
+          "world": {
+            "id": "world"
+          },
+          "debug": {
+            "phase": "arrived",
+            "location_id": "a",
+            "peer_players": [
+              {
+                "client_id": "peer"
+              }
+            ],
+            "avatar": {
+              "avatar_id": "avatar",
+              "continuity_id": "same",
+              "display_name": "Visitor",
+              "position": [
+                1,
+                0,
+                2
+              ]
+            },
+            "session": {
+              "arrival_count": 0
+            },
+            "equipment_status": null,
+            "handoff_id": "handoff",
+            "fabric_prefetch": {
+              "portal_key": "edge"
+            },
+            "live_player_pose": {
+              "applied_count": 1,
+              "from_client_id": "peer",
+              "location_id": "a"
+            },
+            "canonical": true,
+            "portal_visual_alignment": {
+              "existing": true,
+              "preview_surface": {
+                "surface": "preview"
+              }
+            }
+          },
+          "connectionState": "live",
+          "isPlayer": true
+        }
+      ],
+      [
+        "world",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "dataset",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        },
+        "player"
+      ],
+      [
+        "return-button",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "shop",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "boarding",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "movement",
+        "arrived"
+      ],
+      [
+        "release-takeover"
+      ],
+      [
+        "overlay",
+        "arrived",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "prefetch",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "ring",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "equipment",
+        null,
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "inventory",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "movement-debug",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "geopose",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "chrome",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "stage",
+        {
+          "id": "scene"
+        }
+      ],
+      [
+        "loading",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ]
+    ],
+    "elements": {
+      "phase-pill": {
+        "textContent": "arrived"
+      },
+      "a-id": {
+        "textContent": "avatar"
+      },
+      "a-cont": {
+        "textContent": "same"
+      },
+      "a-name": {
+        "textContent": "Visitor"
+      },
+      "a-src": {
+        "textContent": "a"
+      },
+      "h-id": {
+        "textContent": "handoff"
+      },
+      "h-count": {
+        "textContent": 0
+      }
+    },
+    "phases": [
+      {
+        "phase": "departed",
+        "at_ms": 0
+      },
+      {
+        "phase": "arrived",
+        "at_ms": 0
+      }
+    ]
+  },
+  {
+    "isPlayer": false,
+    "trace": [
+      [
+        "scene-phase",
+        "departed"
+      ],
+      [
+        "scene-avatar",
+        null
+      ],
+      [
+        "local-avatar",
+        null
+      ],
+      [
+        "peer-avatar",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "portal-peers",
+        [
+          {
+            "client_id": "peer"
+          }
+        ]
+      ],
+      [
+        "log",
+        "live player pose mirror active: tracking peer in a (render-only; no backend mutation)"
+      ],
+      [
+        "normalize"
+      ],
+      [
+        "destinations",
+        {
+          "world": {
+            "id": "world"
+          },
+          "debug": {
+            "phase": "departed",
+            "location_id": "a",
+            "peer_players": [
+              {
+                "client_id": "peer"
+              }
+            ],
+            "avatar": {
+              "avatar_id": "avatar",
+              "continuity_id": "same",
+              "display_name": "Visitor",
+              "position": [
+                1,
+                0,
+                2
+              ]
+            },
+            "session": {
+              "arrival_count": 0
+            },
+            "equipment_status": null,
+            "handoff_id": "handoff",
+            "fabric_prefetch": {
+              "portal_key": "edge"
+            },
+            "live_player_pose": {
+              "applied_count": 1,
+              "from_client_id": "peer",
+              "location_id": "a"
+            },
+            "canonical": true,
+            "portal_visual_alignment": {
+              "existing": true,
+              "preview_surface": {
+                "surface": "preview"
+              }
+            }
+          },
+          "connectionState": "live",
+          "isPlayer": false
+        }
+      ],
+      [
+        "world",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "dataset",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        },
+        "source"
+      ],
+      [
+        "return-button",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "shop",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "boarding",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "movement",
+        "departed"
+      ],
+      [
+        "overlay",
+        "departed",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "prefetch",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "ring",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "equipment",
+        null,
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "inventory",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "movement-debug",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "geopose",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "chrome",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "stage",
+        {
+          "id": "scene"
+        }
+      ],
+      [
+        "loading",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "scene-phase",
+        "departed"
+      ],
+      [
+        "scene-avatar",
+        null
+      ],
+      [
+        "local-avatar",
+        null
+      ],
+      [
+        "peer-avatar",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "portal-peers",
+        [
+          {
+            "client_id": "peer"
+          }
+        ]
+      ],
+      [
+        "log",
+        "live player pose mirror active: tracking peer in a (render-only; no backend mutation)"
+      ],
+      [
+        "normalize"
+      ],
+      [
+        "destinations",
+        {
+          "world": {
+            "id": "world"
+          },
+          "debug": {
+            "phase": "departed",
+            "location_id": "a",
+            "peer_players": [
+              {
+                "client_id": "peer"
+              }
+            ],
+            "avatar": {
+              "avatar_id": "avatar",
+              "continuity_id": "same",
+              "display_name": "Visitor",
+              "position": [
+                1,
+                0,
+                2
+              ]
+            },
+            "session": {
+              "arrival_count": 0
+            },
+            "equipment_status": null,
+            "handoff_id": "handoff",
+            "fabric_prefetch": {
+              "portal_key": "edge"
+            },
+            "live_player_pose": {
+              "applied_count": 1,
+              "from_client_id": "peer",
+              "location_id": "a"
+            },
+            "canonical": true,
+            "portal_visual_alignment": {
+              "existing": true,
+              "preview_surface": {
+                "surface": "preview"
+              }
+            }
+          },
+          "connectionState": "live",
+          "isPlayer": false
+        }
+      ],
+      [
+        "world",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "dataset",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        },
+        "source"
+      ],
+      [
+        "return-button",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "shop",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "boarding",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "movement",
+        "departed"
+      ],
+      [
+        "overlay",
+        "departed",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "prefetch",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "ring",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "equipment",
+        null,
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "inventory",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "movement-debug",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "geopose",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "chrome",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "stage",
+        {
+          "id": "scene"
+        }
+      ],
+      [
+        "loading",
+        {
+          "phase": "departed",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "scene-phase",
+        "arrived"
+      ],
+      [
+        "scene-avatar",
+        null
+      ],
+      [
+        "local-avatar",
+        null
+      ],
+      [
+        "peer-avatar",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "portal-peers",
+        [
+          {
+            "client_id": "peer"
+          }
+        ]
+      ],
+      [
+        "log",
+        "live player pose mirror active: tracking peer in a (render-only; no backend mutation)"
+      ],
+      [
+        "normalize"
+      ],
+      [
+        "destinations",
+        {
+          "world": {
+            "id": "world"
+          },
+          "debug": {
+            "phase": "arrived",
+            "location_id": "a",
+            "peer_players": [
+              {
+                "client_id": "peer"
+              }
+            ],
+            "avatar": {
+              "avatar_id": "avatar",
+              "continuity_id": "same",
+              "display_name": "Visitor",
+              "position": [
+                1,
+                0,
+                2
+              ]
+            },
+            "session": {
+              "arrival_count": 0
+            },
+            "equipment_status": null,
+            "handoff_id": "handoff",
+            "fabric_prefetch": {
+              "portal_key": "edge"
+            },
+            "live_player_pose": {
+              "applied_count": 1,
+              "from_client_id": "peer",
+              "location_id": "a"
+            },
+            "canonical": true,
+            "portal_visual_alignment": {
+              "existing": true,
+              "preview_surface": {
+                "surface": "preview"
+              }
+            }
+          },
+          "connectionState": "live",
+          "isPlayer": false
+        }
+      ],
+      [
+        "world",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "dataset",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        },
+        "source"
+      ],
+      [
+        "return-button",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "shop",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "boarding",
+        {
+          "locationId": "a",
+          "avatarPosition": [
+            1,
+            0,
+            2
+          ],
+          "airportTerminal": {
+            "id": "airport"
+          }
+        }
+      ],
+      [
+        "movement",
+        "arrived"
+      ],
+      [
+        "overlay",
+        "arrived",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "prefetch",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "ring",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "equipment",
+        null,
+        {
+          "avatar_id": "avatar",
+          "continuity_id": "same",
+          "display_name": "Visitor",
+          "position": [
+            1,
+            0,
+            2
+          ]
+        }
+      ],
+      [
+        "inventory",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          }
+        }
+      ],
+      [
+        "movement-debug",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "geopose",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "chrome",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ],
+      [
+        "stage",
+        {
+          "id": "scene"
+        }
+      ],
+      [
+        "loading",
+        {
+          "phase": "arrived",
+          "location_id": "a",
+          "peer_players": [
+            {
+              "client_id": "peer"
+            }
+          ],
+          "avatar": {
+            "avatar_id": "avatar",
+            "continuity_id": "same",
+            "display_name": "Visitor",
+            "position": [
+              1,
+              0,
+              2
+            ]
+          },
+          "session": {
+            "arrival_count": 0
+          },
+          "equipment_status": null,
+          "handoff_id": "handoff",
+          "fabric_prefetch": {
+            "portal_key": "edge"
+          },
+          "live_player_pose": {
+            "applied_count": 1,
+            "from_client_id": "peer",
+            "location_id": "a"
+          },
+          "canonical": true,
+          "portal_visual_alignment": {
+            "existing": true,
+            "preview_surface": {
+              "surface": "preview"
+            }
+          }
+        }
+      ]
+    ],
+    "elements": {
+      "phase-pill": {
+        "textContent": "arrived"
+      },
+      "a-id": {
+        "textContent": "avatar"
+      },
+      "a-cont": {
+        "textContent": "same"
+      },
+      "a-name": {
+        "textContent": "Visitor"
+      },
+      "a-src": {
+        "textContent": "a"
+      },
+      "h-id": {
+        "textContent": "handoff"
+      },
+      "h-count": {
+        "textContent": 0
+      }
+    },
+    "phases": [
+      {
+        "phase": "departed",
+        "at_ms": 0
+      },
+      {
+        "phase": "arrived",
+        "at_ms": 0
+      }
+    ]
+  }
+]

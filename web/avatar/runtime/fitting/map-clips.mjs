@@ -38,7 +38,7 @@
 //
 // No DOM use: browser and Node.
 
-import * as THREE from '../../../vendor/scene-core/vendor/three/three.module.js';
+import * as THREE from 'three';
 import { ROLE_ORDER, ROLE_AIM, ROLE_PARENT, SIDES, sideName } from './roles.mjs';
 
 const Q = (a) => new THREE.Quaternion().fromArray(a);
@@ -78,10 +78,17 @@ function handBasis(rig, side) {
 
 function sameRest(source, target) {
   if (source.structure !== target.structure) return false;
-  return Object.entries(target.roles).every(([role, name]) => {
+  if (!Object.entries(target.roles).every(([role, name]) => {
     const srcName = source.roles[role];
     if (!srcName) return true;
     return Math.abs(Q(source.nodes[srcName].local_rotation).dot(Q(target.nodes[name].local_rotation))) > 1 - 1e-5;
+  })) return false;
+  // Copied bone turns are sufficient only when the hand frames also agree. Repaired or reshaped finger positions can
+  // change that frame without changing a bone's rest rotation; skipping alignment then differs from the normalized VRM.
+  // 0.0001 rad allows rounded rest-joint coordinates, while staying well below the 0.1 degree hand-frame parity limit.
+  return SIDES.every((side) => {
+    const a = handBasis(source, side), b = handBasis(target, side);
+    return !a || !b || Math.abs(a.dot(b)) > Math.cos(0.0001 / 2);
   });
 }
 

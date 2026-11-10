@@ -1,11 +1,7 @@
-// the crossing heading/basis reframe reuses the ONE
-// canonical crossing-camera recipe (proper 180° portal rotation) — never a
-// local transcription of it.
-import {
-  crossingYawDeltaRad,
-  mapCameraAcrossCrossing,
-  normalizeYawRad,
-} from "./live-adapter-portal-geometry.mjs";
+import {inspectExitPose,inspectCrossingHeading} from "./crossing-presentation.mjs";
+import { normalizeYawRad, addScaled3, vectorFromYaw } from "./live-adapter-portal-geometry.mjs";
+import { validateCrossingCameraMapping } from "./crossing-camera-validation.mjs";
+import { createApplicationCore } from "./application-core.mjs";
 
 export { crossingYawDeltaRad, normalizeYawRad } from "./live-adapter-portal-geometry.mjs";
 
@@ -48,10 +44,6 @@ const SERVER_VIEW_CAMERA = Object.freeze({
   look_target_height_m: 1,
 });
 
-const GROUNDING_FOOT_BONES = Object.freeze(["leftFoot", "rightFoot", "leftToes", "rightToes"]);
-const PORTAL_APERTURE_PLANE_EPS_M = 0.02;
-const PORTAL_APERTURE_SEGMENT_MARGIN_M = 0.6;
-const CAMERA_WALL_HYSTERESIS_M = 0.08;
 const FRAME_FAULT_NOTICE_AFTER_MS = 2000;
 const FRAME_FAULT_NOTICE_EVERY_MS = 15000;
 const FRAME_FAULT_OVER_AFTER_MS = 2000;
@@ -92,12 +84,6 @@ function createFrameFaults({ windowTarget, showToast }) {
   };
 }
 
-/**
- * validate source-owned movement/camera continuity.
- * The traversal controller creates the mapping from the packet's traversed
- * edge. This historical seam recomputes expected values only to verify
- * them; it never replaces, synthesizes, or translates mapping values.
- */
 export function reframeCrossingCameraMapping({
   detail,
   frameMapping,
@@ -105,136 +91,7 @@ export function reframeCrossingCameraMapping({
   cameraTransform,
   lookTargetHeightM = PLAYER_CAMERA_DEFAULT.look_target_height_m,
 } = {}) {
-  const record = {
-    kind: detail && detail.kind ? detail.kind : null,
-    applied: false,
-    changed: false,
-    synthesized: false,
-    validated: false,
-    reason: null,
-    crossing_yaw_delta_rad: null,
-    source_portal_id: null,
-    target_portal_id: null,
-    pre_reframe_forward_yaw_rad: null,
-    reframed_forward_yaw_rad: null,
-    position_correction_m: null,
-    focus_correction_m: null,
-    forward_correction_deg: null,
-    movement_basis_correction_deg: null,
-    identity_match: false,
-  };
-  if (!detail || detail.kind !== "world_navigator_composition_crossing") {
-    record.reason = "not_a_composition_crossing";
-    return record;
-  }
-  const sourceFrame = frameMapping ? frameMapping.source_portal_frame : null;
-  const targetFrame = frameMapping ? frameMapping.target_portal_frame : null;
-  const deltaYaw = crossingYawDeltaRad(sourceFrame, targetFrame);
-  if (deltaYaw === null) {
-    record.reason = "traversed_edge_frames_unavailable";
-    return record;
-  }
-  record.crossing_yaw_delta_rad = Number(deltaYaw.toFixed(6));
-  record.source_portal_id = sourceFrame.portal_id || null;
-  record.target_portal_id = targetFrame.portal_id || null;
-  const exitPose = detail.exit_pose || null;
-  const headingContinuity = detail.heading_continuity || null;
-  if (
-    !headingContinuity ||
-    headingContinuity.source_portal_id !== record.source_portal_id ||
-    headingContinuity.target_portal_id !== record.target_portal_id
-  ) {
-    record.reason = "source_heading_continuity_unavailable";
-    return record;
-  }
-  const entryPosition = entryTransform && Array.isArray(entryTransform.position)
-    ? entryTransform.position
-    : null;
-  const exitPosition = exitPose && Array.isArray(exitPose.position) ? exitPose.position : null;
-  if (!entryPosition || !exitPosition) {
-    record.reason = "entry_or_exit_pose_unavailable";
-    return record;
-  }
-  const remapped = cameraTransform
-    ? mapCameraAcrossCrossing({
-        sourceFrame,
-        targetFrame,
-        cameraTransform,
-        avatarEntryPosition: entryPosition,
-        avatarEntryYaw: Number(entryTransform.rotation_y) || 0,
-        avatarExitPosition: exitPosition,
-        avatarExitYaw: Number(exitPose.rotation_y) || 0,
-        lookTargetHeightM,
-      })
-    : null;
-  if (!remapped) {
-    record.reason = "no_entry_camera_transform";
-    return record;
-  }
-  record.reframed_forward_yaw_rad = Number(
-    Math.atan2(Number(remapped.forward[0]) || 0, Number(remapped.forward[2]) || 0).toFixed(6),
-  );
-  const mapping = detail.camera_mapping;
-  if (
-    !mapping ||
-    !Array.isArray(mapping.position) ||
-    !Array.isArray(mapping.focus) ||
-    !Array.isArray(mapping.forward) ||
-    !Array.isArray(mapping.movement_basis_forward)
-  ) {
-    record.reason = "source_camera_mapping_unavailable";
-    return record;
-  }
-  record.pre_reframe_forward_yaw_rad = Number(
-    Math.atan2(Number(mapping.forward[0]) || 0, Number(mapping.forward[2]) || 0).toFixed(6),
-  );
-  record.position_correction_m = Number(Math.hypot(
-    Number(mapping.position[0]) - Number(remapped.position[0]),
-    Number(mapping.position[1]) - Number(remapped.position[1]),
-    Number(mapping.position[2]) - Number(remapped.position[2]),
-  ).toFixed(6));
-  record.focus_correction_m = Number(Math.hypot(
-    Number(mapping.focus[0]) - Number(remapped.focus[0]),
-    Number(mapping.focus[1]) - Number(remapped.focus[1]),
-    Number(mapping.focus[2]) - Number(remapped.focus[2]),
-  ).toFixed(6));
-  const forwardLength = Math.max(1e-9, Math.hypot(...mapping.forward.slice(0, 3).map(Number)));
-  const expectedForwardLength = Math.max(1e-9, Math.hypot(...remapped.forward.slice(0, 3).map(Number)));
-  const forwardDot = mapping.forward.slice(0, 3).reduce(
-    (sum, value, index) => sum + Number(value) * Number(remapped.forward[index]),
-    0,
-  ) / (forwardLength * expectedForwardLength);
-  record.forward_correction_deg = Number(
-    (Math.acos(Math.max(-1, Math.min(1, forwardDot))) * 180 / Math.PI).toFixed(6),
-  );
-  const basisLength = Math.max(1e-9, Math.hypot(...mapping.movement_basis_forward.slice(0, 3).map(Number)));
-  const basisDot = mapping.movement_basis_forward.slice(0, 3).reduce(
-    (sum, value, index) => sum + Number(value) * Number(remapped.forward[index]),
-    0,
-  ) / (basisLength * expectedForwardLength);
-  record.movement_basis_correction_deg = Number(
-    (Math.acos(Math.max(-1, Math.min(1, basisDot))) * 180 / Math.PI).toFixed(6),
-  );
-  record.identity_match =
-    mapping.frame_source === "packet.avatar_context.portal_frame_transform" &&
-    mapping.source_portal_id === record.source_portal_id &&
-    mapping.target_portal_id === record.target_portal_id;
-  record.changed =
-    !record.identity_match ||
-    record.position_correction_m > 0.05 ||
-    record.focus_correction_m > 0.05 ||
-    record.forward_correction_deg > 1 ||
-    record.movement_basis_correction_deg > 1 ||
-    Math.abs(normalizeYawRad(
-      Number(headingContinuity.crossing_yaw_delta_rad) - Number(record.crossing_yaw_delta_rad),
-    )) > Math.PI / 180;
-  if (record.changed) {
-    record.reason = "source_mapping_mismatch";
-    return record;
-  }
-  record.validated = true;
-  record.reason = "source_mapping_validated";
-  return record;
+  return validateCrossingCameraMapping({ detail, frameMapping, entryTransform, cameraTransform, lookTargetHeightM });
 }
 
 /**
@@ -243,7 +100,8 @@ export function reframeCrossingCameraMapping({
  * canonical owners; this controller only consumes their narrow capabilities.
  */
 export function createMovementCameraController({
-  THREE,
+  cameraBridge,
+  expectedPortalEdgeId,
   isPlayer,
   role,
   windowTarget,
@@ -266,9 +124,11 @@ export function createMovementCameraController({
   showToast,
   isTypingTarget,
   motionPreference = null,
+  documentViewer = null,
 }) {
   const frameFaults = createFrameFaults({ windowTarget, showToast });
   const controlState = { forward: false, back: false, left: false, right: false, jump: false };
+  if (documentViewer?.softBody) Object.assign(controlState, { armUp: false, armDown: false, armMovement: 0 });
   const runModifierKeys = new Set();
   const crossingSuppressedKeyCodes = new Set();
   const movementDebug = {
@@ -292,26 +152,16 @@ export function createMovementCameraController({
   };
   const playerCameraMode = { mode: "third_person" };
   const serverViewCamera = { mode: "third_person", focus: null, focusInitialized: false };
-  const groundingCalibrationByModel = new Map();
-  const groundingProbe = new THREE.Vector3();
-  const groundingMatrix = new THREE.Matrix4();
-  let groundingDebug = { active: false, mode: "none", model_offset_y_m: 0, residual_m: null };
   let playerCameraDebug = null;
   let portalOcclusionDebug = null;
-  let cameraWallOcclusionDebug = null;
-  let activeCameraWall = null;
-  let cameraWallClearFrames = 0;
-  let lastCameraWallRestoration = [];
-  const cameraWallOriginals = new Map();
   let playerGroundedLastTick = null;
   let pendingRestoredCameraSeed = null;
   let pendingFirstPersonCrossingMapping = null;
   let firstPersonCrossingCorrectionLocal = null;
   let firstPersonCrossingCorrectionWorld = null;
   let autoHandoffStarted = false;
-  let frameHandle = null;
-  let lastControlAt = 0;
   let started = false;
+  let viewOnly = false;
   let disposed = false;
   let cameraModeButton = null;
   let serverViewModeButton = null;
@@ -403,7 +253,10 @@ export function createMovementCameraController({
   }
 
   function setControlKey(event, pressed) {
-    const control = CONTROL_KEY_MAP[event.code];
+    const control = documentViewer
+      ? ({ KeyW: "forward", KeyS: "back", KeyD: "right", [documentViewer.softBody ? "ArrowLeft" : "KeyA"]: "left",
+          ...(documentViewer.softBody ? { KeyQ: "armUp", KeyA: "armDown" } : {}) })[event.code]
+      : CONTROL_KEY_MAP[event.code];
     const isRunKey = RUN_KEY_CODES.has(event.code);
     const hasShortcutModifier = event.metaKey || event.ctrlKey || event.altKey;
     const typingTarget = typeof isTypingTarget === "function" && isTypingTarget(event.target);
@@ -411,6 +264,8 @@ export function createMovementCameraController({
     if (pressed && typingTarget) return;
     if (!hasShortcutModifier && !typingTarget) event.preventDefault();
     movementDebug.lastKeyEvent = `${event.code}:${pressed ? "down" : "up"}`;
+    if (documentViewer?.softBody && (control === "armUp" || control === "armDown"))
+      controlState.armMovement = pressed ? (control === "armUp" ? 1 : -1) : 0;
     if (crossingSuppressedKeyCodes.has(event.code)) {
       if (!pressed) crossingSuppressedKeyCodes.delete(event.code);
       movementDebug.lastKeyEvent += pressed ? ":crossing_latched" : ":crossing_released";
@@ -439,420 +294,52 @@ export function createMovementCameraController({
   }
 
   function persistSession(force = false) {
+    if (documentViewer) return;
     if (isPlayer && typeof persistPlayerSession === "function") {
       persistPlayerSession(force, sessionCameraSnapshot());
     }
   }
 
-  function setCameraTransform(camera, position, target) {
-    if (!camera || !camera.position || typeof camera.lookAt !== "function") return null;
-    camera.position.set(position.x, position.y, position.z);
-    camera.lookAt(target);
-    if (typeof camera.updateProjectionMatrix === "function") camera.updateProjectionMatrix();
-    const quaternion = camera.quaternion;
-    return quaternion
-      ? [quaternion.x, quaternion.y, quaternion.z, quaternion.w].map((entry) => Number(entry.toFixed(6)))
-      : [0, 0, 0, 1];
-  }
-
-  function syncPeerLayerCameras(position, target, up = null) {
-    for (const layer of avatarLayers().peers) {
-      if (!layer || !layer.camera) continue;
-      if (up && layer.camera.up) layer.camera.up.copy(up);
-      setCameraTransform(layer.camera, position, target);
-    }
-  }
-
-  function avatarHeadWorldPosition() {
-    const layer = avatarLayers().local;
-    if (!layer || !layer.avatarRig) return null;
-    const vrm = layer.vrm;
-    try {
-      const bone =
-        (vrm && vrm.humanoid && typeof vrm.humanoid.getRawBoneNode === "function" && vrm.humanoid.getRawBoneNode("head")) ||
-        (vrm && vrm.humanoid && typeof vrm.humanoid.getNormalizedBoneNode === "function" && vrm.humanoid.getNormalizedBoneNode("head")) ||
-        null;
-      if (bone && typeof bone.getWorldPosition === "function") return bone.getWorldPosition(new THREE.Vector3());
-    } catch {}
-    const rig = layer.avatarRig;
-    return new THREE.Vector3(rig.position.x, rig.position.y + 1.55 * (rig.scale.y || 1), rig.position.z);
-  }
-
-  function syncFirstPersonAvatarVisibility() {
-    const layer = avatarLayers().local;
-    if (!isPlayer || !layer || !layer._avatarModel) return;
-    const visible = playerCameraMode.mode !== "first_person";
-    if (layer._avatarModel.visible !== visible) layer._avatarModel.visible = visible;
-  }
-
   function applyPlayerCamera(avatarPositionOverride) {
+    if (documentViewer) return null;
     if (!isPlayer) return null;
-    if (!orbitCamera.focus) orbitCamera.focus = new THREE.Vector3(0, PLAYER_CAMERA_DEFAULT.look_target_height_m, 0);
-    const capabilities = runtime();
-    const avatar = capabilities && capabilities.state ? capabilities.state.avatar : null;
-    const positionSource = avatarPositionOverride || (avatar && Array.isArray(avatar.position) ? avatar.position : null);
-    if (positionSource && !orbitCamera.focusInitialized) {
-      orbitCamera.focus.set(
-        Number(positionSource[0]) || 0,
-        (Number(positionSource[1]) || 0) + PLAYER_CAMERA_DEFAULT.look_target_height_m,
-        Number(positionSource[2]) || 0,
-      );
+    if (!orbitCamera.focus) orbitCamera.focus = [0, PLAYER_CAMERA_DEFAULT.look_target_height_m, 0];
+    const source = avatarPositionOverride || runtime()?.state?.avatar?.position;
+    if (source && !orbitCamera.focusInitialized) {
+      orbitCamera.focus = [Number(source[0]) || 0, (Number(source[1]) || 0) + PLAYER_CAMERA_DEFAULT.look_target_height_m, Number(source[2]) || 0];
       orbitCamera.focusInitialized = true;
     }
-    const layers = avatarLayers();
-    const host = sceneRuntime && typeof sceneRuntime.avatarHost === "function" ? sceneRuntime.avatarHost() : null;
+    const measured = cameraBridge.measure();
+    let position, target, lookYaw;
     if (playerCameraMode.mode === "first_person") {
-      const head = avatarHeadWorldPosition();
-      if (!head) return null;
-      const lookYaw = movementBasisYaw();
+      if (!measured.head) return null;
+      lookYaw = movementBasisYaw();
       const pitch = -orbitCamera.polar;
-      const cosPitch = Math.cos(pitch);
-      const direction = new THREE.Vector3(
-        Math.sin(lookYaw) * cosPitch,
-        Math.sin(pitch),
-        Math.cos(lookYaw) * cosPitch,
-      );
-      const position = head.clone();
-      position.y += FIRST_PERSON_CAMERA.eye_up_m;
-      position.addScaledVector(direction, FIRST_PERSON_CAMERA.eye_forward_m);
-      const target = position.clone().add(direction);
-      const rigHostedInActiveScene = !host?.scene || !layers.local?.avatarRig ||
-        layers.local.avatarRig.parent === host.scene;
-      if (
-        pendingFirstPersonCrossingMapping &&
-        host?.scene &&
-        rigHostedInActiveScene &&
-        host?.scene !== pendingFirstPersonCrossingMapping.source_scene
-      ) {
-        const expected = pendingFirstPersonCrossingMapping.position;
-        const deltaX = expected[0] - position.x;
-        const deltaY = expected[1] - position.y;
-        const deltaZ = expected[2] - position.z;
-        const sinYaw = Math.sin(lookYaw);
-        const cosYaw = Math.cos(lookYaw);
-        firstPersonCrossingCorrectionLocal = new THREE.Vector3(
-          deltaX * cosYaw - deltaZ * sinYaw,
-          deltaY,
-          deltaX * sinYaw + deltaZ * cosYaw,
-        );
+      const direction = [Math.sin(lookYaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(lookYaw) * Math.cos(pitch)];
+      position = measured.head.map((value, i) => value + (i === 1 ? FIRST_PERSON_CAMERA.eye_up_m : 0) + direction[i] * FIRST_PERSON_CAMERA.eye_forward_m);
+      target = position.map((value, i) => value + direction[i]);
+      if (pendingFirstPersonCrossingMapping && measured.rigHosted && measured.mountToken !== pendingFirstPersonCrossingMapping.source_mount) {
+        const delta = pendingFirstPersonCrossingMapping.position.map((value, i) => value - position[i]);
+        const cos = Math.cos(lookYaw), sin = Math.sin(lookYaw);
+        firstPersonCrossingCorrectionLocal = [cos * delta[0] - sin * delta[2], delta[1], sin * delta[0] + cos * delta[2]];
         pendingFirstPersonCrossingMapping = null;
       }
       if (firstPersonCrossingCorrectionLocal) {
-        const sinYaw = Math.sin(lookYaw);
-        const cosYaw = Math.cos(lookYaw);
-        firstPersonCrossingCorrectionWorld = new THREE.Vector3(
-          firstPersonCrossingCorrectionLocal.x * cosYaw + firstPersonCrossingCorrectionLocal.z * sinYaw,
-          firstPersonCrossingCorrectionLocal.y,
-          -firstPersonCrossingCorrectionLocal.x * sinYaw + firstPersonCrossingCorrectionLocal.z * cosYaw,
-        );
-        position.add(firstPersonCrossingCorrectionWorld);
-        target.add(firstPersonCrossingCorrectionWorld);
-      } else {
-        firstPersonCrossingCorrectionWorld = null;
+        const [x, y, z] = firstPersonCrossingCorrectionLocal;
+        const cos = Math.cos(lookYaw), sin = Math.sin(lookYaw);
+        firstPersonCrossingCorrectionWorld = [cos * x + sin * z, y, -sin * x + cos * z];
+        position = position.map((value, i) => value + firstPersonCrossingCorrectionWorld[i]);
+        target = target.map((value, i) => value + firstPersonCrossingCorrectionWorld[i]);
       }
-      const quaternions = [];
-      if (layers.local && layers.local.camera) {
-        const value = setCameraTransform(layers.local.camera, position, target);
-        if (value) quaternions.push(value);
-      }
-      if (host && host.camera) {
-        const value = setCameraTransform(host.camera, position, target);
-        if (value) quaternions.push(value);
-      }
-      syncPeerLayerCameras(position, target);
-      portalOcclusionDebug = typeof applyPortalOcclusion === "function"
-        ? applyPortalOcclusion(position, target, "player_first_person")
-        : null;
-      return { position, target, quaternions, lookYaw };
+    } else {
+      target = orbitCamera.focus.slice();
+      const horizontal = Math.cos(orbitCamera.polar) * orbitCamera.distance;
+      position = [target[0] + Math.sin(orbitCamera.azimuth) * horizontal, target[1] + Math.sin(orbitCamera.polar) * orbitCamera.distance, target[2] + Math.cos(orbitCamera.azimuth) * horizontal];
+      lookYaw = Math.atan2(target[0] - position[0], target[2] - position[2]);
     }
-    const target = orbitCamera.focus.clone();
-    const cosPolar = Math.cos(orbitCamera.polar);
-    const offset = new THREE.Vector3(
-      Math.sin(orbitCamera.azimuth) * cosPolar,
-      Math.sin(orbitCamera.polar),
-      Math.cos(orbitCamera.azimuth) * cosPolar,
-    ).multiplyScalar(orbitCamera.distance);
-    const position = target.clone().add(offset);
-    const quaternions = [];
-    if (layers.local && layers.local.camera) {
-      const value = setCameraTransform(layers.local.camera, position, target);
-      if (value) quaternions.push(value);
-    }
-    if (host && host.camera) {
-      const value = setCameraTransform(host.camera, position, target);
-      if (value) quaternions.push(value);
-    }
-    syncPeerLayerCameras(position, target);
-    portalOcclusionDebug = typeof applyPortalOcclusion === "function"
-      ? applyPortalOcclusion(position, target, "player_third_person")
-      : null;
-    const lookDirection = target.clone().sub(position);
-    return { position, target, quaternions, lookYaw: Math.atan2(lookDirection.x, lookDirection.z) };
-  }
-
-  function wallMaterialState(mesh) {
-    const materials = Array.isArray(mesh && mesh.material) ? mesh.material : mesh && mesh.material ? [mesh.material] : [];
-    return materials.map((material) => ({
-      uuid: material.uuid || null,
-      transparent: material.transparent === true,
-      opacity: Number(material.opacity),
-      depth_write: material.depthWrite !== false,
-      depth_test: material.depthTest !== false,
-      side: material.side ?? null,
-      color: material.color && typeof material.color.getHexString === "function" ? material.color.getHexString() : null,
-      emissive: material.emissive && typeof material.emissive.getHexString === "function" ? material.emissive.getHexString() : null,
-    }));
-  }
-
-  function cameraWallIdentity(mesh) {
-    if (!mesh) return null;
-    mesh.updateMatrixWorld(true);
-    const point = mesh.getWorldPosition(new THREE.Vector3());
-    const normal = new THREE.Vector3(0, 0, 1)
-      .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
-      .normalize();
-    return mesh.name || `room-wall@${roundedVec3(point.toArray()).join(",")}:normal=${roundedVec3(normal.toArray()).join(",")}`;
-  }
-
-  function restoreCameraWallTreatment(reason) {
-    const restored = [];
-    for (const [mesh, original] of cameraWallOriginals) {
-      mesh.visible = original.visible;
-      restored.push({
-        identity: original.identity,
-        uuid: mesh.uuid || null,
-        original_state: original,
-        restored_state: { visible: mesh.visible, materials: wallMaterialState(mesh) },
-      });
-    }
-    cameraWallOriginals.clear();
-    activeCameraWall = null;
-    cameraWallClearFrames = 0;
-    if (restored.length) lastCameraWallRestoration = restored;
-    return restored.length ? { reason, meshes: restored } : null;
-  }
-
-  function updateCameraWallOcclusion(
-    position,
-    target,
-    cameraMode,
-    { impl, wallCandidates = [], sceneId = null, worldId = null } = {},
-  ) {
-    const candidates = Array.from(new Set(wallCandidates.filter((mesh) => mesh && mesh.isMesh)));
-    const previousActive = activeCameraWall;
-    const previousOriginal = previousActive ? cameraWallOriginals.get(previousActive) : null;
-    const previousClearFrames = cameraWallClearFrames;
-    const restoredMeshes = [];
-    for (const [mesh, original] of cameraWallOriginals) {
-      mesh.visible = original.visible;
-      restoredMeshes.push({
-        identity: original.identity,
-        uuid: mesh.uuid || null,
-        original_state: original,
-        restored_state: { visible: mesh.visible, materials: wallMaterialState(mesh) },
-      });
-    }
-    cameraWallOriginals.clear();
-    activeCameraWall = null;
-    if (restoredMeshes.length) lastCameraWallRestoration = restoredMeshes;
-
-    const base = {
-      active: false,
-      camera_mode: cameraMode || null,
-      scene_id: sceneId || (impl && impl.scene ? impl.scene.uuid : null),
-      world_id: worldId || null,
-      candidate_count: candidates.length,
-      restoration_frame_budget: 2,
-      restored: restoredMeshes.length ? restoredMeshes : lastCameraWallRestoration,
-      candidates: [],
-      hit_wall: null,
-      affected_meshes: [],
-    };
-    if (!impl || !impl.camera || !position || !target || !candidates.length) {
-      cameraWallClearFrames = 0;
-      return cameraWallOcclusionDebug = {
-        ...base,
-        reason: candidates.length ? "missing_scene_camera_or_focus" : "no_authored_room_walls",
-      };
-    }
-    if (cameraMode !== "player_third_person") {
-      cameraWallClearFrames = 0;
-      return cameraWallOcclusionDebug = { ...base, reason: "camera_not_third_person" };
-    }
-
-    const origin = position.clone ? position.clone() : new THREE.Vector3(position.x, position.y, position.z);
-    const focus = target.clone ? target.clone() : new THREE.Vector3(target.x, target.y, target.z);
-    const segment = focus.clone().sub(origin);
-    const segmentLength = segment.length();
-    base.camera_position = roundedVec3(origin.toArray());
-    base.focus_position = roundedVec3(focus.toArray());
-    if (segmentLength <= 0.001) {
-      cameraWallClearFrames = 0;
-      return cameraWallOcclusionDebug = { ...base, reason: "degenerate_camera_focus_segment" };
-    }
-
-    if (!impl.cameraWallRaycaster) impl.cameraWallRaycaster = new THREE.Raycaster();
-    const raycaster = impl.cameraWallRaycaster;
-    raycaster.layers.mask = impl.camera.layers ? impl.camera.layers.mask : raycaster.layers.mask;
-    raycaster.set(origin, segment.clone().normalize());
-    raycaster.near = 0.001;
-    raycaster.far = Math.max(0.001, segmentLength - 0.02);
-    const eligible = candidates.filter((mesh) => mesh.visible !== false && mesh.layers.test(raycaster.layers));
-    for (const mesh of eligible) mesh.updateMatrixWorld(true);
-    const hits = raycaster.intersectObjects(eligible, false);
-    const nearestHit = hits[0] || null;
-    const hitObjects = new Set(hits.map((hit) => hit.object));
-    let selectedHit = nearestHit;
-    let reason = nearestHit ? "authored_wall_between_camera_and_focus" : "no_authored_wall_in_the_way";
-
-    if (!nearestHit && previousActive && candidates.includes(previousActive) && previousOriginal?.visible !== false) {
-      if (previousClearFrames < 1) {
-        selectedHit = { object: previousActive, distance: null };
-        reason = "one_frame_clear_hysteresis";
-      }
-    } else if (nearestHit && previousActive && hitObjects.has(previousActive)) {
-      const previousHit = hits.find((hit) => hit.object === previousActive);
-      if (previousHit && previousHit.distance <= nearestHit.distance + CAMERA_WALL_HYSTERESIS_M) selectedHit = previousHit;
-    }
-
-    base.hit_wall = nearestHit ? {
-      identity: cameraWallIdentity(nearestHit.object),
-      uuid: nearestHit.object.uuid || null,
-      distance_m: Number(nearestHit.distance.toFixed(3)),
-    } : null;
-    base.candidates = candidates.map((mesh) => ({
-      identity: cameraWallIdentity(mesh),
-      uuid: mesh.uuid || null,
-      visible: mesh.visible,
-      blocking_hit: hitObjects.has(mesh),
-      shared_material_count: candidates.filter((candidate) => candidate.material === mesh.material).length,
-      materials: wallMaterialState(mesh),
-    }));
-
-    if (!selectedHit || !selectedHit.object) {
-      cameraWallClearFrames = 0;
-      return cameraWallOcclusionDebug = { ...base, reason };
-    }
-
-    const selected = selectedHit.object;
-    const original = selected === previousActive && previousOriginal
-      ? previousOriginal
-      : {
-          identity: cameraWallIdentity(selected),
-          scene_id: sceneId || (impl && impl.scene ? impl.scene.uuid : null),
-          world_id: worldId || null,
-          visible: selected.visible,
-          materials: wallMaterialState(selected),
-        };
-    cameraWallOriginals.set(selected, original);
-    activeCameraWall = selected;
-    cameraWallClearFrames = nearestHit ? 0 : previousClearFrames + 1;
-    selected.visible = false;
-    base.affected_meshes = [{
-      identity: original.identity,
-      uuid: selected.uuid || null,
-      action: "visible_false",
-      original_state: original,
-      current_state: { visible: selected.visible, materials: wallMaterialState(selected) },
-      hit_distance_m: selectedHit.distance == null ? null : Number(selectedHit.distance.toFixed(3)),
-    }];
-    return cameraWallOcclusionDebug = { ...base, active: true, reason };
-  }
-
-  function updatePortalOcclusion(
-    position,
-    target,
-    cameraMode,
-    { impl, candidates = [], wallCandidates = [], sceneId = null, worldId = null } = {},
-  ) {
-    updateCameraWallOcclusion(position, target, cameraMode, {
-      impl,
-      wallCandidates,
-      sceneId,
-      worldId,
-    });
-    const restore = () => {
-      for (const mesh of candidates) mesh.visible = mesh.userData.portalSurfaceWanted !== false;
-    };
-    if (!impl || !impl.camera || !position || !target || !candidates.length) {
-      restore();
-      return portalOcclusionDebug = {
-        active: false,
-        reason: "missing_scene_camera_or_portal_surfaces",
-        camera_mode: cameraMode || null,
-        candidate_count: candidates.length,
-        surfaces: [],
-      };
-    }
-    if (cameraMode !== "player_third_person") {
-      restore();
-      return portalOcclusionDebug = {
-        active: false,
-        reason: "camera_not_detached_from_avatar",
-        camera_mode: cameraMode || null,
-        candidate_count: candidates.length,
-        surfaces: [],
-      };
-    }
-    const origin = position.clone ? position.clone() : new THREE.Vector3(position.x, position.y, position.z);
-    const focus = target.clone ? target.clone() : new THREE.Vector3(target.x, target.y, target.z);
-    const capabilities = runtime();
-    const avatar = capabilities && capabilities.state ? capabilities.state.avatar : null;
-    const avatarPoint = avatar && Array.isArray(avatar.position)
-      ? new THREE.Vector3(Number(avatar.position[0]) || 0, Number(avatar.position[1]) || 0, Number(avatar.position[2]) || 0)
-      : focus.clone();
-    const segment = focus.clone().sub(origin);
-    const segmentLength = segment.length();
-    if (!impl.portalApertureRaycaster) impl.portalApertureRaycaster = new THREE.Raycaster();
-    const raycaster = impl.portalApertureRaycaster;
-    raycaster.layers.mask = impl.camera.layers ? impl.camera.layers.mask : raycaster.layers.mask;
-    const normalMatrix = new THREE.Matrix3();
-    const surfaces = [];
-    let suppressedAny = false;
-    for (const mesh of candidates) {
-      const wanted = mesh.userData.portalSurfaceWanted !== false;
-      mesh.visible = wanted;
-      if (!wanted || segmentLength <= 0.001) {
-        surfaces.push({ name: mesh.name || "unnamed", wanted, suppressed: false, reason: "not_wanted_or_degenerate_segment" });
-        continue;
-      }
-      mesh.updateMatrixWorld(true);
-      const planePoint = mesh.getWorldPosition(new THREE.Vector3());
-      const normal = new THREE.Vector3(0, 0, 1).applyMatrix3(normalMatrix.getNormalMatrix(mesh.matrixWorld)).normalize();
-      const cameraDistance = origin.clone().sub(planePoint).dot(normal);
-      const avatarDistance = avatarPoint.clone().sub(planePoint).dot(normal);
-      const cameraSide = Math.abs(cameraDistance) < PORTAL_APERTURE_PLANE_EPS_M ? 0 : Math.sign(cameraDistance);
-      const avatarSide = Math.abs(avatarDistance) < PORTAL_APERTURE_PLANE_EPS_M ? -cameraSide : Math.sign(avatarDistance);
-      const separates = cameraSide !== 0 && avatarSide !== 0 && cameraSide !== avatarSide;
-      let suppressed = false;
-      if (separates) {
-        raycaster.set(origin, segment.clone().normalize());
-        raycaster.far = segmentLength + PORTAL_APERTURE_SEGMENT_MARGIN_M;
-        if (raycaster.intersectObject(mesh, false).length) {
-          mesh.visible = false;
-          suppressed = true;
-          suppressedAny = true;
-        }
-      }
-      surfaces.push({
-        name: mesh.name || "unnamed",
-        wanted,
-        suppressed,
-        camera_signed_distance_m: Number(cameraDistance.toFixed(3)),
-        avatar_signed_distance_m: Number(avatarDistance.toFixed(3)),
-        plane_separates_camera_from_player: separates,
-      });
-    }
-    return portalOcclusionDebug = {
-      active: suppressedAny,
-      reason: suppressedAny ? "portal_surface_between_camera_and_player" : "no_portal_surface_in_the_way",
-      camera_mode: cameraMode || null,
-      candidate_count: candidates.length,
-      camera_position: roundedVec3(origin.toArray()),
-      focus_position: roundedVec3(focus.toArray()),
-      avatar_position: roundedVec3(avatarPoint.toArray()),
-      surfaces,
-    };
+    const quaternions = cameraBridge.apply({ position, target });
+    portalOcclusionDebug = applyPortalOcclusion?.(position, target, playerCameraMode.mode === "first_person" ? "player_first_person" : "player_third_person") || null;
+    return { position, target, quaternions, lookYaw };
   }
 
   function stepOrbitCamera(deltaSeconds) {
@@ -868,12 +355,12 @@ export function createMovementCameraController({
     const y = (Number(position[1]) || 0) + PLAYER_CAMERA_DEFAULT.look_target_height_m;
     const z = Number(position[2]) || 0;
     if (!orbitCamera.focusInitialized) {
-      orbitCamera.focus.set(x, y, z);
+      orbitCamera.focus = [x, y, z];
       orbitCamera.focusInitialized = true;
     } else {
-      orbitCamera.focus.x += (x - orbitCamera.focus.x) * gain;
-      orbitCamera.focus.y += (y - orbitCamera.focus.y) * gain;
-      orbitCamera.focus.z += (z - orbitCamera.focus.z) * gain;
+      orbitCamera.focus[0] += (x - orbitCamera.focus[0]) * gain;
+      orbitCamera.focus[1] += (y - orbitCamera.focus[1]) * gain;
+      orbitCamera.focus[2] += (z - orbitCamera.focus[2]) * gain;
     }
   }
 
@@ -895,21 +382,13 @@ export function createMovementCameraController({
         ]
       : focus;
     if (seededFocus && orbitCamera.focus) {
-      orbitCamera.focus.set(seededFocus[0], seededFocus[1], seededFocus[2]);
+      orbitCamera.focus = seededFocus.slice(0, 3);
       orbitCamera.focusInitialized = true;
     }
   }
 
-  // a composition crossing that carries NO usable camera
-  // mapping previously left the orbit azimuth — and therefore
-  // movementBasisYaw() — STALE, pointing the pre-crossing world direction
-  // until the player dragged the mouse: on a 180°-related edge held-forward
-  // walked the avatar straight back through the portal, on a 90°-related edge
-  // into its side. Rotate the CURRENT azimuth by the traversed edge's rigid
-  // yaw delta instead. seedOrbitCamera writes azimuth AND targetAzimuth in the
-  // same call, and movementBasisYaw() derives from that azimuth, so the
-  // emergence camera heading and the held-key movement basis rotate in ONE
-  // atomic step — there is no stale-basis frame in between.
+  // Without a usable mapping, rotate orbit and movement basis together by the edge yaw.
+  // Seeding both current and target azimuth avoids a stale-basis frame.
   function applyCrossingHeadingDelta(detail) {
     const continuity = detail && detail.heading_continuity ? detail.heading_continuity : null;
     const deltaYaw = continuity ? Number(continuity.crossing_yaw_delta_rad) : NaN;
@@ -937,7 +416,7 @@ export function createMovementCameraController({
       seedOrbitCamera({ azimuth, focus });
       pendingFirstPersonCrossingMapping = {
         position: camera.slice(0, 3).map((value) => Number(value) || 0),
-        source_scene: sceneRuntime?.avatarHost?.()?.scene || null,
+        source_mount: cameraBridge.measure().mountToken,
       };
       firstPersonCrossingCorrectionLocal = null;
       firstPersonCrossingCorrectionWorld = null;
@@ -992,8 +471,7 @@ export function createMovementCameraController({
     }
     const applied = applyPlayerCamera(source);
     if (!applied) return playerCameraDebug;
-    const layer = avatarLayers().local;
-    const equipment = layer && typeof layer.debugState === "function" ? layer.debugState() : null;
+    const equipment = cameraBridge.measure().equipment;
     const equipmentVisible = !!equipment && (
       equipment.visible_on_avatar === true ||
       (equipment.has_held_item === true && equipment.has_worn_item === true)
@@ -1002,8 +480,8 @@ export function createMovementCameraController({
       mode: cameraModeLabel(),
       view_mode: playerCameraMode.mode,
       head_attached: playerCameraMode.mode === "first_person",
-      position: roundedVec3(applied.position.toArray()),
-      target: roundedVec3(applied.target.toArray()),
+      position: roundedVec3(applied.position),
+      target: roundedVec3(applied.target),
       rotation_y: Number(applied.lookYaw.toFixed(6)),
       orientation: applied.quaternions[0] || [0, 0, 0, 1],
       orbit: {
@@ -1019,7 +497,7 @@ export function createMovementCameraController({
       equipment_visible: equipmentVisible,
       equipment_visibility_mode: equipmentVisible ? "direct" : "hidden",
       portal_crossing_camera_correction: firstPersonCrossingCorrectionWorld
-        ? roundedVec3(firstPersonCrossingCorrectionWorld.toArray())
+        ? roundedVec3(firstPersonCrossingCorrectionWorld)
         : null,
     };
     return playerCameraDebug;
@@ -1046,7 +524,7 @@ export function createMovementCameraController({
       orbitCamera.targetPolar = Math.min(bounds.max, Math.max(bounds.min, orbitCamera.targetPolar));
       orbitCamera.polar = Math.min(bounds.max, Math.max(bounds.min, orbitCamera.polar));
     }
-    syncFirstPersonAvatarVisibility();
+    cameraBridge.setAvatarVisibility(playerCameraMode.mode);
     updateCameraModeButton();
     applyPlayerCamera();
     logLine(next === "first_person"
@@ -1071,7 +549,7 @@ export function createMovementCameraController({
 
   function stepServerViewCamera(deltaSeconds) {
     if (isPlayer) return;
-    if (!serverViewCamera.focus) serverViewCamera.focus = new THREE.Vector3(0, SERVER_VIEW_CAMERA.look_target_height_m, 0);
+    if (!serverViewCamera.focus) serverViewCamera.focus = [0, SERVER_VIEW_CAMERA.look_target_height_m, 0];
     const capabilities = runtime();
     const avatar = capabilities && capabilities.state ? capabilities.state.avatar : null;
     const source = avatar && Array.isArray(avatar.position) ? avatar.position : null;
@@ -1079,44 +557,24 @@ export function createMovementCameraController({
     const y = (source ? Number(source[1]) || 0 : 0) + SERVER_VIEW_CAMERA.look_target_height_m;
     const z = source ? Number(source[2]) || 0 : 0;
     if (!serverViewCamera.focusInitialized) {
-      serverViewCamera.focus.set(x, y, z);
+      serverViewCamera.focus = [x, y, z];
       serverViewCamera.focusInitialized = true;
       return;
     }
     const gain = cameraMotionGain(deltaSeconds, SERVER_VIEW_CAMERA.follow_damping_per_s);
-    serverViewCamera.focus.x += (x - serverViewCamera.focus.x) * gain;
-    serverViewCamera.focus.y += (y - serverViewCamera.focus.y) * gain;
-    serverViewCamera.focus.z += (z - serverViewCamera.focus.z) * gain;
+    serverViewCamera.focus[0] += (x - serverViewCamera.focus[0]) * gain;
+    serverViewCamera.focus[1] += (y - serverViewCamera.focus[1]) * gain;
+    serverViewCamera.focus[2] += (z - serverViewCamera.focus[2]) * gain;
   }
 
   function applyServerViewCamera() {
     if (isPlayer) return null;
-    if (!serverViewCamera.focus) serverViewCamera.focus = new THREE.Vector3(0, SERVER_VIEW_CAMERA.look_target_height_m, 0);
-    let position;
-    let target;
-    let up;
-    if (serverViewCamera.mode === "top_down") {
-      const framing = serverTopDownFraming();
-      position = new THREE.Vector3(...framing.position);
-      target = new THREE.Vector3(...framing.target);
-      up = new THREE.Vector3(...framing.up);
-    } else {
-      position = new THREE.Vector3(...SERVER_VIEW_CAMERA.third_person_position);
-      target = serverViewCamera.focus.clone();
-      up = new THREE.Vector3(0, 1, 0);
-    }
-    const layers = avatarLayers();
-    const host = sceneRuntime && typeof sceneRuntime.avatarHost === "function" ? sceneRuntime.avatarHost() : null;
-    const cameras = [layers.local && layers.local.camera, host && host.camera];
-    let applied = 0;
-    for (const camera of cameras) {
-      if (!camera || !camera.position || typeof camera.lookAt !== "function") continue;
-      if (camera.up) camera.up.copy(up);
-      setCameraTransform(camera, position, target);
-      applied += 1;
-    }
-    syncPeerLayerCameras(position, target, up);
-    return { mode: serverViewCamera.mode, cameras_applied: applied, position: roundedVec3(position.toArray()), target: roundedVec3(target.toArray()) };
+    if (!serverViewCamera.focus) serverViewCamera.focus = [0, SERVER_VIEW_CAMERA.look_target_height_m, 0];
+    const framing = serverViewCamera.mode === "top_down" ? serverTopDownFraming() : {
+      position: SERVER_VIEW_CAMERA.third_person_position.slice(), target: serverViewCamera.focus.slice(), up: [0, 1, 0],
+    };
+    const quaternions = cameraBridge.apply(framing);
+    return { mode: serverViewCamera.mode, cameras_applied: quaternions.length, position: roundedVec3(framing.position), target: roundedVec3(framing.target) };
   }
 
   function updateServerViewModeButton() {
@@ -1148,111 +606,6 @@ export function createMovementCameraController({
     return isPlayer ? null : setServerViewMode(serverViewCamera.mode === "top_down" ? "third_person" : "top_down");
   }
 
-  function calibrateAvatarGrounding(layer, model) {
-    const rig = layer.avatarRig;
-    const rigScale = rig.scale.y || 1;
-    const modelScale = model.scale && model.scale.y ? model.scale.y : 1;
-    const calibration = { soleLocalY: null, boneBind: [], model_scale_y: modelScale };
-    try {
-      const box = new THREE.Box3().setFromObject(model);
-      if (Number.isFinite(box.min.y)) calibration.soleLocalY = (box.min.y - rig.position.y) / rigScale - model.position.y;
-    } catch {}
-    try {
-      const vrm = layer.vrm;
-      if (vrm && vrm.humanoid && typeof vrm.humanoid.getRawBoneNode === "function") {
-        const meshes = [];
-        model.traverse((node) => {
-          if (node.isSkinnedMesh && node.skeleton && Array.isArray(node.skeleton.bones)) meshes.push(node);
-        });
-        for (const boneName of GROUNDING_FOOT_BONES) {
-          const bone = vrm.humanoid.getRawBoneNode(boneName);
-          if (!bone) continue;
-          for (const mesh of meshes) {
-            const index = mesh.skeleton.bones.indexOf(bone);
-            if (index >= 0 && mesh.skeleton.boneInverses[index]) {
-              groundingMatrix.copy(mesh.skeleton.boneInverses[index]).invert();
-              calibration.boneBind.push({ bone, bindLocalY: groundingMatrix.elements[13] });
-              break;
-            }
-          }
-        }
-      }
-    } catch {}
-    groundingCalibrationByModel.set(model.uuid, calibration);
-    logLine(`grounding: avatar sole calibrated (bind sole ${calibration.soleLocalY === null ? "n/a" : calibration.soleLocalY.toFixed(3) + " m"}, ${calibration.boneBind.length} foot/toe bones tracked)`);
-    return calibration;
-  }
-
-  function groundLayerVisualFeet(layer, deltaSeconds, publishDebug) {
-    if (!layer || !layer.avatarRig || !layer._avatarModel || !layer.avatarRig.visible) return;
-    const rig = layer.avatarRig;
-    const model = layer._avatarModel;
-    const calibration = groundingCalibrationByModel.get(model.uuid) || calibrateAvatarGrounding(layer, model);
-    if (!calibration || calibration.soleLocalY === null) return;
-    const locomotion = layer.avatar && layer.avatar.locomotion ? layer.avatar.locomotion : {};
-    const renderedSurfaceY = Number(locomotion.rendered_surface_y_m);
-    const logicalGroundY = Number(locomotion.logical_ground_y_m);
-    const targetGroundY = Number.isFinite(renderedSurfaceY) ? renderedSurfaceY : rig.position.y;
-    const airborne = layer.status && layer.status.avatar_grounded === false;
-    const rigScale = rig.scale.y || 1;
-    const modelScale = model.scale && model.scale.y ? model.scale.y : calibration.model_scale_y || 1;
-    const soleBindWorldY = rig.position.y + rigScale * (model.position.y + calibration.soleLocalY);
-    let animationLift = 0;
-    let mode = "bind_pose_sole";
-    if (calibration.boneBind.length) {
-      let nowMin = Infinity;
-      let bindMin = Infinity;
-      for (const entry of calibration.boneBind) {
-        entry.bone.getWorldPosition(groundingProbe);
-        if (groundingProbe.y < nowMin) nowMin = groundingProbe.y;
-        const bindWorldY = rig.position.y + rigScale * (model.position.y + modelScale * entry.bindLocalY);
-        if (bindWorldY < bindMin) bindMin = bindWorldY;
-      }
-      if (Number.isFinite(nowMin) && Number.isFinite(bindMin)) {
-        animationLift = nowMin - bindMin;
-        mode = "bind_sole_plus_animated_feet";
-      }
-    }
-    const error = (targetGroundY - (soleBindWorldY + animationLift)) / rigScale;
-    if (!Number.isFinite(error)) return;
-    const authoritativeAirportSurface = locomotion.ground_resolver_source === "airport_terminal.walkable_surfaces";
-    const gain = airborne
-      ? 0
-      : authoritativeAirportSurface || Math.abs(error) > 0.35
-        ? 1
-        : Math.min(1, (Number(deltaSeconds) || 0.016) * 10);
-    if (!airborne && Math.abs(error) > 0.0005) model.position.y += error * gain;
-    const measuredSoleY = soleBindWorldY + animationLift + error * gain * rigScale;
-    model.getWorldPosition(groundingProbe);
-    if (publishDebug) groundingDebug = {
-      active: true,
-      mode,
-      airborne,
-      avatar_variant: layer.status?.avatar_variant || null,
-      render_source: layer.status?.avatar_render_source || null,
-      model_uuid: model.uuid,
-      resolver_source: locomotion.ground_resolver_source || "avatar_rig_world_y",
-      ground_surface_id: locomotion.ground_surface_id || null,
-      query_xz_m: Array.isArray(locomotion.ground_query_xz_m) ? locomotion.ground_query_xz_m.slice(0, 2) : null,
-      logical_ground_y_m: Number.isFinite(logicalGroundY) ? logicalGroundY : targetGroundY,
-      logical_avatar_y_m: Number(rig.position.y.toFixed(4)),
-      rendered_surface_y_m: Number(targetGroundY.toFixed(4)),
-      measured_sole_y_m: Number(measuredSoleY.toFixed(4)),
-      rig_root_y_m: Number(rig.position.y.toFixed(4)),
-      model_world_y_m: Number(groundingProbe.y.toFixed(4)),
-      model_offset_y_m: Number(model.position.y.toFixed(4)),
-      residual_m: Number((measuredSoleY - targetGroundY).toFixed(4)),
-      anim_lift_m: Number(animationLift.toFixed(4)),
-      tracked_foot_bones: calibration.boneBind.length,
-    };
-  }
-
-  function groundAvatarVisualFeet(deltaSeconds) {
-    const layers = avatarLayers();
-    groundLayerVisualFeet(layers.local, deltaSeconds, true);
-    for (const layer of layers.peers) groundLayerVisualFeet(layer, deltaSeconds, false);
-  }
-
   function maybeTriggerAutoHandoff() {
     const capabilities = runtime();
     if (!capabilities || autoHandoffStarted) return;
@@ -1279,14 +632,18 @@ export function createMovementCameraController({
     capabilities.markAutoHandoffObserved();
   }
 
-  function scheduleNextFrame() {
-    if (started && frameHandle === null) frameHandle = requestFrame(tick);
-  }
-
-  function stepFrame(timestamp) {
-    const deltaSeconds = Math.min(0.05, Math.max(0, (timestamp - lastControlAt) / 1000));
-    lastControlAt = timestamp;
-    const capabilities = runtime();
+  function stepFrame(capabilities, deltaSeconds) {
+    if (viewOnly) return;
+    if (documentViewer) {
+      const entry = documentViewer.entry(), position = cameraBridge.measure().sceneCameraPosition;
+      if (!entry || !position || documentTarget.hidden) return;
+      const yaw = (entry.orientation?.[1] ?? 0) * (entry.orientation?.[3] ?? 0);
+      const ahead = (controlState.back ? 1 : 0) - (controlState.forward ? 1 : 0);
+      const side = (controlState.right ? 1 : 0) - (controlState.left ? 1 : 0);
+      const distance = 2.4 * deltaSeconds;
+      cameraBridge.applyDocumentPosition(addScaled3(addScaled3(position, vectorFromYaw(yaw), ahead * distance), vectorFromYaw(yaw + Math.PI / 2), side * distance));
+      return;
+    }
     if (capabilities && typeof capabilities.stepAvatar === "function") {
       const input = isPlayer
         ? { ...controlState, run: runModifierKeys.size > 0, camera_yaw: movementBasisYaw() }
@@ -1303,33 +660,35 @@ export function createMovementCameraController({
         playerGroundedLastTick = grounded;
       }
     }
+  }
+
+  function updateFrameView(capabilities, deltaSeconds) {
+    if (viewOnly || documentViewer) return;
     if (isPlayer) {
       stepOrbitCamera(deltaSeconds);
-      syncFirstPersonAvatarVisibility();
+      cameraBridge.setAvatarVisibility(playerCameraMode.mode);
       applyPlayerCamera();
       persistSession(false);
     } else {
       stepServerViewCamera(deltaSeconds);
       applyServerViewCamera();
     }
-    groundAvatarVisualFeet(deltaSeconds);
-    if (isPlayer) sceneRuntime.renderChildFabricPreview(capabilities && capabilities.state ? capabilities.state.preview : null);
-    if (isPlayer) sceneRuntime.renderPortalPreviews();
-    if (isPlayer && typeof refreshViewMatch === "function") refreshViewMatch(timestamp);
+    cameraBridge.ground(deltaSeconds);
   }
 
-  function tick(timestamp) {
-    frameHandle = null;
-    if (!started) return;
-    try {
-      stepFrame(timestamp);
-      frameFaults.clean(timestamp);
-    } catch (error) {
-      frameFaults.failed(error, timestamp);
-    } finally {
-      scheduleNextFrame();
-    }
+  function drawFramePreviews(capabilities, timestamp, deltaSeconds) {
+    if (documentViewer) { sceneRuntime.renderPortalPreviews(deltaSeconds); frameFaults.clean(timestamp); return; }
+    if (isPlayer) sceneRuntime.renderChildFabricPreview(capabilities && capabilities.state ? capabilities.state.preview : null);
+    if (isPlayer) sceneRuntime.renderPortalPreviews(deltaSeconds);
+    if (isPlayer && typeof refreshViewMatch === "function") refreshViewMatch(timestamp);
+    frameFaults.clean(timestamp);
   }
+  const core = createApplicationCore({
+    readRuntime: runtime, readLayers: avatarLayers, readScene: () => sceneRuntime.scene?.(),
+    stepInput: stepFrame, updateView: updateFrameView, drawPreviews: drawFramePreviews,
+    publishFrame: (_runtime, layers) => sceneRuntime.publishEvaluatedPoses?.(layers),
+    requestFrame, cancelFrame, now, onError: (error, timestamp) => frameFaults.failed(error, timestamp),
+  });
 
   function cameraButtonStyle() {
     return [
@@ -1374,6 +733,10 @@ export function createMovementCameraController({
       sceneMount = nextMount;
       cameraModeButton = null;
       serverViewModeButton = null;
+      if (sceneMount && documentViewer) {
+        addListener(sceneMount, "click", event => documentViewer.activate(event), undefined, mountListeners);
+        return sceneMount;
+      }
       if (sceneMount && isPlayer) {
         sceneMount.style.cursor = "grab";
         addListener(sceneMount, "mousedown", (event) => {
@@ -1410,7 +773,7 @@ export function createMovementCameraController({
         }, { passive: true }, mountListeners);
       }
     }
-    ensureCameraButton();
+    if (!viewOnly && !documentViewer) ensureCameraButton();
     return sceneMount;
   }
 
@@ -1447,7 +810,7 @@ export function createMovementCameraController({
       resetControlState();
       persistSession(true);
     });
-    if (isPlayer) {
+    if (isPlayer && !documentViewer) {
       addListener(windowTarget, "mousemove", onMouseMove);
       addListener(windowTarget, "mouseup", () => {
         if (!orbitCamera.dragging) return;
@@ -1469,17 +832,27 @@ export function createMovementCameraController({
     }
     if (isPlayer) applyPlayerCamera();
     else applyServerViewCamera();
-    lastControlAt = now();
-    scheduleNextFrame();
+    core.start();
     persistSession(true);
+    return true;
+  }
+
+  // Frames only, for non-player ?wow= viewers: wow-view-controls owns camera and input.
+  function startViewOnly() {
+    if (disposed) throw new Error("movement/camera controller disposed");
+    if (started) return false;
+    started = true;
+    viewOnly = true;
+    refreshSceneHost();
+    core.start();
     return true;
   }
 
   function stop() {
     if (!started) return false;
     started = false;
-    if (frameHandle !== null) cancelFrame(frameHandle);
-    frameHandle = null;
+    viewOnly = false;
+    core.stop();
     removeListeners(globalListeners);
     removeListeners(mountListeners);
     if (cameraModeButton && cameraModeButton.parentNode) cameraModeButton.parentNode.removeChild(cameraModeButton);
@@ -1496,8 +869,31 @@ export function createMovementCameraController({
     firstPersonCrossingCorrectionLocal = null;
     firstPersonCrossingCorrectionWorld = null;
     resetControlState();
-    restoreCameraWallTreatment("controller_stopped");
+    cameraBridge.restoreCameraWallTreatment("controller_stopped");
     return true;
+  }
+
+  let lastExitPoseParity=null, lastCrossingHeadingContinuity=null;
+  function inspectCrossing(detail) {
+    const failures=[];
+    const capture=(name,read)=>{try {const value=read();if(value?.guard_failure)failures.push(value.guard_failure);return value;}catch(error){failures.push(`${name} broke: ${error.message}`);return null;}};
+    const debug=capture("crossingDiagnosticInput",()=>runtime()?.rawDebugState?.() || runtime()?.debugState?.());
+    const heading=capture("reframeAdapterCrossingHeading",()=>inspectCrossingHeading(debug,detail,reframeCrossingCameraMapping));
+    const exit=capture("applyExitPoseParity",()=>inspectExitPose(debug,detail,expectedPortalEdgeId));
+    if(heading)lastCrossingHeadingContinuity=heading;
+    if(exit)lastExitPoseParity=exit;
+    return {heading,exit,failures};
+  }
+  function recordCrossingView(detail,remapped,heading) {
+    if (!isPlayer || detail.kind!=="world_navigator_composition_crossing") return;
+    const basisYaw=movementBasisYaw(), camera=updatePlayerCamera(runtime()?.debugState());
+    const cameraYaw=camera && Number.isFinite(Number(camera.rotation_y))?Number(camera.rotation_y):null;
+    if(heading)Object.assign(heading,{applied_remap:remapped===true?"camera_mapping":remapped||"none",basis_yaw_after:Number.isFinite(basisYaw)?Number(basisYaw.toFixed(6)):null,camera_yaw_after:cameraYaw===null?null:Number(cameraYaw.toFixed(6))});
+    const body=documentTarget.body;
+    body.setAttribute("data-crossing-camera-remap",remapped===true?"camera_mapping":String(remapped||"none"));
+    body.setAttribute("data-crossing-heading-delta-rad",detail.heading_continuity && Number.isFinite(Number(detail.heading_continuity.crossing_yaw_delta_rad))?String(detail.heading_continuity.crossing_yaw_delta_rad):"");
+    body.setAttribute("data-crossing-basis-yaw-rad",Number.isFinite(basisYaw)?basisYaw.toFixed(6):"");
+    body.setAttribute("data-crossing-camera-yaw-rad",cameraYaw===null?"":cameraYaw.toFixed(6));
   }
 
   function handleCrossing(detail = {}) {
@@ -1510,8 +906,7 @@ export function createMovementCameraController({
       if (control !== "jump") controlState[control] = false;
     }
     runModifierKeys.clear();
-    groundingCalibrationByModel.clear();
-    groundingDebug = { active: false, mode: "scene_rebind", model_offset_y_m: 0, residual_m: null };
+    cameraBridge.resetGrounding("scene_rebind");
     refreshSceneHost();
     let remapped = null;
     if (detail.kind !== "reset_demotion" && detail.kind !== "return_to_lobby") {
@@ -1538,8 +933,7 @@ export function createMovementCameraController({
 
   function reset() {
     autoHandoffStarted = false;
-    groundingCalibrationByModel.clear();
-    groundingDebug = { active: false, mode: "reset_rebind", model_offset_y_m: 0, residual_m: null };
+    cameraBridge.resetGrounding("reset_rebind");
     resetControlState();
     resetMovementDebug();
     orbitCamera.focusInitialized = false;
@@ -1562,31 +956,28 @@ export function createMovementCameraController({
 
   function serverViewCameraState() {
     if (isPlayer) return null;
-    const layers = avatarLayers();
-    const host = sceneRuntime && typeof sceneRuntime.avatarHost === "function" ? sceneRuntime.avatarHost() : null;
-    return {
-      mode: serverViewCamera.mode,
-      top_down_framing: serverTopDownFraming(),
-      scene_camera_position: host && host.camera && host.camera.position ? roundedVec3(host.camera.position.toArray()) : null,
-      avatar_layer_camera_position: layers.local && layers.local.camera ? roundedVec3(layers.local.camera.position.toArray()) : null,
-      focus: serverViewCamera.focus ? roundedVec3(serverViewCamera.focus.toArray()) : null,
-    };
+    const measured = cameraBridge.measure();
+    return { mode: serverViewCamera.mode, top_down_framing: serverTopDownFraming(),
+      scene_camera_position: measured.sceneCameraPosition ? roundedVec3(measured.sceneCameraPosition) : null,
+      avatar_layer_camera_position: measured.avatarCameraPosition ? roundedVec3(measured.avatarCameraPosition) : null,
+      focus: serverViewCamera.focus ? roundedVec3(serverViewCamera.focus) : null };
   }
 
   function debug() {
     return {
       started,
       disposed,
-      raf_active: frameHandle !== null,
+      raf_active: core.snapshot().scheduledFrames > 0,
+      core: core.snapshot(),
       auto_handoff_started: autoHandoffStarted,
       player_grounded_last_tick: playerGroundedLastTick,
       camera: playerCameraDebug,
       camera_mode: playerCameraMode.mode,
       orbit: { azimuth: orbitCamera.azimuth, polar: orbitCamera.polar, distance: orbitCamera.distance },
       movement: movementSnapshot(),
-      grounding: { ...groundingDebug },
+      grounding: cameraBridge.groundingState(),
       portal_aperture_occlusion: portalOcclusionDebug,
-      camera_wall_occlusion: cameraWallOcclusionDebug,
+      camera_wall_occlusion: cameraBridge.cameraWallOcclusionState(),
       server_view: serverViewCameraState(),
     };
   }
@@ -1594,17 +985,21 @@ export function createMovementCameraController({
   function dispose() {
     if (disposed) return;
     stop();
-    restoreCameraWallTreatment("controller_disposed");
+    cameraBridge.dispose();
     disposed = true;
-    groundingCalibrationByModel.clear();
+    core.dispose();
   }
 
   return Object.freeze({
     start,
+    startViewOnly,
     stop,
     dispose,
     refreshSceneHost,
     handleCrossing,
+    inspectCrossing,recordCrossingView,
+    exitPoseParity:()=>lastExitPoseParity,
+    crossingHeadingContinuity:()=>lastCrossingHeadingContinuity,
     observeState,
     reset,
     setRestoredCameraSeed: (seed) => { pendingRestoredCameraSeed = seed ? { ...seed } : null; },
@@ -1619,6 +1014,7 @@ export function createMovementCameraController({
     sessionCameraSnapshot,
     releaseControls: resetControlState,
     controlState: () => controlState,
+    documentActions: () => ({ armMovement: Number(controlState.armMovement) || 0, paused: documentTarget.hidden === true }),
     movementDebug: movementSnapshot,
     updateMovementDebug: updateMovementDebugState,
     orbitBy,
@@ -1627,10 +1023,10 @@ export function createMovementCameraController({
     toggleServerViewMode,
     serverViewMode: () => isPlayer ? null : serverViewCamera.mode,
     serverViewCameraState,
-    groundingState: () => ({ ...groundingDebug }),
+    groundingState: () => (cameraBridge.groundingState()),
     portalOcclusionState: () => portalOcclusionDebug,
-    cameraWallOcclusionState: () => cameraWallOcclusionDebug,
-    updatePortalOcclusion,
+    cameraWallOcclusionState: cameraBridge.cameraWallOcclusionState,
+    updatePortalOcclusion: cameraBridge.updatePortalOcclusion,
     persistSession,
     debug,
   });

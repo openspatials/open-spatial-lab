@@ -155,18 +155,10 @@ function applyMutation(name) {
       );
       break;
     case "forced-pose-before-register":
-      controllerSource = replaceOnce(
-        controllerSource,
-        '    await presence.registerPresence({ spawnReason: "return_from_client_scene_load" });\n    peers.broadcastPlayerPose({ force: true });',
-        '    peers.broadcastPlayerPose({ force: true });\n    await presence.registerPresence({ spawnReason: "return_from_client_scene_load" });',
-      );
+      controllerSource = replaceOnce(controllerSource, "    await presence.registerPresence({ spawnReason: \"return_from_client_scene_load\" });\n    if (options.isCurrent && !options.isCurrent()) return { ok: false, reason: \"client_scene_return_retired\" };\n    peers.broadcastPlayerPose({ force: true });", "    peers.broadcastPlayerPose({ force: true });\n    await presence.registerPresence({ spawnReason: \"return_from_client_scene_load\" });\n    if (options.isCurrent && !options.isCurrent()) return { ok: false, reason: \"client_scene_return_retired\" };");
       break;
     case "state-emit-before-register":
-      controllerSource = replaceOnce(
-        controllerSource,
-        '    await presence.registerPresence({ spawnReason: "return_from_client_scene_load" });\n    peers.broadcastPlayerPose({ force: true });\n    emitState();',
-        '    emitState();\n    await presence.registerPresence({ spawnReason: "return_from_client_scene_load" });\n    peers.broadcastPlayerPose({ force: true });',
-      );
+      controllerSource = replaceOnce(controllerSource, "    await presence.registerPresence({ spawnReason: \"return_from_client_scene_load\" });\n    if (options.isCurrent && !options.isCurrent()) return { ok: false, reason: \"client_scene_return_retired\" };\n    peers.broadcastPlayerPose({ force: true });\n    emitState();", "    emitState();\n    await presence.registerPresence({ spawnReason: \"return_from_client_scene_load\" });\n    if (options.isCurrent && !options.isCurrent()) return { ok: false, reason: \"client_scene_return_retired\" };\n    peers.broadcastPlayerPose({ force: true });");
       break;
     case "return-event-removed":
       controllerSource = replaceOnce(controllerSource, "    dispatchCrossing(detail);", "    void detail;");
@@ -184,9 +176,12 @@ function applyMutation(name) {
       controllerSource = replaceOnce(controllerSource, "    activeRecord = {\n      origin,", "    const pendingActiveRecord = {\n      origin,");
       controllerSource = replaceOnce(
         controllerSource,
-        "      avatar: host.avatar,\n    });\n    peers.clear();",
-        "      avatar: host.avatar,\n    });\n    activeRecord = pendingActiveRecord;\n    peers.clear();",
+        "    activeRecord.reciprocal = installed.reciprocal || {",
+        "    activeRecord = pendingActiveRecord;\n    activeRecord.reciprocal = installed.reciprocal || {",
       );
+      break;
+    case "missing-anchor-control":
+      controllerSource = replaceOnce(controllerSource, "deliberately absent mutation anchor", "");
       break;
     case "":
       break;
@@ -516,7 +511,12 @@ function lifecycleTrace(trace) {
 
 let checks = 0;
 async function check(name, assertion) {
-  await assertion();
+  try {
+    await assertion();
+  } catch (error) {
+    console.error(`MUTATION_FAILURE ${JSON.stringify({ case: name, code: error?.code || null })}`);
+    throw error;
+  }
   checks += 1;
   console.log(`PASS ${String(checks).padStart(2, "0")} ${name}`);
 }
@@ -879,6 +879,18 @@ await check("post-adoption failure remains active for public rollback recovery",
   assert.equal(h.crossings.length, 1);
 });
 
+await check("retired departure cannot install client state", async () => {
+  const gate = deferred();
+  const h = makeHarness({ departureGate: gate });
+  let current = true;
+  const pending = h.controller.enter({ ...validInput(), isCurrent: () => current });
+  current = false; gate.resolve();
+  assert.deepEqual(await pending, { ok: false, reason: "client_scene_load_retired" });
+  assert.equal(h.controller.active(), false);
+  assert.equal(h.host.world, h.references.lobbyWorld);
+  assert.equal(h.trace.includes("install"), false);
+});
+
 await check("controller owns no teardown resource or reverse dependency", async () => {
   assert.deepEqual(Object.keys(makeHarness().controller).sort(), ["active", "debug", "enter", "resolve", "returnToLobby"]);
   assert.doesNotMatch(controllerSource, /dispose\s*\(|addEventListener|removeEventListener|\.close\s*\(|\.terminate\s*\(/);
@@ -912,21 +924,69 @@ const mutationArms = [
   "rollback-active-marker-removed",
 ];
 
+function mutationResult(arm) {
+  try {
+    const stdout = execFileSync(process.execPath, [fileURLToPath(import.meta.url)], {
+      cwd: ROOT, env: { ...process.env, feature_P15_MUTATION: arm }, encoding: "utf8", stdio: "pipe",
+    });
+    return { status: 0, stdout, stderr: "" };
+  } catch (error) {
+    return { status: error.status, stdout: String(error.stdout || ""), stderr: String(error.stderr || "") };
+  }
+}
+
+function caughtIntendedAssertion(result, expectedCase) {
+  const reports = result.stderr.split("\n").filter(line => line.startsWith("MUTATION_FAILURE "));
+  if (result.status !== 1 || reports.length !== 1) return false;
+  try {
+    const report = JSON.parse(reports[0].slice("MUTATION_FAILURE ".length));
+    return report.case === expectedCase && report.code === "ERR_ASSERTION";
+  } catch { return false; }
+}
+
+const expectedMutationCases = {
+  "resolve-validation-off": "missing graph endpoint throws before resolver or host work",
+  "client-target-validation-off": "all current entry refusals are exact and lifecycle-side-effect free",
+  "claim-boundary-allow": "target, graph, spatial equality, and both false claims remain required",
+  "snapshot-after-depart": "deferred departure blocks every shutdown and adoption side effect",
+  "depart-not-awaited": "deferred departure blocks every shutdown and adoption side effect",
+  "heartbeat-stop-removed": "entry trace is snapshot then awaited shutdown then adoption and publish",
+  "registration-clear-removed": "entry trace is snapshot then awaited shutdown then adoption and publish",
+  "runtime-close-removed": "entry trace is snapshot then awaited shutdown then adoption and publish",
+  "peer-clear-removed": "entry trace is snapshot then awaited shutdown then adoption and publish",
+  "entry-prefetch-reset-removed": "entry trace is snapshot then awaited shutdown then adoption and publish",
+  "entry-emit-before-adoption": "entry trace is snapshot then awaited shutdown then adoption and publish",
+  "peer-reference-restore-removed": "return restores exact lobby references and controls by value at authored spawn",
+  "active-clear-after-register": "return trace restores then reconnects then emits one crossing",
+  "return-prefetch-reset-removed": "return trace restores then reconnects then emits one crossing",
+  "runtime-reconnect-removed": "return trace restores then reconnects then emits one crossing",
+  "register-not-awaited": "deferred registration gates pose emit crossing and success after runtime connect",
+  "forced-pose-before-register": "return trace restores then reconnects then emits one crossing",
+  "state-emit-before-register": "return trace restores then reconnects then emits one crossing",
+  "return-event-removed": "return trace restores then reconnects then emits one crossing",
+  "return-event-duplicated": "return trace restores then reconnects then emits one crossing",
+  "return-kind-drift": "return trace restores then reconnects then emits one crossing",
+  "debug-shape-drift": "entry receipt and active debug are exact defensive views",
+  "reciprocal-diagnostic-missing": "entry receipt and active debug are exact defensive views",
+  "reciprocal-diagnostic-falsely-synthesized": "entry receipt and active debug are exact defensive views",
+  "reciprocal-diagnostic-non-null-portal": "entry receipt and active debug are exact defensive views",
+  "reciprocal-diagnostic-misleading-reason": "entry receipt and active debug are exact defensive views",
+  "rollback-active-marker-removed": "entry trace is snapshot then awaited shutdown then adoption and publish"
+};
+
 if (!MUTATION) {
+  const missingAnchor = mutationResult("missing-anchor-control");
+  assert.match(missingAnchor.stderr, /mutation anchor missing/);
+  assert.equal(caughtIntendedAssertion(missingAnchor, expectedMutationCases[mutationArms[0]]), false);
+  for (const stderr of ["Error [ERR_MODULE_NOT_FOUND]: missing import", "TypeError: fixture crashed", "SyntaxError: invalid source"]) {
+    assert.equal(caughtIntendedAssertion({ status: 1, stderr }, expectedMutationCases[mutationArms[0]]), false);
+  }
+  console.log("HARNESS_FAILURE_REJECTED missing-anchor/import/crash/syntax");
   for (const arm of mutationArms) {
-    let turnedRed = false;
-    try {
-      execFileSync(process.execPath, [fileURLToPath(import.meta.url)], {
-        cwd: ROOT,
-        env: { ...process.env, feature_P15_MUTATION: arm },
-        encoding: "utf8",
-        stdio: "pipe",
-      });
-    } catch (error) {
-      turnedRed = Number.isInteger(error.status) && error.status !== 0;
-    }
-    assert.equal(turnedRed, true, `mutation arm ${arm} must turn the focused check RED`);
-    console.log(`RED_CAUGHT ${arm}`);
+    const result = mutationResult(process.argv.includes("--missing-anchor-control") ? "missing-anchor-control" : arm);
+    assert.equal(caughtIntendedAssertion(result, expectedMutationCases[arm]), true,
+      `mutation arm ${arm} must fail its intended assertion; harness errors do not count\n${result.stderr}`);
+    console.log(`RED_CAUGHT ${arm}: ${expectedMutationCases[arm]}`);
   }
   console.log(`feature_CLIENT_SCENE_CONTROLLER PASS ${checks}/${checks} mutations=${mutationArms.length}/${mutationArms.length}`);
 }

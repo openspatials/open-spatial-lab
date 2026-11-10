@@ -73,7 +73,7 @@ async function portalChecks(ports) {
   }, {}, [{ name: 'a client that navigates without checking that the destination answers', impl: noCheck }]);
 
   const ownTransformOnly = { serverEdits: { portalStandard: [['        m = m ? multiplyMatrices(local, m) : local.slice();', '        m = m || local.slice();']] } };
-  const userWithoutNode = { serverEdits: { runtime: [['                // the node that places the user, and the GeoPose derived from it\n                ...(placed != null ? { node : nodeRef(spatialStore, placed) } : {}),', '']] } };
+  const userWithoutNode = { serverEdits: { 'runtime-user-projection.js': [['                ...(placed != null ? { node : this.spatial.nodeRef(this.spatial.primary, placed) } : {}),\n', '']] } };
   const portalWithoutDestination = { serverEdits: { portalStandard: [['                ...(added.destination ? { destination : added.destination } : {}),', '']] } };
   await run('P7', 'GET /wow/portal/{id} returns destination and node; User and View return node too; in an anchored graph each derived GeoPose, turned back by EPSG 9837, lies within 1 mm of its node\'s composed position (plain double-precision reference)', async (impl) => {
     const A = await w.world('a', ports.next(), { edits: impl.serverEdits });

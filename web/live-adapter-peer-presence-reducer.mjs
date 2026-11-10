@@ -35,6 +35,7 @@ export function createPeerPresenceReducer({
   let livePlayerPose = null;
   let peerPlayerPoses = {};
   let channel = null;
+  let disposed = false;
 
   function context() {
     return getContext() || {};
@@ -434,6 +435,7 @@ export function createPeerPresenceReducer({
   }
 
   function ensureChannel() {
+    if (disposed) return null;
     if (!channel && createBroadcastChannel) {
       channel = createBroadcastChannel(CHANNEL_NAME);
       channel.onmessage = handleMessage;
@@ -482,6 +484,7 @@ export function createPeerPresenceReducer({
   }
 
   function dispose() {
+    disposed = true;
     if (channel) {
       channel.onmessage = null;
       if (typeof channel.close === "function") channel.close();

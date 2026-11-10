@@ -177,6 +177,11 @@ export class XIteRenderAdapter extends RenderAdapter {
         this._browser = null;
         this._scene = null;
     }
+    /**
+     * This adapter binds no shared skins (bindSkin reports supported: false), so no binding is ever
+     * its own: disposeSkin releases nothing and returns false, as the interface's default does.
+     */
+    disposeSkin() { return false; }
     _loop() {
         for (const callback of this._frameCallbacks.slice())
             callback();

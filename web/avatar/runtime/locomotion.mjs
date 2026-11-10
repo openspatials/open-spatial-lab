@@ -14,7 +14,7 @@
 // Jump phases: none -> crouch (anticipation, the start clip held on its first frame) -> push (the start clip plays)
 // -> air (from the clip's measured takeoff) -> land (from floor contact) -> none.
 
-import * as THREE from '../../vendor/scene-core/vendor/three/three.module.js';
+import * as THREE from 'three';
 
 const DEG = Math.PI / 180;
 const UP = new THREE.Vector3(0, 1, 0);

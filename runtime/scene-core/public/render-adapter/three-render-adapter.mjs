@@ -1,8 +1,10 @@
 // Ported by hand from Nicholas Polys's public fork npolys/open-spatial-lab, commit 99175b4b6,
 // runtime/scene-core/public/render-adapter/three-render-adapter.mjs. Apache-2.0, like the rest of the lab. Nicholas Polys is co-author of lab commit ef702ec.
-// Changes in this copy: added static info; nothing else changed. The lab's three.js path, the default, still draws through its own code (runtime/scene-core/public/scene.js and web/app.js), so this class is checked against the interface and draws nothing there.
+// The Lab shares this adapter between its procedural and authored scenes.
 
 import { RenderAdapter } from "./render-adapter.mjs";
+import { threeCapabilities, bindThreeSkin, applyThreePose, applyThreeLighting, releaseThreeEnvironment } from "./three-render-features.mjs";
+import { bindExplicitThreeAvatar, applyExplicitThreePose } from "./three-avatar-resources.mjs";
 
 function applySide(materialDesc, THREE) {
     if (materialDesc.side === "double")
@@ -32,6 +34,10 @@ export class ThreeRenderAdapter extends RenderAdapter {
         this._mount = null;
         this._frameCallbacks = [];
         this._raf = null;
+        this._generation = 0;
+        this._disposed = false;
+        this._previews = new Set();
+        this._skins = new Set();
         this._loop = this._loop.bind(this);
     }
     get kind() { return "three"; }
@@ -53,7 +59,16 @@ export class ThreeRenderAdapter extends RenderAdapter {
     attach(containerEl) {
         this._mountEl = containerEl;
     }
+    /** Renderer-owned graph adoption after the application has awaited ready(). */
+    useScene(scene, camera) {
+        if (this._disposed) throw new Error("adapter disposed");
+        this._scene = scene;
+        this._camera = camera;
+    }
     mount(containerEl, options = {}) {
+        if (this._renderer) throw new Error("adapter is already mounted");
+        this._disposed = false;
+        this._generation += 1;
         const THREE = this._THREE;
         const width = containerEl.clientWidth || options.width || 640;
         const height = containerEl.clientHeight || options.height || 420;
@@ -65,41 +80,52 @@ export class ThreeRenderAdapter extends RenderAdapter {
         });
         if (!renderer.getContext())
             throw new Error("no webgl context");
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setPixelRatio(options.pixelRatio ?? Math.min(globalThis.devicePixelRatio || 1, 2));
         renderer.setSize(width, height);
         containerEl.appendChild(renderer.domElement);
         this._renderer = renderer;
         this._mountEl = containerEl;
         const cameraDesc = options.camera || {};
-        this._camera = this.createPerspectiveCamera({
+        if (options.scene) this._scene = options.scene;
+        this._camera = options.cameraHandle || this.createPerspectiveCamera({
             fov: cameraDesc.fov ?? 50,
             aspect: width / height,
             near: cameraDesc.near ?? 0.1,
             far: cameraDesc.far ?? 100,
         });
-        this._raf = requestAnimationFrame(this._loop);
+        if (options.frameLoop !== false) this._raf = requestAnimationFrame(this._loop);
     }
     ready() { return Promise.resolve(); }
-    resize() {
+    resize(viewport = {}) {
         if (!this._renderer || !this._mountEl)
             return;
-        const width = this._mountEl.clientWidth || 640;
-        const height = this._mountEl.clientHeight || 420;
+        const width = viewport.width || this._mountEl.clientWidth || 640;
+        const height = viewport.height || this._mountEl.clientHeight || 420;
+        if (viewport.pixelRatio) this._renderer.setPixelRatio(viewport.pixelRatio);
         this._camera.aspect = width / height;
         this._camera.updateProjectionMatrix();
         this._renderer.setSize(width, height);
     }
     dispose() {
+        if (this._disposed) return;
+        this._disposed = true;
+        this._generation += 1;
+        // A release failure must not stop the remaining cleanup; it is rethrown after it.
+        let environmentFailure = null;
+        try { releaseThreeEnvironment(this); } catch (error) { environmentFailure = error; }
         if (this._raf != null)
             cancelAnimationFrame(this._raf);
         this._raf = null;
         this._frameCallbacks = [];
+        for (const preview of [...this._previews]) this.disposeRenderedTexture(preview);
+        for (const skin of [...this._skins]) this.disposeSkin(skin);
         if (this._renderer) {
             this._renderer.dispose();
             if (this._renderer.domElement.parentNode)
                 this._renderer.domElement.parentNode.removeChild(this._renderer.domElement);
         }
         this._renderer = null;
+        if (environmentFailure) throw environmentFailure;
     }
     onEnterFrame(callback) {
         this._frameCallbacks.push(callback);
@@ -109,12 +135,97 @@ export class ThreeRenderAdapter extends RenderAdapter {
                 this._frameCallbacks.splice(index, 1);
         };
     }
-    _loop() {
-        for (const callback of this._frameCallbacks)
-            callback();
+    requestRender(timestamp) {
+        if (this._disposed || !this._renderer) return false;
+        const generation = this._generation;
+        for (const callback of [...this._frameCallbacks]) {
+            callback(timestamp);
+            if (this._disposed || generation !== this._generation) return false;
+        }
+        for (const preview of [...this._previews]) {
+            if (!this._previews.has(preview) || preview.update === "NONE" || !preview.scene || !preview.camera) continue;
+            if (preview.update === "NEXT_FRAME_ONLY") preview.update = "NONE";
+            this.renderScene(preview.scene, preview.camera, { target: preview.target });
+            if (this._disposed || generation !== this._generation) return false;
+        }
         if (this._renderer && this._camera)
             this._renderer.render(this._scene, this._camera);
-        this._raf = requestAnimationFrame(this._loop);
+        return true;
+    }
+    _loop(timestamp) {
+        const generation = this._generation;
+        this._raf = null;
+        this.requestRender(timestamp);
+        if (!this._disposed && generation === this._generation) this._raf = requestAnimationFrame(this._loop);
+    }
+    getCapabilities() { return threeCapabilities(this._THREE, this._renderer, this._scene); }
+    bindSkin(asset, rig) {
+        if (this._disposed) throw new Error("adapter is disposed");
+        if (asset?.schema === "avatar-render/1") {
+            const binding = bindExplicitThreeAvatar(this._THREE, asset);
+            this._skins.add(binding);
+            return binding;
+        }
+        if (typeof asset?.traverse !== "function") throw new TypeError("bindSkin requires an avatar-render/1 descriptor or the legacy three graph");
+        return bindThreeSkin(asset, rig);
+    }
+    setSkinPose(binding, pose) {
+        if (this._disposed) throw new Error("adapter is disposed");
+        if (binding?.explicit) {
+            if (!this._skins.has(binding)) throw new Error("skin binding is retired or belongs to another adapter");
+            return applyExplicitThreePose(binding, pose);
+        }
+        return applyThreePose(binding, pose);
+    }
+    disposeSkin(binding) {
+        if (!this._skins.delete(binding)) return false;
+        return binding.dispose();
+    }
+    setLighting(description) { return applyThreeLighting(this, description); }
+    createRenderedTexture({ width = 256, height = 256 } = {}) {
+        if (this._disposed) throw new Error("adapter is disposed");
+        const target = new this._THREE.WebGLRenderTarget(width, height);
+        const preview = { target, texture: target.texture, scene: null, camera: null, update: "ALWAYS" };
+        this._previews.add(preview);
+        return preview;
+    }
+    bindRenderedTextureScene(preview, scene, camera) {
+        if (!this._previews.has(preview)) return false;
+        preview.scene = scene; preview.camera = camera;
+        return true;
+    }
+    setRenderedTextureUpdate(preview, update) {
+        if (!this._previews.has(preview)) return false;
+        if (!["ALWAYS", "NEXT_FRAME_ONLY", "NONE"].includes(update)) throw new TypeError("Unknown rendered texture update mode");
+        preview.update = update;
+        return true;
+    }
+    disposeRenderedTexture(preview) {
+        if (!this._previews.delete(preview)) return false;
+        preview.target.dispose();
+        preview.scene = preview.camera = null;
+        return true;
+    }
+    setClipPlane(normal, constant = 0) {
+        if (!this._renderer) return false;
+        this._renderer.clippingPlanes = normal ? [new this._THREE.Plane(new this._THREE.Vector3(...normal), constant)] : [];
+        return true;
+    }
+    renderScene(scene, camera, { target = null, clearColor = null } = {}) {
+        if (this._disposed || !this._renderer) return false;
+        const renderer = this._renderer;
+        const previousTarget = renderer.getRenderTarget();
+        const previousColor = renderer.getClearColor(new this._THREE.Color());
+        const previousAlpha = renderer.getClearAlpha();
+        try {
+            renderer.setRenderTarget(target);
+            if (clearColor != null) renderer.setClearColor(clearColor, 1);
+            renderer.render(scene, camera);
+        } finally {
+            renderer.setRenderTarget(previousTarget);
+            renderer.setClearColor(previousColor, previousAlpha);
+        }
+        return true;
     }
     createPerspectiveCamera({ fov, aspect, near, far }) {
         return new this._THREE.PerspectiveCamera(fov, aspect, near, far);
@@ -151,12 +262,15 @@ export class ThreeRenderAdapter extends RenderAdapter {
     }
     createInlineAsset(url, options = {}) {
         const wrapper = this.createGroup();
+        const generation = this._generation;
         if (typeof options.loadGltf !== "function")
             throw new Error("ThreeRenderAdapter.createInlineAsset: options.loadGltf is required (three.js has no built-in glTF import)");
         const cloneScene = typeof options.cloneScene === "function" ? options.cloneScene : (scene) => scene.clone(true);
         const ready = Promise.resolve()
             .then(() => options.loadGltf(url))
             .then((template) => {
+            if (options.signal?.aborted || this._disposed || generation !== this._generation)
+                throw new DOMException("Asset load superseded", "AbortError");
             if (!template)
                 throw new Error("loader returned no scene");
             const model = cloneScene(template);

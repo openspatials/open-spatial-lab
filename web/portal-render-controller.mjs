@@ -159,6 +159,7 @@ export function disposeHostedSceneObjectMeshes(meshes) {
  * needs to mirror hosted objects and update the existing proof surfaces.
  */
 export function createPortalRenderController({
+  describeObjects = objects => objects,
   THREE,
   isPlayer,
   getPortalHost,
@@ -458,7 +459,7 @@ export function createPortalRenderController({
           THREE,
           meshes: state.rootMeshes,
           parent: impl.scene,
-          objects: attachPoint.value?.objects || [],
+          objects: describeObjects(attachPoint.value?.objects || []),
           version: attachPoint.version,
           preservePositionForId: state.drag?.kind === "scene-object" ? state.drag.id : null,
           configureMesh: (mesh, definition) => {
@@ -488,7 +489,7 @@ export function createPortalRenderController({
         THREE,
         meshes: state.childMeshes,
         parent: impl.childFabricRender.group,
-        objects: attachPoint.value?.objects || [],
+        objects: describeObjects(attachPoint.value?.objects || []),
         version: attachPoint.version,
         layer: childFabricLayer,
         setLayerRecursive,

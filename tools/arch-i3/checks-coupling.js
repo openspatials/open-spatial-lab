@@ -53,7 +53,7 @@ async function couplingChecks(ports) {
     }
   }, {}, [{ name: 'a mirror that reads once and never follows', impl: mirrorReadsOnce }]);
 
-  const noOpCreatesEvent = { serverEdits: { runtime: [["            if (JSON.stringify(before) === JSON.stringify(store.getNode(nodeId, { form : 'flat' }))) return Object.assign(r, { unchanged : true });\n", '']] } };
+  const noOpCreatesEvent = { serverEdits: { 'runtime-spatial.js': [["            if (JSON.stringify(before) === JSON.stringify(store.getNode(nodeId, { form : 'flat' }))) return Object.assign(r, { unchanged : true });\n", '']] } };
   await run('O6b', 'A and B mirror one value both ways; after one change in B, both worlds settle within two events and then stay quiet, because a write that changes nothing creates no event', async (impl) => {
     const A = await w.world('a', ports.next(), { edits: impl.serverEdits });
     const B = await w.world('b', ports.next(), { base: '/w/b', edits: impl.serverEdits });

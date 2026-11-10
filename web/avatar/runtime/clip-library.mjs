@@ -22,11 +22,11 @@
 //                                    model is the skinned clone (its fixed floor offset is set once, here).
 //
 // No DOM use: the page and the Node proof load the same way. Clips are played as prepared (decision D11), except that a rig
-// of another structure gets them mapped at load, which the level 2 receiver allows.
+                                                                                                  
 
-import * as THREE from '../../vendor/scene-core/vendor/three/three.module.js';
-import { GLTFLoader } from '../../vendor-three-examples/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from '../../vendor-three-examples/utils/SkeletonUtils.js';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { buildRigMap, mapClip } from './fitting/map-clips.mjs';
 import { rigFromBody, settleToBindPose } from './fitting/rig.mjs';
 

@@ -295,8 +295,14 @@ async function x3dWaitAvatar(ctx, page, kind) {
     throw new Error(`${kind}: the avatar did not load`);
   }
 }
+// Walks the avatar to (x, z) and fails only when it stops getting closer. A fixed number of steps is not a test of
+// reaching the point: at the lab's walk speed (1.4 m/s, 0.05 s steps) the 17.6 m from the airport's arrival point to
+// (0, 18) took more than the 300 steps once allowed, and the avatar stopped 0.35 m short, still walking freely.
+const MOVE_STALL_STEPS = 100; // 5 s of walking time with no 1 cm of progress: blocked, not slow
+const MOVE_MAX_STEPS = 3000;
 async function x3dMoveTo(page, x, z) {
-  for (let i = 0; i < 300; i += 1) {
+  let best = Infinity, sinceProgress = 0;
+  for (let i = 0; i < MOVE_MAX_STEPS && sinceProgress < MOVE_STALL_STEPS; i += 1) {
     const left = await page.evaluate(({ x, z }) => {
       const live = window.__x3domLiveMode.liveAdapter;
       const position = live.state.avatar.position;
@@ -306,9 +312,18 @@ async function x3dMoveTo(page, x, z) {
       return distance;
     }, { x, z });
     if (left <= 0.08) return;
+    if (left < best - 0.01) { best = left; sinceProgress = 0; } else sinceProgress += 1;
     await sleep(12);
   }
-  throw new Error(`could not move the avatar to ${x},${z}`);
+  const where = await page.evaluate(() => {
+    const live = window.__x3domLiveMode.liveAdapter;
+    const controls = live.state.controls || {};
+    return { position: live.state.avatar?.position?.map((v) => Math.round(v * 100) / 100), phase: live.state.phase,
+      location: live.world?.location_id, bounds: live._movementBounds, walkSurface: !!live._airportWalkableSurface,
+      runtimeLocomotion: !!live._avatarLocomotionTuning,
+      controls: Object.fromEntries(Object.entries(controls).filter(([, v]) => v === null || typeof v !== "object")) };
+  }).catch((error) => ({ unreadable: String(error) }));
+  throw new Error(`could not move the avatar to ${x},${z}: ${sinceProgress >= MOVE_STALL_STEPS ? `no progress in ${MOVE_STALL_STEPS} steps` : `${MOVE_MAX_STEPS} steps were not enough`}; it stopped at ${JSON.stringify(where)}`);
 }
 async function x3dCross(page, kind, target) {
   const plan = await page.evaluate((target) => {
@@ -683,15 +698,21 @@ function worldCheck(kind) {
 }
 
 // ---------------------------------------------------------------- three.js checks
+// The default page draws with three.js through app.js, which imports the adapter registry (RENDER-ADAPTERS.md,
+// "Selecting a renderer"); the registry's own modules under vendor/scene-core/render-adapter/ are part of that path.
+// What the default must not do is read the ?renderer switch or load any file of the X3D boot path: the X3DOM and
+// X_ITE engines, their live modes and glue, and the X3D world page.
+const REGISTRY_MODULE = /\/vendor\/scene-core\/render-adapter\/[^/?#]+\.mjs(?:[?#]|$)/;
+const X3D_PATH_FILE = /\/x3dom|\/x_ite|x-ite|x3d-world/;
 const threeDefaultCheck = async (ctx) => {
   const rendererFiles = [];
-  let page = await openThree(ctx, "", (opened) => opened.on("request", (request) => { if (/render-adapter|\/x3dom|\/x_ite|x3d-world|x-ite-live/.test(request.url())) rendererFiles.push(request.url()); }));
+  let page = await openThree(ctx, "", (opened) => opened.on("request", (request) => { const url = request.url(); if (X3D_PATH_FILE.test(url) && !REGISTRY_MODULE.test(url)) rendererFiles.push(url); }));
   let state = await threeState(page);
   assert.equal(state.choice, null, "default: the page read a renderer switch with none in its address");
   assert.ok(!state.x3dHost && !state.x3dEngine && !state.x3dLiveMode, "default: X3D is on the page");
   assert.deepEqual(rendererFiles, [], `default: the page loaded a renderer file: ${rendererFiles.slice(0, 3).join(", ")}`);
   assert.deepEqual([...state.portalTargets].sort(), ["location-a", "location-airport", "location-b"], `default: the Lobby's portals are ${state.portalTargets}`);
-  let seen = await snap(ctx, page, "three", "default-lobby", "Opened the lab with no switch. three.js draws the lobby with its three portals. No renderer file was loaded.");
+  let seen = await snap(ctx, page, "three", "default-lobby", "Opened the lab with no switch. three.js draws the lobby with its three portals. No file of the X3D path was loaded and no renderer switch was read.");
   assertLooksLikeWorld(seen, "three.js default lobby");
   await page.close();
   page = await openThree(ctx, "&renderer=three");
@@ -707,7 +728,7 @@ const threeDefaultCheck = async (ctx) => {
   assert.ok(state.notice && /Unknown renderer/.test(state.notice), `unknown renderer: no notice on the page (${state.notice})`);
   await snap(ctx, page, "three", "unknown-renderer-notice", `Opened ?renderer=babylon. three.js draws and the page says: ${state.notice}`);
   await page.close();
-  return "the default loads no renderer file; ?renderer=three and an unknown renderer behave";
+  return "the default reads no renderer switch and loads no X3D-path file; ?renderer=three and an unknown renderer behave";
 };
 const threeCrossingCheck = async (ctx) => {
   for (const [target, name] of [["location-a", "location-a-crossed"], ["location-b", "location-b-crossed"], ["location-airport", "denver-skyport-crossed"]]) {
@@ -736,8 +757,10 @@ async function importAdapters(dir) {
   return { boundary, registry };
 }
 function plantedAdapterDir(fileName, find, replace) {
-  const dir = mkdtempSync(join(tmpdir(), "renderer-proof-adapters-"));
+  const root = mkdtempSync(join(tmpdir(), "renderer-proof-adapters-"));
+  const dir = join(root, "render-adapter");
   cpSync(RA, dir, { recursive: true });
+  cpSync(join(PUB, "x3d"), join(root, "x3d"), { recursive: true });
   const file = join(dir, fileName);
   const text = readFileSync(file, "utf8");
   assert.ok(text.includes(find), `planted fault did not apply to ${fileName}`);
@@ -874,12 +897,12 @@ const rendererPageCheck = async (ctx) => {
   }));
   assert.match(content.text, /Nicholas Polys/, "the renderer page does not credit Nicholas Polys");
   assert.match(content.text, /ef702ec/, "the renderer page does not name ef702ec");
-  assert.deepEqual(content.adapters, ["three", "x3dom", "x_ite"], "the renderer page does not list the three engines");
+  assert.deepEqual(content.adapters, ["three", "own-x3d", "x3dom", "x_ite"], "the renderer page does not list the four engines");
   for (const id of ["link-default", "link-x3dom", "link-x_ite", "link-world-x_ite", "link-world-x3dom"]) assert.ok(content.links[id], `the renderer page has no ${id}`);
   assert.match(content.text, /falls short|short of three/i, "the renderer page does not say where the engines fall short");
-  await snap(ctx, page, "three", "renderer-page", "Opened the renderer page. It lists every link, the three engines, the credit and the shortfalls.");
+  await snap(ctx, page, "three", "renderer-page", "Opened the renderer page. It lists every link, the four engines, the credit and the shortfalls.");
   await page.close();
-  return `${Object.keys(content.links).length} links, three engines, credit and shortfalls present`;
+  return `${Object.keys(content.links).length} links, four engines, credit and shortfalls present`;
 };
 const clientChecks = async (ctx) => {
   const env = ctx.nodeOption ? { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS || ""} --require ${ctx.nodeOption}` } : process.env;

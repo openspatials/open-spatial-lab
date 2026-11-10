@@ -11,7 +11,7 @@ import { expect, faceYaw, fixed, holdKeys, PACE_S, pageFacts, planar, runBehavio
 
 const MOVE = "web/movement-camera-controller.mjs";
 const STEP_LINE = "      capabilities.stepAvatar(input, deltaSeconds);\n";
-const PREVIEW_LINE = "    if (isPlayer) sceneRuntime.renderPortalPreviews();\n";
+const PREVIEW_LINE = "    if (isPlayer) sceneRuntime.renderPortalPreviews(deltaSeconds);\n";
 const INJECTED = [
   [STEP_LINE, `      windowTarget.__throwInFrame?.("step");\n${STEP_LINE}`],
   [PREVIEW_LINE, `    windowTarget.__throwInFrame?.("late");\n${PREVIEW_LINE}`],
@@ -132,9 +132,9 @@ const statements = [
 
 const TOAST_LINE = 'showToast("Movement is not working", "Try reloading the page.", "failed");';
 const faults = [
-  { statement: "one-throw-in-the-step", name: "the old loop: no catch, the next frame asked for only at the end", expect: /after one throw in the avatar step W walked 0\.000 m/, edits: [{ file: MOVE, find: "    try {\n      stepFrame(timestamp);\n      frameFaults.clean(timestamp);\n    } catch (error) {\n      frameFaults.failed(error, timestamp);\n    } finally {\n      scheduleNextFrame();\n    }\n", replace: "    stepFrame(timestamp);\n    scheduleNextFrame();\n" }] },
+  { statement: "one-throw-in-the-step", name: "the old loop: no catch, the next frame asked for only at the end", expect: /after one throw in the avatar step W walked 0\.000 m/, edits: [{ file: "web/application-core.mjs", find: "    } catch (error) { if (active()) onError(error, timestamp); }\n    finally { if (active() && pending == null) schedule(); }", replace: "    } catch (error) { throw error; }\n    if (active() && pending == null) schedule();" }] },
   { statement: "one-throw-late-in-the-frame", name: "only the avatar step is guarded", expect: /after one throw late in the frame W walked 0\.000 m/, edits: [
-    { file: MOVE, find: "    try {\n      stepFrame(timestamp);\n      frameFaults.clean(timestamp);\n    } catch (error) {\n      frameFaults.failed(error, timestamp);\n    } finally {\n      scheduleNextFrame();\n    }\n", replace: "    stepFrame(timestamp);\n    scheduleNextFrame();\n" },
+    { file: "web/application-core.mjs", find: "    } catch (error) { if (active()) onError(error, timestamp); }\n    finally { if (active() && pending == null) schedule(); }", replace: "    } catch (error) { throw error; }\n    if (active() && pending == null) schedule();" },
     { file: MOVE, find: STEP_LINE, replace: `      try {\n${STEP_LINE}      } catch (error) {\n        frameFaults.failed(error, timestamp);\n      }\n` },
   ] },
   { statement: "one-throw-in-the-step", name: "the first throw already tells the player", expect: /a single throw told the player/, edits: [{ file: MOVE, find: "const FRAME_FAULT_NOTICE_AFTER_MS = 2000;", replace: "const FRAME_FAULT_NOTICE_AFTER_MS = 0;" }] },

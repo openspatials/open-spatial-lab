@@ -47,9 +47,9 @@ const LIST_PATTERNS = [
 ];
 // What is left, each for a named reason. An entry that no longer matches anything is a harness error.
 const LEFT = [
-  { file: "app.js", line: /destination: result\.to \?.*location_id: "location-lobby"/, why: "what the header's return-to-Lobby notification says when the server's answer names no destination; one fallback, not a list" },
-  { file: "app.js", line: /const inLobby = .*location-lobby/, why: "the header's return-to-Lobby button hides in the Lobby; the button is about that one world" },
-  { file: "app.js", line: /const childIsLocationA = /, why: "the accent of a re-attached child fabric on the older attach path, not a portal ring" },
+  // The two return-to-Lobby lines left app.js for application-status-panel.mjs, which now reads the Lobby from the world list.
+  // The child-fabric accent line left app.js for three-world-presentation.mjs; the browser's list carries no room colour.
+  { file: "three-world-presentation.mjs", line: /const childIsLocationA = /, why: "the accent of a re-attached child fabric on the older attach path, not a portal ring; the world list the browser reads has no room colour to take it from" },
   { file: "live-adapter.js", line: /this\.world\?\.location_id === "location-airport"/, why: "the airport's authored walkable floor is adopted only in that world" },
   { file: "portal-render-controller.mjs", line: /portalHost\(\)\?\.world\?\.location_id === "location-airport"/, why: "the airport's own renderer draws these nodes, so their proxies stay hidden there" },
 ];

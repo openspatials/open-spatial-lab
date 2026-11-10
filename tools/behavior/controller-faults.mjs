@@ -3,20 +3,22 @@
 // Update the `find` text when the code it edits moves.
 const FILE = "web/movement-camera-controller.mjs";
 const fault = (statement, name, expect, find, replace) => ({ statement, name, expect, edits: [{ file: FILE, find, replace }] });
+const coreFault = (statement, name, expect, find, replace) => ({ statement, name, expect, edits: [{ file: "web/application-core.mjs", find, replace }] });
+const wallFault = (statement, name, expect, find, replace) => ({ statement, name, expect, edits: [{ file: "web/three-camera-occlusion.mjs", find, replace }] });
 
 export const controllerFaults = [
   fault("feet-grounded-each-frame", "a frame never grounds the feet", /feet stay/,
-    "    groundAvatarVisualFeet(deltaSeconds);\n    if (isPlayer) sceneRuntime.renderChildFabricPreview", "    if (isPlayer) sceneRuntime.renderChildFabricPreview"),
-  fault("stop-inside-a-frame", "a stopped controller still queues the next frame", /still queued after the controller stopped itself/,
-    "if (started && frameHandle === null) frameHandle = requestFrame(tick);", "if (frameHandle === null) frameHandle = requestFrame(tick);"),
-  fault("start-stop-lifecycle", "stop leaves the queued frame", /frame is still queued after stop/,
-    "    if (frameHandle !== null) cancelFrame(frameHandle);\n    frameHandle = null;\n    removeListeners(globalListeners);", "    frameHandle = null;\n    removeListeners(globalListeners);"),
+    "    cameraBridge.ground(deltaSeconds);", "    void deltaSeconds;"),
+  coreFault("stop-inside-a-frame", "a stopped controller still queues the next frame", /still queued after the controller stopped itself/,
+    "if (active() && pending == null) schedule();", "if (pending == null) schedule();"),
+  coreFault("start-stop-lifecycle", "stop leaves the queued frame", /frame is still queued after stop/,
+    "if (pending != null) cancelFrame(pending);", "void pending;"),
   fault("start-stop-lifecycle", "stop leaves the window listeners", /keydown listeners remain after stop/,
     "    removeListeners(globalListeners);\n", ""),
   fault("start-stop-lifecycle", "stop leaves the mount's listeners and button", /mount keeps its listeners after stop/,
     "    removeListeners(mountListeners);\n    if (cameraModeButton", "    if (cameraModeButton"),
-  fault("dt-cap-and-frame-order", "a frame may step half a second", /dt is capped at 50 ms/,
-    "Math.min(0.05, Math.max(0,", "Math.min(0.5, Math.max(0,"),
+  coreFault("dt-cap-and-frame-order", "a frame may step half a second", /dt is capped at 50 ms/,
+    "Math.min(.05, Math.max(0,", "Math.min(.5, Math.max(0,"),
   fault("dt-cap-and-frame-order", "the session is never saved by the frame", /frame order: missing persist/,
     "      applyPlayerCamera();\n      persistSession(false);\n", "      applyPlayerCamera();\n"),
   fault("dt-cap-and-frame-order", "the child fabric preview is never drawn", /frame order: missing child/,
@@ -52,18 +54,18 @@ export const controllerFaults = [
   fault("crossing-held-keys", "key repeat after a crossing walks again", /key repeat does not walk again/,
     "    if (crossingSuppressedKeyCodes.has(event.code)) {", "    if (false) {"),
   fault("first-person-crossing", "the mapped first-person position is not committed", /mapped first-person position must commit exactly/,
-    "        position.add(firstPersonCrossingCorrectionWorld);", "        void firstPersonCrossingCorrectionWorld;"),
+    "        position = position.map((value, i) => value + firstPersonCrossingCorrectionWorld[i]);", "        void firstPersonCrossingCorrectionWorld;"),
   fault("eye-level-seed", "a seeded camera looks at the avatar's feet", /does not look at eye level/,
     "(Number(avatarPosition[1]) || 0) + PLAYER_CAMERA_DEFAULT.look_target_height_m", "Number(avatarPosition[1]) || 0"),
   fault("escape-dismisses-orientation", "Escape no longer dismisses the orientation card", /Escape dismisses the orientation card once/,
     '(CONTROL_KEY_MAP[event.code] || event.key === "Escape")', "CONTROL_KEY_MAP[event.code]"),
   fault("return-to-lobby-camera", "the return keeps the old camera heading", /azimuth was not reset/,
     "      seedOrbitCamera({ azimuth: 0 });\n      orbitCamera.focusInitialized = false;", "      orbitCamera.focusInitialized = false;"),
-  fault("camera-wall-treatment", "the wall in the way is never hidden", /hidden while it blocks the view/,
+  wallFault("camera-wall-treatment", "the wall in the way is never hidden", /hidden while it blocks the view/,
     "    let selectedHit = nearestHit;\n", "    let selectedHit = null;\n"),
-  fault("camera-wall-treatment", "a wall that is not in the way is hidden instead", /hidden is the one in the way/,
+  wallFault("camera-wall-treatment", "a wall that is not in the way is hidden instead", /hidden is the one in the way/,
     "    let selectedHit = nearestHit;\n", "    let selectedHit = nearestHit ? { object: eligible.find((mesh) => !hitObjects.has(mesh)) || null, distance: null } : null;\n"),
-  fault("camera-wall-treatment", "a wall stays hidden after the view clears", /wall restores within two updates/,
+  wallFault("camera-wall-treatment", "a wall stays hidden after the view clears", /wall restores within two updates/,
     "      if (previousClearFrames < 1) {\n", "      if (true) {\n"),
 ];
 

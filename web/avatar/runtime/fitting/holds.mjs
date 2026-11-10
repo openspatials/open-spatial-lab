@@ -20,15 +20,15 @@
 //   carryAnchor(body, item), carryScale(body, item)  the anchor role a rig has, and the item's scale on this body
 //   fitCarried(body, item, frame)                Matrix4 of a carried item (placement.contact_on_hand 'palm') in the anchor
 //                                                bone's local units
-//   poseFrame(body, boneName, localAt)           a bone's { p, q } in the avatar frame in a pose, from the details alone
+//   poseFrame(body, boneName, localAt, cache?)   a bone's { p, q }; optional matrix cache must belong to this one pose
 //   carryFrame(body, item, poses)                the anchor's mean turn in a stance and the torso's front from the anchor
-//   fitContacts(body, item, localAt, times, frame)  the contact points this body's arms can reach (see below)
+//   fitContacts(body, item, localAt, times, frame, clearancePoses?)  reachable contacts; optional poses bound sliding by torso clearance
 //   hollowInBone(body, side, grip)               the hollow in the hand bone's own local units (Vector3)
 //   contactFrameError(matrix, contact, target)   metres between the item's contact point and a point, for checks
 //
 // No DOM use: browser and Node.
 
-import * as THREE from '../../../vendor/scene-core/vendor/three/three.module.js';
+import * as THREE from 'three';
 import { sideName, SIDES, ROLE_PARENT } from './roles.mjs';
 
 // A carried item's contacts stay within this share of the arm's length, so the elbow keeps a bend in every stance frame.
@@ -102,10 +102,18 @@ export function fitWorn(body, reference, item) {
   const node = body.rest_pose[body.roles[place.anchor]];
   const restQ = new THREE.Quaternion().fromArray(node.rotation);
   const measure = place.scale_with || 'head_width_m';
-  const s = (item.scale_m_per_unit ?? 1) * (body.measures[measure] / reference.measures[measure]);
+  const surface = place.head_surface;
+  const volume = surface ? body.volumes.head : null;
+  // A closed-bottom hat rests above the measured head envelope (including baked-in hair/headwear).
+  // Its measured crown spans set its size; no avatar-specific offsets or renderer-side fit.
+  const s = surface
+    ? Math.max(body.measures.head_width_m / surface.crown_span[0], body.measures.head_depth_m / surface.crown_span[1])
+    : (item.scale_m_per_unit ?? 1) * (body.measures[measure] / reference.measures[measure]);
   const itemQ = new THREE.Quaternion().fromArray(place.rotation || [0, 0, 0, 1]);
   // The offset places the item's attach point (its bottom centre); the item's origin follows from that and its scale.
-  const origin = bodyOffset(body, place.offset).sub(V(place.attach_point || [0, 0, 0]).multiplyScalar(s).applyQuaternion(itemQ));
+  const at = surface ? new THREE.Vector3((volume.min_m[0] + volume.max_m[0]) / 2,
+    volume.max_m[1] + surface.clearance_m, (volume.min_m[2] + volume.max_m[2]) / 2) : bodyOffset(body, place.offset);
+  const origin = at.sub(V(place.attach_point || [0, 0, 0]).multiplyScalar(s).applyQuaternion(itemQ));
   const p = origin.applyQuaternion(restQ.clone().invert());
   const q = restQ.clone().invert().multiply(itemQ);
   const m = new THREE.Matrix4().compose(p, q, new THREE.Vector3(s, s, s));
@@ -126,15 +134,17 @@ export function carryScale(body, item) {
 
 // Where a bone stands in the avatar frame when the body stands in a pose: { p (metres), q }. pose: localAt(boneName) gives
 // { q, p } of the bone's local rotation and position, or null for its rest values.
-export function poseFrame(body, boneName, localAt) {
+export function poseFrame(body, boneName, localAt, cache) {
   const chain = [];
-  for (let n = boneName; n; n = body.rest_pose[n].parent) chain.unshift(n);
-  const top = body.rest_pose[chain[0]].parent_world;
-  const m = top ? new THREE.Matrix4().compose(V(top.position_m), new THREE.Quaternion().fromArray(top.rotation), V(top.scale)) : new THREE.Matrix4();
+  let ancestor = boneName;
+  for (; ancestor && !cache?.has(ancestor); ancestor = body.rest_pose[ancestor].parent) chain.unshift(ancestor);
+  const top = chain.length ? body.rest_pose[chain[0]].parent_world : null;
+  const m = ancestor ? cache.get(ancestor).clone() : top ? new THREE.Matrix4().compose(V(top.position_m), new THREE.Quaternion().fromArray(top.rotation), V(top.scale)) : new THREE.Matrix4();
   for (const n of chain) {
     const node = body.rest_pose[n];
     const got = localAt(n) || {};
     m.multiply(new THREE.Matrix4().compose(got.p || V(node.local_translation), got.q || new THREE.Quaternion().fromArray(node.local_rotation), V(node.local_scale)));
+    cache?.set(n, m.clone());
   }
   const p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
   m.decompose(p, q, sc);
@@ -177,7 +187,7 @@ export function fitCarried(body, item, frame = restFrame(body, item)) {
   const forward = frame.front_m + (item.size_m[2] * s) / (item.scale || 1) / 2 + (place.clear_of_torso_m ?? 0);
   // A rig without the named anchor uses its parent; the named joint would sit about halfway from there to the next one up.
   const standIn = role !== place.anchor && body.roles.neck ? (body.rest_pose[body.roles.neck].position_m[1] - body.rest_pose[body.roles[role]].position_m[1]) / 2 : 0;
-  const p = new THREE.Vector3(0, bodyOffset(body, place.offset).y + standIn, forward).applyQuaternion(inv);
+  const p = new THREE.Vector3(0, bodyOffset(body, place.offset).y + standIn + (frame.rise_m ?? 0), forward).applyQuaternion(inv);
   const q = inv.clone().multiply(new THREE.Quaternion().fromArray(place.rotation || [0, 0, 0, 1]));
   return boneUnits(body, role).multiply(new THREE.Matrix4().compose(p, q, new THREE.Vector3(s, s, s)));
 }
@@ -186,7 +196,7 @@ export function fitCarried(body, item, frame = restFrame(body, item)) {
 // arm holds the item nearer its back. localAt(boneName, time) gives a bone's local rotation in the stance (a Quaternion or null),
 // times the sample times. Returns { contacts: { l, r }, slide, reach_short_m, reach_beyond_m } with slide in the item's units;
 // reach_short_m is past the arm alone, reach_beyond_m past the arm and the shoulder's turn (above 0: reachRefusal).
-export function fitContacts(body, item, localAt, times, frame) {
+export function fitContacts(body, item, localAt, times, frame, clearancePoses = times.map((t) => (bone) => ({ q: localAt(bone, t) }))) {
   const role = carryAnchor(body, item);
   const anchorName = body.roles[role];
   const scale = body.rest_pose[anchorName].scale[0];
@@ -224,6 +234,29 @@ export function fitContacts(body, item, localAt, times, frame) {
     return point.clone().sub(new THREE.Vector3().fromArray(hand.palm_m).applyQuaternion(rot));
   };
   const shoulders = { l: times.map((t) => shoulderAt('l', t)), r: times.map((t) => shoulderAt('r', t)) };
+  // Sliding contacts back must not put the wrist inside the torso. Measure in each volume's moving rest-aligned frame,
+  // including the conservative union used by the carrying contract; retain 3 mm of skin between samples.
+  const volumes = [body.volumes.torso, ...Object.values(body.volumes.torso_parts)].filter((v) => v.min_m);
+  const clearanceFrames = clearancePoses.map((pose) => {
+    const cache = new Map();
+    const anchor = poseFrame(body, anchorName, pose, cache);
+    return { anchor, volumes: volumes.map((v) => {
+      const name = body.roles[v.origin_role], f = poseFrame(body, name, pose, cache);
+      const inv = f.q.clone().multiply(new THREE.Quaternion().fromArray(body.rest_pose[name].rotation).invert()).invert();
+      return { v, p: f.p, inv };
+    }) };
+  });
+  const clear = (slide) => SIDES.every((side) => {
+    if (!item.contacts[side]) return true;
+    const wrist = wristFor(side, slide);
+    return clearanceFrames.every(({ anchor, volumes }) => {
+      const p = wrist.clone().applyQuaternion(anchor.q).add(anchor.p);
+      return volumes.every(({ v, p: origin, inv }) => {
+        const q = p.clone().sub(origin).applyQuaternion(inv);
+        return Math.min(q.x - v.min_m[0], v.max_m[0] - q.x, q.y - v.min_m[1], v.max_m[1] - q.y, q.z - v.min_m[2], v.max_m[2] - q.z) <= -0.003;
+      });
+    });
+  });
   const short = (slide) => Math.max(...SIDES.map((side) => {
     if (!item.contacts[side]) return -Infinity;
     const w = wristFor(side, slide);
@@ -232,7 +265,11 @@ export function fitContacts(body, item, localAt, times, frame) {
   const limit = Math.max(...SIDES.map((side) => item.contacts[side]?.slide_m ?? 0));
   let slide = 0;
   const STEP = 0.0025;
-  while (slide < limit && short(slide) > 0) slide = Math.min(limit, slide + STEP);
+  while (slide < limit && short(slide) > 0) {
+    const next = Math.min(limit, slide + STEP);
+    if (!clear(next)) break;
+    slide = next;
+  }
   const contacts = {};
   for (const side of SIDES) {
     const c = item.contacts[side];
@@ -246,7 +283,7 @@ export function fitContacts(body, item, localAt, times, frame) {
     const w = wristFor(side, slide);
     return Math.max(...shoulders[side].map((p) => p.distanceTo(w))) - armReach(side) * CARRY_REACH_SHARE - assist(side);
   }));
-  return { contacts, slide, reach_short_m: Math.max(0, short(slide)), reach_beyond_m: Math.max(0, beyond) };
+  return { contacts, slide, wrists_clear: clear(slide), reach_short_m: Math.max(0, short(slide)), reach_beyond_m: Math.max(0, beyond) };
 }
 
 export function hollowInBone(body, side, grip) {

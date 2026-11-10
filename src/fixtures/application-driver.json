@@ -1,0 +1,787 @@
+{
+  "keys": [
+    "__depthProbeLayers",
+    "activatePortal",
+    "adapter",
+    "airportBoarding",
+    "applyArrival",
+    "avatarSelector",
+    "avatarVisualState",
+    "cameraMode",
+    "cameraSpaceOfPoint",
+    "cameraWallOcclusionState",
+    "chrome",
+    "connectionStatus",
+    "contract",
+    "controlState",
+    "crossingGuardFailures",
+    "crossingHeadingContinuity",
+    "debugState",
+    "dispose",
+    "equipItem",
+    "equipmentReady",
+    "equipmentSceneScan",
+    "equippableCatalog",
+    "evaluatedPoses",
+    "exitPoseParity",
+    "groundingState",
+    "inventory",
+    "liveAuthoredScene",
+    "moveAvatar",
+    "movementBasisYaw",
+    "movementDebug",
+    "orbitCamera",
+    "orbitCameraState",
+    "panelGroups",
+    "peerAvatarCount",
+    "peerAvatars",
+    "phase",
+    "phaseLog",
+    "portalPreviews",
+    "portalRefusals",
+    "ready",
+    "refreshPreviewReadOnlyState",
+    "rendererCapabilities",
+    "rendererKind",
+    "reset",
+    "returnLobbyButtonState",
+    "returnToLobby",
+    "rigProbe",
+    "role",
+    "runtimeTweaks",
+    "samplePortalApertureTexels",
+    "scene",
+    "semanticDestinations",
+    "serverViewCameraState",
+    "serverViewMode",
+    "setCameraMode",
+    "setServerViewMode",
+    "storefrontShopping",
+    "switchAvatar",
+    "toggleCameraMode",
+    "toggleServerViewMode",
+    "triggerHandoff",
+    "viewport",
+    "wowApi"
+  ],
+  "values": {
+    "__depthProbeLayers": {
+      "local": {
+        "visible": true,
+        "position": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "rotation": {
+          "y": 0.5
+        }
+      },
+      "peer": {
+        "visible": true,
+        "position": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "rotation": {
+          "y": 0.5
+        }
+      },
+      "same_renderer": true,
+      "same_scene": true,
+      "local_canvas": {
+        "id": "canvas"
+      },
+      "peer_canvas": {
+        "id": "canvas"
+      }
+    },
+    "activatePortal": {
+      "owner": "adapter",
+      "method": "activatePortal",
+      "args": []
+    },
+    "applyArrival": {
+      "owner": "adapter",
+      "method": "applyArrival",
+      "args": [
+        {
+          "id": "h"
+        }
+      ]
+    },
+    "avatarVisualState": {
+      "avatar_variant": "chosen",
+      "animation_runtime": null,
+      "avatar_render_source": null,
+      "locomotion_tuning": null,
+      "motion_weights": {
+        "idle": 1
+      },
+      "errors": [],
+      "run_calibration": {
+        "speed": 0
+      }
+    },
+    "cameraMode": {
+      "owner": "movement",
+      "method": "playerCameraMode",
+      "args": []
+    },
+    "cameraSpaceOfPoint": {
+      "owner": "scene",
+      "method": "cameraSpaceOfPoint",
+      "args": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    "cameraWallOcclusionState": {
+      "owner": "movement",
+      "method": "cameraWallOcclusionState",
+      "args": []
+    },
+    "connectionStatus": {
+      "state": "live",
+      "recoverable": false
+    },
+    "crossingGuardFailures": [
+      {
+        "handoff_id": "h"
+      }
+    ],
+    "crossingHeadingContinuity": {
+      "yaw": 0
+    },
+    "debugState": {
+      "phase": "idle",
+      "portal_visual_alignment": null,
+      "portal_spatial_preview": {
+        "owner": "scene",
+        "method": "portalDebug",
+        "args": []
+      }
+    },
+    "dispose": 7,
+    "equipItem": {
+      "owner": "adapter",
+      "method": "equipCatalogItem",
+      "args": [
+        "item"
+      ]
+    },
+    "equipmentReady": false,
+    "equipmentSceneScan": {
+      "marker_groups": 1,
+      "marker_meshes": 0,
+      "wide_bar_meshes": 0,
+      "wide_bar_names": []
+    },
+    "equippableCatalog": {
+      "owner": "adapter",
+      "method": "equippableCatalog",
+      "args": []
+    },
+    "evaluatedPoses": {
+      "owner": "scene",
+      "method": "evaluatedPoses",
+      "args": []
+    },
+    "exitPoseParity": {
+      "delta": 0
+    },
+    "groundingState": {
+      "owner": "movement",
+      "method": "groundingState",
+      "args": []
+    },
+    "liveAuthoredScene": {
+      "owner": "scene",
+      "method": "liveAuthoredScene",
+      "args": []
+    },
+    "moveAvatar": {
+      "owner": "adapter",
+      "method": "stepAvatar",
+      "args": [
+        {
+          "forward": true
+        },
+        0
+      ]
+    },
+    "movementBasisYaw": {
+      "owner": "movement",
+      "method": "movementBasisYaw",
+      "args": []
+    },
+    "movementDebug": {
+      "owner": "movement",
+      "method": "movementDebug",
+      "args": []
+    },
+    "orbitCamera": {
+      "owner": "movement",
+      "method": "orbitBy",
+      "args": [
+        0,
+        0,
+        0
+      ]
+    },
+    "orbitCameraState": {
+      "owner": "movement",
+      "method": "orbitState",
+      "args": []
+    },
+    "peerAvatarCount": 1,
+    "peerAvatars": [
+      {
+        "client_id": "peer",
+        "player_id": "person",
+        "rendered": true,
+        "settled": false,
+        "position": [
+          1,
+          2,
+          3
+        ],
+        "rotation_y": 0.5,
+        "avatar_variant": "chosen",
+        "visual_separation": null,
+        "attached_item_count": 0
+      }
+    ],
+    "phase": "idle",
+    "phaseLog": [
+      {
+        "phase": "idle",
+        "at_ms": 0
+      }
+    ],
+    "portalPreviews": {
+      "owner": "scene",
+      "method": "portalPreviewStates",
+      "args": []
+    },
+    "portalRefusals": {
+      "owner": "main",
+      "method": "refusals",
+      "args": []
+    },
+    "refreshPreviewReadOnlyState": {
+      "owner": "adapter",
+      "method": "refreshPreviewReadOnlyState",
+      "args": []
+    },
+    "rendererCapabilities": {
+      "engine": "three"
+    },
+    "reset": {
+      "owner": "adapter",
+      "method": "reset",
+      "args": []
+    },
+    "returnLobbyButtonState": null,
+    "returnToLobby": {
+      "owner": "adapter",
+      "method": "returnToLobby",
+      "args": []
+    },
+    "rigProbe": {
+      "pose": 0
+    },
+    "samplePortalApertureTexels": {
+      "owner": "scene",
+      "method": "samplePortalApertureTexels",
+      "args": [
+        "edge",
+        [
+          [
+            1,
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    "serverViewCameraState": {
+      "owner": "movement",
+      "method": "serverViewCameraState",
+      "args": []
+    },
+    "serverViewMode": {
+      "owner": "movement",
+      "method": "serverViewMode",
+      "args": []
+    },
+    "setCameraMode": {
+      "owner": "movement",
+      "method": "setPlayerCameraMode",
+      "args": [
+        "first_person"
+      ]
+    },
+    "setServerViewMode": {
+      "owner": "movement",
+      "method": "setServerViewMode",
+      "args": [
+        "top_down"
+      ]
+    },
+    "switchAvatar": {
+      "owner": "adapter",
+      "method": "setAvatarVariant",
+      "args": [
+        "chosen"
+      ]
+    },
+    "toggleCameraMode": {
+      "owner": "movement",
+      "method": "togglePlayerCameraMode",
+      "args": []
+    },
+    "toggleServerViewMode": {
+      "owner": "movement",
+      "method": "toggleServerViewMode",
+      "args": []
+    },
+    "triggerHandoff": {
+      "owner": "adapter",
+      "method": "triggerHandoff",
+      "args": []
+    },
+    "viewport": {
+      "forceSync": {
+        "owner": "viewport",
+        "method": "resize",
+        "args": [
+          {
+            "force": true
+          }
+        ]
+      },
+      "identity": {
+        "scene": {
+          "rendererKind": "three",
+          "_impl": {
+            "scene": {
+              "id": "world"
+            },
+            "renderer": {
+              "domElement": {
+                "id": "canvas"
+              }
+            },
+            "camera": {
+              "id": "camera"
+            }
+          }
+        },
+        "renderer": {
+          "domElement": {
+            "id": "canvas"
+          }
+        },
+        "camera": {
+          "id": "camera"
+        },
+        "canvas": {
+          "id": "canvas"
+        },
+        "avatar": {
+          "id": "avatar"
+        },
+        "world": {
+          "id": "world"
+        },
+        "portal": {
+          "id": "portal"
+        }
+      },
+      "schedule": {
+        "owner": "viewport",
+        "method": "schedule",
+        "args": [
+          "fixture",
+          0
+        ]
+      },
+      "snapshot": {
+        "owner": "viewport",
+        "method": "snapshot",
+        "args": [
+          "fixture",
+          0
+        ]
+      }
+    },
+    "avatarSelector": {
+      "removeAllEquipment": {
+        "owner": "selector",
+        "method": "removeAllEquipment",
+        "args": []
+      }
+    },
+    "runtimeTweaks": {
+      "close": {
+        "owner": "tweaks",
+        "method": "close",
+        "args": []
+      },
+      "copyAll": {
+        "owner": "tweaks",
+        "method": "copyAll",
+        "args": []
+      },
+      "copyRow": {
+        "owner": "tweaks",
+        "method": "copyRow",
+        "args": [
+          "fixture"
+        ]
+      },
+      "open": {
+        "owner": "tweaks",
+        "method": "open",
+        "args": []
+      },
+      "reset": {
+        "owner": "tweaks",
+        "method": "resetValue",
+        "args": [
+          "fixture"
+        ]
+      },
+      "resetAll": {
+        "owner": "tweaks",
+        "method": "resetAll",
+        "args": []
+      },
+      "resizeTo": {
+        "owner": "tweaks",
+        "method": "resizeTo",
+        "args": [
+          "fixture",
+          0
+        ]
+      },
+      "set": {
+        "owner": "tweaks",
+        "method": "setValue",
+        "args": [
+          "fixture",
+          0
+        ]
+      },
+      "setClipboardWriterForTest": {
+        "owner": "tweaks",
+        "method": "setClipboardWriterForTest",
+        "args": [
+          "fixture"
+        ]
+      },
+      "snapshot": {
+        "owner": "tweaks",
+        "method": "snapshot",
+        "args": []
+      }
+    },
+    "semanticDestinations": {
+      "activate": {
+        "owner": "destinations",
+        "method": "activate",
+        "args": [
+          "fixture"
+        ]
+      },
+      "close": {
+        "owner": "destinations",
+        "method": "close",
+        "args": []
+      },
+      "open": {
+        "owner": "destinations",
+        "method": "open",
+        "args": []
+      },
+      "snapshot": {
+        "owner": "destinations",
+        "method": "snapshot",
+        "args": []
+      }
+    }
+  },
+  "trace": [
+    [
+      "adapter.activatePortal",
+      []
+    ],
+    [
+      "adapter.applyArrival",
+      [
+        {
+          "id": "h"
+        }
+      ]
+    ],
+    [
+      "movement.playerCameraMode",
+      []
+    ],
+    [
+      "scene.cameraSpaceOfPoint",
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    ],
+    [
+      "movement.cameraWallOcclusionState",
+      []
+    ],
+    [
+      "scene.portalDebug",
+      []
+    ],
+    [
+      "dispose",
+      []
+    ],
+    [
+      "adapter.equipCatalogItem",
+      [
+        "item"
+      ]
+    ],
+    [
+      "adapter.equippableCatalog",
+      []
+    ],
+    [
+      "scene.evaluatedPoses",
+      []
+    ],
+    [
+      "movement.groundingState",
+      []
+    ],
+    [
+      "scene.liveAuthoredScene",
+      []
+    ],
+    [
+      "adapter.stepAvatar",
+      [
+        {
+          "forward": true
+        },
+        0
+      ]
+    ],
+    [
+      "movement.movementBasisYaw",
+      []
+    ],
+    [
+      "movement.movementDebug",
+      []
+    ],
+    [
+      "movement.orbitBy",
+      [
+        0,
+        0,
+        0
+      ]
+    ],
+    [
+      "movement.orbitState",
+      []
+    ],
+    [
+      "scene.portalPreviewStates",
+      []
+    ],
+    [
+      "main.refusals",
+      []
+    ],
+    [
+      "adapter.refreshPreviewReadOnlyState",
+      []
+    ],
+    [
+      "movement.reset",
+      []
+    ],
+    [
+      "boarding.reset",
+      [
+        "new_session"
+      ]
+    ],
+    [
+      "adapter.reset",
+      []
+    ],
+    [
+      "adapter.returnToLobby",
+      []
+    ],
+    [
+      "scene.samplePortalApertureTexels",
+      [
+        "edge",
+        [
+          [
+            1,
+            2,
+            3
+          ]
+        ]
+      ]
+    ],
+    [
+      "movement.serverViewCameraState",
+      []
+    ],
+    [
+      "movement.serverViewMode",
+      []
+    ],
+    [
+      "movement.setPlayerCameraMode",
+      [
+        "first_person"
+      ]
+    ],
+    [
+      "movement.setServerViewMode",
+      [
+        "top_down"
+      ]
+    ],
+    [
+      "adapter.setAvatarVariant",
+      [
+        "chosen"
+      ]
+    ],
+    [
+      "movement.togglePlayerCameraMode",
+      []
+    ],
+    [
+      "movement.toggleServerViewMode",
+      []
+    ],
+    [
+      "adapter.triggerHandoff",
+      []
+    ],
+    [
+      "viewport.resize",
+      [
+        {
+          "force": true
+        }
+      ]
+    ],
+    [
+      "viewport.schedule",
+      [
+        "fixture",
+        0
+      ]
+    ],
+    [
+      "viewport.snapshot",
+      [
+        "fixture",
+        0
+      ]
+    ],
+    [
+      "selector.removeAllEquipment",
+      []
+    ],
+    [
+      "tweaks.close",
+      []
+    ],
+    [
+      "tweaks.copyAll",
+      []
+    ],
+    [
+      "tweaks.copyRow",
+      [
+        "fixture"
+      ]
+    ],
+    [
+      "tweaks.open",
+      []
+    ],
+    [
+      "tweaks.resetValue",
+      [
+        "fixture"
+      ]
+    ],
+    [
+      "tweaks.resetAll",
+      []
+    ],
+    [
+      "tweaks.resizeTo",
+      [
+        "fixture",
+        0
+      ]
+    ],
+    [
+      "tweaks.setValue",
+      [
+        "fixture",
+        0
+      ]
+    ],
+    [
+      "tweaks.setClipboardWriterForTest",
+      [
+        "fixture"
+      ]
+    ],
+    [
+      "tweaks.snapshot",
+      []
+    ],
+    [
+      "destinations.activate",
+      [
+        "fixture"
+      ]
+    ],
+    [
+      "destinations.close",
+      []
+    ],
+    [
+      "destinations.open",
+      []
+    ],
+    [
+      "destinations.snapshot",
+      []
+    ]
+  ]
+}

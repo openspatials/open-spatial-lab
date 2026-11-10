@@ -272,6 +272,11 @@ export class X3DOMRenderAdapter extends RenderAdapter {
         this._sceneEl = null;
         this._runtime = null;
     }
+    /**
+     * This adapter binds no shared skins (bindSkin reports supported: false), so no binding is ever
+     * its own: disposeSkin releases nothing and returns false, as the interface's default does.
+     */
+    disposeSkin() { return false; }
     onEnterFrame(callback) {
         this._frameCallbacks.push(callback);
         return () => {

@@ -18,10 +18,29 @@
 //       rotation, scale } }, role_of: { boneName: role } }. position_m, rotation and scale are in the avatar frame.
 //   rigFromBody(body)                 the same data, read from a body details file (no glTF needed)
 //   boneIndex(root)                   name -> object (bones win over other nodes of the same name)
+//   strongestBoneVertices(root, names) mesh + vertex mask selected by strongest skin weight; keeps blended skinning intact
 //
 // No DOM use: browser and Node.
 
-import * as THREE from '../../../vendor/scene-core/vendor/three/three.module.js';
+import * as THREE from 'three';
+
+export function strongestBoneVertices(fit, names) {
+  const want = new Set(names);
+  const out = [];
+  fit.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    const idx = o.geometry.attributes.skinIndex, wt = o.geometry.attributes.skinWeight;
+    const bn = o.skeleton.bones.map((b) => b.name);
+    const keep = new Uint8Array(idx.count);
+    for (let i = 0; i < idx.count; i++) {
+      let best = 0, b = -1;
+      for (let k = 0; k < 4; k++) { const w = wt.getComponent(i, k); if (w > best) { best = w; b = idx.getComponent(i, k); } }
+      if (want.has(bn[b])) keep[i] = 1;
+    }
+    out.push({ mesh: o, keep });
+  });
+  return out;
+}
 
 export function boneIndex(root) {
   const m = new Map();

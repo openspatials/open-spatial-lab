@@ -199,6 +199,8 @@ export function createPortalTraversalHandoffController(options) {
     throw new Error("portal traversal controller requires readHostSnapshot/applyTraversalPatch");
   }
 
+  let operationGeneration = 0;
+  let activeOperation = null;
   let handoffInFlight = false;
   let lastAutoHandoffId = null;
   let transition = null;
@@ -223,6 +225,7 @@ export function createPortalTraversalHandoffController(options) {
   let crossing = null;
   let umSignOnExit = null;
   let umVerifyOnArrival = null;
+  let umOptionalDiagnostics = null;
   let playerHandoffProfile = null;
   const portalAtomicityMode = ["microtask", "task", "raf", "all"].includes(portalAtomicityOracle)
     ? portalAtomicityOracle
@@ -236,6 +239,33 @@ export function createPortalTraversalHandoffController(options) {
         last: null,
       }
     : null;
+
+  function isCurrentOperation(operation) {
+    return operation === activeOperation && operation.generation === operationGeneration;
+  }
+
+  function revokeOperation() {
+    operationGeneration++;
+    activeOperation?.stopObservation?.();
+    activeOperation = null;
+  }
+
+  function beginOptionalDiagnostics(packet, operation) {
+    if (!crypto.enrichManifest) return;
+    const handoffId = packet.handoff_id;
+    const manifest = packet.avatar_context?.um_manifest_v04;
+    const isCurrent = () => isCurrentOperation(operation) && packet.handoff_id === handoffId &&
+      packet.avatar_context?.um_manifest_v04 === manifest;
+    const publish = (record) => {
+      if (!isCurrent()) return;
+      umOptionalDiagnostics = record;
+      emitState();
+    };
+    Promise.resolve().then(() => {
+      if (isCurrent()) return crypto.enrichManifest(packet, { isCurrent, publish });
+    }).catch(error => publish({ state: "failed", handoff_id: handoffId,
+      manifest_id: manifest?.["@id"] || null, error: error?.message || "crossing-diagnostics-threw" }));
+  }
 
   function patchHost(patch) {
     applyTraversalPatch(patch);
@@ -687,11 +717,16 @@ export function createPortalTraversalHandoffController(options) {
       entryTransform,
       entryLocal,
     });
+    revokeOperation();
+    const operation = activeOperation = { generation: operationGeneration, timings: {}, crossing: null };
+    umOptionalDiagnostics = null;
     phaseHistory = [PORTAL_TRANSITION_PHASES.WALKTHROUGH];
     transitionCommitStarted = false;
     transitionNoticeSent = false;
     portalPlaneCrossedAtMs = nowMs();
-    crossingTimings = { plane_crossed_at: nowIso() };
+    crossingTimings = operation.timings;
+    crossingTimings.plane_crossed_at = nowIso();
+    operation.planeCrossedAtMs = portalPlaneCrossedAtMs;
     crossingEntry = { portal, runtime, position: (runtime && runtime.lastClearPosition) || entryTransform.position };
     transition = {
       source: input.source || "operator",
@@ -718,7 +753,7 @@ export function createPortalTraversalHandoffController(options) {
     host.controls.mapped_exit_yaw = frameMapping && frameMapping.exit_yaw_radians;
     patchHost({ phase: PORTAL_TRANSITION_PHASES.WALKTHROUGH, controls: host.controls });
     emitState();
-    commitPortalHandoff().catch(crossingFailed);
+    commitPortalHandoff(operation).catch(error => crossingFailed(error, operation));
     return true;
   }
 
@@ -842,7 +877,8 @@ export function createPortalTraversalHandoffController(options) {
   }
 
   /** Any failure before the walker is in the destination ends as a refusal: the visitor stays, hears why, and can walk. */
-  function crossingFailed(error) {
+  function crossingFailed(error, operation) {
+    if (!isCurrentOperation(operation)) return;
     const how = error.how || "the crossing could not finish";
     const reason = `the crossing failed (${how}): ${error.message}`;
     log(reason);
@@ -854,7 +890,7 @@ export function createPortalTraversalHandoffController(options) {
     registerAgain();
   }
 
-  async function postExitIntent(url, body) {
+  async function postExitIntent(url, body, operation) {
     const posting = transport.postJson(url, body);
     let packet;
     try {
@@ -862,7 +898,7 @@ export function createPortalTraversalHandoffController(options) {
     } catch (error) {
       if (error.how) {
         // A late answer means the source let the player go after this refusal.
-        posting.then(() => { if (!handoffInFlight && !transition) registerAgain(); }, () => {});
+        posting.then(() => { if (isCurrentOperation(operation) && !handoffInFlight && !transition) registerAgain(); }, () => {});
       } else {
         error.how = / -> \d+$/.test(error.message) ? "exit refused" : "no connection";
       }
@@ -872,7 +908,8 @@ export function createPortalTraversalHandoffController(options) {
     return packet;
   }
 
-  async function commitPortalHandoff() {
+  async function commitPortalHandoff(operation) {
+    if (!isCurrentOperation(operation)) return;
     let host = mutableHost(readHostSnapshot);
     if (!host.avatar || handoffInFlight || transitionCommitStarted) return;
     const receipt = policy.evaluateRp1Gate();
@@ -884,12 +921,13 @@ export function createPortalTraversalHandoffController(options) {
     handoffInFlight = true;
     const crossingPortal = (transition && transition.portal) || (host.world && host.world.portal) || null;
     const crossingPortalKey = fabricPortalKey(crossingPortal) || host.portalId;
-    const timings = crossingTimings || (crossingTimings = {});
+    const timings = operation.timings;
     const stageStart = nowMs();
     // The check before leaving (R4.2): the destination must answer, and the node it arrives at must be there. Refused,
     // the visitor stays and hears why. A standard portal lands where its destination says.
     if (crossingGate && crossingPortal && crossingPortal.wow_resource) {
       const gate = await withinLimit(crossingGate(crossingPortal), "the check before leaving");
+      if (!isCurrentOperation(operation)) return;
       timings.crossing_check_ms = nowMs() - stageStart;
       if (!gate.ok) {
         if (onCrossingRefused) onCrossingRefused({ ...gate, portal: crossingPortal });
@@ -921,7 +959,8 @@ export function createPortalTraversalHandoffController(options) {
       ...(registration && registration.supported && exiting && exiting.player_id
         ? { player_id: exiting.player_id }
         : {}),
-    });
+    }, operation);
+    if (!isCurrentOperation(operation)) return;
     timings.exit_intent_ms = nowMs() - stageStart;
 
     const commitIso = nowIso();
@@ -1014,7 +1053,10 @@ export function createPortalTraversalHandoffController(options) {
       note: "IWPS assets placement scaffold; reference-only, no IWPS conformance claim.",
     };
     packet.fabric_prefetch_proof = prefetch.proofBlock(commitIso, crossingPortalKey);
-    umSignOnExit = await crypto.signManifest(packet, host.world, transport);
+    const signed = await crypto.signManifest(packet, host.world, transport);
+    if (!isCurrentOperation(operation)) return;
+    umSignOnExit = signed;
+    if (signed?.signed) beginOptionalDiagnostics(packet, operation);
     if (umSignOnExit && umSignOnExit.signed) {
       log(
         `crossing: signed v0.4 UM manifest on exit (Profile A; subject ${umSignOnExit.did_subject || "?"}); ` +
@@ -1067,7 +1109,7 @@ export function createPortalTraversalHandoffController(options) {
     if (host.clientMode === "player") {
       pushCrossingPhase("source_exit_committed");
       updatePortalStatus();
-      _completePlayerCrossing(packet).catch(crossingFailed);
+      await _completePlayerCrossing(packet, operation);
       return;
     }
     if (visualTransition && typeof visualTransition.commit === "function") {
@@ -1079,7 +1121,39 @@ export function createPortalTraversalHandoffController(options) {
     peers.broadcast({ type: "arrival", packet, at: nowMs() });
   }
 
-  async function _completePlayerCrossing(packet) {
+  function observeArrival(packet, endpoint, operation, startedAt) {
+    const arrival = operation.crossing.server_notifications.arrival;
+    let observing = true, cancel;
+    const cancelled = new Promise(resolve => { cancel = resolve; });
+    const live = () => observing && isCurrentOperation(operation);
+    operation.stopObservation = () => { observing = false; cancel(null); };
+    const work = Promise.resolve().then(() => {
+      if (!live()) return null;
+      return transport.postJson(`${endpoint.proxy_base}/portal/arrival`, packet);
+    }).then(() => {
+      if (!live()) return null;
+      arrival.accepted = true;
+      arrival.outcome = "accepted";
+      operation.timings.arrival_post_ms = nowMs() - startedAt;
+      return transport.getJson(`${endpoint.proxy_base}/debug/state`);
+    });
+    return withinLimit(Promise.race([work, cancelled]), "the optional arrival observation")
+      .catch(error => {
+        if (!live()) return null;
+        arrival.outcome = arrival.accepted ? "accepted" : "unknown";
+        arrival.observation = error.how ? "timed_out" : "failed";
+        arrival.error = error.message;
+        log(`crossing: arrival observation ${arrival.observation}; remote outcome ${arrival.outcome} (${error.message}); composition continues`);
+        return null;
+      }).then(debug => {
+        if (!live()) return null;
+        arrival.observation ||= "complete";
+        return debug;
+      }).finally(() => { observing = false; });
+  }
+
+  async function _completePlayerCrossing(packet, operation) {
+    if (!isCurrentOperation(operation)) return;
     const initial = mutableHost(readHostSnapshot);
     const fromEndpoint = initial.endpoint;
     const fromWorld = initial.world;
@@ -1092,8 +1166,8 @@ export function createPortalTraversalHandoffController(options) {
       oppositeEndpointKey(initial.activeEndpointKey);
     const targetEndpoint = initial.resolveEndpoint(targetKey);
     const commitStartMs = nowMs();
-    const timings = crossingTimings || (crossingTimings = {});
-    crossing = {
+    const timings = operation.timings;
+    const currentCrossing = operation.crossing = crossing = {
       kind: "world_navigator_composition_crossing",
       handoff_id: packet.handoff_id || null,
       phase: "target_arrival_posting",
@@ -1127,29 +1201,18 @@ export function createPortalTraversalHandoffController(options) {
     try {
       let stageStart = nowMs();
       const targetDebugStart = nowMs();
-      crossing.server_notifications.arrival.posted = true;
-      const arrivalPromise = transport
-        .postJson(`${targetEndpoint.proxy_base}/portal/arrival`, packet)
-        .then(() => {
-          crossing.server_notifications.arrival.accepted = true;
-          timings.arrival_post_ms = nowMs() - targetDebugStart;
-          return transport.getJson(`${targetEndpoint.proxy_base}/debug/state`).catch(() => null);
-        })
-        .catch((error) => {
-          crossing.server_notifications.arrival.accepted = false;
-          crossing.server_notifications.arrival.error = error.message;
-          timings.arrival_post_ms = nowMs() - targetDebugStart;
-          log(`crossing: arrival notification failed (${error.message}); composition continues`);
-          return null;
-        });
+      currentCrossing.server_notifications.arrival.posted = true;
+      const arrivalPromise = observeArrival(packet, targetEndpoint, operation, targetDebugStart);
       // Existing phase-history compatibility: this phase marks that the
       // non-load-bearing arrival notification was committed to transport, not
       // that its response may gate visual composition.
       pushCrossingPhase("target_arrival_committed");
       stageStart = nowMs();
-      umVerifyOnArrival = await crypto.verifyManifest(packet);
+      const verified = await crypto.verifyManifest(packet);
+      if (!isCurrentOperation(operation)) return;
+      umVerifyOnArrival = verified;
       timings.um_verify_ms = nowMs() - stageStart;
-      crossing.um_manifest_verification = umVerifyOnArrival;
+      currentCrossing.um_manifest_verification = umVerifyOnArrival;
       if (umVerifyOnArrival && umVerifyOnArrival.present) {
         log(
           umVerifyOnArrival.verified === true
@@ -1163,21 +1226,22 @@ export function createPortalTraversalHandoffController(options) {
         handoff_id: packet.handoff_id || null,
         source_location_id: packet.source && packet.source.location_id,
         target_location_id: packet.target && packet.target.location_id,
-        arrival_posted: crossing.server_notifications.arrival.accepted,
+        arrival_posted: currentCrossing.server_notifications.arrival.accepted,
         at: nowMs(),
       });
       pushCrossingPhase("active_endpoint_switching");
       stageStart = nowMs();
-      const promoted = await promoteActiveEndpoint(targetKey, packet);
+      const promoted = await promoteActiveEndpoint(targetKey, packet, () => isCurrentOperation(operation));
+      if (!isCurrentOperation(operation)) return;
       timings.promote_ms = nowMs() - stageStart;
-      crossing.fabric_promotion = promoted.promotion;
-      crossing.destination_scene_source = promoted.destinationSceneSource;
+      currentCrossing.fabric_promotion = promoted.promotion;
+      currentCrossing.destination_scene_source = promoted.destinationSceneSource;
       const host = mutableHost(readHostSnapshot);
-      crossing.to = endpointDebug(host.endpoint, host.world);
-      crossing.active_endpoint_switched = true;
+      currentCrossing.to = endpointDebug(host.endpoint, host.world);
+      currentCrossing.active_endpoint_switched = true;
       pushCrossingPhase("fabric_promoted_to_root");
       const exitPose = deriveFabricExitPose(frameMapping);
-      crossing.exit_pose = exitPose;
+      currentCrossing.exit_pose = exitPose;
       const mappedCamera = pendingCameraContinuity && traversedSourceFrame && traversedTargetFrame
         ? mapCameraAcrossCrossing({
             sourceFrame: traversedSourceFrame,
@@ -1190,14 +1254,14 @@ export function createPortalTraversalHandoffController(options) {
           })
         : null;
       const crossingYawDelta = crossingYawDeltaRad(traversedSourceFrame, traversedTargetFrame);
-      crossing.traversed_edge = {
+      currentCrossing.traversed_edge = {
         source: "packet.avatar_context.portal_frame_transform",
         source_portal_id: traversedSourceFrame ? traversedSourceFrame.portal_id : null,
         target_portal_id: traversedTargetFrame ? traversedTargetFrame.portal_id : null,
         source_location_id: traversedSourceFrame ? traversedSourceFrame.location_id : null,
         target_location_id: traversedTargetFrame ? traversedTargetFrame.location_id : null,
       };
-      crossing.heading_continuity = traversedSourceFrame && traversedTargetFrame && crossingYawDelta !== null
+      currentCrossing.heading_continuity = traversedSourceFrame && traversedTargetFrame && crossingYawDelta !== null
         ? {
             source_portal_id: traversedSourceFrame.portal_id || null,
             target_portal_id: traversedTargetFrame.portal_id || null,
@@ -1212,7 +1276,7 @@ export function createPortalTraversalHandoffController(options) {
             frames_source: "packet.avatar_context.portal_frame_transform",
           }
         : null;
-      crossing.camera_mapping = mappedCamera
+      currentCrossing.camera_mapping = mappedCamera
         ? {
             ...mappedCamera,
             frame_source: "packet.avatar_context.portal_frame_transform",
@@ -1309,7 +1373,7 @@ export function createPortalTraversalHandoffController(options) {
       });
       updatePortalStatus();
       const markerComparison = recordMarkerComparison();
-      crossing.marker_comparison = markerComparison;
+      currentCrossing.marker_comparison = markerComparison;
       // The synchronous crossing listener consumes the traversed portal frames
       // from this profile while it remaps heading/camera at the visual edge.
       playerHandoffProfile = buildPlayerHandoffProfile(packet, exitPose, markerComparison);
@@ -1322,8 +1386,9 @@ export function createPortalTraversalHandoffController(options) {
         visualTransition.commit();
       }
       const visualAtomicityToken = armVisualAtomicityTripwire();
-      dispatchCrossing(copiedCrossing(crossing));
+      dispatchCrossing(copiedCrossing(currentCrossing));
       completeVisualAtomicityTripwire(visualAtomicityToken);
+      if (!isCurrentOperation(operation)) return;
       emitState();
       broadcastPlayerPose({ force: true });
 
@@ -1331,46 +1396,51 @@ export function createPortalTraversalHandoffController(options) {
       // destination visual application. Presence remains ordered and fenced,
       // but no network work can split commit from dispatch/recompose/remap.
       stageStart = nowMs();
-      const targetDebug = await arrivalPromise;
-      timings.target_debug_wait_ms = nowMs() - stageStart;
-      timings.target_debug_total_ms = nowMs() - targetDebugStart;
-      crossing.server_notifications.arrival.arrival_count_after =
-        targetDebug && targetDebug.session ? targetDebug.session.arrival_count : null;
-      if (targetDebug && targetDebug.session) {
-        patchHost({ arrivalCount: targetDebug.session.arrival_count });
-      }
-      stageStart = nowMs();
       const equipmentStatus = await assets.resolveEquipmentItems(equippedItems);
+      if (!isCurrentOperation(operation)) return;
       timings.equipment_resolve_ms = nowMs() - stageStart;
       patchHost({ equipmentStatus });
       const presenceStart = nowMs();
       await presence.departPresence({ base: fromEndpoint.proxy_base, reason: "portal_departure" });
+      if (!isCurrentOperation(operation)) return;
       const destinationRegistration = await presence.registerPresence({ spawnReason: "portal_arrival" });
+      if (!isCurrentOperation(operation)) return;
       const registrationAccepted = destinationRegistration !== null;
       timings.presence_handoff_ms = nowMs() - presenceStart;
       const presenceRegistration = presence.snapshot();
-      crossing.presence_registration = {
+      currentCrossing.presence_registration = {
         accepted: registrationAccepted,
         source_base: fromEndpoint.proxy_base,
         destination_base: targetEndpoint.proxy_base,
         committed_base: presenceRegistration ? presenceRegistration.registered_base || null : null,
       };
+      // Optional observations never gate departure or destination registration.
+      stageStart = nowMs();
+      const targetDebug = await arrivalPromise;
+      if (!isCurrentOperation(operation)) return;
+      timings.target_debug_wait_ms = nowMs() - stageStart;
+      timings.target_debug_total_ms = nowMs() - targetDebugStart;
+      currentCrossing.server_notifications.arrival.arrival_count_after =
+        targetDebug && targetDebug.session ? targetDebug.session.arrival_count : null;
+      if (targetDebug && targetDebug.session) {
+        patchHost({ arrivalCount: targetDebug.session.arrival_count });
+      }
       if (registrationAccepted) {
         pushCrossingPhase("destination_arrived");
-        crossing.completed_at = nowIso();
-        crossing.controls_resume_ms = nowMs() - commitStartMs;
+        currentCrossing.completed_at = nowIso();
+        currentCrossing.controls_resume_ms = nowMs() - commitStartMs;
       } else {
         pushCrossingPhase("destination_registration_failed");
-        log(`crossing: destination presence registration failed; ownership retained at ${crossing.presence_registration.committed_base || "none"}`);
+        log(`crossing: destination presence registration failed; ownership retained at ${currentCrossing.presence_registration.committed_base || "none"}`);
       }
       if (playerHandoffProfile && playerHandoffProfile.server_switch) {
         playerHandoffProfile.server_switch.transition_phase_history = phaseHistory.slice();
-        playerHandoffProfile.server_switch.controls_resume_ms = crossing.controls_resume_ms ?? null;
+        playerHandoffProfile.server_switch.controls_resume_ms = currentCrossing.controls_resume_ms ?? null;
       }
       patchHost({ playerHandoffProfile });
       handoffInFlight = false;
-      timings.step_in_delay_ms = portalPlaneCrossedAtMs != null ? nowMs() - portalPlaneCrossedAtMs : null;
-      crossing.timings = { ...timings };
+      timings.step_in_delay_ms = operation.planeCrossedAtMs != null ? nowMs() - operation.planeCrossedAtMs : null;
+      currentCrossing.timings = { ...timings };
       emitState();
       const finalHost = readHostSnapshot();
       const nav = navigatorDebug();
@@ -1378,12 +1448,13 @@ export function createPortalTraversalHandoffController(options) {
         `crossing complete: presence now in ${finalHost.world.location_id} (root fabric ${nav && nav.root_fabric ? nav.root_fabric.container : "?"}); same context marker ${markerComparison && markerComparison.marker_identity_equal ? "IDENTICAL" : "MISMATCH"}; exit pose ${JSON.stringify(exitPose.position)} yaw ${exitPose.rotation_y}`,
       );
     } catch (error) {
-      if (crossing) {
-        crossing.phase = "failed";
-        crossing.error = error.message;
+      if (!isCurrentOperation(operation)) return;
+      if (currentCrossing) {
+        currentCrossing.phase = "failed";
+        currentCrossing.error = error.message;
       }
-      if (!crossing || !crossing.active_endpoint_switched) {
-        crossingFailed(error);
+      if (!currentCrossing.active_endpoint_switched) {
+        crossingFailed(error, operation);
         return;
       }
       handoffInFlight = false;
@@ -1401,6 +1472,8 @@ export function createPortalTraversalHandoffController(options) {
       patchHost({ phase: HANDOFF_PHASES.IDLE, controls: recovered.controls });
       log(`crossing FAILED: ${error.message}`);
       emitState();
+    } finally {
+      operation.stopObservation?.();
     }
   }
 
@@ -1720,6 +1793,7 @@ export function createPortalTraversalHandoffController(options) {
   }
 
   function reset(input = {}) {
+    revokeOperation();
     const host = mutableHost(readHostSnapshot);
     const startsEmbodied = input.startsEmbodied === true;
     handoffInFlight = false;
@@ -1743,6 +1817,7 @@ export function createPortalTraversalHandoffController(options) {
     crossing = null;
     umSignOnExit = null;
     umVerifyOnArrival = null;
+    umOptionalDiagnostics = null;
     playerHandoffProfile = null;
     const controls = portalControlReset(host.controls, startsEmbodied, input.reason || "reset");
     patchHost({ controls, playerHandoffProfile: null });
@@ -1765,6 +1840,7 @@ export function createPortalTraversalHandoffController(options) {
       um_signing: {
         signed_on_exit: umSignOnExit || null,
         verified_on_arrival: umVerifyOnArrival || null,
+        optional_diagnostics: umOptionalDiagnostics,
       },
       player_handoff_profile: playerHandoffProfile,
       visual_atomicity: visualAtomicity
@@ -1812,6 +1888,7 @@ export function createPortalTraversalHandoffController(options) {
     applyDepartureMirror,
     applyArrivalMirror,
     reset,
+    cancel: revokeOperation,
     crossingDebug: () => copiedCrossing(crossing),
     debug,
   });

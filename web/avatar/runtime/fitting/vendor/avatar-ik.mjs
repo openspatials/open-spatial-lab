@@ -2,10 +2,10 @@
 // docs/avatar/ANIMATION-ARCHITECTURE.md §3, plus the S7 session façade that
 // composes the injected foot PLANNER (stage G) with the solve — the
 // "ik.solve(skeleton, gait, groundQuery)" façade shape §3.3 sanctions, with
-// plan+solve as internal passes. .
+                                                      
 //
 // Contract: this file imports NOTHING (L1 zero-import core, registered in
-// ZERO_IMPORT_CORES + the portability grep).
+                                                                             
 // Pure math over JointPose buffers and plain records. No engine, no clock
 // (performance.now appears ONLY inside cost instrumentation that never feeds
 // back into behaviour — the §9 carve-out), no DOM, no randomness: identical
@@ -107,7 +107,8 @@ export function resolveLegChains(entries) {
       toe: toe ? toe.jointIndex : -1,
       // the foot-local axis that points WORLD-UP at skinning bind: at bind the
       // soles are flat, so W_bind_foot maps this axis onto +Y for ANY rig,
-      // independent of the node-rest/bind gap.
+                                                                           
+      // endpoints of a frame-sensitive quantity read from the SAME frame).
       footUpLocal: vNorm(qRotate(qInv(foot.wDstBindR), [0, 1, 0])),
       ankleBindY: foot.wDstBindP[1],
     };
@@ -118,9 +119,9 @@ export function resolveLegChains(entries) {
   return { L, R, hips: hips.jointIndex };
 }
 
-/** Resolve the two ARM chains from retarget-map
- *  entries by Mixamo base name — the resolveLegChains pattern, trivially
- *  extended exactly as left it. Null when either arm is incomplete. */
+                                                                              
+                                                                         
+                                                                              
 export function resolveArmChains(entries) {
   const byBase = new Map();
   for (const e of entries) if (e && !byBase.has(e.base)) byBase.set(e.base, e);
@@ -156,28 +157,30 @@ export function segSegClosest(p1, q1, p2, q2) {
   return { d: vLen(vSub(c1, c2)), t: s, c1, c2 };
 }
 
-/**
- * Arm avoidance resolution. PBD-style: elbow/wrist particles pushed out of the
- * world-space garment capsules (shoulder pinned), bone lengths re-projected,
- * FIXED iteration count (deterministic, §9). Emits ABSOLUTE local rotations
- * for Arm+ForeArm; the hand keeps its authored LOCAL rotation and follows the
- * forearm naturally. Correction magnitude is continuous in the pose (depth ->
- * 0 at contact), so engagement is pop-free without any per-frame gating.
- *
- * CONSTRAINT SET (measured, first-cut corrected): ONE extended-forearm
- * segment per arm — elbow -> wrist + palm extension (arm.handR along the
- * forearm direction), clearance = capsule radius + arm.foreR + margin.
- * The UPPER arm is deliberately NOT constrained: the sleeve legitimately
- * meets the garment at the shoulder/armpit, so an upper-arm clearance is
- * unsatisfiable there — the first implementation demanded it and pushed
- * every frame into the clamp on all five avatars (measured 2026-07-27:
- * maxPush 0.30-0.35 m, residual up to 0.22 m, two avatars WORSE than
- * authored). The visible artefact class is the forearm/hand sweep.
- *
- * caps: [{ a, b, r }] world-armature capsules; arm: { foreR, handR }
- * (armature units). Returns null when nothing violates; else
- * { joints, pushM: wrist displacement (armature units), residual }.
- */
+   
+                                                                   
+                                                                            
+                                                                          
+                                                                             
+                                                                            
+                                                                              
+                                                                              
+                                                                         
+  
+                                                                       
+                                                                         
+                                                                       
+                                                                         
+                                                                         
+                                                                        
+                                                                       
+                                                                     
+                                                                         
+  
+                                                                     
+                                                             
+                                                                    
+   
 export function solveArmAvoid(entries, chain, wr, wp, caps, arm, cfg) {
   const S = wp[chain.up], E0 = wp[chain.lo], W0 = wp[chain.hand];
   const L1 = vLen(vSub(E0, S)), L2 = vLen(vSub(W0, E0));
@@ -389,24 +392,24 @@ export function calibrateGait({ sampleClip, clipIndex, durS, entries, order, cha
   return L && R ? { durS, L, R } : null;
 }
 
-/**
- * createFootIkSession — the S7 façade the adapter wires (§3.3's sanctioned
- * plan+solve composition; bounded wiring stays in the adapter, logic here).
- *
- *   map        retarget map (entries/order — plain records; SkeletonSample)
- *   roster     the adapter's unified clip roster [{ name, durationS, kind }]
- *   roles      resolveClipRoles output (walk/run/idle indices)
- *   planner    INJECTED stage-G planner (avatar-foot-planner.mjs record shape)
- *   probe      INJECTED S12 surface query (xM, zM, yM) -> {ok, heightM, normal}
- *   sampleClip (rosterIndex, tS, outBuf) -> bool — session-BUILD calibration only
- *   scaleArm   glTF armature unit -> metres (norm.scale)
- *   footOffsetGltf  -minY of the model (glTF units): armature -> core Y seam
- *
- * Per frame the adapter passes this façade's `deltasProvider(loco, drive, dt)`
- * closure to the compositor: the compositor calls it with the P3 base pose
- * (the P4 seam), and it returns PoseDelta[]. channelTarget() feeds
- * fsm.setOverrideTarget BETWEEN steps (the boundary discipline).
- */
+   
+                                                                           
+                                                                            
+  
+                                                                            
+                                                                             
+                                                               
+                                                                               
+                                                                                
+                                                                                  
+                                                         
+                                                                             
+  
+                                                                               
+                                                                           
+                                                                   
+                                                                        
+   
 export function createFootIkSession({
   map, roster = [], roles = {}, planner, probe, sampleClip,
   scaleArm = 1, footOffsetGltf = 0, proxies = null, jumpPlanner = null, config = {},
@@ -415,7 +418,7 @@ export function createFootIkSession({
   const entries = map.entries, order = map.order;
   const chains = resolveLegChains(entries);
   if (!chains) return null;
-  // bind leg lengths in metres (thigh + shank) — the jump planner's
+                                                                            
   // scale reference so its tuck/reach fractions ride the rig's own geometry
   const legLenM = {};
   for (const s of ["L", "R"]) {
@@ -429,7 +432,7 @@ export function createFootIkSession({
     pelvisMaxDropM: 0.32,  // just above one showcase riser (0.30): a whole-step
                            // reach deficit is absorbable; more is a gait problem
     pelvisRateMps: 1.2,    // drop/recover speed; dt-integrated (§9 lawful form)
-    // avoid constraints (armature-unit forms derived below):
+                                                                    
     avoidIterations: 4,    // fixed count — deterministic (§9); measured residual
                            // after 4 is sub-margin on all five shipped avatars
     avoidMarginM: 0.015,   // 1.5 cm engage-early skin: covers the p80/p90
@@ -461,7 +464,7 @@ export function createFootIkSession({
     L: (chains.L.ankleBindY + footOffsetGltf) * scaleArm,
     R: (chains.R.ankleBindY + footOffsetGltf) * scaleArm,
   };
-  // the avoid-constraint stage — BodyProxySet lowered ONCE to
+                                                                      
   // armature units (records are metres per §3.2; the solve runs in armature)
   const armChains = proxies && proxies.ok ? resolveArmChains(entries) : null;
   const avoidCaps = armChains ? proxies.proxies.map((p) => ({
@@ -483,7 +486,7 @@ export function createFootIkSession({
   let pelvisDropM = 0;
   let lastDeltas = [];
   let lastPlanOut = null;
-  let lastJumpOut = null; // 
+  let lastJumpOut = null;          
   let chanTarget = 0;
   let lastSolveDt = 0;
   const cost = { emaMs: 0, maxMs: 0 };
@@ -532,10 +535,10 @@ export function createFootIkSession({
       ? { L: ((cal.L.touchdownY ?? cal.L.stanceY) + footOffsetGltf) * scaleArm,
         R: ((cal.R.touchdownY ?? cal.R.stanceY) + footOffsetGltf) * scaleArm }
       : clearReact;
-    // The legacy mean-stance floor proxy belongs only to landing
+                                                                          
     // conformance window. Applying it to an ordinary gait would classify the
     // clip's authored touchdown minimum as penetration and inject a second,
-    // roughly 22 mm command into approach. The explicit transition
+                                                                            
     // provenance lets the safety clamp retain its land->gait sink protection
     // without changing the touchdown plane used by normal committed steps.
     const landingBlendActive = drive?.stateName === "land"
@@ -602,9 +605,9 @@ export function createFootIkSession({
     };
     lastPlanOut = planOut;
     chanTarget = planOut.channelTarget;
-    // the jump planner (stage G) — in-air goals, landing absorb, and
+                                                                             
     // the pre-land flag. Gated on injection: a session built without one is
-    // bit-identical to the earlier session (the certification stands
+                                                                           
     // on exactly that path).
     let jumpOut = null;
     if (jumpPlanner) {
@@ -621,7 +624,7 @@ export function createFootIkSession({
       // touchdown, so landing conformance has full authority ON the landing
       // frame instead of ramping in through the measured 8-frame sink window.
       // Harmless while airborne: the foot planner emits no goals in the air.
-      if (jumpOut.preLand) chanTarget = 1; // arm target: preland-arm
+      if (jumpOut.preLand) chanTarget = 1;                                 
     }
     const deltas = [];
     // pelvis first: required drop = the worst stance-goal reach shortfall,
@@ -637,7 +640,7 @@ export function createFootIkSession({
       const reach = (vLen(vSub(wp[chains[side].lo], H)) + vLen(vSub(wp[chains[side].foot], wp[chains[side].lo]))) * cfg.maxExtendRatio;
       wantDrop = Math.max(wantDrop, (vLen(vSub(T, H)) - reach) * g.weight);
     }
-    // the landing absorb joins the SAME pelvis mechanism — max, not
+                                                                            
     // sum (a reach shortfall and an impact dip both want the pelvis down; the
     // deeper need wins), rate-limited by the SAME pelvisRateMps below.
     wantDrop = clamp(Math.max(wantDrop * scaleArm, jumpOut ? jumpOut.absorbDropM : 0), 0, cfg.pelvisMaxDropM);
@@ -671,9 +674,9 @@ export function createFootIkSession({
         solverTargetErrorM: vLen(vSub(solvedM, g.targetM)),
         shortfallM: s.shortfall * scaleArm, goalWeight: g.weight,
       };
-      deltas.push({ channel: "footIK", weight: g.weight, joints: s.joints }); // arm target: solve-apply
+      deltas.push({ channel: "footIK", weight: g.weight, joints: s.joints });                                 
     }
-    // ---- jump air goals (same solver, own channel) -----------------
+                                                                              
     // The jump planner's ankle targets go through the SAME two-bone solve as
     // foot goals; the deltas ride the jumpAir channel, which the brain ramps
     // in while airborne and out on the ground (§4.2 override-at-weight — the
@@ -689,7 +692,7 @@ export function createFootIkSession({
         deltas.push({ channel: "jumpAir", weight: g.weight, joints: s.joints });
       }
     }
-    // ---- avoid constraints (P4 avoidance resolution, §3.3) ---------
+                                                                              
     // Runs on the SAME (possibly pelvis-dropped) FK the leg solve used; the
     // capsules ride their torso joints, so they drop with the body rigidly.
     if (avoidActive) {
@@ -710,7 +713,7 @@ export function createFootIkSession({
         if (s.pushM * scaleArm > avoidStat.maxPushM) avoidStat.maxPushM = +(s.pushM * scaleArm).toFixed(4);
         avoidStat.lastResidualM = +(s.residual * scaleArm).toFixed(4);
         if (avoidStat.lastResidualM > avoidStat.maxResidualM) avoidStat.maxResidualM = avoidStat.lastResidualM;
-        deltas.push({ channel: "armAvoid", weight: 1, joints: s.joints }); // arm target: arm-avoid-apply
+        deltas.push({ channel: "armAvoid", weight: 1, joints: s.joints });                                     
       }
       if (pushed) avoidStat.pushedFrames += 1;
     }
@@ -791,12 +794,12 @@ export function createFootIkSession({
     deltasProvider: (loco, drive, dtS) => (basePose) => solveFrame(basePose, loco, drive, dtS),
     recordComposedPose,
     channelTarget: () => chanTarget,
-    /** the armAvoid channel target — 1 whenever the constraint stage
-     *  is live (correction magnitude is pose-continuous, so a constant-on
-     *  channel is pop-free; the §8 ladder's R1 drops it to 0 by config). */
+                                                                             
+                                                                          
+                                                                            
     armAvoidTarget: () => (avoidActive ? 1 : 0),
-    /** the jumpAir channel target — 1 airborne, 0 grounded; the FSM's
-     *  dt-ramps shape engage/release, the planner's envelope shapes the pose. */
+                                                                              
+                                                                                 
     jumpAirTarget: () => (lastJumpOut ? lastJumpOut.channelTarget : 0),
     /** ContactFacts + FootPlan + costs — read-only session truth. FootPlan is
      *  the §3.2 record the HOST page draws (the pipeline never draws). */
@@ -812,12 +815,12 @@ export function createFootIkSession({
       deltasLast: lastDeltas.length,
       costMs: { ema: +cost.emaMs.toFixed(4), max: +cost.maxMs.toFixed(4) },
       counters: { ...stat },
-      // avoid-constraint truth (proxy census + push/residual ledger)
+                                                                             
       armAvoid: avoidActive
         ? { active: true, capsules: avoidCaps.length, report: proxies.report || null,
           ...avoidStat, lastPushM: { ...avoidStat.lastPushM } }
         : { active: false },
-      // jump/landing truth (planner facts, read-only)
+                                                              
       jump: jumpPlanner
         ? { active: true, ...(lastJumpOut ? lastJumpOut.facts : {}), legLenM }
         : { active: false },

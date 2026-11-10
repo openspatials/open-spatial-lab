@@ -643,7 +643,9 @@ export async function observeComposition(hostUrl, opts = {}) {
   function recompose(evt) {
     running = running.then(async () => {
       if (closed) return;
-      composition = await composeInclusions(hostUrl, { ...options, revalidate: true });
+      const next = await composeInclusions(hostUrl, { ...options, revalidate: true });
+      if (closed) return;
+      composition = next;
       live.updates += 1;
       sync();
       if (opts.onUpdate) opts.onUpdate(composition, evt);

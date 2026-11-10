@@ -1,0 +1,239 @@
+{
+  "name": "open-spatial-lab-avatar-runtime",
+  "version": "1.0.0",
+  "status": "released-pending-commit",
+  "commit": "<filled by Lab at commit time>",
+  "source": "vendor/avatar-evaluator-v1 copy (web/vendor/avatar-evaluator-v1/mannequin/web/avatar/*.mjs and the fitting/*.mjs they import), the runtime the Lab page ran before 1.0.0. Code is unchanged except import specifiers; the vendor folder stays in place.",
+  "entry": "index.mjs",
+  "public": {
+    "index.mjs": [
+      "loadAvatarLibrary",
+      "createAvatarInstance",
+      "Locomotion",
+      "createTuning",
+      "Equipment",
+      "loadItemLibrary",
+      "canEquip",
+      "canHold",
+      "AvatarMotion"
+    ]
+  },
+  "surface_differences": [
+    "RemoteAvatar is not exported: the vendor copy has no remote-avatar module. The agreed surface named it; 1.0.0 leaves it out.",
+    "SolverStack (fitting/solvers.mjs) is not in index.mjs but web/avatar/actionforge-avatar.mjs imports it by module path, as it did from the vendor copy."
+  ],
+  "imports": {
+    "bare": [
+      "three",
+      "three/addons/loaders/GLTFLoader.js",
+      "three/addons/utils/SkeletonUtils.js"
+    ],
+    "note": "The host maps three and three/addons/ (browser import map or Node resolution). All other imports are relative inside this folder."
+  },
+  "consumers": [
+    "web/avatar/actionforge-avatar.mjs",
+    "web/live-adapter-movement-runtime.mjs"
+  ],
+  "files": [
+    {
+      "path": "avatar-motion.mjs",
+      "sha256": "edf7b480c1a4467ca523b9a1603a96ebca58eb116e508467b657ceb1ac42f864",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/avatar-motion.mjs",
+      "vendor_sha256": "edf7b480c1a4467ca523b9a1603a96ebca58eb116e508467b657ceb1ac42f864",
+      "change": "identical"
+    },
+    {
+      "path": "clip-library.mjs",
+      "sha256": "a98291ec69743640cf1f5ecb4a8bca7ef32f275b14092d9037ebe980cf5510c6",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/clip-library.mjs",
+      "vendor_sha256": "5a488200eff491f8b32669118fbf15f86179389cd78d1226c4d593446853648d",
+      "change": "import specifiers only ('../../../fitting/' -> './fitting/')"
+    },
+    {
+      "path": "equipment.mjs",
+      "sha256": "dff040bbe9014f78cc8a2ec8ad832b8cf28d1faa98e825d999a12bd29b3d7608",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/equipment.mjs",
+      "vendor_sha256": "b60a6e338455614a64fe341daba6caf5c21e7141f2b4a28c932b79af5216ae03",
+      "change": "import specifiers only ('../../../fitting/' -> './fitting/')"
+    },
+    {
+      "path": "index.mjs",
+      "sha256": "a0ec71e5e743224e2c026ec8d34484f9cc374e6aed6465f92d17f6e6f5b8e6bf"
+    },
+    {
+      "path": "locomotion.mjs",
+      "sha256": "0aa9c97e2fedb948e39f156fc53c1ca3a3c80bad29297dd4a4335d89104c3ca9",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/locomotion.mjs",
+      "vendor_sha256": "0aa9c97e2fedb948e39f156fc53c1ca3a3c80bad29297dd4a4335d89104c3ca9",
+      "change": "identical"
+    },
+    {
+      "path": "fitting/holds.mjs",
+      "sha256": "fa412e9c988285fdc8c1b7669f51c9ac5d0da940a4b396f9c11adc4013c18626",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/holds.mjs",
+      "vendor_sha256": "fa412e9c988285fdc8c1b7669f51c9ac5d0da940a4b396f9c11adc4013c18626",
+      "change": "identical"
+    },
+    {
+      "path": "fitting/map-clips.mjs",
+      "sha256": "07789dc95c018d27d911591d50c0e71c38b4a07b4cda724c3a3984be2d0332db",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/map-clips.mjs",
+      "vendor_sha256": "07789dc95c018d27d911591d50c0e71c38b4a07b4cda724c3a3984be2d0332db",
+      "change": "identical"
+    },
+    {
+      "path": "fitting/rig.mjs",
+      "sha256": "fc566ad98375733b6d554083505f1be24069c99ce04208cd9f3419fb120da0cc",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/rig.mjs",
+      "vendor_sha256": "fc566ad98375733b6d554083505f1be24069c99ce04208cd9f3419fb120da0cc",
+      "change": "identical"
+    },
+    {
+      "path": "fitting/roles.mjs",
+      "sha256": "0bed2157d293c24d4f5ebe61e59a7745019725f2b0317caee9cd796abb34eabe",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/roles.mjs",
+      "vendor_sha256": "0bed2157d293c24d4f5ebe61e59a7745019725f2b0317caee9cd796abb34eabe",
+      "change": "identical"
+    },
+    {
+      "path": "fitting/solvers.mjs",
+      "sha256": "b57113aac0dba30229af0a1ff81ccddfd27983c8ea50455c0fb7201bb2b9a0e7",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/solvers.mjs",
+      "vendor_sha256": "b57113aac0dba30229af0a1ff81ccddfd27983c8ea50455c0fb7201bb2b9a0e7",
+      "change": "identical"
+    },
+    {
+      "path": "fitting/vendor/avatar-ik.mjs",
+      "sha256": "689ac78f68afe45b0d2d8eb792928aba5524fff6c5b59d84b8b692c28736486c",
+      "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/vendor/avatar-ik.mjs",
+      "vendor_sha256": "689ac78f68afe45b0d2d8eb792928aba5524fff6c5b59d84b8b692c28736486c",
+      "change": "identical"
+    }
+  ],
+  "data": {
+    "note": "The data the Lab page reads with this runtime, at the same URLs as before 1.0.0 (unchanged). Avatars: web/avatar-equipment-layer.js prepared paths; items: actionforge-avatar.mjs ITEMS_URL and assetBase.",
+    "files": [
+      {
+        "url": "/assets/actionforge/characters/adam/adam.avatar.json",
+        "sha256": "bb964b777a219f01a00763099c28e30e39fbb328fc86f16b322d870c23dfdb6f"
+      },
+      {
+        "url": "/assets/actionforge/characters/adam/adam.body.json",
+        "sha256": "966e3579c1fa47c6b5fb258565ea4a7123bae49b87db5d62bff27619910b194e"
+      },
+      {
+        "url": "/assets/actionforge/characters/adam/adam.glb",
+        "sha256": "360417dbd12093eb95c22f9ef4528515dd1fc16548cc84229d1eca09e2d5c9aa"
+      },
+      {
+        "url": "/assets/actionforge/characters/megan/megan.avatar.json",
+        "sha256": "ca96e084bbcff251e93baa5acd407f9b5d99a1ae7140920c70dd3cc3e5589a40"
+      },
+      {
+        "url": "/assets/actionforge/characters/megan/megan.body.json",
+        "sha256": "d59fb2378bab2477a1511491554e517a256edd391e27022c47a6af49e05a3d2e"
+      },
+      {
+        "url": "/assets/actionforge/characters/megan/megan.glb",
+        "sha256": "90bd7cbce19957d23ebe23b63256363b149831bd26a73eb6a6c68f149e006f6b"
+      },
+      {
+        "url": "/assets/actionforge/characters/elizabeth/elizabeth.avatar.json",
+        "sha256": "ab23879b8c7111b0e0ed92df260ca62e6f8f3aba5284891d85757b86fb1c1aab"
+      },
+      {
+        "url": "/assets/actionforge/characters/elizabeth/elizabeth.body.json",
+        "sha256": "ad24d75132725b37ccc24d0921348c72e3ec591b3f86c4c90fbbeb8bef0a9e65"
+      },
+      {
+        "url": "/assets/actionforge/characters/elizabeth/elizabeth.glb",
+        "sha256": "abd4f017c7a5322fb31b59161d815dc8ad320d9f17706dd760a28e34ae0532a5"
+      },
+      {
+        "url": "/assets/actionforge/characters/sophie/sophie.avatar.json",
+        "sha256": "1a0ed28af8d9f952c26a8a7b0c2efaaafdf12819c46e9a9ecb6644f2994a17f7"
+      },
+      {
+        "url": "/assets/actionforge/characters/sophie/sophie.body.json",
+        "sha256": "62a5557529b8808a5adde90de52f90d6c9715f7e7658e0bd7c19ed7374ac00a9"
+      },
+      {
+        "url": "/assets/actionforge/characters/sophie/sophie.glb",
+        "sha256": "1554d07463b14fc8ba5a78e58e54c35c28c6812395abf61f874145773a35a70d"
+      },
+      {
+        "url": "/assets/actionforge/clips/actionforge-clips.glb",
+        "sha256": "481d25771881e69d1f7ad1f0f817afcf2682ea6af3ed810e52e11fcfb2d5a971"
+      },
+      {
+        "url": "/assets/actionforge/avatars/mannequin.body.json",
+        "sha256": "e723346fe8948ad144dac394a07af548d6b4d1acd0dc050aea964f8286b96bda"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/items.json",
+        "sha256": "2e85bcf66e2f085909b958e72675103bce93505e7ab4ebad45757225e070edf0"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/catalog-attachments.json",
+        "sha256": "6ae6e225c7fecdd1dc3d40af92b622fe039924b302e204a6cbc5cf7ac8ae3c8f"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/box.glb",
+        "sha256": "d952499c459866b162d1996ede5a417a61ad3dcbd50a923adda9c76bc07f6c9b"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/equip-crown.glb",
+        "sha256": "5a406e5e51efc1f0f46e045e7982c9582886ccc9ad20784d32f982e4b20b29c1"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/equip-hammer.glb",
+        "sha256": "5389974f4990a2995b00fb29d4156c15449ad3d09f4e549e52e61b9717f4d7af"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/equip-hat.glb",
+        "sha256": "850c6894ad2ef01a77e318b560c73c879c01855700cd57ee320aa882b7255c44"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/equip-helmet.glb",
+        "sha256": "2cb7f2bf12579af3af46290c460493eefe447325aa6c7de9d67cbab8aad550c2"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/equip-mug.glb",
+        "sha256": "d4fbaf4895ee84691aa499bacfbc609bfde4b46029cd3ec2acdf3267e6393cfb"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/equip-shield.glb",
+        "sha256": "3831b2eeacc3f1b8657c87be8aa856bb0c28588d4edb4a3eb89b033c388d4eeb"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/equip-torch.glb",
+        "sha256": "240a10ba9ace4296cef98952efc6da3b900a870efdb2e64c3df52f8b28cb8eac"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/lantern.glb",
+        "sha256": "544c3451ad8c00325ab04c976429674c20faee6fe1f643e2cdaa635a780b43a7"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/pistol.glb",
+        "sha256": "a117d8a227449b27751c17f4f108b1ef29b51e2897cf3ab373633284524b105e"
+      },
+      {
+        "url": "/vendor/avatar-evaluator-v1/mannequin/assets/items/sword.glb",
+        "sha256": "3b68ae492419e43e955deaeffbeed83241c1f0652ac7eceda7ca5ade6469c639"
+      }
+    ]
+  },
+  "three": {
+    "range": "r160 and 0.186.1 passed; versions between were not tested",
+    "tested": [
+      "0.160.0 (Lab vendored core runtime/scene-core/public/vendor/three/three.module.js; addons from code/node_modules/three 0.173.0 examples/jsm, which the Lab page serves)",
+      "0.186.1 (core and addons)"
+    ],
+    "check": "Node import-and-run of index.mjs: load adam (web/assets/actionforge/characters/adam/adam.avatar.json), create an instance, SolverStack on its body, take shield and hat from the page's item library (vendor items.json, 7 production items), run Locomotion + AvatarMotion + solvers 30 steps forward at 1/30 s. Same output on both versions. Textures stubbed (1x1 image bitmap); rendering not tested."
+  },
+  "limits": [
+    "Lacks today's avatars-work feet fix (hips height measured above the floor). 1.0.0 keeps the ball-based scale and per-character floor offset, so collection characters can sit a little low in walk and jog.",
+    "Lacks the newer hand-skin fitting (level-2 hollow and box contact). 1.0.0 does not have Level 2 skin fitting."
+  ],
+  "next": "1.1.0 from the Avatars frozen package once that runtime is fit for live use."
+}

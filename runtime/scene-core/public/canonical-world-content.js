@@ -10,17 +10,18 @@ export const LEGACY_WORLD_PRESENTATION = Object.freeze({
   productGridName: "canonical-world-debug-grid",
 });
 
-export function mountCanonicalWorldContent(scene, THREE, world) {
+import { describeScene } from "./scene-description.mjs";
+
+export function mountCanonicalWorldContent(scene, THREE, world, { sceneDescription = describeScene({ world }) } = {}) {
   if (!scene || !THREE) throw new Error("canonical world content requires scene and THREE");
   const roomColor = new THREE.Color(world?.color || "#3aa0ff");
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.75);
-  ambient.name = "canonical-world-ambient";
-  scene.add(ambient);
-  const key = new THREE.DirectionalLight(0xffffff, 0.9);
-  key.name = "canonical-world-key";
-  key.position.set(4, 8, 6);
-  scene.add(key);
+  for (const spec of sceneDescription.lighting.lights) {
+    const light = spec.kind === "ambient" ? new THREE.AmbientLight(spec.color, spec.intensity) : new THREE.DirectionalLight(spec.color, spec.intensity);
+    light.name = spec.name || "";
+    if (spec.position) light.position.fromArray(spec.position);
+    scene.add(light);
+  }
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(12, 12),

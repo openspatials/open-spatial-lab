@@ -62,6 +62,7 @@ export function createPresenceController({
     events: [],
   };
   let heartbeatTimer = null;
+  let disposed = false;
   let pagehideInstalled = false;
   let visibilityInstalled = false;
 
@@ -105,6 +106,7 @@ export function createPresenceController({
   }
 
   function startHeartbeat() {
+    if (disposed) return null;
     if (!state.supported || heartbeatTimer) return heartbeatTimer;
     heartbeatTimer = setIntervalFn(() => {
       void heartbeat();
@@ -120,6 +122,7 @@ export function createPresenceController({
   }
 
   function installPagehide() {
+    if (disposed) return;
     if (pagehideInstalled || !pagehideTarget || !pagehideTarget.addEventListener) return;
     pagehideInstalled = true;
     pagehideTarget.addEventListener("pagehide", handlePagehide);
@@ -132,6 +135,7 @@ export function createPresenceController({
   }
 
   function installVisibility() {
+    if (disposed) return;
     if (visibilityInstalled || !visibilityTarget || !visibilityTarget.addEventListener) return;
     visibilityInstalled = true;
     visibilityTarget.addEventListener("visibilitychange", handleVisibilityChange);
@@ -151,6 +155,7 @@ export function createPresenceController({
   }
 
   async function registerPresence(input = {}) {
+    if (disposed) return null;
     if (!state.supported) return null;
     const spawnReason = typeof input === "string" ? input : input.spawnReason;
     const base = getBase();
@@ -222,6 +227,7 @@ export function createPresenceController({
   }
 
   async function heartbeat() {
+    if (disposed) return null;
     if (!state.supported || getHandoffInFlight()) return null;
     const base = getBase();
     try {
@@ -294,11 +300,14 @@ export function createPresenceController({
   });
 
   function dispose() {
+    disposed = true;
     stopHeartbeat();
     if (pagehideInstalled && pagehideTarget && pagehideTarget.removeEventListener) {
       pagehideTarget.removeEventListener("pagehide", handlePagehide);
     }
     pagehideInstalled = false;
+    if (visibilityInstalled && visibilityTarget?.removeEventListener) visibilityTarget.removeEventListener("visibilitychange", handleVisibilityChange);
+    visibilityInstalled = false;
   }
 
   // arm the pagehide depart beacon for EVERY player-mode

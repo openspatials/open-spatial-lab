@@ -33,6 +33,7 @@ export function createRuntimeStreamController({
   fallbackServerTtlMs = 10000,
 } = {}) {
   let runtimeSocket = null;
+  let disposed = false;
   let runtimeGeneration = 0;
   let pagehideInstalled = false;
   const eventStreams = new Map();
@@ -60,6 +61,7 @@ export function createRuntimeStreamController({
   }
 
   function connectRuntimeStream(endpointKey = getActiveEndpointKey()) {
+    if (disposed) return null;
     closeRuntimeStream();
     if (!isEndpointKey(endpointKey) || !locationLike) return null;
     const generation = ++runtimeGeneration;
@@ -114,6 +116,7 @@ export function createRuntimeStreamController({
   }
 
   function openEventStream(endpointKey) {
+    if (disposed) return null;
     if (!isEndpointKey(endpointKey) || !locationLike) return null;
     let record = eventStreams.get(endpointKey);
     if (record && record.ws && (record.ws.readyState === 0 || record.ws.readyState === 1)) {
@@ -197,6 +200,7 @@ export function createRuntimeStreamController({
   }
 
   function syncEventStreams(endpointKeys) {
+    if (disposed) return [];
     if (!pagehideInstalled && pagehideTarget && pagehideTarget.addEventListener) {
       pagehideInstalled = true;
       pagehideTarget.addEventListener("pagehide", handlePagehide);
@@ -241,6 +245,7 @@ export function createRuntimeStreamController({
   }
 
   function dispose() {
+    disposed = true;
     closeRuntimeStream();
     closeEventStreams();
     if (pagehideInstalled && pagehideTarget && pagehideTarget.removeEventListener) {

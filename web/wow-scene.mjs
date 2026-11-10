@@ -1,3 +1,5 @@
+import { describeScene, parseOslLight, normalizeGraph } from "#scene-description";
+export { parseOslLight } from "#scene-description";
 // web/wow-scene.mjs
 //
 // M2 "first light".
@@ -38,7 +40,6 @@
 // DISCOVERY ONLY: no fetch, no verify, no map.wasm, no compose, no draw — those are
 // the mount pass. This module stays PURE and dependency-free.
 
-import { flattenEmbeddedChildren } from "./wow-graph.mjs";
 
 const IDENTITY_4X4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const MAX_NODES = 20000; // safety cap against a pathological/cyclic graph
@@ -193,47 +194,6 @@ const COL_ROOT = 0xffd166;
  * or `{ nodes: [Node,...] }` (array). Children may be ids or embedded Nodes. `root` may be
  * omitted — we then infer the node whose `parent` is null/undefined (falling back to the first node).
  */
-function normalizeGraph(graph) {
-  const spatialID = (graph && (graph.spatialID || graph.spatial_id)) || null;
-  const nodes = new Map();
-  const raw = graph && graph.nodes;
-  if (Array.isArray(raw)) {
-    for (const n of raw) if (n && n.id != null) nodes.set(Number(n.id), n);
-  } else if (raw && typeof raw === "object") {
-    for (const k of Object.keys(raw)) {
-      const n = raw[k];
-      const id = n && n.id != null ? Number(n.id) : Number(k);
-      if (Number.isFinite(id)) nodes.set(id, n);
-    }
-  }
-  // A canonical Node embeds its children. The builder walks ids, so each embedded child becomes a node
-  // of its own and its parent lists the child's id.
-  const flattened = flattenEmbeddedChildren(nodes);
-  nodes.clear();
-  for (const [id, n] of flattened) nodes.set(id, n);
-  let rootId =
-    graph && graph.root != null
-      ? Number(graph.root)
-      : graph && graph.rootId != null
-      ? Number(graph.rootId)
-      : null;
-  if (rootId == null || !nodes.has(rootId)) {
-    // infer: a node with no parent, else the smallest id present.
-    let inferred = null;
-    for (const [id, n] of nodes) {
-      if (!n || n.parent == null) {
-        inferred = id;
-        break;
-      }
-    }
-    if (inferred == null) {
-      const ids = [...nodes.keys()];
-      inferred = ids.length ? Math.min(...ids) : null;
-    }
-    rootId = inferred;
-  }
-  return { spatialID, rootId, nodes };
-}
 
 /**
  * buildWowScene(graph, THREE, opts) -> { scene, camera, root, render_summary }
@@ -246,6 +206,8 @@ export function buildWowScene(graph, THREE, opts = {}) {
   const width = opts.width || 1100;
   const height = opts.height || 660;
   const { spatialID, rootId, nodes } = normalizeGraph(graph);
+  const description = opts.sceneDescription || describeScene({ graph });
+  const nodeDescriptions = new Map(description.nodes.map(node => [String(node.id), node]));
 
   const scene = new THREE.Scene();
   const bgHex =
@@ -261,7 +223,7 @@ export function buildWowScene(graph, THREE, opts = {}) {
   // A world whose graph carries its own room (a floor node) or its own lights (`osl-light:` nodes) is shown with
   // those instead of this viewer's default floor, grid and lights.
   const ownRoom = [...nodes.values()].some((n) => Array.isArray(n && n.names) && n.names.includes("room-floor"));
-  const ownLights = [...nodes.values()].some((n) => /^osl-light:/i.test(String((n && n.spatialAssetURI) || "")));
+  const ownLights = description.lighting.source === "authored-nodes";
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(24, 24),
@@ -279,13 +241,11 @@ export function buildWowScene(graph, THREE, opts = {}) {
     root.add(grid);
   }
   if (!bare && !ownLights) {
-    root.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const key = new THREE.DirectionalLight(0xffffff, 0.85);
-    key.position.set(5, 9, 6);
-    root.add(key);
-    const rim = new THREE.DirectionalLight(0x88aaff, 0.4);
-    rim.position.set(-6, 5, -7);
-    root.add(rim);
+    for (const spec of description.lighting.lights) {
+      const light = spec.kind === "ambient" ? new THREE.AmbientLight(spec.color, spec.intensity) : new THREE.DirectionalLight(spec.color, spec.intensity);
+      if (spec.position) light.position.fromArray(spec.position);
+      root.add(light);
+    }
   }
 
   const counts = {
@@ -411,13 +371,13 @@ export function buildWowScene(graph, THREE, opts = {}) {
     nodeGroups.set(Number(nodeId), obj);
     counts.rendered_nodes += 1;
 
-    const label = node.label != null ? String(node.label) : String(node.id);
+    const label = nodeDescriptions.get(String(node.id))?.label ?? String(node.id);
     const hasAsset = typeof node.spatialAssetURI === "string" && node.spatialAssetURI.length > 0;
     // OSL's own labeled URIs are not glTF: a primitive is drawn as its shape, and a portal node is drawn by
     // the portal layer (web/wow-portal-mount.mjs), so it keeps only the transform marker here.
     const oslPrimitive = hasAsset ? parseOslPrimitive(node.spatialAssetURI) : null;
     const oslPortal = hasAsset && /^osl-portal:/i.test(node.spatialAssetURI);
-    const oslLight = hasAsset ? parseOslLight(node.spatialAssetURI) : null;
+    const oslLight = nodeDescriptions.get(String(node.id))?.light || null;
 
     // THE DISCRIMINATOR. A node is a FABRIC node iff it carries the
     // LABELED contract `webofworlds_extension.spatial_fabric_subtree`. We do NOT
@@ -1000,14 +960,6 @@ export function parseOslPrimitive(uri) {
 }
 
 /** `osl-light:directional?intensity=0.9&color=ffffff` -> { kind, intensity, color }, or null for any other URI. */
-export function parseOslLight(uri) {
-  const match = /^osl-light:(ambient|directional)(?:\?(.*))?$/i.exec(String(uri || ""));
-  if (!match) return null;
-  const params = new URLSearchParams(match[2] || "");
-  const intensity = Number(params.get("intensity"));
-  const color = /^[0-9a-f]{6}$/i.test(params.get("color") || "") ? parseInt(params.get("color"), 16) : 0xffffff;
-  return { kind: match[1].toLowerCase(), intensity: Number.isFinite(intensity) && intensity >= 0 ? intensity : 1, color };
-}
 
 /** `osl-color:2bd4ff` -> `#2bd4ff`, or null. */
 function oslColorOf(uri) {
