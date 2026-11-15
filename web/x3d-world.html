@@ -19,21 +19,24 @@
   </style>
 </head>
 <body>
-  <div id="world-host"></div>
+  <div id="world-host">
+    <script>
+    // X3DOM is a classic script that starts at DOMContentLoaded, so it is written during the parse, inside
+    // #world-host. The <x3d> element must never move afterwards: X3DOM shuts a canvas down when its element
+    // leaves the document, and a moved element is not started again (its hasRuntime mark stays set).
+    if (new URLSearchParams(location.search).get("renderer") === "x3dom") {
+      document.write('<link rel="stylesheet" href="./vendor/scene-core/vendor/x3dom/x3dom.css">');
+      document.write('<script src="./vendor/scene-core/vendor/x3dom/x3dom-full.js"><\/script>');
+      document.write('<x3d id="x3dom-world" showStat="false" showLog="false" showProgress="false"><scene id="x3dom-world-scene"><environment gammaCorrectionDefault="none"></environment></scene></x3d>');
+    }
+  </script>
+  </div>
   <div id="hud">
     <h1 id="hud-title">Loading the X3D JSON world</h1>
     <p id="hud-engine"></p>
     <p id="hud-how">Click the orange disc, or walk into it with W, to cross. Its X3D Anchor goes to <code id="hud-url">...</code></p>
     <p><a href="./renderer-lane.html">Back to the renderer page</a></p>
   </div>
-<script>
-  // X3DOM is a classic script that starts at DOMContentLoaded, so it is written during the parse.
-  if (new URLSearchParams(location.search).get("renderer") === "x3dom") {
-    document.write('<link rel="stylesheet" href="./vendor/scene-core/vendor/x3dom/x3dom.css">');
-    document.write('<script src="./vendor/scene-core/vendor/x3dom/x3dom-full.js"><\/script>');
-    document.write('<x3d id="x3dom-world" showStat="false" showLog="false" showProgress="false"><scene id="x3dom-world-scene"><environment gammaCorrectionDefault="none"></environment></scene></x3d>');
-  }
-</script>
 <script type="module" src="./x3d-world.mjs"></script>
 </body>
 </html>

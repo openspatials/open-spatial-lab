@@ -165,7 +165,8 @@ async function startXIte() {
 
 async function startX3dom() {
   const host = document.getElementById("x3dom-world");
-  document.getElementById("world-host").appendChild(host);
+  // The page writes <x3d> inside #world-host. Moving it would make X3DOM shut its canvas down for good.
+  if (host.parentElement?.id !== "world-host") throw new Error("the X3DOM element is not inside #world-host");
   const json = await fetchWorld();
   const anchorJson = findNode(json.X3D.Scene, "Anchor");
   if (!anchorJson) throw new Error("the world has no X3D Anchor");

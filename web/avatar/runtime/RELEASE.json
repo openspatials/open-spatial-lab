@@ -1,6 +1,6 @@
 {
   "name": "open-spatial-lab-avatar-runtime",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "status": "released-pending-commit",
   "commit": "<filled by Lab at commit time>",
   "source": "vendor/avatar-evaluator-v1 copy (web/vendor/avatar-evaluator-v1/mannequin/web/avatar/*.mjs and the fitting/*.mjs they import), the runtime the Lab page ran before 1.0.0. Code is unchanged except import specifiers; the vendor folder stays in place.",
@@ -44,9 +44,9 @@
     },
     {
       "path": "clip-library.mjs",
-      "sha256": "a98291ec69743640cf1f5ecb4a8bca7ef32f275b14092d9037ebe980cf5510c6",
+      "sha256": "a40103b38e39820c7eaa495ebe4fdc08c58aac814e8d00a9dbc4bdd56d1f21c3",
       "vendor_source": "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/clip-library.mjs",
-      "vendor_sha256": "5a488200eff491f8b32669118fbf15f86179389cd78d1226c4d593446853648d",
+      "vendor_sha256": "129cc70be184fdaa2dc6eb87436428364b1ceb7fa7ce773f070b9e3bdf56353e",
       "change": "import specifiers only ('../../../fitting/' -> './fitting/')"
     },
     {
@@ -115,7 +115,7 @@
     "files": [
       {
         "url": "/assets/actionforge/characters/adam/adam.avatar.json",
-        "sha256": "bb964b777a219f01a00763099c28e30e39fbb328fc86f16b322d870c23dfdb6f"
+        "sha256": "1d530c63c7e42451052b772a23f6859d9839abcb3fa35c739f2a14e96c38db84"
       },
       {
         "url": "/assets/actionforge/characters/adam/adam.body.json",
@@ -127,7 +127,7 @@
       },
       {
         "url": "/assets/actionforge/characters/megan/megan.avatar.json",
-        "sha256": "ca96e084bbcff251e93baa5acd407f9b5d99a1ae7140920c70dd3cc3e5589a40"
+        "sha256": "9a2c7ed1a0823c9c7119f1298563a42e82bac66b3431d33e709dc92f2c927725"
       },
       {
         "url": "/assets/actionforge/characters/megan/megan.body.json",
@@ -139,7 +139,7 @@
       },
       {
         "url": "/assets/actionforge/characters/elizabeth/elizabeth.avatar.json",
-        "sha256": "ab23879b8c7111b0e0ed92df260ca62e6f8f3aba5284891d85757b86fb1c1aab"
+        "sha256": "03b64de5bad8d243eec48739700072c0df2fb0fcc6f5608b4b0c9d92b83b7072"
       },
       {
         "url": "/assets/actionforge/characters/elizabeth/elizabeth.body.json",
@@ -151,7 +151,7 @@
       },
       {
         "url": "/assets/actionforge/characters/sophie/sophie.avatar.json",
-        "sha256": "1a0ed28af8d9f952c26a8a7b0c2efaaafdf12819c46e9a9ecb6644f2994a17f7"
+        "sha256": "0a75aae0f19a64ce7e7b6958612a9fb9cf49cce3ae5e6a6fc4a80cc63f4f446c"
       },
       {
         "url": "/assets/actionforge/characters/sophie/sophie.body.json",
@@ -163,7 +163,7 @@
       },
       {
         "url": "/assets/actionforge/clips/actionforge-clips.glb",
-        "sha256": "481d25771881e69d1f7ad1f0f817afcf2682ea6af3ed810e52e11fcfb2d5a971"
+        "sha256": "0ec0d9f100afcc9b78c02a330c954fbcd7e0af0e891943e13381b306ad196ca7"
       },
       {
         "url": "/assets/actionforge/avatars/mannequin.body.json",
@@ -232,8 +232,17 @@
     "check": "Node import-and-run of index.mjs: load adam (web/assets/actionforge/characters/adam/adam.avatar.json), create an instance, SolverStack on its body, take shield and hat from the page's item library (vendor items.json, 7 production items), run Locomotion + AvatarMotion + solvers 30 steps forward at 1/30 s. Same output on both versions. Textures stubbed (1x1 image bitmap); rendering not tested."
   },
   "limits": [
-    "Lacks today's avatars-work feet fix (hips height measured above the floor). 1.0.0 keeps the ball-based scale and per-character floor offset, so collection characters can sit a little low in walk and jog.",
-    "Lacks the newer hand-skin fitting (level-2 hollow and box contact). 1.0.0 does not have Level 2 skin fitting."
+    "Lacks the newer hand-skin fitting (level-2 hollow and box contact). 1.0.1 does not have Level 2 skin fitting.",
+    "Feet check (SCRAP Avatars acceptance: no case worse than 1.0.0, and with solvers on no frame below -2.5 cm) passes; the deepest frame with solvers is -0.04 cm. Known cases that miss the raw 2.5 cm rule in both 1.0.0 and 1.0.1, none from the hips rule: the mannequin's own walk clip (-2.63 cm), Adam's raw jog (-3.44 cm), Elizabeth's walk floating 4 cm (raw and with solvers; a heels case)."
   ],
-  "next": "1.1.0 from the Avatars frozen package once that runtime is fit for live use."
+  "next": "1.1.0 from the Avatars frozen package once that runtime is fit for live use.",
+  "previous": {
+    "version": "1.0.0",
+    "commit": "6249373e8ba45e8c212d3edc22d2e55cad44443e"
+  },
+  "changes_from_1.0.0": [
+    "Feet rule (SCRAP Avatars 1.0.1 candidate, manifest SHA-256 9d93e1ac27c741170f976d38e9dea7c808ee855d4cfa964d37c10a2a1dc5c4a2): clip pack reference_hips_height_m 0.9015 -> 0.9167 (rest pelvis above the floor; binary chunk identical); adam, megan, elizabeth and sophie avatar.json hips fields regenerated with floor-based heights (floor offsets 0.07, -0.07, 0.28, 0.10 cm).",
+    "clip-library.mjs pelvisScaleOf comment states the floor-based rule. No code change.",
+    "speed_mps and left_touchdown_phase are unchanged. Acceleration, scaled by pelvis_position_scale in locomotion.mjs, changes by up to 5.9% (Elizabeth)."
+  ]
 }

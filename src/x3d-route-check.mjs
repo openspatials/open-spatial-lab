@@ -16,8 +16,9 @@ import { CODE } from "../tools/arch-i4/main-demo/lab.mjs";
 import { decodeRgbe } from "../runtime/scene-core/public/x3d/rgbe-decoder.mjs";
 import { SKY_GRADIENT_PATH, selfTest as skyGradientSelfTest } from "../tools/x3d/make-sky-gradient-hdr.mjs";
 
-// Item 3 (environment URI and intensity) runs wrote here; items 1 and 2 first wrote to /Volumes/2tb-ssd-turbo/scratch/x3d-route-20261110.
-const SHOTS = "/Volumes/2tb-ssd-turbo/scratch/x3d-env-route-20261110";
+// Screenshots go under the code root's diagnostics folder; OSL_X3D_SHOTS names another folder for a run.
+const SHOTS_ROOT = process.env.OSL_X3D_SHOTS || join(CODE, "diagnostics", "x3d-route");
+const SHOTS = join(SHOTS_ROOT, "route");
 const ANCHOR = "anchor-portal-world.x3d.json";
 const SOFT = "soft-body.x3d.json";
 const DOCS = {
@@ -88,8 +89,8 @@ function decodePng(buffer) {
   return { width, height, rgba: out };
 }
 
-/** A screenshot of the scene mount, saved under SHOTS, decoded. */
-async function shot(ctx, page, name) {
+/** A screenshot of the scene mount, saved under `dir` (SHOTS unless a statement keeps its own), decoded. */
+async function shot(ctx, page, name, dir = SHOTS, save = true) {
   const box = await page.$eval("#scene-mount", (mount) => { const r = mount.getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height }; });
   // Canvas pixels only: the shell's header, footer and intro card sit over the scene mount, so for the screenshot
   // every element but the scene canvases is made invisible, and shown again straight after.
@@ -102,12 +103,15 @@ async function shot(ctx, page, name) {
   let png;
   try { png = Buffer.from(await page.screenshot({ type: "png", clip: box })); }
   finally { await page.evaluate(() => document.getElementById("x3d-route-check-canvas-only")?.remove()); }
-  mkdirSync(SHOTS, { recursive: true });
-  shotCount += 1;
-  const file = join(SHOTS, `${isReal(ctx) ? "real" : "fault"}-${String(shotCount).padStart(2, "0")}-${name}.png`);
-  writeFileSync(file, png);
-  const sha256 = createHash("sha256").update(png).digest("hex");
-  shotLog.push({ file, sha256 });
+  let file = null, sha256 = null;
+  if (save) {
+    mkdirSync(dir, { recursive: true });
+    shotCount += 1;
+    file = join(dir, `${isReal(ctx) ? "real" : "fault"}-${String(shotCount).padStart(2, "0")}-${name}.png`);
+    writeFileSync(file, png);
+    sha256 = createHash("sha256").update(png).digest("hex");
+    shotLog.push({ file, sha256 });
+  }
   return { file, sha256, box, ...decodePng(png) };
 }
 
@@ -695,6 +699,646 @@ faults.push(
     { file: DOC, find: "environment: Object.freeze({ asset: url, intensity: value })", replace: "environment: Object.freeze({ asset: url, intensity: 1 })" }] },
   { statement: "env-errors", name: "the environment allowlist admits any file", expect: /other\.hdr gave no clear error/, edits: [
     { file: DOC, find: "if (!ENVIRONMENTS.includes(file)) throw", replace: "if (false) throw" }] },
+);
+
+// ---- The drawn catalog on the live own-X3D route ---------------------------------------------------------------
+// The accepted manifest's remaining.nativeCatalog names this gap: the catalog was proved on the CPU (resources,
+// deformation, materials) but nothing showed the four avatars, their seven items or their deformation DRAWN. These
+// statements drive the app's published driver on the live lobby route (?renderer=own-x3d&role=player&intro=bypass) and
+// measure canvas pixels.
+//
+// Every pixel count is confined to a window projected from the rig's own bones through the live camera
+// (window.__assembly.viewport.identity()); nothing outside a window is part of any metric. The lobby's portal windows
+// refresh their live destination previews all the time, so body identity and body materials are read on the body's
+// LOWER BODY window, which stands in front of the floor and not in front of a portal: those pixels are the avatar's,
+// and a moving preview cannot enter them.
+const CATALOG_SHOTS = join(SHOTS_ROOT, "catalog");
+const CATALOG_VARIANTS = ["collection-adam", "collection-megan", "collection-elizabeth", "collection-sophie"];
+const CATALOG_ITEMS = ["equip-hat", "equip-helmet", "equip-crown", "equip-torch", "equip-shield", "equip-mug", "equip-hammer"];
+const PIXEL_DIFF = 24; // a changed pixel: over 24 of 255 in one channel, the kit's own margin
+const DRAW_WAIT_MS = 180000;
+const SCENE_SETTLE_S = 0.6; // a last frame or two of the boot's own settling, nothing more
+const BOX_PAD_PX = 8; // pad around the whole projected body
+const LEGS_PAD_PX = 6; // pad around the lower-body window
+const LEGS_COLOURS_MIN = 24; // distinct 16-level colours in the lower-body window: a drawn body, not bare floor
+const LEGS_SPREAD_MIN = 8; // luminance standard deviation there
+const AVATAR_PAIR_MIN = 0.1; // share of the lower-body window in which two variants must differ
+const BODY_PAIR_MIN = 0.05; // share of the whole projected body box in which two variants must differ
+const HEIGHT_MATCH_M = 0.02; // avatar_model_height_m against the prepared file's drawn_height_m
+const HEIGHT_RANK_MIN_M = 0.05; // a pair this far apart in metres must order the same way in pixels ...
+const HEIGHT_RANK_PX = 3; // ... by at least this many rows
+const BOOT_COLOURS_MIN = 24; // distinct 16-level colours inside the box at boot (a drawn avatar, not a flat fill)
+const ITEM_BOX_PAD = { head: 34, leftHand: 26, rightHand: 26 }; // pixels around an attachment bone: the item draws there
+const ITEM_BOX_FLOOR = 30; // pixels an equip must change inside its box, whatever the noise
+const ITEM_NOISE_FACTOR = 3; // ... and this many times the change the same box makes with no equip
+const ITEM_ADD_FLOOR = 150; // drawn pixels an item must add inside its own window, over the drift
+const ITEM_DISTANCE_MAX_M = 0.5; // how far the nearest attached object may sit from the item's attachment bone
+const MATERIAL_COLOURS_MIN = 24; // distinct 16-level colours on the drawn lower body
+const MATERIAL_DETAIL_MIN = 1.5; // mean |change of luminance| between neighbouring drawn pixels, of 255
+const MATERIAL_SPREAD_MIN = 8; // luminance standard deviation on the drawn lower body
+const MATERIAL_MEAN_DIFF_MIN = 12; // RGB distance between two variants' mean drawn colour
+const DEFORM_SECONDS = 1.2; // idle loop time between the two frames
+const DEFORM_ANIM_MIN = 0.004; // share of the avatar's box the idle clip changes
+const DEFORM_BONE_MIN_M = 0.002; // largest avatar-local bone move over the idle interval
+
+const catalogUrl = (ctx, variant = null, { equipment = false } = {}) => `${ctx.lab.front}/index.html?renderer=own-x3d&role=player&intro=bypass${equipment ? "&noequip=0" : ""}${variant ? `&avatar_variant=${variant}` : ""}`;
+const avatarName = (key) => key.replace(/^collection-/, "");
+const itemName = (id) => id.replace(/^equip-/, "");
+
+/** The catalog's own drawn height for a variant, read from the prepared file the page loads. */
+function catalogHeight(key) {
+  const name = avatarName(key);
+  const prepared = JSON.parse(readFileSync(join(CODE, "web", "assets", "actionforge", "characters", name, `${name}.avatar.json`), "utf8"));
+  const height = prepared && prepared.avatar ? prepared.avatar.drawn_height_m : null;
+  return typeof height === "number" ? height : null;
+}
+
+const catalogClock = (page) => page.evaluate(() => (window.__behaviorClock ? window.__behaviorClock.seconds : null));
+const catalogCamera = (page) => page.evaluate(() => {
+  const camera = window.__assembly.viewport.identity().camera;
+  const q = camera.quaternion;
+  return [camera.position.x, camera.position.y, camera.position.z, q.x, q.y, q.z, q.w];
+});
+
+/**
+ * Wait until a switch or an equip has been applied by the layer, until the follow camera STANDS STILL (after boot it
+ * eases into place, and two frames across that ease compare two views), then for `seconds` more of the loop clock.
+ */
+async function catalogWait(page, seconds = 0.4, limitMs = DRAW_WAIT_MS) {
+  await page.waitForFunction(() => window.__assembly?.equipmentReady?.() !== false && window.__assembly.avatarVisualState?.()?.avatar_switch_in_flight !== true, { timeout: limitMs, polling: 60 });
+  const steady = Date.now();
+  let previous = await catalogCamera(page), stable = 0;
+  while (stable < 2) {
+    await sleep(200);
+    const next = await catalogCamera(page);
+    stable = Math.max(...next.map((value, i) => Math.abs(value - previous[i]))) <= 1e-5 ? stable + 1 : 0;
+    previous = next;
+    if (Date.now() - steady > limitMs) fail(`the camera has not stood still after ${fixed((Date.now() - steady) / 1000, 1)} s`);
+  }
+  const start = await catalogClock(page);
+  expect(start !== null, "the page carries no frame-loop clock");
+  const started = Date.now();
+  for (;;) {
+    const clock = await catalogClock(page);
+    if (clock !== null && clock - start >= seconds) return clock;
+    if (Date.now() - started > limitMs) fail(`the live route's loop got ${fixed((clock || 0) - start)} of ${seconds} s (timed out after ${limitMs / 1000} s)`);
+    await sleep(40);
+  }
+}
+
+/** What draws the live route: the own-X3D adapter, one canvas, and the avatar layer on the scene's own renderer canvas. */
+const catalogRoute = (page) => page.evaluate(() => {
+  const mount = document.getElementById("scene-mount");
+  const canvases = mount ? [...mount.querySelectorAll("canvas")] : [];
+  const layers = window.__assembly.__depthProbeLayers ? window.__assembly.__depthProbeLayers() : null;
+  const identity = window.__assembly.viewport.identity();
+  const mountRect = mount ? mount.getBoundingClientRect() : null;
+  const canvasRect = identity.canvas ? identity.canvas.getBoundingClientRect() : null;
+  return { active: window.__renderAdapter ? window.__renderAdapter.active : null,
+    rendererKind: window.__assembly.rendererKind || null, sceneRendererKind: window.__assembly.scene ? window.__assembly.scene.rendererKind : null,
+    canvases: canvases.length, canvasIsScene: !!identity.canvas && canvases.includes(identity.canvas),
+    layerCanvasIsScene: !!layers && !!layers.local_canvas && layers.local_canvas === identity.canvas,
+    canvasFillsMount: !!mountRect && !!canvasRect && Math.abs(mountRect.left - canvasRect.left) < 1 && Math.abs(mountRect.top - canvasRect.top) < 1
+      && Math.abs(mountRect.width - canvasRect.width) < 1 && Math.abs(mountRect.height - canvasRect.height) < 1 };
+});
+
+function expectCatalogRoute(route, where) {
+  expect(route.active === "own-x3d", `${where} > is drawn by ${route.active}, not the own-X3D adapter`);
+  expect(route.rendererKind === "webgl" && route.sceneRendererKind === "webgl", `the live route's renderer is ${route.rendererKind}/${route.sceneRendererKind}, not webgl`);
+  expect(route.canvases === 1 && route.canvasIsScene && route.layerCanvasIsScene && route.canvasFillsMount,
+    `${where} > has ${route.canvases} canvases in the mount, the scene canvas ${route.canvasIsScene}, the avatar layer on it ${route.layerCanvasIsScene}, the canvas filling the mount ${route.canvasFillsMount}`);
+  return `${route.active}/${route.rendererKind}, 1 canvas shared by the scene and the avatar layer`;
+}
+
+/** World points that bound the drawn body: the sampled bones, plus the top and bottom of the body at the rig's foot. */
+function rigPoints(rig) {
+  expect(rig && rig.bones, `rigProbe answered no bones (${JSON.stringify(rig && { ok: rig.ok, reason: rig.reason } || null)})`);
+  const points = Object.values(rig.bones).filter((bone) => bone && bone.world).map((bone) => bone.world);
+  expect(Number.isFinite(rig.body_top_world_y) && Number.isFinite(rig.body_bottom_world_y), `rigProbe gave no body bounds (top ${rig.body_top_world_y}, bottom ${rig.body_bottom_world_y})`);
+  const at = rig.avatar_rig_world || [0, 0, 0];
+  points.push([at[0], rig.body_top_world_y, at[2]], [at[0], rig.body_bottom_world_y, at[2]]);
+  return points;
+}
+
+/** The world points of the lower body: the four lower-leg and foot bones, in front of the floor and not a portal. */
+function legsPoints(rig) {
+  const points = ["leftLowerLeg", "rightLowerLeg", "leftFoot", "rightFoot"].map((name) => (rig && rig.bones ? (rig.bones[name] || {}).world : null)).filter(Boolean);
+  expect(points.length >= 3, `rigProbe gave ${points.length} of the four lower-leg bone world positions`);
+  return points;
+}
+
+const padBox = (box, pad, width, height) => ({ left: Math.max(0, box.left - pad), right: Math.min(width - 1, box.right + pad), top: Math.max(0, box.top - pad), bottom: Math.min(height - 1, box.bottom + pad) });
+const boxWidth = (box) => Math.max(0, box.right - box.left + 1);
+const boxHeight = (box) => Math.max(0, box.bottom - box.top + 1);
+const inBox = (box, x, y) => x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+const pixelDelta = (a, b, pixel) => Math.max(Math.abs(a.rgba[pixel * 4] - b.rgba[pixel * 4]), Math.abs(a.rgba[pixel * 4 + 1] - b.rgba[pixel * 4 + 1]), Math.abs(a.rgba[pixel * 4 + 2] - b.rgba[pixel * 4 + 2]));
+
+/** World points projected through the live camera into the screenshot's pixels (null behind the camera). */
+const projectPoints = (page, points, image) => page.evaluate(({ points, width, height }) => {
+  const camera = window.__assembly.viewport.identity().camera;
+  camera.updateMatrixWorld(true);
+  camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+  const view = camera.matrixWorldInverse.elements, proj = camera.projectionMatrix.elements;
+  const mul = (m, v) => [m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12] * v[3], m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13] * v[3],
+    m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14] * v[3], m[3] * v[0] + m[7] * v[1] + m[11] * v[2] + m[15] * v[3]];
+  return points.map((point) => {
+    const clip = mul(proj, mul(view, [point[0], point[1], point[2], 1]));
+    if (!(clip[3] > 1e-6)) return null;
+    const ndc = [clip[0] / clip[3], clip[1] / clip[3]];
+    return [(ndc[0] + 1) / 2 * width, (1 - ndc[1]) / 2 * height];
+  });
+}, { points, width: image.width, height: image.height });
+
+/** The screen box that holds every projected point, padded and clamped to the frame. */
+function screenBox(projected, width, height, pad = BOX_PAD_PX, minWidth = 40, minHeight = 80) {
+  const inside = projected.filter(Boolean);
+  expect(inside.length >= 3, `only ${inside.length} of ${projected.length} projected avatar points are in front of the camera`);
+  const tight = { left: Math.round(Math.min(...inside.map((point) => point[0]))), right: Math.round(Math.max(...inside.map((point) => point[0]))),
+    top: Math.round(Math.min(...inside.map((point) => point[1]))), bottom: Math.round(Math.max(...inside.map((point) => point[1]))) };
+  const box = padBox(tight, pad, width, height);
+  expect(boxWidth(box) >= minWidth && boxHeight(box) >= minHeight, `the projected window is ${boxWidth(box)}x${boxHeight(box)} px (too small to measure: ${JSON.stringify(tight)})`);
+  return box;
+}
+
+/**
+ * The avatar's whole screen box: hips, head, hands and feet projected through the live camera plus the body's top and
+ * bottom at the rig's foot, padded by a tenth of its width. The result must be a body-sized window in the frame
+ * (0.10-0.30 of the frame width, 0.30-0.85 of its height); a box that fails that check fails the statement, so a stale
+ * or degenerate projection can never be measured.
+ */
+async function avatarBodyBox(page, rig, image) {
+  const at = rig.avatar_rig_world || [0, 0, 0];
+  const points = ["hips", "head", "leftHand", "rightHand", "leftFoot", "rightFoot"].map((name) => (rig.bones[name] || {}).world).filter(Boolean);
+  expect(Number.isFinite(rig.body_top_world_y) && Number.isFinite(rig.body_bottom_world_y), `rigProbe gave no body bounds (top ${rig.body_top_world_y}, bottom ${rig.body_bottom_world_y})`);
+  points.push([at[0], rig.body_top_world_y, at[2]], [at[0], rig.body_bottom_world_y, at[2]]);
+  const projected = (await projectPoints(page, points, image)).filter(Boolean);
+  expect(projected.length >= 5, `only ${projected.length} of the ${points.length} body points project in front of the camera`);
+  const tight = { left: Math.round(Math.min(...projected.map((point) => point[0]))), right: Math.round(Math.max(...projected.map((point) => point[0]))),
+    top: Math.round(Math.min(...projected.map((point) => point[1]))), bottom: Math.round(Math.max(...projected.map((point) => point[1]))) };
+  const box = padBox(tight, Math.max(6, Math.round((tight.right - tight.left) * 0.10)), image.width, image.height);
+  const widthShare = boxWidth(box) / image.width, heightShare = boxHeight(box) / image.height;
+  expect(widthShare >= 0.1 && widthShare <= 0.3 && heightShare >= 0.3 && heightShare <= 0.85,
+    `the projected body box is ${boxWidth(box)}x${boxHeight(box)} px, ${fixed(widthShare, 3)} x ${fixed(heightShare, 3)} of the frame, outside the 0.10-0.30 x 0.30-0.85 a body must occupy (${JSON.stringify(box)} from ${JSON.stringify(tight)})`);
+  return box;
+}
+
+/** A small window around one point, for reading one item's own pixels. */
+function pointBox(point, pad, width, height) {
+  expect(point, "a bone or anchor point to project is missing");
+  return padBox({ left: Math.round(point[0]), right: Math.round(point[0]), top: Math.round(point[1]), bottom: Math.round(point[1]) }, pad, width, height);
+}
+
+/** Hide or show the avatar model in the shared scene: the exact background of the same view, items included. */
+const setModelVisible = (page, visible) => page.evaluate((wanted) => {
+  // the local avatar layer's own rig: the drawn avatar model and every item attached to its bones. The layer draws into
+  // the host renderer's scene, which on this route is not __assembly.scene._impl.scene, so that scene is not searched.
+  const rig = window.__assembly.__depthProbeLayers?.()?.local || null;
+  let model = null;
+  if (rig) rig.traverse((node) => { if (node.name === "real-vrm-avatar" || node.name === "static-glb-avatar") model = node; });
+  if (!model) return false;
+  model = rig;
+  model.visible = wanted;
+  // the app draws on its own frame loop: let two frames pass so the screenshot shows the new visibility
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(model.visible === wanted))));
+}, visible);
+
+/** Show or hide one item the avatar layer attached itself (its attached-equipment-<itemId> node), then let two frames pass. */
+const setItemVisible = (page, itemId, visible) => page.evaluate(([id, wanted]) => {
+  const rig = window.__assembly.__depthProbeLayers?.()?.local || null;
+  let node = null;
+  if (rig) rig.traverse((candidate) => { if (candidate.name === `attached-equipment-${id}`) node = candidate; });
+  if (!node) return false;
+  node.visible = wanted;
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(node.visible === wanted))));
+}, [itemId, visible]);
+
+/** A box grown by `pad` pixels on every side, kept inside the frame. */
+const widenBox = (box, pad, width = 640, height = 400) => ({ left: Math.max(0, box.left - pad), top: Math.max(0, box.top - pad),
+  right: Math.min(width - 1, box.right + pad), bottom: Math.min(height - 1, box.bottom + pad) });
+
+/** One frame and its exact background: the same view with the avatar model hidden for one screenshot. */
+async function avatarPair(ctx, page, name) {
+  expect(await setModelVisible(page, false), `no avatar model named real-vrm-avatar/static-glb-avatar to hide for ${name}`);
+  let background;
+  let shown = false;
+  try { background = await shot(ctx, page, `${name}-bg`, CATALOG_SHOTS); }
+  finally { shown = await setModelVisible(page, true); }
+  expect(shown, `the avatar model stayed hidden after the background frame (${name})`);
+  return { background, frame: await shot(ctx, page, name, CATALOG_SHOTS) };
+}
+
+/** The pixels of a pair's frame where the avatar is drawn: its colour differs from the same view without the model. */
+function occupancyMask(pair, tolerance = PIXEL_DIFF) {
+  const mask = new Uint8Array(pair.frame.width * pair.frame.height);
+  for (let pixel = 0; pixel < mask.length; pixel += 1) if (pixelDelta(pair.frame, pair.background, pixel) > tolerance) mask[pixel] = 1;
+  return mask;
+}
+
+/** Drawn area added and removed between two pairs, in pixels, and where inside `box` the added pixels are. */
+function addedArea(before, after, box) {
+  const was = occupancyMask(before), now = occupancyMask(after);
+  let added = 0, removed = 0, inside = 0;
+  for (let pixel = 0; pixel < now.length; pixel += 1) {
+    if (now[pixel] && !was[pixel]) {
+      added += 1;
+      const x = pixel % after.frame.width, y = Math.floor(pixel / after.frame.width);
+      if (inBox(box, x, y)) inside += 1;
+    } else if (was[pixel] && !now[pixel]) removed += 1;
+  }
+  return { added, removed, inside, share: added ? inside / added : 0 };
+}
+
+/** Drawn pixels of one pair inside `box`. */
+function occupancyIn(pair, box) {
+  const mask = occupancyMask(pair);
+  let count = 0;
+  for (let y = box.top; y <= box.bottom; y += 1) for (let x = box.left; x <= box.right; x += 1) if (mask[y * pair.frame.width + x]) count += 1;
+  return count;
+}
+
+/** The share of the pixels inside `box` in which two frames differ. */
+function boxChangedShare(a, b, box, tolerance = PIXEL_DIFF) {
+  let changed = 0, count = 0;
+  for (let y = box.top; y <= box.bottom; y += 1) for (let x = box.left; x <= box.right; x += 1) {
+    const pixel = y * a.width + x;
+    count += 1;
+    if (pixelDelta(a, b, pixel) > tolerance) changed += 1;
+  }
+  return { changed, count, share: count ? changed / count : 0 };
+}
+
+/** The pixels one frame adds over another inside `box`, and where their centre is. */
+function addedStats(before, after, box, tolerance = PIXEL_DIFF) {
+  let added = 0, sumX = 0, sumY = 0;
+  for (let y = box.top; y <= box.bottom; y += 1) for (let x = box.left; x <= box.right; x += 1) {
+    const pixel = y * after.width + x;
+    if (pixelDelta(before, after, pixel) <= tolerance) continue;
+    added += 1; sumX += x; sumY += y;
+  }
+  return { added, cx: added ? sumX / added : null, cy: added ? sumY / added : null };
+}
+
+/** A mask over one box, for the statistics that read a region rather than a silhouette. */
+function boxMask(width, height, box) {
+  const mask = new Uint8Array(width * height);
+  for (let y = box.top; y <= box.bottom; y += 1) for (let x = box.left; x <= box.right; x += 1) mask[y * width + x] = 1;
+  return mask;
+}
+
+/** A mask with its edge ring removed, so anti-aliased background does not count as detail. */
+function erodeBoxMask(width, height, box) {
+  const out = new Uint8Array(width * height);
+  for (let y = Math.max(1, box.top + 1); y <= Math.min(height - 2, box.bottom - 1); y += 1) for (let x = Math.max(1, box.left + 1); x <= Math.min(width - 2, box.right - 1); x += 1) out[y * width + x] = 1;
+  return out;
+}
+
+/** Texture and material response of the pixels a mask marks: distinct quantized colours, mean colour, luminance spread, neighbour detail. */
+function materialStats(image, mask) {
+  const { width, height } = image;
+  const colors = new Set();
+  const lum = new Float32Array(width * height);
+  let pixels = 0, sumR = 0, sumG = 0, sumB = 0, sumL = 0, sumL2 = 0;
+  for (let pixel = 0; pixel < mask.length; pixel += 1) {
+    if (!mask[pixel]) continue;
+    const r = image.rgba[pixel * 4], g = image.rgba[pixel * 4 + 1], b = image.rgba[pixel * 4 + 2];
+    colors.add(((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4));
+    const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    lum[pixel] = l;
+    pixels += 1; sumR += r; sumG += g; sumB += b; sumL += l; sumL2 += l * l;
+  }
+  let detail = 0, pairs = 0;
+  for (let y = 0; y < height; y += 1) for (let x = 0; x + 1 < width; x += 1) {
+    const pixel = y * width + x;
+    if (!mask[pixel] || !mask[pixel + 1]) continue;
+    detail += Math.abs(lum[pixel] - lum[pixel + 1]); pairs += 1;
+  }
+  const meanL = pixels ? sumL / pixels : 0;
+  return { pixels, colours: colors.size, mean: pixels ? [sumR / pixels, sumG / pixels, sumB / pixels] : [0, 0, 0],
+    spread: pixels ? Math.sqrt(Math.max(0, sumL2 / pixels - meanL * meanL)) : 0, detail: pairs ? detail / pairs : 0 };
+}
+
+/** The largest avatar-local move of the sampled bones between two rigProbe reads. */
+function boneMove(first, second) {
+  expect(first && second && first.bones && second.bones, `the rig probe answered no bones (${JSON.stringify({ first: !!(first && first.bones), second: !!(second && second.bones) })})`);
+  let max = 0, at = null;
+  for (const name of ["hips", "head", "leftHand", "rightHand", "leftFoot", "rightFoot", "leftUpperLeg", "rightUpperLeg"]) {
+    const a = first.bones[name], b = second.bones[name];
+    if (!a || !b || !a.local || !b.local) continue;
+    const moved = Math.hypot(...a.local.map((value, i) => value - b.local[i]));
+    if (moved > max) { max = moved; at = name; }
+  }
+  return { max, at };
+}
+
+/**
+ * How far the nearest attached object sits from `point`'s raw bone, in metres. rigProbe labels its objects from
+ * status.attachedItems[i], and that list also carries the avatar runtime's own held/worn entries, so an item id lookup
+ * can name another item's object; the objects are matched to the bone by distance instead.
+ */
+function attachmentDistance(rig, point) {
+  const bone = rig && rig.bones ? rig.bones[point] : null;
+  expect(bone && bone.world, `rigProbe has no ${point} bone world position (bones ${rig && rig.bones ? Object.keys(rig.bones).join(",") : "none"})`);
+  const objects = (rig.items || []).filter((item) => item.item_world);
+  expect(objects.length, `rigProbe has no attached objects with a world position (${(rig.items || []).length} objects)`);
+  return objects.map((item) => Math.hypot(...item.item_world.map((value, i) => value - bone.world[i]))).reduce((a, b) => Math.min(a, b), Infinity);
+}
+
+statements.push(
+  { id: "catalog-avatars", says: "The four real catalog avatars each draw on the live own-X3D route, and the drawn frames are different people", async run(ctx) {
+    const page = await ctx.visit(catalogUrl(ctx, CATALOG_VARIANTS[0]));
+    try {
+      await catalogWait(page, SCENE_SETTLE_S);
+      const route = expectCatalogRoute(await catalogRoute(page), "catalog-avatars");
+      const frames = [];
+      for (const key of CATALOG_VARIANTS) {
+        if (key !== CATALOG_VARIANTS[0]) {
+          const answer = await page.evaluate((variant) => window.__assembly.switchAvatar(variant), key);
+          expect(answer && answer.ok && answer.variant === key, `switchAvatar(${key}) answered ${JSON.stringify(answer)}`);
+          await catalogWait(page);
+        }
+        const state = await page.evaluate(() => {
+          const camera = window.__assembly.viewport.identity().camera;
+          return { visual: window.__assembly.avatarVisualState(), avatar: window.__assembly.debugState().avatar, rig: window.__assembly.rigProbe(),
+            camera: [camera.position.x, camera.position.y, camera.position.z] };
+        });
+        expect(state.visual && state.avatar && state.rig, `${key}: the page has no avatar state`);
+        expect(state.visual.avatar_variant === key && state.avatar.avatar_variant === key, `after the switch the page is on ${state.visual.avatar_variant}/${state.avatar.avatar_variant}, not ${key}`);
+        expect(state.avatar.equippedItems.length === 0, `${key} draws with ${state.avatar.equippedItems.length} items equipped`);
+        expect(state.visual.avatar_render_source === "actionforge-runtime", `${key} is drawn from ${state.visual.avatar_render_source}, not the ActionForge runtime`);
+        frames.push({ key, state, image: await shot(ctx, page, `catalog-${avatarName(key)}`, CATALOG_SHOTS) });
+      }
+      const cameraMoved = Math.max(...frames.map((frame) => Math.hypot(...frame.state.camera.map((value, i) => value - frames[0].state.camera[i]))));
+      expect(cameraMoved <= 0.001, `the camera moved ${fixed(cameraMoved)} m between the four frames (the comparison would mean nothing)`);
+      const width = frames[0].image.width, height = frames[0].image.height;
+      const projected = [];
+      for (const frame of frames) projected.push(...(await projectPoints(page, rigPoints(frame.state.rig), frame.image)));
+      const bodyBox = screenBox(projected, width, height);
+      // the lower body: those pixels are the avatar's, standing in front of the floor and not a portal
+      const legsProjected = [];
+      for (const frame of frames) legsProjected.push(...(await projectPoints(page, legsPoints(frame.state.rig), frame.image)));
+      const legsBox = screenBox(legsProjected, width, height, LEGS_PAD_PX, 20, 40);
+      // the avatar's own window, recomputed for every variant: a stale box would compare the same window four times
+      const bodyBoxes = [];
+      for (const frame of frames) bodyBoxes.push(await avatarBodyBox(page, frame.state.rig, frame.image));
+      const pairBox = bodyBoxes.reduce((union, box) => ({ left: Math.min(union.left, box.left), right: Math.max(union.right, box.right), top: Math.min(union.top, box.top), bottom: Math.max(union.bottom, box.bottom) }), bodyBoxes[0]);
+      expect(new Set(bodyBoxes.map((box) => `${box.left},${box.top},${box.right},${box.bottom}`)).size >= 2,
+        `the projected body box is identical for all four variants (${JSON.stringify(bodyBoxes[0])}): the box was not recomputed per frame`);
+      // (a) every pair of variants is a different person, in the lower-body window and in the whole body box
+      const pairs = [];
+      for (let i = 0; i < frames.length; i += 1) for (let j = i + 1; j < frames.length; j += 1) {
+        const share = boxChangedShare(frames[i].image, frames[j].image, legsBox);
+        pairs.push({ a: frames[i].key, b: frames[j].key, share: share.share });
+        expect(share.share >= AVATAR_PAIR_MIN, `the drawn frames for ${frames[i].key} and ${frames[j].key} are not different people (they differ in ${fixed(share.share, 3)} of the ${boxWidth(legsBox)}x${boxHeight(legsBox)} lower-body window, under ${AVATAR_PAIR_MIN})`);
+        const whole = boxChangedShare(frames[i].image, frames[j].image, pairBox);
+        pairs[pairs.length - 1].whole = whole.share;
+        expect(whole.share >= BODY_PAIR_MIN, `the drawn frames for ${frames[i].key} and ${frames[j].key} are not different people in the body box either (they differ in ${fixed(whole.share, 3)} of the ${boxWidth(pairBox)}x${boxHeight(pairBox)} window, under ${BODY_PAIR_MIN})`);
+      }
+      // (b) each frame draws a body in that window, with more in it than the bare floor
+      for (const frame of frames) {
+        frame.stats = materialStats(frame.image, erodeBoxMask(width, height, legsBox));
+        expect(frame.stats.pixels > 200, `${frame.key}'s lower-body window holds ${frame.stats.pixels} pixels (too small to measure)`);
+        expect(frame.stats.colours >= LEGS_COLOURS_MIN, `${frame.key}'s lower-body window carries ${frame.stats.colours} distinct colours, under ${LEGS_COLOURS_MIN}: bare floor, not a drawn body`);
+        expect(frame.stats.spread >= LEGS_SPREAD_MIN, `${frame.key}'s lower-body window has a luminance spread of ${fixed(frame.stats.spread, 1)}, under ${LEGS_SPREAD_MIN}: bare floor`);
+      }
+      // (c) the catalog's own heights, and the camera must order the bodies the same way
+      const heights = [];
+      for (const frame of frames) {
+        const at = frame.state.rig.avatar_rig_world || [0, 0, 0];
+        const [top] = await projectPoints(page, [[at[0], frame.state.rig.body_top_world_y, at[2]]], frame.image);
+        heights.push({ key: frame.key, model: frame.state.visual.avatar_model_height_m, prepared: catalogHeight(frame.key), top: Math.round(top[1]) });
+      }
+      for (const height of heights) {
+        expect(typeof height.model === "number" && height.prepared !== null, `${height.key}: the page reports ${height.model} m, the catalog ${height.prepared} m`);
+        expect(Math.abs(height.model - height.prepared) <= HEIGHT_MATCH_M, `${height.key} is drawn ${height.model} m tall, the catalog's own height is ${height.prepared} m`);
+      }
+      for (let i = 0; i < heights.length; i += 1) for (let j = i + 1; j < heights.length; j += 1) {
+        const a = heights[i], b = heights[j];
+        if (Math.abs(a.model - b.model) < HEIGHT_RANK_MIN_M) continue;
+        const taller = a.model > b.model ? a : b, shorter = taller === a ? b : a;
+        expect(shorter.top - taller.top >= HEIGHT_RANK_PX, `${taller.key} is ${fixed(taller.model - shorter.model, 3)} m taller than ${shorter.key} but its camera-projected crown is only ${fixed(shorter.top - taller.top)} rows higher (under ${HEIGHT_RANK_PX})`);
+      }
+      const leastPair = Math.min(...pairs.map((pair) => pair.share));
+      return `${route}; body box ${boxWidth(bodyBox)}x${boxHeight(bodyBox)} (per-variant ${bodyBoxes.map((box) => `${box.left},${box.top}`).join(" / ")}), lower-body window ${boxWidth(legsBox)}x${boxHeight(legsBox)} at (${legsBox.left}, ${legsBox.top}); whole-body pair differences ${pairs.map((pair) => `${avatarName(pair.a)}-${avatarName(pair.b)} ${fixed(pair.whole, 3)}`).join(", ")}; ${heights.map((height) => `${avatarName(height.key)} ${fixed(height.model, 2)} m, crown row ${height.top} (catalog ${fixed(height.prepared, 2)} m)`).join(", ")}; every pair differs in at least ${fixed(leastPair, 3)} of the lower body; lower-body colours ${frames.map((frame) => frame.stats.colours).join("/")}, spread ${frames.map((frame) => fixed(frame.stats.spread, 1)).join("/")}; shots ${frames.map((frame) => frame.image.file).join(", ")}`;
+    } finally { await page.close(); }
+  } },
+  { id: "catalog-equipment", says: "Each of the seven catalog items equips through the app's driver and draws on the avatar at its attachment", async run(ctx) {
+    // Through the app's own drivers only. The default loadout (&noequip=0) carries the hammer, the torch and the hat.
+    // Two app facts shape the proof: validateEquippedItems refuses any non-empty set without both a held and a worn
+    // item, so equipItem cannot start from an empty avatar (it answered {"ok":false,"error":"equip rejected by schema:
+    // missing held item"}); and equipItem APPENDS, so adding the helmet under the hat leaves the helmet inside the
+    // hat's crown (measured: 326 px of its box changed, less than the 428 px the same box moves with nothing equipped).
+    // Each of the four items the catalog still offers is therefore installed ALONE in its own slot through the app's
+    // inventory driver (setSlotItem, the selector's slot swap).
+    //
+    // The pixel proof is OCCUPANCY, not a frame-to-frame diff: the avatar model (real-vrm-avatar) is hidden for one
+    // screenshot to get the exact background of the same view, and every pixel of the model and its items is counted
+    // where it differs from that background. Shifting the camera or animating the head cannot create occupancy; an item
+    // that is drawn adds its own area. The drift control is the same computation between two frames with nothing
+    // equipped, so the lobby's moving portal previews are subtracted rather than trusted.
+    const page = await ctx.visit(catalogUrl(ctx, "collection-adam", { equipment: true }));
+    try {
+      await catalogWait(page, SCENE_SETTLE_S);
+      const route = expectCatalogRoute(await catalogRoute(page), "catalog-equipment");
+      const read = () => page.evaluate(() => ({ visual: window.__assembly.avatarVisualState(), avatar: window.__assembly.debugState().avatar,
+        rig: window.__assembly.rigProbe(), scan: window.__assembly.equipmentSceneScan(), catalog: window.__assembly.equippableCatalog(),
+        camera: (() => { const c = window.__assembly.viewport.identity().camera; return [c.position.x, c.position.y, c.position.z]; })() }));
+      const boot = await read();
+      const catalog = boot.catalog;
+      expect(catalog.map((item) => item.itemId).join(",") === CATALOG_ITEMS.join(","), `the driver offers "${catalog.map((item) => item.itemId).join(",")}", not the catalog's seven "${CATALOG_ITEMS.join(",")}"`);
+      const base = catalog.filter((item) => item.equipped);
+      expect(base.length === 3 && base.map((item) => item.attachmentPoint).sort().join(",") === "head,leftHand,rightHand",
+        `the app's default loadout is ${base.map((item) => `${item.itemId}@${item.attachmentPoint}`).join(", ")}, not one item on each of head, leftHand and rightHand (offered: ${catalog.map((item) => `${item.itemId}${item.equipped ? "*" : ""}`).join(", ")})`);
+      expect(boot.avatar.equippedItems.length === 3, `the booted avatar carries ${boot.avatar.equippedItems.length} equipped items, not the default loadout's 3`);
+      const bodyBox = screenBox(await projectPoints(page, rigPoints(boot.rig), { width: 640, height: 400 }), 640, 400);
+      // one window per catalog item, around its own attachment bone
+      const anchorPoints = catalog.map((item) => {
+        const bone = boot.rig.bones[item.attachmentPoint];
+        expect(bone && bone.world, `rigProbe has no ${item.attachmentPoint} bone for ${item.itemId} (bones ${Object.keys(boot.rig.bones).join(",")})`);
+        return bone.world;
+      });
+      const anchors = await projectPoints(page, anchorPoints, { width: 640, height: 400 });
+      catalog.forEach((item, i) => { item.box = pointBox(anchors[i], ITEM_BOX_PAD[item.attachmentPoint] || 26, 640, 400); });
+      const bootPair = await avatarPair(ctx, page, "catalog-items-boot");
+      // the drift control: the same computation, one equip's worth of loop time later, with nothing equipped
+      await catalogWait(page, 1);
+      const driftPair = await avatarPair(ctx, page, "catalog-items-drift");
+      // the clean body, same URL with noequip=1, its own occupancy for the three base items
+      const cleanPage = await ctx.visit(catalogUrl(ctx, "collection-adam"));
+      let cleanPair, cleanCamera;
+      try {
+        await catalogWait(cleanPage, SCENE_SETTLE_S);
+        cleanCamera = await catalogCamera(cleanPage);
+        cleanPair = await avatarPair(ctx, cleanPage, "catalog-items-clean");
+      } finally { await cleanPage.close(); }
+      expect(Math.max(...cleanCamera.slice(0, 3).map((value, i) => Math.abs(value - boot.camera[i]))) <= 0.001,
+        `the clean page's camera is ${JSON.stringify(cleanCamera.slice(0, 3))}, the equipped page's ${JSON.stringify(boot.camera)}: the two occupancies would be of different views`);
+      const attachLine = (entry, distance) => `${entry.target === "avatar-runtime-equipment" ? `runtime ${entry.runtime_item}` : "plain bone attach"}${distance === null ? "" : `, ${fixed(distance, 3)} m from its bone`}`;
+      const baseLines = [];
+      for (const item of base) {
+        const entry = (boot.visual.attached_items || []).find((candidate) => candidate.itemId === item.itemId);
+        expect(entry, `${item.itemId} is equipped but not attached (attached: ${(boot.visual.attached_items || []).map((candidate) => candidate.itemId).join(",")})`);
+        const alone = catalog.filter((candidate) => candidate.equipped && candidate.attachmentPoint === item.attachmentPoint);
+        expect(alone.length === 1, `${item.itemId} is not alone at its ${item.attachmentPoint} at boot (${alone.map((candidate) => candidate.itemId).join(",")})`);
+        let distance = null;
+        if (entry.target === "avatar-runtime-equipment") expect(entry.runtime_item, `${item.itemId} is on ${entry.target} with no runtime item id`);
+        else {
+          distance = attachmentDistance(boot.rig, item.attachmentPoint);
+          expect(distance <= ITEM_DISTANCE_MAX_M, `${item.itemId} sits ${fixed(distance, 3)} m from its ${item.attachmentPoint} attachment at boot, over ${ITEM_DISTANCE_MAX_M} m`);
+        }
+        if (entry.target !== "avatar-runtime-equipment") {
+          // An item the avatar layer attached itself draws from the rig, so it can be hidden alone. Its own pixels are
+          // measured in one pose: the same frame with and without it. The clean page stands in another pose (arms down),
+          // which moves the hand window's body pixels and would cancel a held item's area.
+          const itemWindow = widenBox(item.box, ITEM_BOX_PAD[item.attachmentPoint] || 26);
+          const shown = await shot(ctx, page, `catalog-${item.itemId}-shown`, CATALOG_SHOTS);
+          const shownAgain = await shot(ctx, page, `catalog-${item.itemId}-shown-again`, CATALOG_SHOTS);
+          expect(await setItemVisible(page, item.itemId, false), `${item.itemId} has no attached-equipment-${item.itemId} node to hide`);
+          let hidden, hiddenAgain;
+          try {
+            hidden = await shot(ctx, page, `catalog-${item.itemId}-hidden`, CATALOG_SHOTS);
+            hiddenAgain = await shot(ctx, page, `catalog-${item.itemId}-hidden-again`, CATALOG_SHOTS);
+          } finally { expect(await setItemVisible(page, item.itemId, true), `${item.itemId} stayed hidden after its frames`); }
+          // The idle clip moves the holding arm, and the item with it, between any two frames (the page has no hook to
+          // stop it). A pixel is the item's own where the two item-hidden frames agree, so nothing else moves there,
+          // and the last shown frame differs from them. The arm's moving edges change between the hidden frames too,
+          // so they are not counted; a held item that moves still counts, because without it that spot is steady.
+          let own = 0, moving = 0;
+          for (let y = itemWindow.top; y <= itemWindow.bottom; y += 1) for (let x = itemWindow.left; x <= itemWindow.right; x += 1) {
+            const pixel = y * shown.width + x;
+            if (pixelDelta(hidden, hiddenAgain, pixel) > PIXEL_DIFF) { moving += 1; continue; }
+            if (pixelDelta(shownAgain, hidden, pixel) > PIXEL_DIFF) own += 1;
+          }
+          const drift = moving;
+          expect(own >= ITEM_ADD_FLOOR, `${item.itemId} draws ${own} steady px of its ${boxWidth(itemWindow)}x${boxHeight(itemWindow)} window at its attachment (${moving} px changed between the item-hidden frames and were not counted, floor ${ITEM_ADD_FLOOR}): it is not drawn there (${attachLine(entry, distance)})`);
+          baseLines.push(`${itemName(item.itemId)} ${item.mode} at ${item.attachmentPoint} at boot: ${own} px of its own in one frame (drift ${drift}), ${attachLine(entry, distance)}`);
+          continue;
+        }
+        const equippedArea = occupancyIn(bootPair, item.box);
+        const cleanArea = occupancyIn(cleanPair, item.box);
+        const drift = Math.abs(occupancyIn(driftPair, item.box) - equippedArea);
+        const added = equippedArea - cleanArea;
+        expect(added >= drift + ITEM_ADD_FLOOR, `${item.itemId} adds ${added} drawn px of its ${boxWidth(item.box)}x${boxHeight(item.box)} window at boot over the clean avatar (drift ${drift}, floor ${ITEM_ADD_FLOOR}): it is not drawn there (${attachLine(entry, distance)})`);
+        baseLines.push(`${itemName(item.itemId)} ${item.mode} at ${item.attachmentPoint} at boot: +${added} px of drawn area (drift ${drift}), ${attachLine(entry, distance)}`);
+      }
+      const installs = [
+        { slot: "head", itemId: "equip-helmet" },
+        { slot: "head", itemId: "equip-crown" },
+        { slot: "leftHand", itemId: "equip-shield" },
+        { slot: "leftHand", itemId: "equip-mug" },
+      ];
+      const measures = [];
+      let previous = driftPair;
+      for (const install of installs) {
+        const answer = await page.evaluate(({ slot, itemId }) => window.__assembly.inventory.setSlotItem(slot, itemId), install);
+        expect(answer && answer.ok, `setSlotItem(${install.slot}, ${install.itemId}) answered ${JSON.stringify(answer)}, not ok`);
+        expect(answer.itemId === install.itemId && answer.slot === install.slot, `setSlotItem(${install.slot}, ${install.itemId}) answered ${JSON.stringify(answer)}`);
+        await catalogWait(page);
+        const state = await read();
+        const pair = await avatarPair(ctx, page, `catalog-item-${itemName(install.itemId)}`);
+        const item = catalog.find((candidate) => candidate.itemId === install.itemId);
+        const entry = (state.visual.attached_items || []).find((candidate) => candidate.itemId === install.itemId);
+        expect(entry, `${item.itemId} is not among the attached items: ${(state.visual.attached_items || []).map((candidate) => candidate.itemId).join(",")}`);
+        const alone = state.catalog.filter((candidate) => candidate.equipped && candidate.attachmentPoint === install.slot);
+        expect(alone.length === 1 && alone[0].itemId === item.itemId, `${item.itemId} is not alone at its ${install.slot} (${alone.map((candidate) => candidate.itemId).join(",")})`);
+        let distance = null;
+        if (entry.target === "avatar-runtime-equipment") expect(entry.runtime_item, `${item.itemId} is on ${entry.target} with no runtime item id`);
+        else {
+          distance = attachmentDistance(state.rig, install.slot);
+          expect(distance <= ITEM_DISTANCE_MAX_M, `${item.itemId} sits ${fixed(distance, 3)} m from its ${install.slot} attachment, over ${ITEM_DISTANCE_MAX_M} m`);
+        }
+        // The swap is measured as the pixels of the item's window that change across it, against the change the same
+        // window shows over one second with nothing swapped (the idle clip and the live portal previews behind the
+        // avatar). Occupancy against a model-hidden frame counts the portal previews that change between the frames.
+        const added = addedArea(previous, pair, item.box);
+        const changed = boxChangedShare(previous.frame, pair.frame, item.box).changed;
+        const drift = boxChangedShare(bootPair.frame, driftPair.frame, item.box).changed;
+        expect(changed >= drift + ITEM_ADD_FLOOR, `${item.itemId} changes ${changed} px of its ${boxWidth(item.box)}x${boxHeight(item.box)} attachment window when it is swapped in (drift ${drift}, floor ${ITEM_ADD_FLOOR}): it is equipped but not drawn there (${attachLine(entry, distance)})`);
+        const plain = (state.visual.attached_items || []).filter((candidate) => candidate.target !== "avatar-runtime-equipment").length;
+        expect(state.scan && state.scan.marker_groups === plain, `equipmentSceneScan counts ${state.scan ? state.scan.marker_groups : "nothing"} marker groups, not the ${plain} items on the plain bone attach`);
+        measures.push({ ...item, slot: install.slot, changed, added: added.added, share: added.share, removed: added.removed, drift, distance,
+          markers: state.scan ? state.scan.marker_groups : null, plain, file: pair.frame.file, attach: attachLine(entry, distance) });
+        previous = pair;
+      }
+      return `${route}; body box ${boxWidth(bodyBox)}x${boxHeight(bodyBox)}, item windows ${ITEM_BOX_PAD.head} px at the head bone and ${ITEM_BOX_PAD.leftHand} px at a hand bone; occupancy against the model-hidden background of the same view; booted with the app's default loadout: ${baseLines.join("; ")}; then each alone in its slot: ${measures.map((measure) => `${itemName(measure.itemId)} ${measure.mode} at ${measure.attachmentPoint} [${measure.attach}]: ${measure.changed} px of its window changed on the swap (drift ${measure.drift}; +${measure.added} drawn px, ${fixed(measure.share, 3)} inside its window), markers ${measure.markers}/${measure.plain}`).join("; ")}; shots in ${CATALOG_SHOTS}`;
+    } finally { await page.close(); }
+  } },
+  { id: "catalog-materials", says: "The drawn avatar carries the catalog's own textures and material response, not a flat fill", async run(ctx) {
+    const page = await ctx.visit(catalogUrl(ctx, CATALOG_VARIANTS[0]));
+    try {
+      await catalogWait(page, SCENE_SETTLE_S);
+      const route = expectCatalogRoute(await catalogRoute(page), "catalog-materials");
+      const frames = [];
+      for (const key of [CATALOG_VARIANTS[0], "collection-megan"]) {
+        if (frames.length) {
+          const answer = await page.evaluate((variant) => window.__assembly.switchAvatar(variant), key);
+          expect(answer && answer.ok && answer.variant === key, `switchAvatar(${key}) answered ${JSON.stringify(answer)}`);
+          await catalogWait(page);
+        }
+        const rig = await page.evaluate(() => window.__assembly.rigProbe());
+        frames.push({ key, rig, image: await shot(ctx, page, `catalog-materials-${avatarName(key)}`, CATALOG_SHOTS) });
+      }
+      const width = frames[0].image.width, height = frames[0].image.height;
+      const projected = [];
+      for (const frame of frames) projected.push(...(await projectPoints(page, legsPoints(frame.rig), frame.image)));
+      const legsBox = screenBox(projected, width, height, LEGS_PAD_PX, 20, 40);
+      const stats = frames.map((frame) => {
+        const stat = materialStats(frame.image, erodeBoxMask(width, height, legsBox));
+        expect(stat.pixels > 200, `${frame.key}'s lower-body window holds ${stat.pixels} pixels (too small to measure)`);
+        return { key: frame.key, stat, frame };
+      });
+      const [adam, megan] = stats;
+      expect(adam.stat.colours >= MATERIAL_COLOURS_MIN, `the drawn avatar carries ${adam.stat.colours} distinct colours in its lower body, under ${MATERIAL_COLOURS_MIN}: a flat fill, not the catalog's textures`);
+      expect(adam.stat.detail >= MATERIAL_DETAIL_MIN, `its pixels change by ${fixed(adam.stat.detail, 2)} of 255 between neighbours, under ${MATERIAL_DETAIL_MIN}: no texture detail`);
+      expect(adam.stat.spread >= MATERIAL_SPREAD_MIN, `its luminance spread is ${fixed(adam.stat.spread, 1)}, under ${MATERIAL_SPREAD_MIN}: too flat for the catalog's materials`);
+      const meanDiff = Math.hypot(...adam.stat.mean.map((value, i) => value - megan.stat.mean[i]));
+      expect(meanDiff >= MATERIAL_MEAN_DIFF_MIN, `adam and megan draw the same mean colour (${adam.stat.mean.map((value) => fixed(value, 1))} and ${megan.stat.mean.map((value) => fixed(value, 1))}, ${fixed(meanDiff, 1)} apart, under ${MATERIAL_MEAN_DIFF_MIN}): their material identity is lost`);
+      return `${route}; lower-body window ${boxWidth(legsBox)}x${boxHeight(legsBox)} at (${legsBox.left}, ${legsBox.top}) from the rigs' own leg bones; adam ${adam.stat.pixels} px: ${adam.stat.colours} distinct colours, mean ${adam.stat.mean.map((value) => fixed(value, 1))}, luminance spread ${fixed(adam.stat.spread, 1)}, neighbour detail ${fixed(adam.stat.detail, 2)} of 255; megan mean ${megan.stat.mean.map((value) => fixed(value, 1))}, ${fixed(meanDiff, 1)} apart; shots ${adam.frame.image.file}, ${megan.frame.image.file}`;
+    } finally { await page.close(); }
+  } },
+  { id: "catalog-deforms", says: "The drawn catalog avatar deforms: the rig animates while the camera stands still", async run(ctx) {
+    const page = await ctx.visit(catalogUrl(ctx, CATALOG_VARIANTS[0]));
+    try {
+      await catalogWait(page, SCENE_SETTLE_S);
+      const route = expectCatalogRoute(await catalogRoute(page), "catalog-deforms");
+      await page.waitForFunction(() => {
+        const visual = window.__assembly.avatarVisualState ? window.__assembly.avatarVisualState() : null;
+        return !!visual && visual.current_animation_state === "idle" && visual.avatar_switch_in_flight !== true;
+      }, { timeout: DRAW_WAIT_MS, polling: 60 });
+      const read = () => page.evaluate(() => {
+        const camera = window.__assembly.viewport.identity().camera;
+        return { visual: window.__assembly.avatarVisualState(), rig: window.__assembly.rigProbe(),
+          camera: [camera.position.x, camera.position.y, camera.position.z] };
+      });
+      const first = await read();
+      expect(first.visual.current_animation_state === "idle", `the avatar is not on its idle clip at the first frame (${first.visual.current_animation_state})`);
+      const a = await shot(ctx, page, "catalog-deforms-a", CATALOG_SHOTS);
+      const box = screenBox(await projectPoints(page, rigPoints(first.rig), a), a.width, a.height);
+      const clockA = await catalogClock(page);
+      const clockB = await catalogWait(page, DEFORM_SECONDS);
+      const second = await read();
+      const b = await shot(ctx, page, "catalog-deforms-b", CATALOG_SHOTS);
+      const seconds = clockB - clockA;
+      const cameraMove = Math.max(...second.camera.map((value, i) => Math.abs(value - first.camera[i])));
+      expect(cameraMove <= 0.001, `the camera moved ${fixed(cameraMove)} m between the two frames (the comparison would mean nothing)`);
+      expect(second.visual.current_animation_state === "idle", `the avatar left idle between the frames (${second.visual.current_animation_state})`);
+      const inside = boxChangedShare(a, b, box);
+      expect(inside.share >= DEFORM_ANIM_MIN, `the drawn avatar did not change in ${fixed(inside.share, 4)} of its ${boxWidth(box)}x${boxHeight(box)} box over ${fixed(seconds)} s of idle play, under ${DEFORM_ANIM_MIN}: no deformation is drawn`);
+      const bones = boneMove(first.rig, second.rig);
+      expect(bones.max >= DEFORM_BONE_MIN_M, `the rig's bones moved at most ${fixed(bones.max, 4)} m in avatar-local space over ${fixed(seconds)} s (the rig is frozen)`);
+      return `${route}; box ${boxWidth(box)}x${boxHeight(box)} from the rig's bones; over ${fixed(seconds)} s of idle play ${inside.changed} px of the box changed (${fixed(inside.share, 4)}, ${fixed(inside.changed / seconds, 1)} px/s); largest avatar-local bone move ${fixed(bones.max, 4)} m (${bones.at}); camera ${fixed(cameraMove, 6)} m; animation ${first.visual.current_animation_state} -> ${second.visual.current_animation_state}; shots ${a.file}, ${b.file}`;
+    } finally { await page.close(); }
+  } },
+);
+
+faults.push(
+  { statement: "catalog-avatars", name: "every variant loads the first avatar", expect: /different people|avatar variant/, edits: [
+    { file: "web/avatar-equipment-layer.js", find: "const loaded = await loadActionForgeAvatar(variant);", replace: `const loaded = await loadActionForgeAvatar(AVATAR_VARIANTS["collection-adam"]);` }] },
+  { statement: "catalog-equipment", name: "items are seated 3 m off their attachment", expect: /attachment|inside the avatar/, edits: [
+    { file: "web/avatar-equipment-layer.js", find: "object.position.set(p[0], p[1], p[2]);", replace: "object.position.set(p[0] + 3, p[1], p[2]);" }] },
+  { statement: "catalog-materials", name: "the avatar's material maps are stripped, so it draws flat", expect: /texture|flat|colour/, edits: [
+    { file: "web/avatar/actionforge-avatar.mjs", find: "  return { vrm, model: instance.holder, library, instance, tuning, items };", replace: "  instance.holder.traverse((o) => { if (o.isMesh && o.material) for (const m of [].concat(o.material)) { m.map = null; m.emissiveMap = null; m.needsUpdate = true; } });\n  return { vrm, model: instance.holder, library, instance, tuning, items };" }] },
+  { statement: "catalog-deforms", name: "the motion clock is frozen, so the avatar never deforms", expect: /did not change|deform|frozen/i, edits: [
+    { file: "web/avatar/runtime/avatar-motion.mjs", find: "this.mixer.update(dt);", replace: "this.mixer.update(0);" }] },
 );
 
 process.on("exit", () => {

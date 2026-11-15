@@ -11,14 +11,14 @@
     "scale": 1,
     "natural_height_m": 1.679999910275595,
     "drawn_height_m": 1.679999910275595,
-    "hips_height_m": 0.8258463112308594,
+    "hips_height_m": 0.8698119838486987,
     "hips_bone": "pelvis"
   },
   "clip_pack": {
     "file": "../../clips/actionforge-clips.glb",
-    "reference_hips_height_m": 0.9015000012466824,
-    "avatar_hips_height_m": 0.8258463394983748,
-    "pelvis_position_scale": 0.9160802422144356
+    "reference_hips_height_m": 0.9166999980209016,
+    "avatar_hips_height_m": 0.869812013621095,
+    "pelvis_position_scale": 0.9488513314050017
   },
   "slots": {
     "idle": {
@@ -63,7 +63,7 @@
   "model": {
     "idle_lowest_vertex_y_m": -0.029730147514601866,
     "idle_loop_lowest_foot_vertex_y_m": -0.03048946283356233,
-    "floor_offset_m": 0.029730147514601866,
+    "floor_offset_m": 0.000984258737814124,
     "foot_vertex_count": {
       "l": 1229,
       "r": 1227

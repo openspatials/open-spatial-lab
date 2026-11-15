@@ -741,7 +741,20 @@ export function createSceneRuntimeController({
         if (explicitAvatarResources) {
           // Keep evaluator transforms and visibility policy intact, but only the
           // independent binding contributes pixels to the shared depth buffer.
-          model.traverse(mesh => { if (mesh.isMesh) { if (!binding.hiddenMeshes.has(mesh)) binding.hiddenMeshes.set(mesh, mesh.layers.mask); mesh.layers.mask = 0; } });
+          // An item the layer attached itself (attached-equipment-<itemId>) that the binding does not carry still
+          // draws from the rig; every other mesh draws only through the binding.
+          const carried = new Set((pose.attachments || []).map(attachment => attachment.itemId));
+          const uncarriedItem = mesh => { for (let node = mesh.parent; node && node !== model; node = node.parent) {
+            if (node.name?.startsWith("attached-equipment-")) return !carried.has(node.name.slice("attached-equipment-".length)); } return false; };
+          model.traverse(mesh => {
+            if (!mesh.isMesh) return;
+            if (uncarriedItem(mesh)) {
+              if (binding.hiddenMeshes.has(mesh)) { mesh.layers.mask = binding.hiddenMeshes.get(mesh); binding.hiddenMeshes.delete(mesh); }
+              return;
+            }
+            if (!binding.hiddenMeshes.has(mesh)) binding.hiddenMeshes.set(mesh, mesh.layers.mask);
+            mesh.layers.mask = 0;
+          });
           adapter.setVisible(binding.skin.root, model.visible && layer.avatarRig.visible);
         }
         layer.status.avatar_resource_path = explicitAvatarResources ? "explicit" : "shared-three";

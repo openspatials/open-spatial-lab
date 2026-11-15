@@ -49,8 +49,9 @@ export function makeInPlace(clip, name = clip.name) {
   return new THREE.AnimationClip(name, clip.duration, tracks);
 }
 
-// The pack's pelvis.position keys are the mannequin's (hips 0.9015 m above the lower toe). A character on the same
-// skeleton with other proportions gets them scaled by its own hips height over that; the mannequin's factor is 1.
+// The pack's pelvis.position keys are the mannequin's, heights above the floor (its rest pelvis 0.9167 m above the floor).
+// A character on the same skeleton with other proportions gets them scaled by its own rest pelvis height above the floor
+// over that (the build tool's hipsHeight, both sides measured the same way); the mannequin's factor is 1.
 export function pelvisScaleOf(data) {
   const p = data?.clip_pack;
   if (!p) return 1;
