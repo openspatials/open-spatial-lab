@@ -11,7 +11,7 @@ function getWowProofBoundary()
         standards_conformance : false,
     };
 }
-function getWowWorld({ avatar, world, location, session, portals, anchor, graphIds, revision, activeUsers, portalCount, preview, room, liveUsers, authoredGraph : AUTHORED_WOW_GRAPH, worldId : WORLD_ID })
+function getWowWorld({ avatar, world, location, session, portals, anchor, graphIds, revision, activeUsers, joinedUsers, portalCount, preview, room, liveUsers, authoredGraph : AUTHORED_WOW_GRAPH, worldId : WORLD_ID })
 {
     const projected = {
         content : {
@@ -41,7 +41,8 @@ function getWowWorld({ avatar, world, location, session, portals, anchor, graphI
             runtime : 'teleportxr-hosted-state-with-threejs-browser-fallback (re-modeled locally)',
         },
         users : {
-            active_user_count : activeUsers,
+            // Presence entries plus users present by the identity handshake.
+            active_user_count : activeUsers + (Number.isInteger(joinedUsers) ? joinedUsers : 0),
             total_user_count : 1,
         },
         views : {
@@ -92,7 +93,7 @@ function worldExtension(avatar, portals, liveUsers)
             target_location_id : portal.target_location_id,
             target_world_id : portal.target_world_id,
         })),
-        active_user_count_source : 'live /runtime-state WebSocket subscribers',
+        active_user_count_source : 'live presence entries (/fabric/presence) plus users present by the identity handshake (POST /wow/user)',
     };
 }
 function mergeAuthoredWorld(projected, AUTHORED_WOW_GRAPH, WORLD_ID)

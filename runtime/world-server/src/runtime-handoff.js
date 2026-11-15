@@ -5,7 +5,7 @@ const { buildHandoffPacket } = require('./runtime-handoff-packet');
 class RuntimeHandoff
 {
     constructor({ avatar, session, debug, identity, readPortals, resolvePortal, placementOf,
-        departPresence, presenceCount, publish, getState, syncHostedPlacements, arrivalCommitMode })
+        departPresence, presenceCount, publish, getState, syncHostedPlacements, arrivalCommitMode, emitEvent, crossingUserId })
     {
         this.avatar = avatar;
         this.session = session;
@@ -20,6 +20,8 @@ class RuntimeHandoff
         this.getState = getState;
         this.syncHostedPlacements = syncHostedPlacements;
         this.arrivalCommitMode = arrivalCommitMode;
+        this.emitEvent = emitEvent;
+        this.crossingUserId = crossingUserId;
     }
     applyMovement(raw)
     {
@@ -61,6 +63,10 @@ class RuntimeHandoff
             : this.readPortals().find(entry => entry.portal_id === portalId) || this.readPortals()[0];
         if (!portal)
             throw new Error('no portal configured on ' + this.identity.LOCATION_ID);
+        // portal_activate goes on the event stream once per crossing intent, before the visitor navigates and
+        // before the crossing user's departure from this world's presence.
+        const wowId = placed ? placed.wowId : this.readPortals().indexOf(portal) + 1;
+        this.emitPortalActivate(wowId, playerId);
         const presenceDeparture = playerId
             ? this.departPresence({ player_id : playerId, reason : 'portal_exit_intent' })
             : null;
@@ -92,6 +98,12 @@ class RuntimeHandoff
         console.log('[PortalHandoff][' + this.identity.LOCATION_ID + '] EXIT_INTENT '
             + JSON.stringify(this.debug.handoff.last_exit_intent));
         return packet;
+    }
+
+    emitPortalActivate(wowId, playerId)
+    {
+        if (!this.emitEvent) return;
+        this.emitEvent({ type : 'portal_activate', portalId : wowId, userId : this.crossingUserId(playerId), urls : [] });
     }
 
     commitArrival(handoff, now)

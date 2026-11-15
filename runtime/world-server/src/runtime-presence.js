@@ -4,7 +4,11 @@ const { WOW_PRESENCE_USER_ID_BASE, PRESENCE_SWEEP_INTERVAL_MS, PRESENCE_HEARTBEA
 const { presenceString, presencePosition, presenceEntrySummary, liveWowPresenceUsers,
     wowUserEvent, fabricPresenceSummary, presenceEntry } = require('./runtime-presence-projection');
 
-/** One registry and one expiry timer per world; projections never remove entries. */
+/**
+ * One registry and one expiry timer per world; projections never remove entries. nextUserId() is the world's one User id
+ * allocator: presence takes its ids from it, and so does the identity handshake (runtime-handshake.js, through
+ * runtime.nextWowUserId), so that no two users of one world share an id.
+ */
 class RuntimePresence
 {
     constructor({ locationId, placements, publish, project, emitEvent, proofBoundary })
@@ -22,6 +26,7 @@ class RuntimePresence
         this.blocked = 0;
     }
 
+    nextUserId() { return WOW_PRESENCE_USER_ID_BASE + (++this.sequence); }
     emitUserEvent(type, entry) { this.emitEvent(wowUserEvent(type, entry, this.locationId, this.proofBoundary)); }
     users() { return liveWowPresenceUsers(this.livePresenceEntries(Date.now())); }
     size() { return this.registry.size; }
@@ -136,7 +141,7 @@ class RuntimePresence
         const now = Date.now();
         const previous = this.registry.get(playerId) || null;
         const entry = presenceEntry(input, previous,
-            previous ? previous.wow_user_id : WOW_PRESENCE_USER_ID_BASE + (++this.sequence), now, via);
+            previous ? previous.wow_user_id : this.nextUserId(), now, via);
         const ttl = entry.ttl_ms;
         this.registry.set(playerId, entry);
         this.tombstones.delete(playerId);
@@ -250,6 +255,7 @@ function createRuntimePresence(options)
 {
     const owner = new RuntimePresence(options);
     return {
+        nextUserId : owner.nextUserId.bind(owner),
         registerPresence : owner.registerPresence.bind(owner),
         heartbeatPresence : owner.heartbeatPresence.bind(owner),
         departPresence : owner.departPresence.bind(owner),

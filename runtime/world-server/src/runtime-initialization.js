@@ -1,7 +1,7 @@
 'use strict';
 const { demoDefaultSceneObjects, authoredGraphSceneObjects } = require('./runtime-scene-initialization');
 const { densityFixtureSceneObjects } = require('./runtime-fabric-density');
-const { loadAnchors } = require('./spatial-anchor');
+const { loadAnchors, loadExtents } = require('./spatial-anchor');
 function createRuntimeState(cfg, identity, authoredGraph)
 {
     const AUTHORED_SCENE_OBJECTS = authoredGraphSceneObjects(authoredGraph);
@@ -79,5 +79,10 @@ function runtimeAnchors(cfg)
     if (!anchors.has(1)) throw new Error('the spatial anchor fixture names no graph 1 (this world serves one graph, id 1)');
     return anchors;
 }
+/** Each graph's configured extent, from the same fixture as its anchor; call after runtimeAnchors. */
+function runtimeExtents(cfg)
+{
+    return loadExtents(cfg.spatial_anchor_fixture !== undefined ? cfg.spatial_anchor_fixture : cfg.spatial_anchors);
+}
 
-module.exports = { createRuntimeState, runtimeIdentity, runtimeAnchors };
+module.exports = { createRuntimeState, runtimeIdentity, runtimeAnchors, runtimeExtents };

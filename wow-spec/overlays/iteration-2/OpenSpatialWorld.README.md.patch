@@ -1,10 +1,14 @@
 --- a/specification/OpenSpatialWorld/README.md
 +++ b/specification/OpenSpatialWorld/README.md
-@@ -18,13 +18,15 @@
+@@ -18,13 +18,19 @@
  
  Additional information provided in separate data package
  
-+A world may sit at a path prefix. Its base URL is then that prefix, and its resource URLs are the base plus wow/... (for example https://host.example/w/b/wow/world).
++The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here.
++
++A world MAY sit at a path prefix. Its base URL is then that prefix, and its resource URLs MUST be the base plus wow/... (for example https://host.example/w/b/wow/world).
++
++**Scope.** This API does not define rendering, physics simulation, spatial audio or input-device mapping. Those are matters for each client and engine. A world MAY carry such data in its assets, and this API carries it unchanged.
 +
  - Read world status including live aspects as a standardized container (e.g JSON-LD)
    - URL/wow/world

@@ -1,0 +1,206 @@
+--- a/specification/OpenSpatialWorld/API.yaml
++++ b/specification/OpenSpatialWorld/API.yaml
+@@ -12,7 +12,10 @@
+     Stream authentication. A world MAY require authorization for its stream. The token MUST then be the stream's first message, the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}. The token MUST NOT appear in a URL. The world MUST close a stream without a valid token within 5 seconds. A world MUST refuse a stream from an origin its policy does not allow.\n\n\
+     Data points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer MUST NOT pass through children: a child is named by its own node URL. Reading, conditional reading and subscribing MUST NOT create a user.\n\n\
+     Portals. A portal leads to a world: its destination is that world's entry URL, and the fragment #join=node.{id} names the node where a visitor arrives. Crossing MUST work as plain navigation to the destination. A client MUST first check that the destination answers and, if it does not, MUST refuse with the reason and stay. Seamless crossing, with state carried across, is an OPTIONAL profile. Portals, views and users are placed by a node (node, relative to the base URL). A geoPose they give is derived from that node's placement and MUST equal it. A portal MUST show its destination only as far as the destination's preview allows. A portal inside a preview MUST show closed.\n\n\
+-    Portal events. When a visitor uses a portal, a world that offers an event stream MUST send portal_activate on it, once for each crossing and before the visitor navigates. The event MUST carry portalId (the id of the portal) and userId (the id of the user who crosses), besides type, revision, time and urls, as the PortalActivate schema lists them; its urls name wow/world, which reports the revision."
++    Portal events. When a visitor uses a portal, a world that offers an event stream MUST send portal_activate on it, once for each crossing and before the visitor navigates. The event MUST carry portalId (the id of the portal) and userId (the id of the user who crosses), besides type, revision, time and urls, as the PortalActivate schema lists them; its urls name wow/world, which reports the revision.\n\n\
++    Joining. A world MUST state in its World resource who it is (identity, its base URL), the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A visitor's agent MUST read the World resource from the base URL it is about to post to. Before it discloses anything, it MUST check that identity.base is that base URL. Only then MAY it join with POST /wow/user. The join MUST carry only the claims the world asks for, in a signed manifest, with a holder proof made for this world and this visit. How claims are proven is given by reference. The answer MUST state the outcome (proceed, proceed-in-part or deny) and which of the claims the world asked for were satisfied and which were not. A world MUST record every outcome. The answer MUST NOT grant a permission. Claim values, and anything else about the visitor, MUST NOT appear in a URL. The pointer (the manifest's subject), the signatures, the holder proof and its nonce are made for one world and one visit and MUST NOT be reused for another world; the claim values a world asks for are disclosed to that world.\n\n\
++    Following. A page opened at a world's URL with the fragment #follow MUST join that world as a new or existing user, as a page opened at that URL does. The fragment's verb MUST be matched case-insensitively. With #follow=user.{id} the client MUST place the visitor at the node that places that user (User.node) and MUST keep the visitor there while that user moves. When that user is no longer present, the client SHOULD stop following and leave the visitor where it stands.\n\n\
++    Departing. DELETE /wow/user/{userId} MUST end that user's visit: afterwards that user MUST no longer be present. A world that offers an event stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of that user's join outcome."
+   version: '0.0.1'
+ 
+ servers:
+@@ -96,18 +99,64 @@
+       operationId: deleteUserById
++      description: >-
++        MUST end the user's visit: afterwards the user MUST no longer be present. A world that offers an event
++        stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of the
++        user's join outcome.
+       parameters:
+         - name: userId
+           in: path
+           description: user id to delete
+           required: true
+           schema:
+             type: integer
+       responses:
+         '200':
+           description: User deleted
+         '400':
+           description: Invalid user value
+         default:
+           description: Unexpected error
++  /wow/user:
++    post:
++      tags:
++        - user
++      summary: Joins the world as a user, presenting only the claims the world asks for
++      operationId: joinWorld
++      description: >-
++        The body MUST carry a signed manifest holding only the claims this world's World resource asks for,
++        and a holder proof made for this world and this visit. The answer is the outcome: proceed,
++        proceed-in-part or deny, with the claims the world asked for that were satisfied and those that
++        were not, each marked required or optional. The world MUST record every outcome. The answer MUST NOT
++        grant a permission. How claims are proven is given by reference; the World API defines no claim format.
++        Claim values, and anything else about the visitor, MUST NOT appear in a URL.
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/UserJoin'
++      responses:
++        '201':
++          description: proceed or proceed-in-part; the visitor is now a User of this world
++          content:
++            application/wow+json:
++              schema:
++                $ref: '#/components/schemas/JoinAnswer'
++            application/json:
++              schema:
++                $ref: '#/components/schemas/JoinAnswer'
++        '400':
++          description: the body is not a join
++        '403':
++          description: deny, with the reason and the claims not satisfied
++          content:
++            application/wow+json:
++              schema:
++                $ref: '#/components/schemas/JoinAnswer'
++            application/json:
++              schema:
++                $ref: '#/components/schemas/JoinAnswer'
++        '404':
++          description: this world takes no joins
+ 
+ #--- View ---
+   /wow/view/{viewId}:
+@@ -545,6 +594,40 @@
+             image:
+               type: string
+               description: An image of this world.
++        identity:
++          type: object
++          description: >-
++            Who this world is: the base URL it stands behind. A visitor's agent MUST check that it is the base
++            URL it is about to post to before it discloses anything.
++          properties:
++            base:
++              type: string
++              description: This world's base URL.
++            label:
++              type: string
++        claims:
++          type: array
++          description: >-
++            The claims this world asks a visitor for when the visitor joins (POST /wow/user), each marked
++            required or optional. A visitor's agent MUST send only these. When issuers is present, the claim
++            MUST count only when one of those issuers signed it. The claim names are provisional.
++          items:
++            type: object
++            required: [name, required]
++            properties:
++              name:
++                type: string
++              required:
++                type: boolean
++              issuers:
++                type: array
++                items:
++                  type: string
++        issues:
++          type: array
++          description: The credential types this world issues. It MAY be empty.
++          items:
++            type: string
+ 
+     User: 
+       type: object
+@@ -563,6 +646,15 @@
+           description: >-
+             The node that places the user, relative to the world's base URL. A geoPose given here is derived
+             from that node's placement and MUST equal it.
++        pilot:
++          type: string
++          enum: [human, agent, hybrid]
++          description: >-
++            Who is at the controls, as the visitor stated it when joining: human (a person), agent (software
++            acting alone) or hybrid (a person and software together). A world MUST copy it from the join and
++            MUST NOT supply a value the visitor did not state. A world and a client MUST treat it as the
++            visitor's statement, not as proof of who is at the controls. A client
++            MUST show a user whose pilot is hybrid as an agent wherever it shows that user's name or label.
+ 
+     View: 
+       type: object
+@@ -600,6 +692,69 @@
+             The node that places the portal, relative to the world's base URL. A geoPose given here is derived
+             from that node's placement and MUST equal it.
+ 
++    UserJoin:
++      type: object
++      required: [manifest, proof]
++      description: >-
++        A join. manifest MUST be a signed manifest that carries only the claims the world asks for. proof
++        MUST be the holder's proof that it controls the manifest's subject, made for this world (its base URL
++        is the audience) and this visit. Their formats are given by reference. pilot MUST be the visitor's
++        statement of who is at the controls: human, agent or hybrid. A world MUST answer a join without a
++        pilot statement, or with another value, with deny and the reason; it MUST NOT supply a value the
++        visitor did not state.
++      properties:
++        manifest:
++          type: object
++        proof:
++          type: object
++        pilot:
++          description: The visitor's pilot statement, human, agent or hybrid, as described above.
++
++    JoinAnswer:
++      type: object
++      required: [outcome, satisfied, not_satisfied]
++      description: >-
++        The outcome of a join. A required claim not satisfied MUST give deny. When every required claim is
++        satisfied, an optional claim not satisfied MUST give proceed-in-part. Otherwise the outcome MUST be
++        proceed. Each claim the world asked for MUST be listed once, as satisfied or not satisfied. The
++        answer MUST NOT grant a permission.
++      properties:
++        outcome:
++          type: string
++          enum: [proceed, proceed-in-part, deny]
++        reason:
++          type: string
++        satisfied:
++          type: array
++          items:
++            type: object
++            required: [name, required]
++            properties:
++              name:
++                type: string
++              required:
++                type: boolean
++              trust:
++                type: string
++                description: self-asserted, or issuer-verified when an issuer the world lists for that claim (issuers) signed it. A credential from any other issuer MUST leave the claim self-asserted.
++        not_satisfied:
++          type: array
++          items:
++            type: object
++            required: [name, required]
++            properties:
++              name:
++                type: string
++              required:
++                type: boolean
++              reason:
++                type: string
++              trust:
++                type: string
++        user:
++          type: string
++          description: The User the visitor now is, relative to the world's base URL (not on deny).
++
+     Spatial: 
+       type: object
+       required: [id, rootNodeID]

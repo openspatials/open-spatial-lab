@@ -3,13 +3,13 @@
 /*
  * Iteration 2 proof: including a graph from another world.   Run: npm run arch-i2-proof
  *
- *   I1-I3    the content link, placement and ownership      (tools/arch-i2/checks-link.js)
+ *   I1-I3, I13  the content link, placement, ownership, and verifying an included part  (tools/arch-i2/checks-link.js)
  *   I4, I4b  conditional reads and lost updates             (tools/arch-i2/checks-reads.js)
  *   I5-I8b   unreachable, refused, cycles, depth and budget  (tools/arch-i2/checks-failures.js)
  *   I9, I10  a whole world, and frames                      (tools/arch-i2/checks-world.js)
  *   I12      the included world's environment               (tools/arch-i2/checks-world.js)
  *   I11      a cross-origin browser read (in a browser)       (tools/arch-i2/checks-browser.js)
- *   O1, O2   the proposed Web of Worlds edits                (tools/arch-i2/checks-overlay.js)
+ *   O1-O4    the proposed Web of Worlds edits and their conformance vocabulary  (tools/arch-i2/checks-overlay.js)
  *
  * Headless, in Node, except I11. World A and world B are lab world servers on two local origins,
  * with B at the path prefix /w/b/, on isolated ports from 21000 up (set OSL_ARCH_I2_PORT_A to change

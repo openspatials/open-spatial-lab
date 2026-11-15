@@ -32,6 +32,7 @@ import {
   loadGltfSceneAsset,
 } from "./avatar-equipment-layer.js";
 import { buildWowScene, mountWowSceneAssets } from "./wow-scene.mjs";
+import { presentHandshake, variantForUri } from "./wow-handshake-mount.mjs";
 import { createMainDemoWiring } from "./main-demo-wiring.mjs";
 import { followFooterHeight } from "./main-demo-footer.mjs";
 import { ringColorsOf, WORLDS, X3D_PORTALS } from "./worlds-list.mjs";
@@ -1098,6 +1099,50 @@ async function mountWowAvatar(resolved, built, loadErr) {
   return avatarWalk;
 }
 
+// Iteration 5: the identity handshake with the shown world, when it states one (web/wow-handshake-mount.mjs). The
+// page only selects, through its own setters, the avatar variant and the preferred height the world accepted.
+function presentWowHandshake(resolved) {
+  const graphHref = resolved?.graph_url ? new URL(resolved.graph_url, location.href).href : null;
+  if (resolved?.source !== "canonical-walk" || !graphHref || !/^https?:/i.test(graphHref)) return;
+  void presentHandshake({
+    hostUrl: graphHref,
+    pageUrl: location.href,
+    fetch: window.fetch.bind(window),
+    document,
+    window,
+    worldLabel: resolved.graph?.title || graphHref,
+    select: (user) => {
+      const applied = { variant: null, preferred_height_m: null };
+      if (applicationDisposed || !adapter?.state?.avatar) return applied;
+      const variant = variantForUri(user.AvatarURI, AVATAR_VARIANTS, location.href);
+      if (variant && adapter.setAvatarVariant(variant).ok) applied.variant = variant;
+      const height = user.osl_preferences?.preferred_height_m;
+      if (height != null) {
+        const r = adapter.setPreferredHeight(height);
+        if (r.ok) applied.preferred_height_m = r.preferred_height_m;
+      }
+      equipmentLayer?.setAvatar(adapter.state.avatar);
+      return applied;
+    },
+    // What the page draws: the avatar the layer loaded and its measured height.
+    rendered: () => {
+      const st = equipmentLayer?.status;
+      return st
+        ? {
+            variant: st.avatar_variant,
+            asset: st.avatar_asset_uri,
+            loaded: !!(st.avatar_static_glb_loaded || st.real_vrm_loaded),
+            switching: !!st.avatar_switch_in_flight,
+            preferred_height_m: st.avatar_preferred_height_m,
+            height_applied: st.avatar_height_applied === true,
+            rendered_height_m: st.avatar_model_height_m ?? null,
+          }
+        : null;
+    },
+    logLine,
+  });
+}
+
 function publishWowDriver(
   resolved,
   built,
@@ -1181,6 +1226,7 @@ async function mainWowRead() {
     });
   const avatarWalk = await mountWowAvatar(resolved, built, loadError);
   requireActiveBoot(() => applicationDisposed);
+  presentWowHandshake(resolved);
   publishWowDriver(resolved, built, alternateRuntime, renderState, avatarWalk);
 }
 
@@ -1356,7 +1402,7 @@ async function prepareLiveSession() {
       }
     }
     if (!restorable && wowUrlIntent)
-      await mainDemo.arriveAtJoin(wowUrlIntent.aspectId);
+      await mainDemo.arriveAtJoin(wowUrlIntent.aspectId, wowUrlIntent.intent);
     requireActiveBoot(() => applicationDisposed);
   }
 

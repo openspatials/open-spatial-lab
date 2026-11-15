@@ -65,6 +65,8 @@ const VALIDATE_MODULE_PATH = path.join(REPO_ROOT, 'wow-spec', 'validate');
 // Must match the $id `wow-spec/validate.js` registers its component bundle
 // under; asserted at build time so a rename there fails loudly here.
 const BUNDLE_ID = 'osl-wow-spec';
+// The same components in their request form (see requestForm), registered beside the bundle above.
+const REQUEST_BUNDLE_ID = BUNDLE_ID + '-request';
 const WOW_PREFIX = '/wow/';
 const JSON_MEDIA_TYPE = 'application/json';
 const HTTP_METHODS = [ 'get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace' ];
@@ -158,12 +160,14 @@ function schemaDisplayName(schema)
 
 /**
  * Rewrite intra-document `#/components/schemas/X` refs onto the bundle id that
- * wow-spec/validate.js registered, so a schema lifted OUT of `paths` still
- * resolves its component refs when compiled standalone.
+ * wow-spec/validate.js registered (or onto `bundleId`, such as the request
+ * bundle), so a schema lifted OUT of `paths` still resolves its component refs
+ * when compiled standalone.
  */
-function rewriteRefs(node)
+function rewriteRefs(node, bundleId)
 {
-    if (Array.isArray(node)) return node.map(rewriteRefs);
+    const bundle = bundleId || BUNDLE_ID;
+    if (Array.isArray(node)) return node.map((item) => rewriteRefs(item, bundle));
     if (node && typeof node === 'object')
     {
         const out = {};
@@ -171,12 +175,34 @@ function rewriteRefs(node)
         {
             const value = node[key];
             if (key === '$ref' && typeof value === 'string' && value.indexOf('#/components/schemas/') === 0)
-                out[key] = BUNDLE_ID + value;
-            else out[key] = rewriteRefs(value);
+                out[key] = bundle + value;
+            else out[key] = rewriteRefs(value, bundle);
         }
         return out;
     }
     return node;
+}
+
+/**
+ * The REQUEST form of a schema. OpenAPI 3.0.3: a property that is readOnly and
+ * listed in `required` is required only in responses. So every `required` list
+ * loses its readOnly members (a list left empty is dropped). Responses are
+ * validated against the schema as written.
+ */
+function requestForm(node)
+{
+    if (Array.isArray(node)) return node.map(requestForm);
+    if (!node || typeof node !== 'object') return node;
+    const out = {};
+    for (const key of Object.keys(node)) out[key] = requestForm(node[key]);
+    if (Array.isArray(node.required) && node.properties && typeof node.properties === 'object')
+    {
+        const kept = node.required.filter((name) =>
+            !(node.properties[name] && node.properties[name].readOnly === true));
+        if (kept.length) out.required = kept;
+        else delete out.required;
+    }
+    return out;
 }
 
 /** OpenAPI path template -> anchored RegExp over a URL pathname. */
@@ -318,6 +344,8 @@ function createContractEnforcer(opts)
                 if (!validator.ajv || !validator.ajv.getSchema(BUNDLE_ID))
                     throw new Error('wow-spec ajv component bundle `' + BUNDLE_ID
                         + '` is not registered (validate.js BUNDLE_ID drift)');
+                validator.ajv.addSchema({ $id : REQUEST_BUNDLE_ID,
+                    components : { schemas : requestForm(doc.components.schemas) } });
                 ajvState = { validator, compiled : new Map(), error : null };
             } catch (e) {
                 ajvState = { validator : null, compiled : null, error : e };
@@ -326,7 +354,7 @@ function createContractEnforcer(opts)
         return ajvState;
     }
 
-    function runValidate(cacheKey, schema, name, data)
+    function runValidate(cacheKey, schema, name, data, bundleId)
     {
         const state = ajvOrError();
         if (state.error)
@@ -336,7 +364,7 @@ function createContractEnforcer(opts)
             let fn = state.compiled.get(cacheKey);
             if (!fn)
             {
-                fn = state.validator.ajv.compile(rewriteRefs(schema));
+                fn = state.validator.ajv.compile(rewriteRefs(schema, bundleId));
                 state.compiled.set(cacheKey, fn);
             }
             const valid = fn(data);
@@ -391,7 +419,8 @@ function createContractEnforcer(opts)
         const entry = variant ? { schema : variant.schema, name : variant.schema_name } : op.request;
         if (!entry) return null;
         const key = 'req:' + op.method + ' ' + op.template + ':' + entry.name;
-        const r = runValidate(key, entry.schema, entry.name, body);
+        // A request body is measured against the request form: readOnly members are not required.
+        const r = runValidate(key, requestForm(entry.schema), entry.name, body, REQUEST_BUNDLE_ID);
         r.variant = variant ? variant.id : null;
         r.operation = op.method + ' ' + op.template;
         return r;
@@ -533,8 +562,10 @@ module.exports = {
     schemaDisplayName,
     templateToRegex,
     rewriteRefs,
+    requestForm,
     buildOperations,
     CONTRACT_JSON_PATH,
     BUNDLE_ID,
+    REQUEST_BUNDLE_ID,
     DECLARED_VARIANTS,
 };

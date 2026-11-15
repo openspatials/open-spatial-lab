@@ -127,6 +127,7 @@ import {
   resolveBoundedPreview,
 } from "./main-demo-portals.mjs";
 import { arrivalAt } from "./wow-portal.mjs";
+import { userNodeAt } from "./wow-portal-mount.mjs";
 import {
   PRESENCE_TIMING,
 } from "./live-adapter-presence-controller.mjs";
@@ -1125,8 +1126,10 @@ export class LiveAdapter extends EventTarget {
     publishGroundSurface(this.state.controls, query);
   }
 
-  applyRestoredPose(pose) {
-    if (this.role !== "player" || !this._startsEmbodied || this.state.phase !== HANDOFF_PHASES.IDLE) return false;
+  applyRestoredPose(pose, opts = {}) {
+    // A follow (`#follow=user.{id}`) moves the player during the visit, in the phases the player can move in (stepAvatar).
+    const phases = opts.duringVisit ? [HANDOFF_PHASES.IDLE, HANDOFF_PHASES.ARRIVED, HANDOFF_PHASES.PORTAL_ACTIVE] : [HANDOFF_PHASES.IDLE];
+    if (this.role !== "player" || !this._startsEmbodied || !phases.includes(this.state.phase)) return false;
     const restored = restoredAvatarPose(pose, this.world?.avatar, this._airportWalkableSurface);
     if (!restored) return false;
     const { position, yaw, ground } = restored;
@@ -1145,7 +1148,7 @@ export class LiveAdapter extends EventTarget {
       this.state.controls.jump_height_m = 0;
       if (this.state.avatar) this.state.avatar.locomotion = { ...this.state.controls };
     }
-    if (this._navigator) {
+    if (this._navigator && !opts.duringVisit) {
       this._navigator.restored_pose = {
         source: "manual_reload_session_restore",
         active_endpoint_key: this.activeEndpointKey,
@@ -1267,17 +1270,35 @@ export class LiveAdapter extends EventTarget {
     });
   }
 
-  /** Put the embodied player at node `nodeId` of the active world (a page opened at `#join=node.{n}`). */
-  async applyJoinArrival(nodeId) {
+  /**
+   * Put the embodied player at a node of the active world: `target` is a node id (a page opened at `#join=node.{n}`),
+   * `{ node }`, or `{ user }` (a page opened at `#follow=user.{id}`: the node that places that user, read from its User
+   * resource). With `opts.from` (an earlier arrival), the player is moved only when the node has moved since; the
+   * answer then says `moved`. A followed user who is no longer in the world answers `gone`.
+   */
+  async applyJoinArrival(target, opts = {}) {
+    const spec = target !== null && typeof target === "object" ? target : { node: target };
     const world = this.world;
     const navigation = this._worldNavigationOperation;
     const current = () => !this._disposed && this.world === world && this._worldNavigationOperation === navigation;
     const address = this.endpoint && this.endpoint.backend_base_url ? `${this.endpoint.backend_base_url}/` : null;
+    let nodeId = spec.node;
+    if (spec.user != null) {
+      const placed = await userNodeAt(address, spec.user, { fetch: (url, init) => fetch(url, init) });
+      if (!current()) return { arrived: false, reason: "navigation_retired" };
+      if (placed.node == null) return { arrived: false, ...(placed.gone != null ? { gone: placed.gone } : {}), reason: placed.reason };
+      nodeId = placed.node;
+    }
     const arrival = address ? await arrivalAt(address, Number(nodeId), { fetch: (url, init) => fetch(url, init) }).catch(() => null) : null;
     if (!current()) return { arrived: false, reason: "navigation_retired" };
-    if (!arrival) return { arrived: false, reason: `arrival node ${nodeId} not found` };
+    if (!arrival) return { arrived: false, gone: spec.user != null, reason: spec.user != null ? `user ${spec.user}'s node ${nodeId} not found` : `arrival node ${nodeId} not found` };
     const pose = poseOfMatrix(arrival.matrix);
-    return { arrived: this.applyRestoredPose({ position: pose.position, rotation_y: pose.yaw }), node: arrival.node, ...pose };
+    const from = opts.from;
+    if (from && Array.isArray(from.position) && from.node === arrival.node && Math.abs(from.yaw - pose.yaw) < 1e-6
+      && pose.position.every((v, i) => Math.abs(v - from.position[i]) < 1e-6)) {
+      return { arrived: true, moved: false, node: arrival.node, ...pose };
+    }
+    return { arrived: this.applyRestoredPose({ position: pose.position, rotation_y: pose.yaw }, { duringVisit: !!from }), moved: true, node: arrival.node, ...pose };
   }
 
   /** True when the active world's portals differ from the portals shown (web/main-demo-portals.mjs, portalSignature). */

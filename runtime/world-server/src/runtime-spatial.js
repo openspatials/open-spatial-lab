@@ -4,10 +4,11 @@ const { createSpatialGraphStore, translationMatrix } = require('./spatial-graph'
 /** Selects the existing graph stores and preserves mutation publication order. */
 class RuntimeSpatial
 {
-    constructor({ worldId, locationId, title, anchors, seedBuilder, publish, emitEvent, proofBoundary })
+    constructor({ worldId, locationId, title, anchors, extents, seedBuilder, publish, emitEvent, proofBoundary })
     {
         this.locationId = locationId;
         this.anchors = anchors;
+        this.extents = extents || new Map();
         this.publish = publish;
         this.emitEvent = emitEvent;
         this.proofBoundary = proofBoundary;
@@ -53,11 +54,14 @@ class RuntimeSpatial
         const root = store.getRoot({ form : 'flat' });
         const rootNodeID = root ? root.id : store.rootId;
         const anchor = this.anchors.get(store.graphId);
+        const extent = this.extents.get(store.graphId);
         return {
             id : store.graphId,
             rootNodeID : rootNodeID,
             // the graph's anchor, as read from the fixture; a graph with no anchor has no geoPose
             ...(anchor ? { geoPose : JSON.parse(JSON.stringify(anchor)) } : {}),
+            // the box the graph occupies, as configured; a graph with no configured extent has none
+            ...(extent ? { extent : JSON.parse(JSON.stringify(extent)) } : {}),
             // LABELED, NON-CANONICAL additive members.
             webofworlds_extension : {
                 x_osl_extension : true,

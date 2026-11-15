@@ -76,4 +76,10 @@ function placed(x, y, z, deg = 0, scale = 1) {
   return [c, 0, -s, 0, 0, scale, 0, 0, s, 0, c, 0, x, y, z, 1];
 }
 
-module.exports = { ...i3, portalClient, reference, flatNode, chainOf, allNodes, withinRadius, getWow, distance, placed };
+/**
+ * A lab world's configuration whose preview has both forms: its room's view node with a radius (an arrival node,
+ * a radius and a preview URL), and an image.
+ */
+const BOTH_FORMS_WORLD = { room: { size_m: [12, 12] }, preview: { node_label: 'Room view', radius_m: 6, image: 'preview.png' } };
+
+module.exports = { ...i3, BOTH_FORMS_WORLD, portalClient, reference, flatNode, chainOf, allNodes, withinRadius, getWow, distance, placed };

@@ -16,7 +16,7 @@ import { expect, fail, fixed, runBehavior, sleep } from "../tools/behavior/kit.m
 import { CODE, createLab, plantFaults } from "../tools/arch-i4/main-demo/lab.mjs";
 
 // One folder per run, so a later run never overwrites an earlier run's evidence.
-const SHOTS = join("/Volumes/2tb-ssd-turbo/scratch/x3d-optics-20261110/shots", new Date().toISOString().replace(/[:.]/g, "-"));
+const SHOTS = join(process.env.OSL_X3D_SHOTS || join(CODE, "diagnostics", "x3d-portal-optics"), new Date().toISOString().replace(/[:.]/g, "-"));
 const ANCHOR = "anchor-portal-world.x3d.json";
 const SOFT = "soft-body.x3d.json";
 const KEY = "x3d-document:PortalAnchor";

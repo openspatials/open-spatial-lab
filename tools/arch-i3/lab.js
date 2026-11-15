@@ -7,12 +7,11 @@
 
 const fs = require('fs');
 const path = require('path');
-const net = require('net');
-const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { pathToFileURL } = require('url');
 const { ROOT, httpReq, makeTempDir, staleEdit } = require('../arch-i1/lib');
 const w = require('../arch-i2/worlds');
+const { openEventStream } = require('../wow-conformance/wire-checks');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -82,53 +81,11 @@ function requestLog(world) {
 
 /**
  * A raw RFC 6455 client, for what a browser client cannot do (choose its Origin header) and to time a
- * close. Returns { status, messages, closedAt, send(text), close() }.
+ * close. Returns { status, messages, closedAt, send(text), close() }. The client itself is shared with the
+ * conformance corpus (tools/wow-conformance/wire-checks.js openEventStream), which takes a full URL.
  */
 function rawStream(port, pathWithQuery, headers) {
-  return new Promise((resolve) => {
-    const socket = net.connect(port, '127.0.0.1');
-    const key = crypto.randomBytes(16).toString('base64');
-    const out = { status: null, messages: [], closed: false, closedAt: null, openedAt: Date.now(), socket };
-    let buffer = Buffer.alloc(0);
-    let upgraded = false;
-    out.send = (text) => {
-      const payload = Buffer.from(text, 'utf8');
-      const mask = crypto.randomBytes(4);
-      const masked = Buffer.from(payload.map((b, i) => b ^ mask[i % 4]));
-      const header = payload.length < 126 ? Buffer.from([0x81, 0x80 | payload.length]) : Buffer.from([0x81, 0x80 | 126, payload.length >> 8, payload.length & 0xff]);
-      socket.write(Buffer.concat([header, mask, masked]));
-    };
-    out.close = () => { try { socket.destroy(); } catch (e) { /* gone */ } };
-    socket.on('connect', () => {
-      const extra = Object.entries(headers || {}).map(([k, v]) => k + ': ' + v + '\r\n').join('');
-      socket.write('GET ' + pathWithQuery + ' HTTP/1.1\r\nHost: 127.0.0.1:' + port + '\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ' + key + '\r\nSec-WebSocket-Version: 13\r\n' + extra + '\r\n');
-    });
-    socket.on('data', (chunk) => {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (!upgraded) {
-        const end = buffer.indexOf('\r\n\r\n');
-        if (end === -1) return;
-        out.status = Number(/^HTTP\/1\.1 (\d+)/.exec(buffer.slice(0, end).toString())[1]);
-        buffer = buffer.slice(end + 4);
-        upgraded = true;
-        resolve(out);
-      }
-      while (buffer.length >= 2) {
-        const opcode = buffer[0] & 0x0f;
-        let len = buffer[1] & 0x7f;
-        let at = 2;
-        if (len === 126) { if (buffer.length < 4) return; len = buffer.readUInt16BE(2); at = 4; }
-        else if (len === 127) { if (buffer.length < 10) return; len = Number(buffer.readBigUInt64BE(2)); at = 10; }
-        if (buffer.length < at + len) return;
-        const payload = buffer.slice(at, at + len);
-        buffer = buffer.slice(at + len);
-        if (opcode === 0x8) { out.closeCode = payload.length >= 2 ? payload.readUInt16BE(0) : null; out.closedAt = out.closedAt || Date.now(); }
-        if (opcode === 0x1) { try { out.messages.push(JSON.parse(payload.toString('utf8'))); } catch (e) { /* not JSON */ } }
-      }
-    });
-    socket.on('close', () => { out.closed = true; out.closedAt = out.closedAt || Date.now(); if (!upgraded) resolve(out); });
-    socket.on('error', () => { out.closed = true; if (!upgraded) resolve(out); });
-  });
+  return openEventStream('http://127.0.0.1:' + port + pathWithQuery, headers);
 }
 
 /**

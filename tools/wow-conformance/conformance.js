@@ -25,6 +25,9 @@
 const http = require('http');
 const crypto = require('crypto');
 const fx = require('./fixtures');
+// The wire halves of the overlay checks (i1 U3, i2 O2, i3 W2, i4 W2 and P10, i5 W2 and SE2), each a function of a
+// base URL; runWireSuite runs them against one world. The arch-iN proofs call the same functions.
+const wire = require('./wire-checks');
 
 // The first graph of every world server. A graph id is an integer, as the API types it.
 const GRAPH_ID = 1;
@@ -69,7 +72,7 @@ const ENDPOINTS = [
     // Labeled NON-CANONICAL realtime convention (OSL-WOW-CONTRACT §6). Out of
     // the OpenAPI HTTP contract on purpose; shape asserted ourselves..
     { id: 'events', method: 'WS', path: '/events', kind: 'events',
-        convention: 'labeled-non-canonical', contractOnly: true,
+        convention: 'event-stream (services.events)', contractOnly: true,
         fixture: fx.eventsEnvelopes, trackedBy: 'runtime' },
 ];
 
@@ -350,11 +353,15 @@ function honestyCheck(kind, payload)
 }
 
 // HTTP / WS drivers
+// A path is resolved below the base URL, so a world at a path prefix (http://host/w/b) is asked for
+// http://host/w/b/wow/world, not http://host/wow/world.
+const resolveUrl = (baseUrl, p) => new URL(String(baseUrl).replace(/\/+$/, '') + p);
+
 function httpRequestJson(baseUrl, method, p, body)
 {
     return new Promise((resolve) => {
         let u;
-        try { u = new URL(p, baseUrl); } catch (e) { return resolve({ error: 'bad url: ' + e.message }); }
+        try { u = resolveUrl(baseUrl, p); } catch (e) { return resolve({ error: 'bad url: ' + e.message }); }
         const payload = body != null ? Buffer.from(JSON.stringify(body), 'utf8') : null;
         const req = http.request({
             host: u.hostname, port: u.port, path: u.pathname + u.search, method,
@@ -381,7 +388,7 @@ function probeWs(baseUrl, p, timeoutMs)
 {
     return new Promise((resolve) => {
         let u;
-        try { u = new URL(p, baseUrl); } catch (e) { return resolve({ upgraded: false, detail: 'bad url' }); }
+        try { u = resolveUrl(baseUrl, p); } catch (e) { return resolve({ upgraded: false, detail: 'bad url' }); }
         const key = crypto.randomBytes(16).toString('base64');
         const req = http.request({
             host: u.hostname, port: u.port, path: u.pathname, method: 'GET',
@@ -457,7 +464,7 @@ async function runWowConformance(opts)
         if (ep.kind === 'events') {
             const per = (fixtureData || []).map(checkEventEnvelope);
             const ok = per.every(p => p.ok);
-            r.fixture = { validated: 'WS /events envelope (labeled non-canonical; self-asserted shape)',
+            r.fixture = { validated: 'WS /events envelope (the event stream, services.events; self-asserted shape)',
                 valid: ok, errors: ok ? null : per.flatMap(p => p.problems) };
             if (!ok) problems.push(ep.id + ' fixture: events envelope shape invalid (contract/harness incoherent)');
         } else if (ep.requestBody) {
@@ -495,9 +502,9 @@ async function runWowConformance(opts)
             if (ep.method === 'WS') {
                 const probe = await probeWs(baseUrl, ep.path, 2500);
                 r.live = { attempted: true, upgraded: probe.upgraded, detail: probe.detail };
-                if (probe.upgraded) { r.status = 'conformant'; r.reason = 'WS /events upgraded (labeled non-canonical convention)'; }
+                if (probe.upgraded) { r.status = 'conformant'; r.reason = 'WS /events upgraded (the event stream, services.events)'; }
                 else { r.status = 'not-implemented'; r.reason = 'WS /events not served (' + probe.detail
-                    + ') — labeled non-canonical convention, tracked by ' + (ep.trackedBy || 'runtime'); }
+                    + ') — the event stream (services.events), tracked by ' + (ep.trackedBy || 'runtime'); }
             } else if (ep.writes && !opts.allowWrites) {
                 // A write is never sent to a server this gate did not start.
                 r.live = { attempted: false, http_status: null };
@@ -840,8 +847,8 @@ async function runWowConformance(opts)
             endpoint_status: e.status || null,
             why: e.live.upgraded === true
                 ? 'live OBSERVED (protocol upgrade), but NO response body was schema-validated — '
-                    + 'WS /events is a labeled non-canonical convention, deliberately outside the '
-                    + 'OpenAPI HTTP contract. Counting it as a validated endpoint would be a false green.'
+                    + 'WS /events is the event stream (services.events), a WebSocket that the OpenAPI HTTP paths '
+                    + 'do not describe. Counting it as a validated endpoint would be a false green.'
                 : 'live response was NOT validated: '
                     + (e.live.error ? 'transport error ' + e.live.error : 'HTTP ' + e.live.http_status)
                     + '. This endpoint contributes NOTHING to endpoints_live_validated.',
@@ -909,7 +916,7 @@ async function runWowConformance(opts)
             '.msf engine-trust / tamper-diagnostics conformance is OUT OF SCOPE (deferred to the later .msf-inclusive build).',
             'standards_conformance stays false on every /wow response — no cosmetic green.',
             'native_teleportxr_teleport:false; first_party_teleportxr_browser_rendering:false.',
-            'WS /events is a LABELED non-canonical convention, NOT part of the OpenAPI HTTP contract.',
+            'WS /events is the event stream (services.events), as the World API\'s Events paragraph describes it; it is a WebSocket, not one of the OpenAPI HTTP paths, and this run validates no event body against a schema.',
             'Since iteration 1 the /wow/spatial/* payloads are the canonical shapes by default: the `Spatial` '
                 + 'resource at /wow/spatial/{spatialID} and the canonical `Node`, children embedded, at /node/{nodeId}. '
                 + 'This run validated them against the contract that OSL itself maintains, which carries the iteration 1 '
@@ -934,4 +941,4 @@ async function runWowConformance(opts)
 }
 
 module.exports = { runWowConformance, ENDPOINTS, DECLARED_DIVERGENCES, surfaceExtensions, driftCheck,
-    honestyCheck, extensionSchemaRegistry, probeWs, httpRequestJson };
+    honestyCheck, extensionSchemaRegistry, probeWs, httpRequestJson, runWireSuite: wire.runWireSuite, wire };

@@ -4,7 +4,8 @@
  * Reading and patching the vendored upstream API descriptions for the iteration 1 proof.
  *
  *   applyUnifiedDiff   applies a unified diff to a text with no outside tool, so a mutant is an edit of the patch text
- *   loadPatched        the vendored World and Asset descriptions, with the overlay patches applied and parsed
+ *   patchText          the text of one overlay patch, of one GeoPose form, with a mutant's edit applied
+ *   loadPatched        the vendored World and Asset descriptions, with the overlay patches of one GeoPose form applied and parsed
  *   pathParameterProblems   the OpenAPI rule that every {name} in a path is declared, and nothing else is
  *   refProblems        every internal $ref resolves
  */
@@ -17,6 +18,13 @@ const { ROOT } = require('./lib');
 
 const UPSTREAM = path.join(ROOT, 'wow-spec', 'upstream', 'wowapi-d39a1a0');
 const OVERLAY = path.join(ROOT, 'wow-spec', 'overlays', 'iteration-1');
+/**
+ * The two forms of the iteration 1 text, kept side by side until the GeoPose rotation question is decided.
+ * `with` carries the two rotation sentences (the rotation order and the axes at zero angles); `without` leaves
+ * them to OGC GeoPose 1.0 Basic-YPR. Everything else in the two forms is the same text.
+ */
+const FORMS = { with: OVERLAY, without: path.join(OVERLAY, 'without-rotation-sentences') };
+const PATCH_FILES = { world: 'OpenSpatialWorld.API.yaml.patch', asset: 'OpenSpatialAsset.API.yaml.patch' };
 const WORLD = 'specification/OpenSpatialWorld/API.yaml';
 const ASSET = 'specification/OpenSpatialAsset/API.yaml';
 
@@ -59,17 +67,25 @@ function applyUnifiedDiff(original, patchText) {
   return lines.join('\n');
 }
 
+/** The text of one overlay patch (`name` world or asset) of one form, with `edits[name]` applied when given. */
+function patchText(name, form, edits) {
+  const dir = FORMS[form || 'with'];
+  if (!dir) throw new Error('unknown GeoPose form: ' + form);
+  let patch = read(path.join(dir, PATCH_FILES[name]));
+  if (edits && edits[name]) patch = edits[name](patch);
+  return patch;
+}
+
 /**
- * The World and Asset descriptions with the overlay patches applied. `edits` swaps in patch text,
- * for a mutant: { world: (patchText) => patchText, asset: (patchText) => patchText }.
+ * The World and Asset descriptions with the overlay patches of one form applied (`form` with, the default,
+ * or without). `edits` swaps in patch text, for a mutant: { world: (patchText) => patchText, asset: (patchText) => patchText }.
  */
-function loadPatched(edits) {
+function loadPatched(edits, form) {
   edits = edits || {};
   const out = {};
-  for (const [name, rel, patchFile] of [['world', WORLD, 'OpenSpatialWorld.API.yaml.patch'], ['asset', ASSET, 'OpenSpatialAsset.API.yaml.patch']]) {
+  for (const [name, rel] of [['world', WORLD], ['asset', ASSET]]) {
     const original = read(path.join(UPSTREAM, rel));
-    let patch = read(path.join(OVERLAY, patchFile));
-    if (edits[name]) patch = edits[name](patch);
+    const patch = patchText(name, form, edits);
     const text = applyUnifiedDiff(original, patch);
     out[name] = { original, text, doc: yaml.load(text), originalDoc: yaml.load(original) };
   }
@@ -132,4 +148,4 @@ function withoutLabels(node) {
 
 const squash = (text) => String(text).replace(/\s+/g, ' ').trim();
 
-module.exports = { UPSTREAM, OVERLAY, WORLD, ASSET, read, sha256, applyUnifiedDiff, loadPatched, pathParameterProblems, refProblems, withoutLabels, squash, yaml };
+module.exports = { UPSTREAM, OVERLAY, FORMS, PATCH_FILES, WORLD, ASSET, read, sha256, applyUnifiedDiff, patchText, loadPatched, pathParameterProblems, refProblems, withoutLabels, squash, yaml };

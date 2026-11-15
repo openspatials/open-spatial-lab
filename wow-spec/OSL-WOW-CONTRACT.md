@@ -67,7 +67,12 @@ Pinned to upstream **`WoWAPI@d39a1a0`** ("fixed node children type", 2026-05-21)
 
 > **The `/wow/spatial/*` payloads are the canonical shapes by default (iteration 1).**
 > `GET /wow/spatial/{spatialID}` returns the **`Spatial`** descriptor `{id, rootNodeID,
-> geoPose}`, and the graph id is an **integer**. The root node is at
+> geoPose}`, and the graph id is an **integer**. The descriptor carries `extent` `{min, max}`
+> (meters, the graph's frame) when the world's configuration gives the graph one. On every
+> axis, `min` MUST NOT exceed `max`, and a reader MUST treat an extent whose `min` exceeds
+> `max` as absent. A world meets the first rule at startup: a configured extent whose `min`
+> exceeds `max` is refused (422, `SPATIAL_EXTENT_MIN_EXCEEDS_MAX`) and the server does not
+> start. The Lab's reader (`web/live-adapter-world-reader.mjs`) applies the second. The root node is at
 > `/wow/spatial/{spatialID}/node/{rootNodeID}`. Nodes are the canonical **`Node`**,
 > children **embedded**. Two OSL conveniences ride on top, and both are labeled:
 > `?form=node` on the Spatial path returns the root node itself, and
@@ -118,13 +123,18 @@ the pure canonical schemas stay clean for the conformance diff.
    `/wow` response. No cosmetic conformance. The `proof_boundary` values are
    enforced by the server; this contract enforces the flags' presence/types.
 
-## 6. `WS /events` — LABELED NON-CANONICAL realtime convention
+## 6. `WS /events` — the event stream, listed under `World.services.events`
 
-Realtime (user_joined/left, node_created/updated/deleted) is a **non-canonical
-convention** documented here, **not** in this HTTP contract. The `simpleWorlds`
-reference impl registers `WS /events` before its validator so socket messages are
-unvalidated; OSL's realtime lane implements it as a labeled convention.
-It is intentionally **out of the OpenAPI HTTP contract**.
+The event stream (user_joined, user_left, node_created, node_updated,
+node_deleted) follows the rule that `schema.yaml` states in its Events
+paragraph, the same rule the iteration 3 overlay offers: a world that offers
+an event stream MUST list it in the World resource under `services.events`,
+relative to the world's base URL, and each event MUST carry `type`,
+`revision`, `time` and `urls`, as the `Event` schema lists them. The lab's
+worlds serve it at `events`, so `WS /events`. The WebSocket upgrade is not an
+HTTP operation, so it has no entry under `paths`; the World resource names it.
+The `simpleWorlds` reference impl registers `WS /events` before its validator,
+so its socket messages are unvalidated.
 
 ## 7. Validation mechanism (ADDITIVE — not an Express migration)
 
@@ -206,7 +216,7 @@ it dropped. A body OSL cannot store whole is refused with a code that says why. 
 
 See **§11** for the full statement. In one line: **"permitted" is not "specified."**
 
-### D9 — the iteration 1 overlay: five proposed edits, served and proven
+### D9 — the iteration 1 overlay: six proposed edits, served and proven
 
 OSL serves behaviour that the standard at `d39a1a0` does not state. Each item is a proposed upstream
 edit (`wow-spec/overlays/iteration-1/`), and each is proven by `npm run arch-i1-proof` with a negative
@@ -222,6 +232,17 @@ case that fails on purpose:
 4. **A true tree.** `children` is derived and a PUT never changes it; a node moves by a PUT of
    `parent`; there is one parent per node. Checks N1, N2, N5.
 5. **Ids are never reused** within a world, after a delete, a reset or a restart. Check N3.
+
+6. **Conformance vocabulary.** The World and Asset APIs, and this contract's own description, carry the
+   BCP 14 paragraph of RFC 8174 (citing RFC 2119 and RFC 8174): MUST, SHOULD, MAY and the other key words
+   are requirements only in all capitals. Each normative sentence of the iteration 1 text uses one
+   (frames, `lon` and `lan`, the World geoPose, `localTransform`, the tree rules, and the Asset geoPose).
+   The schemas iteration 1 touches carry `required` lists: `GeoPose [position, angles]`, `Spatial [id,
+   rootNodeID]`, `User [id]`, `View [id]`, `Portal [id]`; `World` and `Asset` have no required member.
+   `Node` has none either, and `Node.id` is `readOnly`: this contract measures request bodies against
+   `Node`, and a required `id` refused every create (a create carries no id), while a required
+   `localTransform` refused a PUT that changes only `label`. The helper that checks the words is
+   `tools/arch-i1/conformance-words.js`, which later iterations reuse. Checks U2 (lists offered = served) and U3.
 
 The rotation sense and order of GeoPose angles (positive yaw turns east toward north; yaw, then
 pitch, then roll) are an assumption until the GeoPose working group answers. They live in one place,
@@ -239,7 +260,8 @@ Each item is a proposed upstream edit (`wow-spec/overlays/iteration-2/`), proven
    `web/wow-inclusion.mjs`; the `?wow=` player mounts its result (`web/wow-inclusion-mount.mjs`).
 2. **`World.spatials`.** The ids of a world's graphs, the default graph first. A whole world shows its
    default graph and its other anchored graphs where their GeoPoses put them; a graph with no anchor is
-   not shown; node ids are unique across a world's graphs (I9, I10).
+   not shown; node ids are unique across a world's graphs (I9, I10). A reader MUST treat an absent
+   `spatials` as an empty list (O3).
 3. **`application/wow+json`**, a provisional working name, on every resource response;
    `application/json` stays available by negotiation (I1, O2).
 4. **Entity tags.** ETag and Last-Modified on the World, the Spatial and the node; 304 on
@@ -264,7 +286,7 @@ Each item is a proposed upstream edit (`wow-spec/overlays/iteration-3/`), proven
    `user` on `user_joined`, `userId` on `user_left`, the whole `node` on `node_created` and `node_updated`, and
    `nodeId` on `node_deleted`.
 2. **No-op writes** create no revision and no event, so mirroring worlds settle (O6b).
-3. **Observing creates no user:** `users.active_user_count` counts live presence entries only (O2, O2b).
+3. **Observing creates no user:** `users.active_user_count` counts live presence entries and users joined by the identity handshake (`POST /wow/user`), and no observers (O2, O2b).
 4. **Stream authentication:** with `event_auth` set, the first message must be the JSON text
    `{"type": "auth", "token": "<access token>"}`, and a stream without a valid token is closed; a stream from an origin the policy does not allow is refused (O11).
 5. **`Node.properties`**, typed by the JSON-LD context served at `/wow/context.jsonld`
@@ -298,6 +320,65 @@ object. OSL additions around them: portals added on a node (`addPortal`), the pr
 (`setPreview`, or `preview` in the config), the portal client (`web/wow-portal.mjs`) and its rendering in the
 `?wow=` player (`web/wow-portal-mount.mjs`). The seamless crossing stays an optional profile; its proof is
 reported apart (P9).
+
+### D13 — the iteration 5 overlay, stage A: the identity handshake
+
+Each item is a proposed upstream edit (`wow-spec/overlays/iteration-5/`, one patch for both GeoPose forms of
+iteration 1), proven by `npm run arch-i5-proof`:
+
+1. **`World.identity`**, the base URL the world stands behind, from its own configuration. The visitor's agent
+   checks it against the base URL it is about to post to, and sends nothing when they differ (ID6).
+2. **`World.claims`**, the claims the world asks for at entry, each required or optional, with optional
+   `issuers` (ID2, ID5, ID6). The roadmap calls it `requires`; the overlay README says why it does not.
+3. **`World.issues`**, the credential types the world issues; empty in stage A (ID6).
+4. **`POST /wow/user`**, the join: a signed manifest holding only the asked claims, and a holder proof made for
+   this world and this visit, in the body. The answer is the outcome (proceed, proceed-in-part, deny) with the
+   claims satisfied and not satisfied; the world records every outcome (ID1, ID4, ID7).
+
+OSL additions around them, all labeled: the answer's `record` and `proof_boundary` (`OSLJoinAnswer`); the
+record itself at `{base}osl/handshake/record/{id}`, outside the World API; a joined user's preferences on its
+User as `osl_preferences`; the handshake config (`handshake` in the world config,
+`runtime/world-server/src/runtime-handshake.js`, served by `runtime/world-server/src/server.js`); the visitor's
+agent (`web/wow-handshake.mjs`) and its use in the `?wow=` player (`web/wow-handshake-mount.mjs`, called from
+`web/app.js`), which only selects the accepted avatar variant and preferred height through the page's own
+setters (V1). The manifest and holder-proof shapes are the lab's own proposal, not a conformance claim for any
+manifest format.
+
+Claim shapes (the lab's own, provisional; the World API carries claims by reference and names none of these).
+The `preferences` claim is an object with optional members: `preferred_height_m` (a positive number of meters),
+`language` (a BCP 47 tag) and the accessibility members `captions`, `reduced_motion`, `seated` and
+`reduced_flashing` (booleans), `text_scale` (a positive number) and `input` (the visitor's preferred input
+modalities, a list of strings). The accessibility members are provisional: their names and shapes may change.
+At least one known member is present; the height is optional. A member of the wrong shape makes the claim not
+satisfied ("malformed"); a member the lab does not know is ignored. When a world accepts the claim, its answer
+and its record carry `osl_preferences_applied`, with every member the world received and whether it applied it
+(`true` or `false`); no received member is left out. The lab world applies `preferred_height_m` and reports the
+others as not applied. The agent (`web/wow-handshake.mjs`, `PREFERENCE_MEMBERS`) and the world
+(`runtime-handshake.js`) name the same members; `npm run arch-i5-proof` check ID9 proves this.
+
+Pilot statement (`User.pilot`, in the iteration 5 overlay; not a claim, so it is not in `World.claims`). Every
+join carries `pilot` beside the manifest and the holder proof: `human`, `agent` or `hybrid`, the visitor's
+statement of who is at the controls, not proof of it. The world copies it onto the User it makes and never
+supplies one. A join without it, or with another value, is answered deny (403) with the reason, every asked
+claim listed as not satisfied with that reason (as for a failed holder proof), and is recorded. `UserJoin` does not list `pilot` as required and gives it no type, so that the server's join validation
+(400 `invalid_join`) lets such a join reach the world, which records it. The agent
+(`web/wow-handshake.mjs`) sends one on every join and sends nothing when the visitor states none; the `?wow=`
+player states `agent` when automation drives the browser (`navigator.webdriver`) and `human` otherwise. A client
+shows `hybrid` as an agent (`pilotShownAs`, `userLabel`); the player's handshake panel
+(`web/wow-handshake-mount.mjs`) is where it shows the User's name. `npm run arch-i5-proof` check ID10 proves
+this, and W2 the wire.
+
+### D14 — two identity paths that still send the same values to every world (declared in stage A)
+
+The `?wow=` player sends identity to a world only through the join. Two older demo paths send identity too,
+and stage A leaves them as they are. Our choice for stage A; the iteration 5 result report states the final
+outcome for each before the push.
+
+1. **Presence** (`web/live-adapter-presence-controller.mjs`): register and heartbeat carry `player_id`,
+   `client_id`, `avatar_id`, `display_name` and `continuity_id`, and `continuity_id` defaults to `avatar_id`.
+   Every world on that path receives the same values.
+2. **The seamless crossing** (`web/live-adapter-crossing-manifest.mjs`): the crossing packet's `avatar_context`
+   carries a whole signed manifest (`um_manifest_v04`), whatever the destination asks for.
 
 ## 10. Provenance — corrected 2026-07-11
 

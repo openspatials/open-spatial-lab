@@ -6,7 +6,8 @@
  *   F1-F5   geodesy and GeoPose anchors     (tools/arch-i1/checks-frames.js, checks-anchors.js)
  *   T1-T2   transforms                      (tools/arch-i1/checks-transform.js)
  *   N1-N6   the node tree                   (tools/arch-i1/checks-tree.js, checks-canonical.js)
- *   U1-U2   the proposed upstream edits      (tools/arch-i1/checks-upstream.js)
+ *   X1      the world extent, Spatial.extent  (tools/arch-i1/checks-extent.js)
+ *   U1-U5, E1  the proposed upstream edits   (tools/arch-i1/checks-upstream.js)
  *   H1      the harness: a stale planted fault is a harness error, never a catch  (tools/arch-i1/checks-harness.js)
  *
  * Headless, in Node. The server checks start their own world servers on isolated ports from 18860 up
@@ -30,6 +31,7 @@ async function main() {
   await require('./checks-transform').transformChecks(ports);
   await require('./checks-tree').treeChecks(ports);
   await require('./checks-canonical').canonicalChecks(ports);
+  await require('./checks-extent').extentChecks(ports);
   await require('./checks-upstream').upstreamChecks();
   await require('./checks-harness').harnessChecks();
   finish('arch-i1.json');

@@ -8,7 +8,7 @@
  *   O6-O10   mirroring, no loops, live inclusion, stream budget, environment by type       (checks-coupling.js)
  *   O11      stream authentication with fixture tokens                                      (checks-auth.js)
  *   O8       the dashboard in a browser (in a browser)                                        (checks-browser.js)
- *   W1, W2   the proposed Web of Worlds edits                                               (checks-overlay.js)
+ *   W1-W3    the proposed Web of Worlds edits, W3 their conformance vocabulary              (checks-overlay.js)
  *
  * Headless, in Node, except O8. World A and world B are lab world servers on two local origins, with B
  * at the path prefix /w/b/, on isolated ports from 22000 up (set OSL_ARCH_I3_PORT_A to change the

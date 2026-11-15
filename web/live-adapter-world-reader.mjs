@@ -2,19 +2,34 @@ import { readGeoPose } from "./wow-geopose.mjs";
 import { flattenCanonicalNode } from "./wow-graph.mjs";
 import { readPortalResources } from "./main-demo-portals.mjs";
 
+/**
+ * A Spatial's extent: { min, max }, each three finite numbers, in meters, in the graph's frame. An extent whose
+ * `min` exceeds `max` on an axis, or that is not two corners of three numbers, is treated as absent (null).
+ */
+export function readSpatialExtent(value) {
+  const corner = (c) => Array.isArray(c) && c.length === 3 && c.every((n) => typeof n === "number" && Number.isFinite(n));
+  if (!value || typeof value !== "object" || !corner(value.min) || !corner(value.max)) return null;
+  for (let axis = 0; axis < 3; axis += 1) {
+    if (value.min[axis] > value.max[axis]) return null;
+  }
+  return { min: value.min.slice(), max: value.max.slice() };
+}
+
 export async function readGraph(graphUrl, doc, { transport, onLog }) {
   let rootNode = doc;
   let anchor = null;
   let anchorError = null;
+  let extent = null;
   if (doc && doc.rootNodeID !== undefined && doc.children === undefined) {
     const read = readGeoPose(doc.geoPose);
     if (read.ok) anchor = read.geoPose;
     else anchorError = read.error;
+    extent = readSpatialExtent(doc.extent);
     const base = String(graphUrl).replace(/\/$/, "");
     rootNode = await transport.getJson(`${base}/node/${encodeURIComponent(doc.rootNodeID)}`);
   }
   const walked = await walkCanonicalGraph(graphUrl, rootNode, { transport, onLog });
-  return { rootId: Number(rootNode.id), nodes: walked.nodes, stats: walked.stats, anchor, anchorError };
+  return { rootId: Number(rootNode.id), nodes: walked.nodes, stats: walked.stats, anchor, anchorError, extent };
 }
 
 export async function walkCanonicalGraph(graphUrl, rootNode, { transport, onLog }) {

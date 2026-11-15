@@ -80,6 +80,9 @@ const wowMediaTypes = require('./wow-media-types');
 // always-on, contract-driven request/response
 // enforcement, derived from wow-spec's own `paths`. No env gate exists.
 const { createContractEnforcer } = require('./wow-contract-enforcer');
+// The identity handshake (iteration 5, stage A): a world that declares one states its identity, the claims
+// it asks for and what it issues, and answers POST /wow/user with an outcome it records.
+const { createHandshake } = require('./runtime-handshake');
 // the PURE structural classifier for incoming node bodies.
 // It is what produces `embedded_children_not_supported` (+ machine-readable
 // remedies) instead of a bare schema error, and CONF-1 keeps that richer refusal
@@ -96,6 +99,9 @@ function createServer(role, extraOpts)
 {
     const cfg = makeConfig(role, extraOpts);
     const runtime = createRuntime(cfg);
+    const handshake = createHandshake(cfg, { emitEvent : runtime.emitWowEvent, nextUserId : runtime.nextWowUserId });
+    // users.active_user_count counts the handshake users present as well as presence.
+    if (handshake) runtime.countJoinedUsersBy(handshake.count);
     // Nodes that mirror another world's data point are kept up to date by observing it.
     const mirrors = cfg.mirrors === false ? null : createMirrors(runtime, { token : cfg.mirror_token });
 
@@ -664,7 +670,35 @@ function createServer(role, extraOpts)
             });
 
         if (method === 'GET' && path === '/wow/world')
-            return sendWow(req, res, 200, runtime.getWowWorld(), { tagged : true });
+            return sendWow(req, res, 200, handshake ? Object.assign(runtime.getWowWorld(), handshake.worldFields()) : runtime.getWowWorld(), { tagged : true });
+
+        // The identity handshake (iteration 5). The body carries a manifest with only the claims this world
+        // asks for, and a holder proof; the answer is the outcome, recorded. A deny answers 403.
+        if (method === 'POST' && path === '/wow/user')
+        {
+            if (!handshake) return sendJson(res, 404, { ok : false, error : 'no_handshake_declared' });
+            return readBody(req, res, (err, body) => {
+                if (err) return sendBodyError(res, err);
+                const verdict = wowRequestVerdict(res, method, path, body, {});
+                if (verdict && !verdict.valid) return sendJson(res, 400, { ok : false, error : 'invalid_join', detail : verdict.errorsText });
+                handshake.join(body)
+                    .then(({ status, answer }) => sendWow(req, res, status, Object.assign(answer, { proof_boundary : runtime.getWowProofBoundary() })))
+                    .catch((e) => sendJson(res, 500, { ok : false, error : 'handshake_failed', detail : String(e && e.message || e) }));
+            });
+        }
+
+        // A visitor who entered by the handshake is a User of this world.
+        if (method === 'GET' && handshake && /^\/wow\/user\/\d+$/.test(path) && handshake.user(path.slice('/wow/user/'.length)))
+            return sendWow(req, res, 200, Object.assign(handshake.user(path.slice('/wow/user/'.length)), { proof_boundary : runtime.getWowProofBoundary() }));
+
+        // The record of one handshake outcome, by its id (a lab extension, outside the World API).
+        if (method === 'GET' && handshake && path.startsWith('/osl/handshake/record/'))
+        {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            const rec = handshake.record(decodeURIComponent(path.slice('/osl/handshake/record/'.length)));
+            if (!rec) return sendJson(res, 404, { ok : false, error : 'record_not_found' });
+            return sendJson(res, 200, rec);
+        }
 
         // The preview this world declares: a Node tree rooted at the arrival node, holding
         // only the nodes of its graph within the radius, each relative to the arrival node, and only the
@@ -808,6 +842,10 @@ function createServer(role, extraOpts)
             let userId;
             try { userId = decodeURIComponent(path.slice('/wow/user/'.length)); }
             catch (e) { return sendJson(res, 400, { ok : false, error : 'invalid_user_value' }); }
+            // A visitor who joined by the handshake departs: the visit ends, user_left goes on the stream, and the
+            // record of the join stays (iteration 5, departing).
+            if (handshake && /^\d+$/.test(userId) && handshake.user(userId))
+                return sendJson(res, 200, { ok : true, deleted : true, userId, departed : handshake.depart(userId) });
             const r = runtime.deleteWowUser(userId);
             if (!r.ok) return sendJson(res, r.status, { ok : false, error : r.error, userId, reason : r.reason });
             return sendJson(res, 200, r.value);
@@ -1426,7 +1464,7 @@ function createServer(role, extraOpts)
         });
     }
 
-    return { server, runtime, cfg, closeAll, getAssetRegistry, mirrors };
+    return { server, runtime, cfg, closeAll, getAssetRegistry, mirrors, handshake };
 }
 
 function start(role, extraOpts) {

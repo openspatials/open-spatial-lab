@@ -7,6 +7,8 @@
 // (`bare`: no floor, grid or lights) and mounts it under that node. Included content can include in
 // turn, up to the nesting limit and the budget. A link that fails keeps the node's placeholder,
 // tinted, with a label naming the reason: "unreachable", "forbidden", "over budget" and the rest.
+// A part another world embedded as a copy is read from its own URL (a relayed inclusion) and mounted
+// where the copy was embedded, under the embedding node; the copy itself is never drawn.
 //
 // Model links are left to mountWowSceneAssets, the scene's model loader. A model that sits inside
 // included content goes through filterIncludedEnvironment first, so the included world's sun and
@@ -124,10 +126,21 @@ export function applyComposition(composition, opts) {
   };
   const modelNodes = [];
 
+  // Relayed inclusions, by the graph instance and URL of the node that embedded the copy.
+  const relayedAt = new Map();
+  for (const inclusion of composition.inclusions) {
+    if (!inclusion.relayed) continue;
+    const key = `${inclusion.instance} ${inclusion.node}`;
+    if (!relayedAt.has(key)) relayedAt.set(key, []);
+    relayedAt.get(key).push(inclusion);
+  }
+
   // World A's own asset nodes, by node id.
   const hostAssets = new Map((built.asset_nodes || []).map((a) => [Number(a.id), a]));
+  const hostGroups = built.node_groups || new Map();
   for (const record of composition.nodes) {
     if (record.depth !== 0) continue;
+    mountRelayed(record, hostGroups.get(Number(record.id)));
     const assetNode = hostAssets.get(Number(record.id));
     if (!assetNode) continue;
     place(record, assetNode);
@@ -171,23 +184,7 @@ export function applyComposition(composition, opts) {
       return;
     }
     // Included: build each shown graph and mount it under the including node.
-    for (const graph of inclusion.graphs) {
-      if (!graph.shown) continue;
-      const bundle = bundleOfGraph(composition, graph);
-      const sub = buildWowScene(bundle, THREE, { bare: true, source: `included:${graph.url}` });
-      sub.root.name = `wow-included:${graph.url}`;
-      sub.root.userData.inclusion = { from: graph.url, via: record.url, depth: graph.depth };
-      attach(assetNode.group, sub.root);
-      summary.graphs_shown += 1;
-      // The included graph's own links: deeper inclusions and models.
-      const subAssets = new Map((sub.asset_nodes || []).map((a) => [Number(a.id), a]));
-      for (const inner of composition.nodes) {
-        if (inner.instance !== graph.instance) continue;
-        const innerAsset = subAssets.get(bundle.idOf.get(inner.url));
-        if (!innerAsset) continue;
-        place(inner, innerAsset);
-      }
-    }
+    mountGraphs(inclusion, assetNode.group, record.url);
     if (inclusion.overBudget) {
       // Some of a world's graphs fit the budget and some did not: say so on the node.
       const label = labelSprite(THREE, INCLUSION_STATUS.OVER_BUDGET, opts.document);
@@ -196,6 +193,36 @@ export function applyComposition(composition, opts) {
     if (assetNode.placeholder && assetNode.placeholder.parent) {
       hidden.push([assetNode.placeholder, assetNode.placeholder.parent]);
       assetNode.placeholder.parent.remove(assetNode.placeholder);
+    }
+  }
+
+  function mountGraphs(inclusion, group, via) {
+    for (const graph of inclusion.graphs) {
+      if (!graph.shown) continue;
+      const bundle = bundleOfGraph(composition, graph);
+      const sub = buildWowScene(bundle, THREE, { bare: true, source: `included:${graph.url}` });
+      sub.root.name = `wow-included:${graph.url}`;
+      sub.root.userData.inclusion = { from: graph.url, via, depth: graph.depth };
+      attach(group, sub.root);
+      summary.graphs_shown += 1;
+      // The included graph's own links: deeper inclusions and models.
+      const subAssets = new Map((sub.asset_nodes || []).map((a) => [Number(a.id), a]));
+      const subGroups = sub.node_groups || new Map();
+      for (const inner of composition.nodes) {
+        if (inner.instance !== graph.instance) continue;
+        mountRelayed(inner, subGroups.get(bundle.idOf.get(inner.url)));
+        const innerAsset = subAssets.get(bundle.idOf.get(inner.url));
+        if (!innerAsset) continue;
+        place(inner, innerAsset);
+      }
+    }
+  }
+
+  // A part embedded as a copy under this node: mount it as its own world serves it, under this node.
+  function mountRelayed(record, group) {
+    for (const inclusion of relayedAt.get(`${record.instance} ${record.url}`) || []) {
+      if (inclusion.status === INCLUSION_STATUS.INCLUDED && group) mountGraphs(inclusion, group, record.url);
+      else summary.placeholders.push({ node: record.url, status: inclusion.status, target: inclusion.target, relayed: true });
     }
   }
 

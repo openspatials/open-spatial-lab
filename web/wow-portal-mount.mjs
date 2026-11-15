@@ -19,7 +19,8 @@
  * set its active radius and destination; each change is saved to the world through its Web of Worlds API.
  *
  * applyJoinArrival() is the other half: a page opened at `...#join=node.{n}` puts its camera at node n's
- * pose, looking along the node's +Z axis.
+ * pose, looking along the node's +Z axis. A page opened at `...#follow=user.{id}` puts its camera at the node
+ * that places that user, read from its User resource by userNodeAt(), the read the main page uses too.
  */
 
 import { readPortals, previewOf, crossPortal, arrivalAt, entryBase, readFlatNode, placePortal, moveNode, changePortal, PREVIEW_COLOR } from "./wow-portal.mjs";
@@ -565,15 +566,39 @@ function sameBase(destination, base) {
 }
 
 /**
+ * The node that places user `userId` in the world at `base` (a world server's base URL, ending in "/"), read from
+ * the user's User resource (GET wow/user/{id}, then its `node`). Returns { node } (the node id), or { node: null,
+ * reason } when there is none; a user who is not in the world (or cannot be read) also says `gone` (true for 404).
+ * The main page (web/live-adapter.js, applyJoinArrival) and the `?wow=` viewer (applyJoinArrival below) both use it.
+ */
+export async function userNodeAt(base, userId, { fetch }) {
+  const response = base ? await fetch(new URL(`wow/user/${encodeURIComponent(userId)}`, base).href, { cache: "no-store", headers: { Accept: "application/json" } }).catch(() => null) : null;
+  if (!response || !response.ok) return { node: null, gone: !!response && response.status === 404, reason: `user ${userId} is not in this world` };
+  const user = await response.json().catch(() => null);
+  const ref = user && typeof user.node === "string" ? /node\/(\d+)$/.exec(user.node) : null;
+  if (!ref) return { node: null, reason: `user ${userId} is placed by no node` };
+  return { node: Number(ref[1]) };
+}
+
+/**
  * At `#join=node.{n}`, put the camera at node n's pose: at the node's position, raised to eye height,
- * looking along the node's +Z axis (so the node's own pitch tilts the view). Returns the arrival
- * (wow-portal.mjs, arrivalAt), or null.
+ * looking along the node's +Z axis (so the node's own pitch tilts the view). At `#follow=user.{id}` (or
+ * `user/{id}`, the verb in either case), do the same at the node that places that user (userNodeAt). Returns
+ * the arrival (wow-portal.mjs, arrivalAt), or null.
  */
 export async function applyJoinArrival({ hostUrl, camera, hash, fetch }) {
-  const match = /^#?join=node[./](\d+)$/.exec(decodeURIComponent(String(hash || "")));
-  if (!match || !camera) return null;
-  const arrival = await arrivalAt(worldBaseOf(hostUrl), Number(match[1]), { fetch });
-  if (!arrival) return { arrived: false, reason: `arrival node ${match[1]} not found` };
+  const fragment = decodeURIComponent(String(hash || ""));
+  const match = /^#?join=node[./](\d+)$/.exec(fragment);
+  const follow = /^#?follow=user[./](\d+)$/i.exec(fragment);
+  if ((!match && !follow) || !camera) return null;
+  let nodeId = match ? Number(match[1]) : null;
+  if (follow) {
+    const placed = await userNodeAt(worldBaseOf(hostUrl), Number(follow[1]), { fetch });
+    if (placed.node == null) return { arrived: false, user: Number(follow[1]), reason: placed.reason };
+    nodeId = placed.node;
+  }
+  const arrival = await arrivalAt(worldBaseOf(hostUrl), nodeId, { fetch });
+  if (!arrival) return { arrived: false, reason: follow ? `user ${follow[1]}'s node ${nodeId} not found` : `arrival node ${match[1]} not found` };
   const m = arrival.matrix;
   const length = Math.hypot(m[8], m[9], m[10]) || 1;
   let forward = [m[8] / length, m[9] / length, m[10] / length];

@@ -1,6 +1,15 @@
 --- a/specification/OpenSpatialAsset/API.yaml
 +++ b/specification/OpenSpatialAsset/API.yaml
-@@ -177,6 +177,49 @@
+@@ -1,6 +1,8 @@
+ openapi: '3.0.3'
+ info:
+   title: OpenSpatialAsset API
++  description: >-
++    The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here.
+   contact:
+     name: OpenSpatailWorld  
+     url: https://www.WebOfWorlds.io/
+@@ -177,6 +179,49 @@
            description: Not Found.
  components:
    schemas:
@@ -8,8 +17,8 @@
 +      description: >-
 +        OGC GeoPose 1.0 Basic-YPR. `position` is latitude and longitude in degrees, and `h` in meters
 +        above the WGS-84 ellipsoid. `angles` are `yaw`, `pitch` and `roll` in degrees, applied about the
-+        local axes z, y and x in that order. A writer sends `lon`. A reader also accepts `lan`, the earlier
-+        spelling, and refuses a position whose `lon` and `lan` differ.
++        local axes z, y and x in that order. A writer MUST send `lon`. A reader MUST also accept `lan`, the earlier
++        spelling, and MUST refuse a position whose `lon` and `lan` differ. A server MUST NOT emit `lan`.
 +      type: object
 +      required: [position, angles]
 +      properties:
@@ -50,7 +59,7 @@
      Asset:
        type: object
        properties:
-@@ -194,26 +237,11 @@
+@@ -194,26 +239,11 @@
              version: 
                type: number     
          geoPose:
@@ -75,8 +84,8 @@
 -                roll:
 -                  type: number
 +          description: >-
-+            Metadata. A host may use it to choose a placement for the asset, and it never overrides
-+            one.
++            Metadata. A host MAY use it to choose a placement for the asset. It MUST NOT override a
++            placement.
 +          allOf:
 +            - $ref: '#/components/schemas/GeoPose'
  

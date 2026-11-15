@@ -4,7 +4,7 @@ const { getWowProofBoundary, getWowWorld : projectWowWorld, getWowLocation : pro
 const { getWowView : projectWowView } = require('./runtime-view-projection');
 class RuntimeWorldReader
 {
-    constructor({ avatar, world, location, session, readPortals, anchor, authoredGraph, spatial, events, presence, placedPortals, worldPreview, room, placements, identity, fabric, portals })
+    constructor({ avatar, world, location, session, readPortals, anchor, authoredGraph, spatial, events, presence, placedPortals, worldPreview, room, placements, identity, fabric, portals, joinedUserCount })
     {
         this.avatar = avatar;
         this.world = world;
@@ -23,13 +23,14 @@ class RuntimeWorldReader
         this.identity = identity;
         this.fabric = fabric;
         this.portals = portals;
+        this.joinedUserCount = typeof joinedUserCount === 'function' ? joinedUserCount : () => 0;
     }
     getWowWorld()
     {
         return projectWowWorld({ avatar : this.avatar, world : this.world,
             location : this.location, session : this.session, portals : this.readPortals(),
             anchor : this.anchor, graphIds : this.spatial.spatialGraphIds(), revision : this.events.currentRevision().revision,
-            activeUsers : this.presence.livePresenceEntries(Date.now()).length, portalCount : this.placedPortals.count(),
+            activeUsers : this.presence.livePresenceEntries(Date.now()).length, joinedUsers : this.joinedUserCount(), portalCount : this.placedPortals.count(),
             preview : this.worldPreview.ofWorld(), room : this.room, liveUsers : this.presence.users(),
             authoredGraph : this.authoredGraph, worldId : this.identity.WORLD_ID });
     }

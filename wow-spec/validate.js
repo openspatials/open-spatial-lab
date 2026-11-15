@@ -122,29 +122,40 @@ function createValidator(opts)
         return validate(CANONICAL_SCHEMA_BY_KIND[kind] || kind, data);
     }
 
-    const arrayCache = new Map();
+    // A request body is measured against the REQUEST form of the schemas (OpenAPI 3.0.3: a property that is
+    // readOnly and in `required` is required only in responses). The form comes from the contract enforcer's
+    // requestForm, so the server and this validator apply one rule. It is registered under its own bundle id,
+    // because the enforcer registers its request bundle on a validator it builds itself.
+    const REQUEST_VALIDATE_BUNDLE_ID = BUNDLE_ID + '-validate-request';
+    let requestBundleReady = false;
+    function requestRef(schemaName)
+    {
+        if (!requestBundleReady)
+        {
+            const { requestForm } = require(path.join(__dirname, '..', 'runtime', 'world-server', 'src', 'wow-contract-enforcer.js'));
+            ajv.addSchema({ $id: REQUEST_VALIDATE_BUNDLE_ID, components: { schemas: requestForm(doc.components.schemas) } });
+            requestBundleReady = true;
+        }
+        return REQUEST_VALIDATE_BUNDLE_ID + '#/components/schemas/' + schemaName;
+    }
+    const requestCache = new Map();
     /**
      * Validate a request body against a named schema, or against an ARRAY of a
      * named schema using the `X[]` suffix (e.g. 'OSLFlatNode[]' for the
-     * node-create body, 'Node[]' for a canonical node array).
+     * node-create body, 'Node[]' for a canonical node array), in the request form.
      */
     function validateRequest(schemaName, data)
     {
         const m = /^(.+?)(?:\[\]|Array)$/.exec(schemaName);
-        if (m)
-        {
-            const itemSchema = m[1];
-            if (!doc.components.schemas[itemSchema])
-                throw new Error('unknown wow-spec schema: ' + itemSchema);
-            const key = itemSchema + '[]';
-            if (!arrayCache.has(key))
-                arrayCache.set(key, ajv.compile({
-                    type: 'array',
-                    items: { $ref: BUNDLE_ID + '#/components/schemas/' + itemSchema },
-                }));
-            return result(key, arrayCache.get(key), data);
-        }
-        return validate(schemaName, data);
+        const itemSchema = m ? m[1] : schemaName;
+        if (!doc.components.schemas[itemSchema])
+            throw new Error('unknown wow-spec schema: ' + itemSchema);
+        const key = m ? itemSchema + '[]' : itemSchema;
+        if (!requestCache.has(key))
+            requestCache.set(key, ajv.compile(m
+                ? { type: 'array', items: { $ref: requestRef(itemSchema) } }
+                : { $ref: requestRef(itemSchema) }));
+        return result(key, requestCache.get(key), data);
     }
 
     return {

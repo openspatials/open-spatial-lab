@@ -23,6 +23,10 @@
 //     cycle, nesting limit, or not a Web of Worlds resource.
 //   - Reads are conditional: a reader keeps each answer's entity tag and asks again with
 //     If-None-Match, so an unchanged resource costs a 304.
+//   - An included part is read from its own world, at its URL, revalidated by its entity tag. A node
+//     embedded under a parent of another graph (its id resolves outside the parent's graph) is a copy
+//     relayed or embedded by that world: it is never shown as that part. The part is read from its own
+//     URL instead, as an inclusion at the parent, and an unreachable part shows the placeholder.
 //   - The included world's environment does not apply to the host: an included model loses its
 //     directional, hemisphere and ambient lights and its cameras; its point and spot lights stay.
 //
@@ -210,13 +214,24 @@ export function createWowReader(opts = {}) {
   return { get, head, stats, log, cache, fetch: fetchImpl };
 }
 
+/** Members only a World carries (a Spatial or Node has none of them). */
+const WORLD_ONLY_MEMBERS = ["presence", "technology", "users", "views", "portals", "preview", "revision", "services"];
+
 /** Which Web of Worlds resource a body is, once its media type says it is one. */
 export function resourceKind(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   if (Array.isArray(body.spatials) || body.content !== undefined) return "world";
   if (body.rootNodeID !== undefined) return "spatial";
   if (body.localTransform !== undefined || body.children !== undefined) return "node";
+  // World has no required member: a World without `spatials` is read as one with an empty list.
+  if (WORLD_ONLY_MEMBERS.some((key) => body[key] !== undefined)) return "world";
   return null;
+}
+
+/** The graph a node URL belongs to: the URL without its last path segment, query or fragment. */
+function graphPrefixOf(nodeUrl) {
+  const u = new URL(nodeUrl);
+  return u.origin + u.pathname.replace(/[^/]*$/, "");
 }
 
 /** The URL of a graph's node: the API's path, `{spatial}/node/{id}`. */
@@ -293,6 +308,17 @@ export async function composeInclusions(hostUrl, opts = {}) {
   }
 
   async function walk(node, url, parentWorld, parentGraphLocal, ctx, parentUrl) {
+    // A copy of another graph's node, embedded here: show the part as its own world serves it, never the copy.
+    if (parentUrl) {
+      const childUrl = url;
+      if (graphPrefixOf(childUrl) !== graphPrefixOf(parentUrl)) {
+        const standIn = { url: parentUrl, world: parentWorld, included: ctx.depth > 0, inclusion: null, asset: null };
+        await include(standIn, childUrl, ctx);
+        // The player mounts it where the copy was embedded: under this parent, in this graph instance.
+        if (standIn.inclusion) Object.assign(standIn.inclusion, { relayed: true, instance: ctx.graph.instance });
+        return;
+      }
+    }
     // The included world's environment does not apply to the host: an included node typed as
     // environment (through its properties' JSON-LD context) is left out, with its subtree.
     if (ctx.depth > 0 && node.properties && node.properties["@type"] !== undefined && (await isEnvironment(node.properties, url))) {

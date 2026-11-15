@@ -26,8 +26,19 @@
  *   node tools/wow-conformance/run.js                # fixtures + live
  *   node tools/wow-conformance/run.js --fixtures-only  # contract-first only, no server
  *   OSL_WOW_CONFORMANCE_PORT=19001 node tools/wow-conformance/run.js
+ *   node tools/wow-conformance/run.js --base <url> [--writes] [--lab-crossing] [--out <file>]
  *
- * Exit: 0=pass 1=conformance FAIL 2=crash/protected-port 4=WRITE REFUSED
+ * --base <url> runs the corpus against a world that is already running at that base URL (any Web of Worlds
+ * server; for a Lab world at a path prefix, the URL ends with the prefix). It boots nothing. It runs the
+ * fixture pass, the endpoint pass and the wire suite (wire-checks.js: the wire halves of the overlay checks
+ * i1 U3, i2 O2, i3 W2, i4 W2, i4 P10, i5 W2 and i5 SE2). It reads only, except:
+ *   --writes        node writes (a node create, two PUTs, and the cleanup DELETEs), for a world that is yours;
+ *   --lab-crossing  crossings driven through a Lab world's own presence and crossing-intent endpoints (needs --writes);
+ *   a join (POST /wow/user) and its DELETE, sent only when the World resource says the world takes joins.
+ * A write that is not sent is reported as a skip, by name; a skip is never a pass. A --base run never writes
+ * diagnostics/wow-conformance.json; it writes its evidence only to the --out file, when one is given.
+ *
+ * Exit: 0=pass 1=conformance FAIL 2=crash/protected-port/bad arguments 4=WRITE REFUSED
  *
  * ADDITIVE / REUSE-OVER-REBUILD: consumes wow-spec/validate.js and
  * runtime/041 createServer as-is. Does not modify server, client, or spec.
@@ -42,16 +53,35 @@ const HOST = '127.0.0.1';
 const DEFAULT_PORT = 18991; // isolated; roundtrip.js uses 18971, live demo uses 18151-18153
 const FORBIDDEN_PORTS = new Set([ 8143, 18151, 18152, 18153, 3000 ]);
 
-const { runWowConformance } = require('./conformance');
+const { runWowConformance, runWireSuite } = require('./conformance');
 const { createValidator } = require(path.join(REPO_ROOT, 'wow-spec', 'validate'));
 
 function parseArgs(argv)
 {
-    const a = { fixturesOnly: false };
-    for (const arg of argv.slice(2)) {
+    const a = { fixturesOnly: false, base: null, writes: false, labCrossing: false, out: null };
+    const list = argv.slice(2);
+    for (let i = 0; i < list.length; i += 1) {
+        const arg = list[i];
         if (arg === '--fixtures-only' || arg === '--fixtures') a.fixturesOnly = true;
         else if (arg === '--live') a.fixturesOnly = false;
+        else if (arg === '--base' || arg === '--out') {
+            const value = list[i + 1];
+            if (!value || value.startsWith('--')) throw new Error(arg + ' needs a value');
+            if (arg === '--base') a.base = value; else a.out = value;
+            i += 1;
+        }
+        else if (arg === '--writes') a.writes = true;
+        else if (arg === '--lab-crossing') a.labCrossing = true;
+        // An option this run does not know is refused: a target it ignored would test the wrong world.
+        else throw new Error('unknown argument: ' + arg);
     }
+    if (a.base) {
+        let u;
+        try { u = new URL(a.base); } catch (e) { throw new Error('--base is not a URL: ' + a.base); }
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('--base must be an http or https URL: ' + a.base);
+        if (a.fixturesOnly) throw new Error('--base and --fixtures-only together: a --base run drives the world it names');
+    }
+    if ((a.writes || a.labCrossing || a.out) && !a.base) throw new Error('--writes, --lab-crossing and --out apply to a --base run only');
     return a;
 }
 
@@ -205,9 +235,63 @@ async function bootAndRun(port)
     }
 }
 
+function printWireSuite(suite)
+{
+    const w = process.stdout;
+    w.write('\n=== wire suite against ' + suite.base + ' (the wire halves of the overlay checks) ===\n');
+    for (const c of suite.checks) {
+        w.write('  ' + pad(c.verdict, 8) + pad(c.id, 8) + c.title + '\n');
+        for (const p of c.problems) w.write('            problem: ' + p + '\n');
+        for (const s of c.skipped) w.write('            skipped (not a pass): ' + s + '\n');
+    }
+    const count = (v) => suite.checks.filter((c) => c.verdict === v).length;
+    w.write('wire suite: ' + count('PASS') + ' pass, ' + count('FAIL') + ' fail, ' + count('PARTIAL') + ' partial, '
+        + count('SKIP') + ' skipped, of ' + suite.checks.length + ' (PARTIAL and SKIP are not passes)\n');
+}
+
+/*
+ * The corpus against a world that is already running at `args.base`. It boots nothing, and it never writes
+ * diagnostics/wow-conformance.json: that file belongs to the Lab's own run, and its coverage guard stays as it is.
+ */
+async function mainBase(args)
+{
+    const base = args.base.replace(/\/+$/, '');
+    const load1 = os.loadavg()[0];
+    console.log('target: ' + base + ' (handed a running world; nothing booted)');
+    console.log('writes: node writes ' + (args.writes ? 'allowed (--writes)' : 'not sent') + '; joins only if the World says it takes them; '
+        + 'crossings ' + (args.labCrossing ? 'through the Lab\'s crossing intent (--lab-crossing)' : 'not driven'));
+    console.log('1-min load average: ' + load1.toFixed(2) + ' (information only; nothing is skipped for load)');
+    const validator = createValidator();
+    const report = await runWowConformance({ baseUrl: base, validator, allowWrites: args.writes });
+    const suite = await runWireSuite(base, { validator, writes: args.writes, labCrossing: args.labCrossing });
+    printReport(report);
+    printWireSuite(suite);
+
+    const problems = report.problems.concat(suite.checks.filter((c) => c.verdict === 'FAIL').map((c) => c.id + ': ' + c.problems.join('; ')));
+    if (args.out) {
+        const manifest = Object.assign({ title: 'WoW conformance corpus against a running world (--base)', target: base,
+            writes_allowed: args.writes, lab_crossing: args.labCrossing }, report, { wire_suite: suite,
+            assertions: { ok: problems.length === 0, coverage_complete: report.coverage.complete, mode: report.mode, problems } });
+        fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
+        fs.writeFileSync(path.resolve(args.out), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+        console.log('\nevidence -> ' + path.resolve(args.out) + ' (diagnostics/wow-conformance.json is not touched by a --base run)');
+    } else console.log('\nevidence: none written (give --out <file>); diagnostics/wow-conformance.json is not touched by a --base run');
+    if (!report.coverage.complete) {
+        console.log('endpoint coverage: PARTIAL (not a pass for what was not covered):');
+        for (const nc of report.coverage.not_covered) console.log('     NOT COVERED: ' + nc);
+    }
+    const exitCode = problems.length ? EXIT.FAIL : EXIT.OK;
+    console.log('\nassertions: ' + (problems.length ? 'FAIL -> ' + problems.join('; ') : 'ALL PASS'));
+    console.log('exit: ' + exitCode);
+    process.exit(exitCode);
+}
+
 async function main()
 {
-    const args = parseArgs(process.argv);
+    let args;
+    try { args = parseArgs(process.argv); }
+    catch (error) { console.error('wow-conformance: ' + error.message); process.exit(EXIT.CRASH); }
+    if (args.base) return mainBase(args);
     const port = Number(process.env.OSL_WOW_CONFORMANCE_PORT || DEFAULT_PORT);
 
     const load1 = os.loadavg()[0];

@@ -16,9 +16,9 @@ import os from "node:os";
 
 const CFT_BINARY = path.join("Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing");
 
-/** Chrome for Testing inside one build folder, for Apple silicon or Intel. */
+/** Chrome for Testing inside one build folder: under a platform folder (Apple silicon or Intel), or directly in it. */
 function chromeForTestingIn(build) {
-  for (const platform of ["chrome-mac-arm64", "chrome-mac-x64"]) {
+  for (const platform of ["chrome-mac-arm64", "chrome-mac-x64", ""]) {
     const candidate = path.join(build, platform, CFT_BINARY);
     if (existsSync(candidate)) return candidate;
   }

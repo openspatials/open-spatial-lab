@@ -1,7 +1,7 @@
 'use strict';
 
 /** Compose one runtime and its existing public facade; no owner starts a resource until all bindings exist. */
-const { createRuntimeState, runtimeIdentity, runtimeAnchors } = require('./runtime-initialization');
+const { createRuntimeState, runtimeIdentity, runtimeAnchors, runtimeExtents } = require('./runtime-initialization');
 const { createRuntimeSnapshot } = require('./runtime-snapshot');
 const { createRuntimeEvents } = require('./runtime-events');
 const { createRuntimeSpatial } = require('./runtime-spatial');
@@ -30,6 +30,7 @@ function createRuntime(opts)
 {
     const cfg = opts || {};
     const anchors = runtimeAnchors(cfg);
+    const extents = runtimeExtents(cfg);
     const identity = runtimeIdentity(cfg);
     const { LOCATION_ID, WORLD_ID, SESSION_ID, HTTP_PORT, NODE_ROLE, TITLE } = identity;
     const authoredGraph = cfg.authored_wow_graph ? clone(cfg.authored_wow_graph) : null;
@@ -37,7 +38,7 @@ function createRuntime(opts)
     const snapshot = createRuntimeSnapshot(state, () => presence.presenceConnectedClientsProjection());
     const events = createRuntimeEvents({ worldId : WORLD_ID, replayLimit : cfg.event_replay_limit });
     const geoPose = (position, yaw, pitch) => wowGeoPoseFromLocal(anchors.get(1), position, yaw, pitch);
-    const spatial = createRuntimeSpatial({ worldId : WORLD_ID, locationId : LOCATION_ID, title : TITLE, anchors,
+    const spatial = createRuntimeSpatial({ worldId : WORLD_ID, locationId : LOCATION_ID, title : TITLE, anchors, extents,
         seedBuilder : () => buildSpatialSeedNodes({ objects : state.scene_objects, portals : state.portals,
             avatar : state.avatar, room : cfg.room, title : TITLE, worldId : WORLD_ID, locationId : LOCATION_ID,
             yaw : portalFrameYawRad(LOCATION_ID), authoredGraph, localUserId : WOW_LOCAL_USER_ID,
@@ -72,14 +73,21 @@ function createRuntime(opts)
     const users = createRuntimeUsers({ readAvatar : () => state.avatar, readPresence : presence.livePresenceEntries,
         depart : presence.departPresence, placements, spatial, geoPose,
         sessionId : SESSION_ID, worldId : WORLD_ID, locationId : LOCATION_ID });
+    // Users present by the identity handshake (server.js sets the reader); World.users.active_user_count adds them.
+    let joinedUsers = () => 0;
     const world = createRuntimeWorldReader({ avatar : state.avatar, world : state.world, location : state.location,
         session : state.session, readPortals : () => state.portals, anchor : anchors.get(1), authoredGraph,
-        spatial, events, presence, placedPortals, worldPreview, room : cfg.room, placements, identity, fabric, portals });
+        spatial, events, presence, placedPortals, worldPreview, room : cfg.room, placements, identity, fabric, portals,
+        joinedUserCount : () => joinedUsers() });
     const handoff = createRuntimeHandoff({ avatar : state.avatar, session : state.session, debug : state.debug, identity,
         readPortals : () => state.portals, resolvePortal : portals.resolveWowPortal, placementOf : placements.placementOf,
         departPresence : presence.departPresence, presenceCount : presence.size, publish : snapshot.publish,
         getState : snapshot.getState, syncHostedPlacements : placements.syncHostedPlacements,
-        arrivalCommitMode : String(cfg.arrival_commit_mode || 'sync') });
+        arrivalCommitMode : String(cfg.arrival_commit_mode || 'sync'), emitEvent : events.emitWowEvent,
+        crossingUserId : playerId => {
+            const entry = playerId ? presence.entries().find(e => e.player_id === playerId) : null;
+            return entry ? entry.wow_user_id : WOW_LOCAL_USER_ID;
+        } });
     const simulator = createRuntimeSimulator({ spatialResolve : spatial.spatialResolve,
         updateSpatialNode : spatial.updateSpatialNode, currentRevision : events.currentRevision });
 
@@ -122,7 +130,7 @@ function createRuntime(opts)
         LOCATION_ID, WORLD_ID, SESSION_ID, HTTP_PORT, NODE_ROLE,
         getState : snapshot.getState, getDebugState : snapshot.getDebugState,
         subscribe : snapshot.subscribe, subscriberCount : snapshot.subscriberCount,
-        subscribeEvents : events.subscribeEvents, eventSubscriberCount : events.eventSubscriberCount,
+        subscribeEvents : events.subscribeEvents, eventSubscriberCount : events.eventSubscriberCount, emitWowEvent : events.emitWowEvent,
         eventsSince : events.eventsSince, currentRevision : events.currentRevision, lastChangeOf : events.lastChangeOf,
         ...simulator, listSpatialNodes : spatial.listSpatialNodes,
         addPortal : placedPortals.add, updatePortal : placedPortals.update,
@@ -137,6 +145,8 @@ function createRuntime(opts)
         getSceneObjects : sceneView.getSceneObjects, moveSceneObject : sceneObjects.moveSceneObject,
         movePortal : sceneObjects.movePortal, getPortalView : sceneView.getPortalView,
         getUmAttachPoint : sceneView.getUmAttachPoint, hostedObjectAccessOfNode : sceneView.hostedObjectAccessOfNode,
+        nextWowUserId : presence.nextUserId,
+        countJoinedUsersBy : count => { joinedUsers = typeof count === 'function' ? count : () => 0; },
         registerPresence : presence.registerPresence, heartbeatPresence : presence.heartbeatPresence,
         departPresence : presence.departPresence, stopPresenceSweeper : presence.stopPresenceSweeper,
         setRepublishRate : republish.setRepublishRate, getRepublishRate : republish.getRepublishRate,

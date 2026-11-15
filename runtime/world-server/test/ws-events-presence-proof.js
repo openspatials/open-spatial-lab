@@ -6,7 +6,7 @@
  * (default 19715; override with PROOF_PORT), connects a real RFC6455 `/events`
  * WS client, and drives the honesty-critical acceptance from the task §4:
  *
- *   1. WS /events UPGRADES (labeled non-canonical convention now served).
+ *   1. WS /events UPGRADES (the event stream, listed under services.events).
  *   2. On connect it sends a `hello` snapshot (current live occupancy).
  *   3. Presence register  -> user_joined  + /wow/user/{id} resolves the player
  *      (real occupancy) + /wow/world extension lists the player.

@@ -87,7 +87,7 @@ export function mountViewerPortals({ THREE, document: doc, built, hostUrl, build
     })
     .catch((e) => logLine(`wow arrival ERROR: ${(e && e.message) || e}`));
   void arrive();
-  // A fragment change is no page load: arriving again at a new `#join=` is up to this page.
+  // A fragment change is no page load: arriving again at a new `#join=` or `#follow=user.{id}` is up to this page.
   listen(window, "hashchange", () => { void arrive(); });
   return {dispose(){if(disposed)return;disposed=true;placementMount?.dispose();portalMount?.dispose();}};
 }

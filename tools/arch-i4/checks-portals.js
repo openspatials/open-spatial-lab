@@ -9,10 +9,14 @@
  *   P7  GET /wow/portal/{id} returns destination and node; User and View return node; each derived
  *       GeoPose, turned back into the graph's frame, is within 1 mm of the node's composed position
  *   P8  a portal with no destination does nothing and says why
+ *   P10 an observer on A's event stream sees exactly one portal_activate per crossing, sent on the crossing intent
+ *       (POST /portal/exit-intent) before navigation and before the user's departure, carrying the portal id, the
+ *       user, revision, time and urls
  */
 
 const { run } = require('../arch-i1/lib');
 const lab = require('./lab');
+const { portalActivateWire } = require('../wow-conformance/wire-checks');
 
 const { w } = lab;
 
@@ -148,6 +152,42 @@ async function portalChecks(ports) {
       await A.close();
     }
   }, {}, [{ name: 'a client that crosses a portal with no destination', impl: crossesAnyway }]);
+
+  const EMIT = '        this.emitPortalActivate(wowId, playerId);\n';
+  const emitsNone = { serverEdits: { 'runtime-handoff.js': [[EMIT, '']] } };
+  const emitsTwice = { serverEdits: { 'runtime-handoff.js': [[EMIT, EMIT + EMIT]] } };
+  await run('P10', 'an observer on A\'s event stream sees exactly one portal_activate per crossing: sent on the crossing intent, before navigation and before the user\'s departure, carrying the portal id, the user, revision, time and urls', async (impl) => {
+    const A = await w.world('a', ports.next(), { edits: impl.serverEdits });
+    const B = await w.world('b', ports.next(), { base: '/w/b' });
+    try {
+      const { module: portal } = await lab.portalClient();
+      const [n] = await B.add(1, await B.rootOf(1), [{ label: 'arrival n', localTransform: lab.placed(2, 0, 3) }]);
+      const [np] = await A.add(1, await A.rootOf(1), [{ label: 'N_P', localTransform: lab.placed(4, 0, -2, 30) }]);
+      const destination = B.base + '/#join=node.' + n;
+      const added = A.server.built.runtime.addPortal({ node_id: np, destination, label: 'P' });
+      // The wire half is shared with the conformance corpus (tools/wow-conformance/wire-checks.js portalActivateWire);
+      // the client's crossing, by navigation, is this check's own.
+      const afterIntent = async (visitor) => {
+        const navigated = [];
+        let navigatedAt = null;
+        const result = await portal.crossPortal(A.base + '/wow/portal/' + added.id, { navigate: (url) => { navigated.push(url); navigatedAt = Date.now(); } });
+        const problem = !result.crossed || navigated.length !== 1 || navigated[0] !== destination ? visitor + ' did not cross (' + JSON.stringify(result.reason || navigated) + ')' : null;
+        return { navigatedAt, problem };
+      };
+      const r = await portalActivateWire(A.base, { portalId: added.id, visitors: ['p10-first', 'p10-second'], eventsUrl: A.base + '/events', worldName: 'A\'s', afterIntent });
+      if (r.fatal) return { ok: false, detail: r.problems[0] };
+      const failures = r.problems;
+      const activations = r.activations;
+      const crossings = r.crossings;
+      return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : `${crossings.length} crossings, ${activations.length} portal_activate events, one each, before navigation and before the departure: ` + activations.map((e) => `{portalId ${e.portalId}, userId ${e.userId}, revision ${e.revision}, urls ${JSON.stringify(e.urls)}}`).join(', ') };
+    } finally {
+      await A.close();
+      await B.close();
+    }
+  }, {}, [
+    { name: 'a server that emits no portal_activate on the crossing intent', impl: emitsNone },
+    { name: 'a server that emits portal_activate twice for one crossing', impl: emitsTwice },
+  ]);
 }
 
 module.exports = { portalChecks };

@@ -14,6 +14,8 @@ import { portalLabel } from "./wow-portal-mount.mjs";
 // How long a portal whose destination was offline waits before it looks again.
 const PREVIEW_RETRY_MS = 5000;
 const PORTAL_WATCH_MS = 3000;
+// How often a page that follows a user (`#follow=user.{id}`) reads where that user is.
+const FOLLOW_WATCH_MS = 500;
 
 function nameOfDestination(portal) {
   const destination = destinationOf(portal && portal.destination);
@@ -136,18 +138,62 @@ export function createMainDemoWiring(deps) {
     if (placement.offered) void placement.ready.then(() => doc.body.setAttribute("data-wow-placement-ready", "1"));
   }
 
-  /** A page opened at `#join=node.{n}` (a portal crossed by plain navigation) stands at that node, facing its way. */
-  async function arriveAtJoin(aspectId) {
+  /**
+   * Keep a page that follows a user at that user's node: read where the user is every FOLLOW_WATCH_MS and stand there
+   * again when the node has moved. When the user is no longer present, stop following and stay where the visitor stands.
+   */
+  function keepFollowing(target, arrival) {
+    let last = arrival;
+    const look = async () => {
+      if (isDisposed()) return;
+      const adapter = getAdapter();
+      if (!adapter || isDeparted(adapter)) return;
+      let next = null;
+      try { next = await adapter.applyJoinArrival(target, { from: last }); } catch { next = null; }
+      if (next && !next.arrived && next.gone) {
+        doc.body.setAttribute("data-main-join-arrival", JSON.stringify({ intent: "follow", target: `user.${target.user}`, arrived: false, following: false, reason: next.reason }));
+        showToast("Stopped following", next.reason, "failed");
+        logLine(`follow: stopped (${next.reason})`);
+        return;
+      }
+      if (next && next.arrived && next.moved) {
+        last = next;
+        doc.body.setAttribute("data-main-join-arrival", JSON.stringify({ intent: "follow", target: `user.${target.user}`, arrived: true, following: true, node: next.node || null }));
+      }
+      window.setTimeout(look, FOLLOW_WATCH_MS);
+    };
+    window.setTimeout(look, FOLLOW_WATCH_MS);
+  }
+
+  /**
+   * A page opened at `#join=node.{n}` (a portal crossed by plain navigation) stands at that node, facing its way. A page
+   * opened at `#follow=user.{id}` stands at the node that places that user and keeps to it while the user moves. A page
+   * opened at `#follow` follows the world as a new or existing user: the adapter has registered it, and it stays at the
+   * world's own arrival. The parser (web/wow-url.mjs) has matched the verb case-insensitively.
+   */
+  async function arriveAtJoin(aspectId, intent) {
+    const following = intent === "follow";
+    if (following && !aspectId) {
+      doc.body.setAttribute("data-main-join-arrival", JSON.stringify({ intent: "follow", target: "world", arrived: true, following: true }));
+      logLine("follow: following the world (#follow)");
+      return;
+    }
     const joinNode = /^node[./](\d+)$/.exec(String(aspectId || ""));
-    if (!joinNode) return;
-    const arrival = await getAdapter().applyJoinArrival(Number(joinNode[1]));
-    doc.body.setAttribute("data-main-join-arrival", JSON.stringify({ arrived: arrival.arrived, node: arrival.node || null, reason: arrival.reason || null }));
+    const followUser = following ? /^user[./](\d+)$/i.exec(String(aspectId || "")) : null;
+    if (!joinNode && !followUser) return;
+    const target = followUser ? { user: Number(followUser[1]) } : { node: Number(joinNode[1]) };
+    const arrival = await getAdapter().applyJoinArrival(target);
+    doc.body.setAttribute("data-main-join-arrival", JSON.stringify({
+      ...(followUser ? { intent: "follow", target: `user.${target.user}`, following: !!arrival.arrived } : {}),
+      arrived: arrival.arrived, node: arrival.node || null, reason: arrival.reason || null,
+    }));
     if (arrival.arrived) {
       setCameraAzimuth(arrival.yaw - Math.PI);
-      logLine(`arrival: at ${arrival.node} (#join)`);
+      logLine(followUser ? `follow: at user ${target.user}'s node ${arrival.node} (#follow)` : `arrival: at ${arrival.node} (#join)`);
     } else {
-      showToast("No such arrival", arrival.reason, "failed");
+      showToast(followUser ? "No such user to follow" : "No such arrival", arrival.reason, "failed");
     }
+    if (followUser && arrival.arrived) keepFollowing(target, arrival);
   }
 
   return { syncPortalRing, handlePortalRefused, startPortalWatch, mountPlacementForActiveWorld, arriveAtJoin, refusals: () => refusals.slice() };

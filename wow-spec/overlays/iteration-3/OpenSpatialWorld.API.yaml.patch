@@ -1,19 +1,17 @@
 --- a/specification/OpenSpatialWorld/API.yaml
 +++ b/specification/OpenSpatialWorld/API.yaml
-@@ -6,7 +6,10 @@
-     Frames. All coordinates are in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\n\
-     Media type. Resources are served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json stays available by content negotiation.\n\n\
-     Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET return ETag and Last-Modified, and answer If-None-Match with 304. The node PUT and DELETE honor If-Match and answer 412 when it does not match (RFC 9110).\n\n\
--    Cross-origin access. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match."
-+    Cross-origin access. Responses carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match.\n\n\
-+    Events. A world's event stream is listed in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event adds revision (this world's count of its changes, one higher for each; it survives restarts, and the World resource reports the current one), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision). A write that leaves a representation unchanged creates no revision and no event. A client resumes with since=<revision>; a world that can no longer replay from there sends resync with its current revision, and the client re-reads.\n\n\
-+    Stream authentication. A world that requires authorization for its stream expects as the stream's first message the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}, and closes a stream without a valid token within 5 seconds. It refuses a stream from an origin its policy does not allow. Tokens never go in URLs.\n\n\
-+    Data points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer never passes through children: a child is named by its own node URL. Reading, conditional reading and subscribing create no user."
+@@ -8,5 +8,8 @@
+     Media type. Resources MUST be served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json MUST stay available by content negotiation.\n\n\
+     Entity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET MUST return ETag and Last-Modified, and MUST answer a matching If-None-Match with 304. The node PUT and DELETE MUST honor If-Match and MUST answer 412, changing nothing, when it does not match (RFC 9110).\n\n\
+-    Cross-origin access. Responses MUST carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses MUST allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match."
++    Cross-origin access. Responses MUST carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses MUST allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match.\n\n\
++    Events. A world that offers an event stream MUST list it in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event MUST carry type, revision (this world's count of its changes, one higher for each), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision), as the Event schema lists them. The revision MUST survive restarts, and World.revision reports the current one. A write that changes nothing MUST NOT produce a revision or an event. A client MAY resume with since=<revision>. A world that can no longer replay from there MUST send resync with its current revision, and the client MUST then re-read.\n\n\
++    Stream authentication. A world MAY require authorization for its stream. The token MUST then be the stream's first message, the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}. The token MUST NOT appear in a URL. The world MUST close a stream without a valid token within 5 seconds. A world MUST refuse a stream from an origin its policy does not allow.\n\n\
++    Data points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer MUST NOT pass through children: a child is named by its own node URL. Reading, conditional reading and subscribing MUST NOT create a user."
    version: '0.0.1'
  
- servers:
-@@ -462,6 +465,16 @@
-           description: The ids of the world's graphs (Spatial resources), the default graph first.
+@@ -463,6 +466,16 @@
+           description: The ids of the world's graphs (Spatial resources), the default graph first. A reader MUST treat an absent `spatials` as an empty list.
            items:
              type: integer
 +        revision:
@@ -29,10 +27,10 @@
          presence:
            type: object
            properties:
-@@ -597,6 +610,15 @@
-             world's environment does not apply to the host. The host sets a nesting limit and a budget of
-             included graphs, which it hands out in tree order (depth first, children in order); it
-             detects cycles by URL and shows a placeholder on failure.
+@@ -629,6 +642,46 @@
+             A host MUST read an included part from the part's own world, at its URL, and MUST revalidate it by
+             its entity tag. A copy of that part relayed or embedded by any other world MUST NOT be shown as that
+             part. When the part's own world does not answer, the host SHOULD show the placeholder.
 +        properties:
 +          type: object
 +          description: >-
@@ -44,4 +42,35 @@
 +            data point names one value with a JSON Pointer fragment on the node's URL.
          appearanceURI:
            type: string
++
++    Event:
++      type: object
++      description: >-
++        A change event on a world's event stream (services.events). Besides the members listed here as required,
++        user_joined carries user, user_left userId, node_created and node_updated node, and node_deleted nodeId.
++      required: [type, revision, time, urls]
++      properties:
++        type:
++          type: string
++          description: user_joined, user_left, node_created, node_updated or node_deleted.
++        revision:
++          type: integer
++          description: The revision this change made.
++        time:
++          type: string
++          format: date-time
++          description: The server's UTC time of the change, in RFC 3339 form.
++        urls:
++          type: array
++          description: Every resource whose representation changed, relative to the world's base URL.
++          items:
++            type: string
++        user:
++          $ref: '#/components/schemas/User'
++        userId:
++          type: number
++        node:
++          $ref: '#/components/schemas/Node'
++        nodeId:
++          type: integer
                  

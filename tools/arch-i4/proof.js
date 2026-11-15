@@ -4,10 +4,11 @@
  * Iteration 4 proof: portals and previews.   Run: npm run arch-i4-proof
  *
  *   P1, P2, P7, P8  crossing by navigation, an offline destination, placement by node, no destination  (checks-portals.js)
+ *   P10             portal_activate on the event stream, once per crossing, before navigation         (checks-portals.js)
  *   P3-P6           the bounded preview, closed portals inside it, the image and colour, no users      (checks-preview.js)
  *   P9              the seamless crossing as an optional profile: OSL's crossing proof, reported apart  (checks-crossing.js)
  *   R1              rendering in a browser (in a browser)                                                  (checks-browser.js)
- *   W1, W2          the proposed Web of Worlds edits                                                     (checks-overlay.js)
+ *   W1-W3           the proposed Web of Worlds edits, W3 their conformance vocabulary                    (checks-overlay.js)
  *
  * Headless, in Node, except R1. The worlds are lab world servers on local origins, some at a path prefix,
  * on isolated ports from 24000 up (set OSL_ARCH_I4_PORT_A to change the first): clear of the demo's ports,
