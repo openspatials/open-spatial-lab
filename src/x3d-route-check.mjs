@@ -12,7 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { inflateSync } from "node:zlib";
 import { expect, fail, fixed, pageFacts, runBehavior, sleep } from "../tools/behavior/kit.mjs";
-import { CODE } from "../tools/arch-i4/main-demo/lab.mjs";
+import { CODE, openPlayer } from "../tools/arch-i4/main-demo/lab.mjs";
 import { decodeRgbe } from "../runtime/scene-core/public/x3d/rgbe-decoder.mjs";
 import { SKY_GRADIENT_PATH, selfTest as skyGradientSelfTest } from "../tools/x3d/make-sky-gradient-hdr.mjs";
 
@@ -1044,6 +1044,43 @@ function attachmentDistance(rig, point) {
 }
 
 statements.push(
+  { id: "avatar-runtime", says: "The own-X3D route loads the Lab avatar runtime release byte for byte, and its avatar arrives drawn by that runtime", async run(ctx) {
+    // Arrival is proven from the browser's own downloads: every module the page fetches under /avatar/runtime/ must
+    // hash to the file the runtime's RELEASE.json pins, every module the avatar loader imports must be among them, and the avatar the page
+    // reports must be the runtime's, drawn on the own-X3D route.
+    const release = JSON.parse(readFileSync(join(CODE, "web", "avatar", "runtime", "RELEASE.json"), "utf8"));
+    const pinned = new Map(release.files.map((file) => [file.path, file.sha256]));
+    const url = catalogUrl(ctx, CATALOG_VARIANTS[0]);
+    const page = await ctx.visit(url, { open: false });
+    const loads = [];
+    page.on("response", (response) => {
+      const match = /\/avatar\/runtime\/(.+?\.mjs)(?:\?.*)?$/.exec(new URL(response.url()).pathname + new URL(response.url()).search);
+      if (match) loads.push(response.buffer().then((body) => ({ path: match[1], status: response.status(), sha256: createHash("sha256").update(body).digest("hex") })).catch(() => ({ path: match[1], status: response.status(), sha256: null })));
+    });
+    try {
+      await openPlayer(page, url);
+      await page.bringToFront();
+      await catalogWait(page, SCENE_SETTLE_S);
+      const route = expectCatalogRoute(await catalogRoute(page), "avatar-runtime");
+      const visual = await page.evaluate(() => window.__assembly.avatarVisualState());
+      const fetched = await Promise.all(loads);
+      expect(fetched.length > 0, `the page fetched nothing under /avatar/runtime/`);
+      const wrong = fetched.filter((file) => file.status !== 200 || !pinned.has(file.path) || pinned.get(file.path) !== file.sha256);
+      expect(!wrong.length, `the page loaded ${wrong.length} runtime file(s) that are not the ${release.version} release: ${wrong.map((file) => `${file.path} (${file.status}, ${file.sha256 ? file.sha256.slice(0, 12) : "no body"}, pinned ${pinned.has(file.path) ? pinned.get(file.path).slice(0, 12) : "not in RELEASE.json"})`).join("; ")}`);
+      const paths = [...new Set(fetched.map((file) => file.path))].sort();
+      // The app's avatar loader imports the runtime's modules directly (not the release's aggregate entry), so each
+      // module it names must arrive.
+      const loader = readFileSync(join(CODE, "web", "avatar", "actionforge-avatar.mjs"), "utf8");
+      const imported = [...loader.matchAll(/from\s+["']\.\/runtime\/([^"']+\.mjs)["']/g)].map((match) => match[1]);
+      expect(imported.length > 0, `web/avatar/actionforge-avatar.mjs imports nothing from ./runtime/`);
+      const missing = imported.filter((path) => !paths.includes(path));
+      expect(!missing.length, `the page never loaded ${missing.join(", ")}, which the avatar loader imports (loaded ${paths.join(", ")})`);
+      const local = visual.local || visual;
+      const source = local.avatar_render_source ?? visual.avatar_render_source;
+      expect(source === "actionforge-runtime", `the avatar is drawn from "${source}", not by the avatar runtime`);
+      return `${route}; runtime ${release.version}: ${paths.length} of ${release.files.length} pinned modules fetched by the page, each byte-identical to RELEASE.json (${paths.join(", ")}), including the loader's ${imported.length} direct imports; avatar ${local.avatar_variant ?? visual.avatar_variant} drawn from ${source}`;
+    } finally { await page.close(); }
+  } },
   { id: "catalog-avatars", says: "The four real catalog avatars each draw on the live own-X3D route, and the drawn frames are different people", async run(ctx) {
     const page = await ctx.visit(catalogUrl(ctx, CATALOG_VARIANTS[0]));
     try {
@@ -1331,6 +1368,8 @@ statements.push(
 );
 
 faults.push(
+  { statement: "avatar-runtime", name: "a runtime module is not the release's bytes", expect: /not the .* release/, edits: [
+    { file: "web/avatar/runtime/locomotion.mjs", find: "export ", replace: "// changed after release\nexport " }] },
   { statement: "catalog-avatars", name: "every variant loads the first avatar", expect: /different people|avatar variant/, edits: [
     { file: "web/avatar-equipment-layer.js", find: "const loaded = await loadActionForgeAvatar(variant);", replace: `const loaded = await loadActionForgeAvatar(AVATAR_VARIANTS["collection-adam"]);` }] },
   { statement: "catalog-equipment", name: "items are seated 3 m off their attachment", expect: /attachment|inside the avatar/, edits: [

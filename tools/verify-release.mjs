@@ -63,7 +63,8 @@ function browserRoute(absolute) {
   const routes = [
     ["web/vendor/scene-core/", "runtime/scene-core/public/"],
     ["web/vendor-three-examples/", "node_modules/three/examples/jsm/"],
-    ["web/vendor-vrm/", "node_modules/@pixiv/three-vrm/lib/"],
+    ["web/vendor/extension-host/", "runtime/extension-host/"],
+    ["web/fixtures/extension-host/", "src/fixtures/extension-host/"],
   ];
   for (const [prefix, target] of routes) {
     if (path.startsWith(prefix)) return join(ROOT, target, path.slice(prefix.length));
@@ -106,7 +107,6 @@ function resolveReference(specifier, referrer, context, kind) {
   if (value.startsWith("/")) {
     if (value.startsWith("/vendor/scene-core/")) return existingModule(join(ROOT, "runtime/scene-core/public", value.slice(19)));
     if (value.startsWith("/vendor-three-examples/")) return existingModule(join(ROOT, "node_modules/three/examples/jsm", value.slice(23)));
-    if (value.startsWith("/vendor-vrm/")) return existingModule(join(ROOT, "node_modules/@pixiv/three-vrm/lib", value.slice(12)));
     return existingModule(join(ROOT, "web", value.slice(1)));
   }
   if (value.startsWith(".")) return existingModule(browserRoute(resolve(dirname(referrer), value)));
@@ -116,6 +116,8 @@ function resolveReference(specifier, referrer, context, kind) {
   if (kind !== "module") return existingModule(browserRoute(resolve(ROOT, "web", value)));
   // A module check under Node reads the list directly; a browser never reaches this import (RUNS_IN_NODE).
   if (value === "node:module" && relative(ROOT, referrer) === join("web", "worlds-list.mjs")) return null;
+  // The extension host loads its Node adapter only under Node (no globalThis.Worker); a page loads sandbox-web.mjs.
+  if (value.startsWith("node:") && relative(ROOT, referrer) === join("runtime", "extension-host", "sandbox-node.mjs")) return null;
   const mapped = mappedBrowserImport(value);
   if (!mapped) throw new Error(`unmapped browser import: ${relative(ROOT, referrer)} -> ${value}`);
   return existingModule(browserRoute(resolve(ROOT, "web", cleanSpecifier(mapped))));

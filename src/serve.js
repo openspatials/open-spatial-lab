@@ -236,7 +236,8 @@ function createFrontendServer(port = 8143, options = {}) {
     const staticRoutes = [
       ['/vendor/scene-core/', SCENE_CORE_ROOT],
       ['/vendor-three-examples/', path.join(NODE_MODULES, 'three', 'examples', 'jsm')],
-      ['/vendor-vrm/', path.join(NODE_MODULES, '@pixiv', 'three-vrm', 'lib')],
+      ['/vendor/extension-host/', path.join(ROOT, 'runtime', 'extension-host')],
+      ['/fixtures/extension-host/', path.join(ROOT, 'src', 'fixtures', 'extension-host')],
     ];
     for (const [prefix, root] of staticRoutes) {
       if (!urlPath.startsWith(prefix)) continue;
