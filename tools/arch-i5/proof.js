@@ -13,6 +13,14 @@
  *   SE3, SE4, SE5                   one User id allocator per world for handshake and         (checks-session.js)
  *                                   presence users (SE3), handshake users in active_user_count
  *                                   (SE4), following in the ?wow= viewer (SE5, in a browser)
+ *   SE6                             arrival at role=player in the ?wow= viewer: the embodied   (checks-session.js)
+ *                                   avatar at #join and #follow, followed by the orbit camera
+ *   ID11                            present users' pilot: "unstated" on GET /wow/user/{id}, and   (checks-session.js)
+ *                                   "pilot not stated" on their avatars' label (in a browser)
+ *   CV1, RB4, RB5, RB12, RB11       the body and the items through a join (contract section 9): the converter from   (checks-body.js)
+ *                                   the wire form (CV1), the file digest (RB4), the drawn height (RB5), untrusted
+ *                                   shapes at the join (RB12), and a second client drawing the same fit (RB11, in a
+ *                                   browser, in the main demo)
  *   W1-W4                           the proposed Web of Worlds edits (World API overlay);   (checks-overlay.js)
  *                                   W2 also the follow and depart text, User.pilot, and user_joined, user_left and
  *                                   GET /wow/user/{id} with its pilot on the wire,
@@ -29,7 +37,7 @@ const { finish, line } = require('../arch-i1/lib');
 
 async function main() {
   line('Iteration 5 proof: carried identity');
-  line('stages run: A (the identity handshake: ID1, ID2, ID4, ID5, ID6, ID7, ID9 (preferences without a height), ID10 (the pilot statement, User.pilot), the ID1 after view, following and departing (SE1, SE2), one user id per world (SE3), handshake users counted (SE4), following in the ?wow= viewer (SE5), and the World API overlay); stage B (digital you: ID3, ID8, ID6 again) is not built yet');
+  line('stages run: A (the identity handshake: ID1, ID2, ID4, ID5, ID6, ID7, ID9 (preferences without a height), ID10 (the pilot statement, User.pilot), the ID1 after view, following and departing (SE1, SE2), one user id per world (SE3), handshake users counted (SE4), following in the ?wow= viewer (SE5), arrival at role=player (SE6), the pilot of present users (ID11), the body and the items through a join (CV1, RB4, RB5, RB12, RB11), and the World API overlay); stage B (digital you: ID3, ID8, ID6 again) is not built yet');
   const base = Number(process.env.OSL_ARCH_I5_PORT_A) || 26000;
   // At most a few worlds are open at once and each closes before its check ends, so the proof cycles through
   // 30 ports (base to base + 29) instead of taking a new one for every world.
@@ -41,10 +49,11 @@ async function main() {
   if (process.env.OSL_ARCH_I5_SKIP_BROWSER !== '1') await require('./checks-browser').browserChecks(ports);
   else line('  (V1 not run: OSL_ARCH_I5_SKIP_BROWSER=1; the proof does not pass without it)');
   await require('./checks-session').sessionChecks(ports, { browser: process.env.OSL_ARCH_I5_SKIP_BROWSER !== '1' });
+  await require('./checks-body').bodyChecks(ports, { browser: process.env.OSL_ARCH_I5_SKIP_BROWSER !== '1' });
   await require('./checks-overlay').overlayChecks(ports);
   line('ports used: ' + base + ' to ' + (base + Math.min(used, SPAN) - 1) + ' (' + used + ' worlds and frontends opened)');
   finish('arch-i5.json', 'iteration 5 proof (stage A)');
-  if (process.env.OSL_ARCH_I5_SKIP_BROWSER === '1') { line('FAIL: V1, SE1 and SE5 were not run'); process.exitCode = 1; }
+  if (process.env.OSL_ARCH_I5_SKIP_BROWSER === '1') { line('FAIL: V1, SE1, SE5, SE6, ID11 and RB11 were not run'); process.exitCode = 1; }
   process.exit(process.exitCode || 0);
 }
 
