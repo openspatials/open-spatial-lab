@@ -2,6 +2,7 @@ import { createSceneContentBuilder, createSceneAssetLoader, createHandoffAssetPa
 import { createSceneMetadata } from "./scene-metadata.mjs";
 import {createWowScenePresentation} from "./three-wow-presentation.mjs";
 import {createPeerAvatarPresentation} from "./peer-avatar-presentation.mjs";
+import { drawLabelCanvas } from "./label-canvas.mjs";
 import { SpatialPortalPreviewManager } from "./portal-spatial-preview.mjs?v=meeting-critical-destination";
 import { composeBoundedPreview } from "./main-demo-preview.mjs";
 import { accessGhostThree } from "./hosted-access-label.mjs";
@@ -14,6 +15,9 @@ import { prepareOwnX3dScene } from "./own-x3d-document.mjs";
  * binding, and the fixture-backed client-scene renderer. Domain state remains
  * in the injected runtime facade; movement and camera policy remain in their controller.
  */
+// The label above another user's avatar: the user's name and pilot (peer-avatar-presentation.mjs).
+const PEER_LABEL_STYLE = { background: "rgba(8, 18, 32, 0.85)", stroke: "#9fb6cc", color: "#e8f1ff" };
+
 export function createSceneRuntimeController({
   THREE,
   createRenderAdapter,
@@ -85,11 +89,29 @@ export function createSceneRuntimeController({
   const loadSceneAssets = createSceneAssetLoader({ THREE, mountWowSceneAssets, loadGltf, cloneScene, cache: destinationAssetCache });
 
   const runtime = () => (typeof getRuntime === "function" ? getRuntime() : null);
+  // The active world's address for a peer's User read: the debug projection syncPeerAvatars receives carries it.
+  let lastPeerDebug = null;
   const peerPresentation=createPeerAvatarPresentation({
     createLayer:()=>new AvatarLayerClass(mount(),role,runtime()?.world,{host:sceneHost(),motionPreference}),
     getLocalAvatar:()=>runtime()?.state?.avatar,isPlayer,variants:avatarVariants,logLine,
+    // A peer's User as its world reads it (name and pilot), for its avatar's label.
+    readUser:async(playerId)=>{
+      const base=lastPeerDebug?.active?.backend_base_url;
+      if(!base||!playerId)return null;
+      const r=await fetch(`${base}/wow/user/${encodeURIComponent(playerId)}`,{cache:"no-store",headers:{Accept:"application/json"}});
+      return r.ok?r.json():null;
+    },
+    makeLabel:(text)=>{
+      const canvas=drawLabelCanvas(documentTarget,[text],PEER_LABEL_STYLE,{width:768});
+      if(!canvas)return null;
+      const texture=new THREE.CanvasTexture(canvas);
+      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));
+      sprite.scale.set(1.5,1.5*canvas.height/canvas.width,1);
+      sprite.position.y=2.25;
+      return sprite;
+    },
   });
-  function syncPeerAvatars(debug) { peerPresentation.sync(debug); observePeerSync?.(debug); }
+  function syncPeerAvatars(debug) { lastPeerDebug = debug; peerPresentation.sync(debug); observePeerSync?.(debug); }
 
   const mount = () => (typeof getMount === "function" ? getMount() : null);
   const avatarLayers = () => {

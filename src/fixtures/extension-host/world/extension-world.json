@@ -1,0 +1,286 @@
+{
+  "spatialID": "extension-test-world",
+  "title": "Extension test world",
+  "_note": "A test world for the extension mount. Five nodes carry webofworlds_extension.universal_extensions. Opened only by URL; it is not in the worlds list.",
+  "units": "metres; y-up",
+  "root": 0,
+  "nodes": [
+    {
+      "id": 0,
+      "label": "extension-test-world",
+      "children": [
+        1,
+        6,
+        3,
+        4,
+        5
+      ],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "id": 1,
+      "label": "rp1-stool",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        -3,
+        0,
+        0,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "../quickstart.wasm",
+              "integrity": "sha256-Pf6o+w0kR6wsaimJ7tnwTzRQWjhFQ6HgBSbTGapS3bs=",
+              "binding": "rp1-sneeze-call"
+            },
+            "interface": "rp1-sneeze-call",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.scene.nodes"
+            ],
+            "limits": {}
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "label": "shelf",
+      "parent": 0,
+      "children": [
+        2
+      ],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        -1,
+        1
+      ]
+    },
+    {
+      "id": 2,
+      "label": "ue-box",
+      "parent": 6,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        -1.5,
+        0.5,
+        0,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "box-maker.wasm",
+              "integrity": "sha256-J+MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.1.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.scene.nodes"
+            ],
+            "limits": {}
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "label": "bad-hash",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "box-maker.wasm",
+              "integrity": "sha256-iugOCBCANhRTqN5H2rsn8wWgE3Vt7gp5ZioKco297yM=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.1.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.scene.nodes"
+            ],
+            "limits": {}
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "label": "wants-panel",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1.5,
+        0,
+        0,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "box-maker.wasm",
+              "integrity": "sha256-J+MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.1.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.scene.nodes",
+              "ue.ui.panel"
+            ],
+            "limits": {}
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "label": "runaway",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        3,
+        0,
+        0,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "data:application/wasm;base64,AGFzbQEAAAABPQtgAn9/AX5gAAF+YAF/AX9gAn9/AGADfn9/AGABfgBgAABgBH9/f38BfmADf39/AX9gAn9+AX9gA39/fgACCwECdWUEY2FsbAAAAw4NAQIDBAUGAAcICQoDAwUDAQABBggBfwFBgIACCwdDCAZtZW1vcnkCAARJbml0AAEFQWxsb2MAAgRGcmVlAAMET3BlbgAEBUNsb3NlAAUIU2h1dGRvd24ABgZOb3RpZnkABwr7Ag0IAANADAALAAsLACMAIwAgAGokAAsRACAAIAFqIwBGBEAgACQACwsCAAsCAAsCAAsEAEIACywAIAJBCGsgADsAACACQQhrIAE7AAIgAkEIayADNgAEIAJBCGsgA0EIahAACxEAIAAgASAC/AoAACAAIAJqC2IBAX8gAUIAUwRAIABBLToAACAAQQFqIQBCACABfSEBC0HAwAEhAgNAIAJBAWsiAiABQgqCp0EwajoAACABQgqAIgFCAFINAAsgACACQcDAASACa/wKAAAgAEHAwAEgAmtqC0ABAX9BiIABQYgIQRMQCSAAIAEQCSIDQSA6AAAgA0EBaiACEApBqAhBAhAJIQNBAUEBQYiAASADQYiAAWsQCBoLMAEBf0GIgAFBuAhBEhAJIAAgARAJQdgIQQEQCSECQQFBAUGIgAEgAkGIgAFrEAgaCzABAX9BiIABQYgIQRMQCSAAIAEQCUGoCEECEAkhAkEBQQFBiIABIAJBiIABaxAIGgsLQQQAQYgICxN7ImxldmVsIjoxLCJ0ZXh0IjoiAEGoCAsCIn0AQbgICxJ7ImxldmVsIjoxLCJ0ZXh0IjoAQdgICwF9",
+              "integrity": "sha256-SQcotusXLXZqhSqTGrgekxoIrd/um8iaGmncspt3J30=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.1.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log"
+            ],
+            "limits": {
+              "initMs": 300
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

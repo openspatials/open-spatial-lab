@@ -1,0 +1,87 @@
+// Universal Extensions host interface, version 0.2.0: console, data, scene, clock and timer (0.1.0), and network,
+// storage and input (0.2.0). 0.2.0 only adds: every 0.1.0 function keeps its number, and a host that serves 0.2.0
+// also loads 0.1.0 guests.
+// This file is the source of truth for the interfaces. method-numbers.json gives every function a permanent
+// (subsystem, method) number for the ue-core/0 binding; method-numbers.lock.json is its frozen copy, and its rows
+// added in 0.2.0 carry "since": "0.2.0". Panels arrive in a later version.
+package ue:host@0.2.0;
+
+interface console {
+  log: func(level: u8, text: string);
+}
+
+interface data {
+  has: func(path: string) -> bool;
+  // The value at `path` as JSON text, or none when there is no value.
+  get: func(path: string) -> option<string>;
+}
+
+interface scene {
+  record pose {
+    position: tuple<f32, f32, f32>,
+    rotation: tuple<f32, f32, f32, f32>,
+    scale: tuple<f32, f32, f32>,
+  }
+
+  attachment-root: func() -> u64;
+  node-create: func(parent: u64, name: string, kind: string, %resource: option<string>) -> u64;
+  node-set-transform: func(node: u64, position: tuple<f32, f32, f32>, rotation: tuple<f32, f32, f32, f32>, scale: tuple<f32, f32, f32>);
+  node-set-resource: func(node: u64, %resource: string);
+  node-remove: func(node: u64);
+  attachment-pose: func() -> pose;
+}
+
+interface clock {
+  wall-ms: func() -> u64;
+  monotonic-ns: func() -> u64;
+}
+
+interface timer {
+  set: func(delay-ms: u32, repeat: bool) -> u32;
+  clear: func(id: u32);
+}
+
+// The host makes every request; an extension has no sockets. A request needs the token
+// ue.network.fetch:<origin> for the exact origin of its URL (RFC 6454 ASCII form). Methods: GET, HEAD, POST, PUT,
+// PATCH, DELETE. No credentials are sent and redirects are not followed. fetch returns a request id; the result
+// arrives as a notify event { "type": "fetch", "attachment", "request", "status", "headers", "body",
+// "bodyEncoding": "text" | "base64", "error"? }, where headers are only content-type, content-length, etag,
+// last-modified and cache-control, and error is -4 (redirect or network failure) or -5 (over 1 MiB, over 10 s).
+// At most 8 requests of one attachment are in flight (-5 beyond). Close aborts them, and their results are dropped.
+interface network {
+  fetch: func(url: string, method: string, headers: list<tuple<string, string>>, body: option<string>) -> u32;
+  abort: func(id: u32);
+}
+
+// Key-value strings of one placement (world, node, module hash, attach), with the token ue.storage.local. At most
+// 256 KiB per placement (keys and values, UTF-8): a write past it returns -5 and changes nothing.
+interface storage {
+  get: func(key: string) -> option<string>;
+  set: func(key: string, value: string);
+  delete: func(key: string);
+}
+
+// No functions. With ue.input.pointer granted, the attachment gets notify events { "type": "pointer", "attachment",
+// "node", "event": "enter" | "leave" | "down" | "up" | "click", "point": [x, y, z] }, only for nodes it created.
+interface input {
+}
+
+world guest {
+  import console;
+  import data;
+  import scene;
+  import clock;
+  import timer;
+  import network;
+  import storage;
+  import input;
+
+  // Lifecycle. init returns a negative value on failure. open's payload is the JSON text
+  // { "declaration": ..., "attachment": ... }. notify's event is JSON text, for example
+  // { "type": "timer", "attachment": 1, "timer": 1 }, and goes only to the attachment that owns it.
+  export init: func() -> s64;
+  export open: func(attachment: u64, payload: string);
+  export close: func(attachment: u64);
+  export shutdown: func();
+  export notify: func(event: string) -> s64;
+}

@@ -1,0 +1,56 @@
+{
+  "@context": "https://universalmanifest.net/ns/v0.6",
+  "@id": "urn:uuid:5b0e3c1a-7f2d-4e6b-9a10-0000000000c1",
+  "@type": "um:Manifest",
+  "manifestVersion": "0.6",
+  "subject": "urn:osl:fixture:world-node:stool",
+  "issuedAt": "2026-11-16T00:00:00.000Z",
+  "expiresAt": "2030-11-16T00:00:00.000Z",
+  "facets": [
+    {
+      "@id": "urn:osl:fixture:facet:quickstart-extension",
+      "@type": [
+        "um:Facet",
+        "osl:ExtensionFacet"
+      ],
+      "name": "quickstartExtension",
+      "entity": {
+        "@id": "urn:osl:fixture:extension:quickstart",
+        "@type": [
+          "um:Entity",
+          "osl:Extension"
+        ],
+        "module": {
+          "url": "quickstart.wasm",
+          "integrity": "sha256-Pf6o+w0kR6wsaimJ7tnwTzRQWjhFQ6HgBSbTGapS3bs=",
+          "binding": "ue-core/0"
+        },
+        "interface": "ue:host@0.1.0",
+        "attach": {
+          "kind": "world-node",
+          "anchor": "stool-root"
+        },
+        "requests": [
+          {
+            "capability": "ue.scene.nodes",
+            "purpose": "place the stool model"
+          }
+        ],
+        "limits": {
+          "memoryMiB": 16,
+          "initMs": 500,
+          "eventMs": 20,
+          "timers": 32
+        }
+      }
+    }
+  ],
+  "signature": {
+    "algorithm": "Ed25519",
+    "canonicalization": "JCS-RFC8785",
+    "keyRef": "did:example:fixture-carrier#key-1",
+    "created": "2026-11-16T00:00:00.000Z",
+    "publicKeySpkiB64": "MCowBQYDK2VwAyEAE4eNIsqqGH9vl2sosxoQs9t2A11ysW27yg233EK5Wqg=",
+    "value": "uLTGW54di3BFbOfPt9IK7jNfQAj75JmrmX7wYkgerNn8Bdnnywhs0PLR5tqdkDrDv72dY5fvSjGI0RbccHcICw"
+  }
+}

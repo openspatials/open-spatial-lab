@@ -1,0 +1,25 @@
+{
+  "package": "ue:host@0.2.0",
+  "binding": "ue-core/0",
+  "subsystems": { "console": 1, "data": 2, "scene": 3, "clock": 4, "timer": 5, "network": 6, "storage": 7 },
+  "methods": [
+    { "wit": "console.log", "subsystem": 1, "method": 1, "token": "ue.console.log", "returns": "none" },
+    { "wit": "data.has", "subsystem": 2, "method": 1, "token": "ue.data.read", "returns": "scalar" },
+    { "wit": "data.get", "subsystem": 2, "method": 2, "token": "ue.data.read", "returns": "bytes" },
+    { "wit": "scene.attachment-root", "subsystem": 3, "method": 1, "token": "ue.scene.nodes", "returns": "scalar" },
+    { "wit": "scene.node-create", "subsystem": 3, "method": 2, "token": "ue.scene.nodes", "returns": "scalar" },
+    { "wit": "scene.node-set-transform", "subsystem": 3, "method": 3, "token": "ue.scene.nodes", "returns": "none" },
+    { "wit": "scene.node-set-resource", "subsystem": 3, "method": 4, "token": "ue.scene.nodes", "returns": "none" },
+    { "wit": "scene.node-remove", "subsystem": 3, "method": 5, "token": "ue.scene.nodes", "returns": "none" },
+    { "wit": "scene.attachment-pose", "subsystem": 3, "method": 6, "token": "ue.scene.read", "returns": "bytes" },
+    { "wit": "clock.wall-ms", "subsystem": 4, "method": 1, "token": "ue.clock.read", "returns": "scalar" },
+    { "wit": "clock.monotonic-ns", "subsystem": 4, "method": 2, "token": "ue.clock.read", "returns": "scalar" },
+    { "wit": "timer.set", "subsystem": 5, "method": 1, "token": "ue.clock.timer", "returns": "scalar" },
+    { "wit": "timer.clear", "subsystem": 5, "method": 2, "token": "ue.clock.timer", "returns": "none" },
+    { "wit": "network.fetch", "subsystem": 6, "method": 1, "token": "ue.network.fetch:<origin>", "returns": "scalar", "since": "0.2.0" },
+    { "wit": "network.abort", "subsystem": 6, "method": 2, "token": "ue.network.fetch:<origin>", "returns": "none", "since": "0.2.0" },
+    { "wit": "storage.get", "subsystem": 7, "method": 1, "token": "ue.storage.local", "returns": "bytes", "since": "0.2.0" },
+    { "wit": "storage.set", "subsystem": 7, "method": 2, "token": "ue.storage.local", "returns": "none", "since": "0.2.0" },
+    { "wit": "storage.delete", "subsystem": 7, "method": 3, "token": "ue.storage.local", "returns": "none", "since": "0.2.0" }
+  ]
+}

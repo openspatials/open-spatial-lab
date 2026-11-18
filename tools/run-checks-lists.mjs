@@ -86,6 +86,8 @@ const CLIENT = [
   "src/semantic-destinations-check.mjs",
   "src/server-camera-footer-check.mjs",
   "src/wow-url-grammar-check.mjs",
+  "src/extension-host-check.mjs",
+  "src/wow-extension-discovery-check.mjs",
 ];
 
 // The port variables that client proofs read; the rest take none.
@@ -97,10 +99,14 @@ const CLIENT_PORTS = {
 };
 
 // Client proofs that carry planted faults behind a --faults flag.
-const WITH_FAULTS = new Set(["src/self-identity-push-departure-check.mjs"]);
+const WITH_FAULTS = new Set(["src/self-identity-push-departure-check.mjs", "src/extension-host-check.mjs", "src/extension-host-browser-check.mjs",
+  "src/wow-extension-discovery-check.mjs", "src/wow-extension-mount-browser-check.mjs", "src/wow-extension-page-browser-check.mjs"]);
 const NODE_ARGS = {
   "src/live-adapter-movement-check.mjs": ["--experimental-vm-modules"], "src/live-adapter-lifecycle-check.mjs": ["--experimental-vm-modules"], "src/live-adapter-navigation-check.mjs": ["--experimental-vm-modules"], "src/live-adapter-crossing-manifest-check.mjs": ["--experimental-vm-modules"], "src/avatar-resources-check.mjs": ["--loader", "./tools/renderer/node-fixture-loader.mjs"] };
-const groupStep = (group, file) => ({ file, nodeArgs: NODE_ARGS[file], groups: [group], ports: CLIENT_PORTS[file], ...(WITH_FAULTS.has(file) ? { faultsFlag: true } : {}) });
+// Group steps that need longer than the default step timeout: the extension host check runs its 37 planted faults
+// (each a full run of the check in a copy of the code) whenever every check passes.
+const STEP_TIMEOUT_S = { "src/extension-host-check.mjs": 900 };
+const groupStep = (group, file) => ({ file, nodeArgs: NODE_ARGS[file], groups: [group], ports: CLIENT_PORTS[file], ...(WITH_FAULTS.has(file) ? { faultsFlag: true } : {}), ...(STEP_TIMEOUT_S[file] ? { timeoutS: STEP_TIMEOUT_S[file] } : {}) });
 
 // Steps outside the three older groups. Each runs on its own as `node <file> <args>`.
 const MORE = [
@@ -143,6 +149,9 @@ export const STEPS = [
   ...IDENTITY.map((file) => groupStep("identity", file)),
   ...CLIENT.map((file) => groupStep("client", file)),
   { file: "src/frosted-floating-chrome-e2e.mjs", groups: ["browser"], browser: true, ports: one("OSL_FROSTED_CHROME_PORT"), timeoutS: 600 },
+  { file: "src/extension-host-browser-check.mjs", groups: ["browser"], browser: true, ports: one("OSL_EXTENSION_HOST_BROWSER_PORT"), timeoutS: 900, faultsFlag: WITH_FAULTS.has("src/extension-host-browser-check.mjs") },
+  { file: "src/wow-extension-mount-browser-check.mjs", groups: ["browser"], browser: true, ports: one("OSL_UE_MOUNT_BROWSER_PORT"), timeoutS: 2700, faultsFlag: WITH_FAULTS.has("src/wow-extension-mount-browser-check.mjs") },
+  { file: "src/wow-extension-page-browser-check.mjs", groups: ["browser"], browser: true, ports: one("OSL_UE_PAGE_BROWSER_PORT"), timeoutS: 1200, faultsFlag: WITH_FAULTS.has("src/wow-extension-page-browser-check.mjs") },
   ...MORE,
 ];
 

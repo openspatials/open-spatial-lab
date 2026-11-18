@@ -4,6 +4,30 @@ import {
 } from "./wow-inclusion-mount.mjs";
 import { mountViewControls } from "./wow-view-controls.mjs";
 import { mountViewerPortals } from "./main-demo-viewer-portals.mjs";
+import { mountWowExtensions } from "./wow-extension-mount.mjs";
+import { createGrantStore, renderExtensionsPanel } from "./wow-extension-consent.mjs";
+import { attachExtensionPointer } from "./wow-extension-pointer.mjs";
+
+// The extension host, loaded only when a world carries extensions. The Lab frontend serves runtime/extension-host/ at
+// /vendor/extension-host/, beside /vendor/scene-core/.
+const EXTENSION_HOST_URL = new URL("./vendor/extension-host/extension-host.mjs", import.meta.url).href;
+
+// The page's localStorage (remembered grants and the extensions' storage), or null where it cannot be read.
+function pageStorage(view) {
+  try {
+    const storage = view?.localStorage || null;
+    if (storage) storage.getItem("ue-grants:");
+    return storage;
+  } catch {
+    return null;
+  }
+}
+// One grant store per page, so a grant allowed for this page session holds across worlds shown in it.
+let pageGrants = null;
+function grantStoreFor(view) {
+  if (!pageGrants) pageGrants = createGrantStore({ storage: pageStorage(view) });
+  return pageGrants;
+}
 
 /** The scene runtime owns this graph presentation and its asynchronous publications. */
 export function createWowScenePresentation({
@@ -27,6 +51,7 @@ export function createWowScenePresentation({
   hideStageDebugVisuals,
   visitorPosition,
   logLine,
+  loadExtension = null,
 }) {
   const width = mount?.clientWidth || 1100,
     height = mount?.clientHeight || 660;
@@ -43,11 +68,14 @@ export function createWowScenePresentation({
     controls = null,
     inclusions = null,
     portals = null,
+    extensions = null,
+    extensionUi = null,
     disposed = false;
   const removers = [];
   const active = () => !disposed;
   let inclusionHost = null,
-    baseUrl = null;
+    baseUrl = null,
+    worldHref = null;
   function configureAssetLocation() {
     const graphHref = resolved?.graph_url
       ? new URL(resolved.graph_url, view.location.href).href
@@ -65,6 +93,7 @@ export function createWowScenePresentation({
     baseUrl = localFixture
       ? graphHref
       : resolved?.base_url || resolved?.graph_url || view.location.href;
+    worldHref = graphHref;
   }
   const assetOptions = () => ({
     loadGltf,
@@ -202,6 +231,106 @@ export function createWowScenePresentation({
       logLine(`M2 wow: glTF ingest ERROR: ${renderState.asset_load.error}`);
     }
   }
+  // The extensions the world's nodes carry (`webofworlds_extension.universal_extensions`), after the models. A world
+  // with none does nothing here. Refusals and failures are drawn as labeled markers and never break the world.
+  async function loadExtensions() {
+    const nodes = built?.extension_nodes || [];
+    if (!active() || !nodes.length) return;
+    let host = loadExtension;
+    if (!host) {
+      try {
+        host = (await import(EXTENSION_HOST_URL)).loadExtension;
+      } catch (error) {
+        host = null;
+        logLine(`wow extensions: the extension host did not load: ${error?.message || error}`);
+      }
+    }
+    if (!active()) return;
+    const storage = pageStorage(view);
+    const mounted = await mountWowExtensions(nodes, THREE, {
+      loadExtension: host,
+      worldUrl: worldHref,
+      pageOrigin: view.location.origin,
+      loadGltf,
+      document,
+      shouldMount: active,
+      storage,
+      grantStore: grantStoreFor(view),
+    });
+    if (!active()) {
+      await mounted.unmount();
+      return;
+    }
+    extensions = mounted;
+    extensionUi = mountExtensionUi(mounted);
+    view.__wowExtensions = {
+      summary: mounted.summary,
+      discovery: built.render_summary.extensions,
+      unmount: () => mounted.unmount(),
+    };
+    document.body.setAttribute(
+      "data-wow-extensions",
+      JSON.stringify({
+        mounted: mounted.mounted.length,
+        refused: mounted.refused.length,
+        failed: mounted.failed.length,
+      })
+    );
+    logLine(
+      `wow extensions: ${mounted.mounted.length} running, ${mounted.refused.length} refused, ${mounted.failed.length} failed`
+    );
+    for (const record of [...mounted.refused, ...mounted.failed])
+      logLine(
+        `wow extension ${record.status} at ${record.stage}: ${record.label}#${record.index}: ${record.error}`
+      );
+    for (const pending of mounted.needs_consent)
+      logLine(
+        `wow extension ${pending.label}#${pending.index}: ${pending.tokens.join(", ")} ${pending.note}`
+      );
+  }
+  // The Extensions panel, opened from a button in the world header, and pointer input on the scene's canvas.
+  function mountExtensionUi(mounted) {
+    const undo = [];
+    const canvas = runtime?._impl?.renderer?.domElement;
+    if (canvas && built?.camera) {
+      const pointer = attachExtensionPointer({ THREE, camera: built.camera, scene: built.scene, canvas, mounted });
+      undo.push(() => pointer.dispose());
+    }
+    const actions = document?.querySelector?.('[data-testid="header-actions"]');
+    if (actions && mounted.records.length) {
+      let panel = null;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "header-icon-button extensions-toggle";
+      button.setAttribute("data-testid", "extensions-toggle");
+      button.setAttribute("aria-expanded", "false");
+      button.title = "Extensions in this world";
+      button.setAttribute("aria-label", "Open the Extensions panel");
+      button.innerHTML = '<svg class="header-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4h6v4h4v6h-4v6H9v-6H5V8h4z"></path></svg>';
+      const closePanel = () => {
+        if (panel) panel.close();
+      };
+      button.addEventListener("click", () => {
+        if (panel) return closePanel();
+        panel = renderExtensionsPanel({
+          document,
+          mounted,
+          onClose: () => {
+            panel = null;
+            button.setAttribute("aria-expanded", "false");
+          },
+        });
+        document.body.append(panel.element);
+        button.setAttribute("aria-expanded", "true");
+      });
+      actions.prepend(button);
+      undo.push(() => {
+        closePanel();
+        button.remove();
+      });
+    }
+    return { dispose: () => { for (const step of undo.splice(0).reverse()) step(); } };
+  }
   function bindControls() {
     const canvas = runtime?._impl?.renderer?.domElement;
     controls = canvas
@@ -253,7 +382,11 @@ export function createWowScenePresentation({
         );
       }
       bindControls();
-      void loadModels();
+      void loadModels()
+        .then(loadExtensions)
+        .catch((error) => {
+          if (active()) logLine(`wow extensions ERROR: ${error?.message || error}`);
+        });
     } catch (error) {
       if (!runtime) {
         try { built?.airport_hud_overlay?.dispose(); } catch {}
@@ -274,6 +407,14 @@ export function createWowScenePresentation({
     portals?.dispose();
     inclusions?.live.close();
     inclusions?.current().undo();
+    const mountedExtensions = extensions;
+    extensions = null;
+    extensionUi?.dispose();
+    extensionUi = null;
+    if (mountedExtensions) {
+      void mountedExtensions.unmount();
+      view.__wowExtensions = null;
+    }
     for (const remove of removers.splice(0).reverse()) remove();
   }
   return { start, dispose, runtime: () => runtime };

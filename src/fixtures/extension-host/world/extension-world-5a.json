@@ -1,0 +1,195 @@
+{
+  "spatialID": "extension-test-world-5a",
+  "title": "Extension test world 5a",
+  "_note": "A test world for the consent prompt, network fetch, storage and pointer input of the extension mount (Lab Step 5a). Three nodes carry webofworlds_extension.universal_extensions. The origin http://127.0.0.1:18353 names the test server of src/wow-extension-mount-browser-check.mjs, which serves this file with its own test server origin in its place. Opened only by URL; it is not in the worlds list.",
+  "units": "metres; y-up",
+  "root": 0,
+  "nodes": [
+    {
+      "id": 0,
+      "label": "extension-test-world-5a",
+      "children": [
+        1,
+        2,
+        3
+      ],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "id": 1,
+      "label": "fetcher",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        -2,
+        0,
+        0,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "fetcher.wasm",
+              "integrity": "sha256-/lIx2dN+jhWK6B2SzlMpZqdtvo4rwmGYYu78Y7bXzUg=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.2.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.data.read",
+              "ue.clock.timer",
+              "ue.network.fetch:http://127.0.0.1:18353"
+            ],
+            "purposes": {
+              "ue.network.fetch:http://127.0.0.1:18353": "Asks the test server for its slow answer every half second, to show a request in flight."
+            },
+            "limits": {},
+            "data": {
+              "fetch": {
+                "url": "http://127.0.0.1:18353/slow",
+                "method": "GET",
+                "headers": [],
+                "body": null
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "label": "storage-user",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "storage-user.wasm",
+              "integrity": "sha256-TX9uK+tiLOEoCoJMP+b1qDjK7TmKBg5iYe4FhhJQ+bI=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.2.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.data.read",
+              "ue.storage.local"
+            ],
+            "purposes": {
+              "ue.storage.local": "Keeps one note for this world <img src=x onerror=\"globalThis.__ueConsentScriptRan=1\">"
+            },
+            "limits": {},
+            "data": {
+              "set": {
+                "key": "note",
+                "value": "kept by the 5a world"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "label": "pointer-listener",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        2,
+        0,
+        0,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "pointer-listener.wasm",
+              "integrity": "sha256-cCeNnxXtpBZWwdf9OR9kJQ73A53STaXXV2J/XXVKsJE=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.2.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.scene.nodes",
+              "ue.input.pointer"
+            ],
+            "purposes": {
+              "ue.input.pointer": "Reacts when you point at or click its box."
+            },
+            "limits": {}
+          }
+        ]
+      }
+    }
+  ]
+}

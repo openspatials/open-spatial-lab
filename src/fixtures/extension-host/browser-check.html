@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Extension host browser check</title>
+</head>
+<body>
+<pre id="out">running</pre>
+<script type="module">
+// Runs every case of cases.mjs in this page, with each extension in its own module Web Worker (sandbox: "web").
+// Each result is logged as it finishes ("extension-host-case {json}"), then all of them are set on
+// window.__extensionHostResults as [{ id, ok, detail }] and "extension-host-done" is logged.
+//
+// ?net=<origin> names the check's test server for the network cases (another port of this host). The page sets a
+// cookie for this host first, so a request that carried credentials to the test server would show it there.
+import { loadExtension } from "../../../runtime/extension-host/extension-host.mjs";
+import { CASES, loadFixtures } from "./cases.mjs";
+
+const CASE_LIMIT_MS = 20000;
+const root = new URL("../../../", import.meta.url);
+const out = document.getElementById("out");
+const oneLine = (error) => String((error && error.message) || error).replace(/\s+/g, " ").trim();
+const read = async (path) => {
+  const response = await fetch(new URL(path, root), { cache: "no-store" });
+  if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+};
+const web = (options) => loadExtension({ ...options, sandbox: "web" });
+document.cookie = "ue_session=lab; path=/; SameSite=Lax";
+const netOrigin = new URLSearchParams(location.search).get("net");
+const net = netOrigin ? {
+  origin: netOrigin,
+  url: (path) => `${netOrigin}${path}`,
+  seen: async () => (await fetch(`${netOrigin}/__seen`, { cache: "no-store" })).json(),
+  reset: async () => { await fetch(`${netOrigin}/__reset`, { cache: "no-store" }); },
+  fetch: undefined,
+} : null;
+const results = [];
+const report = (result) => {
+  results.push(result);
+  out.textContent += `\n${result.ok ? "PASS" : "FAIL"} ${result.id}${result.ok ? "" : `: ${result.detail}`}`;
+  console.log(`extension-host-case ${JSON.stringify(result)}`);
+};
+
+const cases = CASES.filter((item) => item.only !== "node");
+let fixtures = null;
+let fixtureError = null;
+try {
+  fixtures = await loadFixtures(read);
+} catch (error) {
+  fixtureError = `the fixtures did not load: ${oneLine(error)}`;
+}
+for (const item of cases) {
+  if (fixtureError) {
+    report({ id: item.id, ok: false, detail: fixtureError });
+    continue;
+  }
+  let timer = null;
+  const limit = new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error(`the case did not finish within ${CASE_LIMIT_MS} ms`)), CASE_LIMIT_MS); });
+  try {
+    await Promise.race([item.run({ loadExtension: web, fixtures, net }), limit]);
+    report({ id: item.id, ok: true, detail: "" });
+  } catch (error) {
+    report({ id: item.id, ok: false, detail: oneLine(error) });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+window.__extensionHostResults = results;
+out.textContent += "\ndone";
+console.log("extension-host-done");
+</script>
+</body>
+</html>
