@@ -9,7 +9,8 @@
  *
  * The page states its pilot (User.pilot) as "agent" when the browser is driven by automation (navigator.webdriver)
  * and "human" otherwise. The panel shows the User the world made by its label (userLabel): a user whose pilot is
- * hybrid is shown as an agent. This panel is where the page shows the User the world made.
+ * hybrid is shown as an agent, and one whose pilot is unstated as "pilot not stated". This panel is where the page
+ * shows the User the world made.
  */
 
 import { enterWorld, baseOf, LAB_WALLET, userLabel } from "./wow-handshake.mjs";

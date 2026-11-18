@@ -1,14 +1,15 @@
 /*
  * Portals in the `?wow=` viewer: the shown world's portals, each showing what its destination allows to be seen, the
  * placement tool when the world offers it, and the arrival at `#join=node.{n}` when the page was opened by crossing a
- * portal. The viewer is the lab's internal test tool; web/app.js holds only the call to this file.
+ * portal, or at `#follow=user.{id}`, where the camera keeps to that user's node while the user moves (keepFollowing,
+ * shared with the main page). The viewer is the lab's internal test tool; web/app.js holds only the call to this file.
  */
 
-import { mountPortals, mountPlacementTool, applyJoinArrival, playerUrlFor } from "./wow-portal-mount.mjs";
+import { mountPortals, mountPlacementTool, applyJoinArrival, keepFollowing, playerUrlFor } from "./wow-portal-mount.mjs";
 import { readPlacementPolicy } from "./wow-portal.mjs";
 
 export function mountViewerPortals({ THREE, document: doc, built, hostUrl, buildWowScene, canvas, viewControls, onModels, visitorPosition, logLine, listen }) {
-  let disposed=false, portalMount=null, placementMount=null;
+  let disposed=false, portalMount=null, placementMount=null, keep=null;
   const fetchWow = window.fetch.bind(window);
   void mountPortals({
     built, hostUrl, THREE, document: doc, buildWowScene,
@@ -76,18 +77,36 @@ export function mountViewerPortals({ THREE, document: doc, built, hostUrl, build
       doc.body.setAttribute("data-wow-portals-ready", "error");
       logLine(`wow portals ERROR: ${(e && e.message) || e}`);
     });
-  const arrive = () => disposed?Promise.resolve():applyJoinArrival({ hostUrl, camera: built.camera, hash: location.hash, fetch: fetchWow })
+  const shown = (arrival) => {
+    viewControls?.syncFromCamera();
+    const camera = built.camera.position.toArray();
+    window.__wowArrival = { ...arrival, camera };
+    doc.body.setAttribute("data-wow-arrival", JSON.stringify({ arrived: arrival.arrived, node: arrival.node || null, position: arrival.position || null, camera, reason: arrival.reason || null }));
+  };
+  // While the fragment still follows that user, stand the camera at the user's node again whenever it moves.
+  const keepCamera = (hash, first) => keepFollowing((last) => applyJoinArrival({ hostUrl, camera: built.camera, hash, fetch: fetchWow, from: last }), {
+    first,
+    stopped: () => disposed || location.hash !== hash,
+    onMoved: (arrival) => { shown(arrival); logLine(`wow follow: at ${arrival.node}`); },
+    onGone: (gone) => { shown(gone); logLine(`wow follow: stopped (${gone.reason})`); },
+  });
+  const arrive = () => {
+    keep?.stop();
+    keep = null;
+    if (disposed) return Promise.resolve();
+    const hash = location.hash;
+    return applyJoinArrival({ hostUrl, camera: built.camera, hash, fetch: fetchWow })
     .then((arrival) => {
       if (disposed || !arrival) return;
-      viewControls?.syncFromCamera();
-      const camera = built.camera.position.toArray();
-      window.__wowArrival = { ...arrival, camera };
-      doc.body.setAttribute("data-wow-arrival", JSON.stringify({ arrived: arrival.arrived, node: arrival.node || null, position: arrival.position || null, camera, reason: arrival.reason || null }));
+      shown(arrival);
       logLine(arrival.arrived ? `wow arrival: at ${arrival.node}` : `wow arrival: ${arrival.reason}`);
+      if (location.hash !== hash) return;
+      if (arrival.arrived && arrival.follow != null) keep = keepCamera(hash, arrival);
     })
     .catch((e) => logLine(`wow arrival ERROR: ${(e && e.message) || e}`));
+  };
   void arrive();
   // A fragment change is no page load: arriving again at a new `#join=` or `#follow=user.{id}` is up to this page.
   listen(window, "hashchange", () => { void arrive(); });
-  return {dispose(){if(disposed)return;disposed=true;placementMount?.dispose();portalMount?.dispose();}};
+  return {dispose(){if(disposed)return;disposed=true;keep?.stop();placementMount?.dispose();portalMount?.dispose();}};
 }

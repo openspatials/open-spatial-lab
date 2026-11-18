@@ -147,11 +147,12 @@ async function main()
     try
     {
         ev = await connectEvents(PORT, '/events');
-        await check('WS1', 'WS /events upgrades (labeled non-canonical convention now served)', async () => {
+        await check('WS1', 'WS /events upgrades (the event stream listed under World.services.events)', async () => {
             const hello = await ev.waitFor(f => f.type === 'hello', 3000, 'hello');
             assert.ok(Array.isArray(hello.users), 'hello.users is an array');
             assert.strictEqual(hello.users.length, 0, 'hello shows zero occupancy at boot');
-            assert.ok(/non-canonical/i.test(hello.convention || ''), 'hello labels the convention non-canonical');
+            assert.ok(/services\.events/.test(hello.convention || ''), 'hello names the event stream as listed under services.events');
+            assert.ok(!/non-?canonical/i.test(hello.convention || ''), 'hello does not call the event stream non-canonical');
             assertBoundary(hello, 'hello');
         });
 

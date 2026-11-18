@@ -4,19 +4,21 @@
  * WoW contract foundation proof.
  *
  * Demonstrates the typed+validated contract mechanism end to end:
- *   A. the REAL 041 runtime WoW projections validate against the wow-spec
- *      response composites (and against the PURE canonical schemas);
+ *   A. the runtime WoW projections validate against the wow-spec response
+ *      composites (and against the PURE canonical schemas);
  *   B. a live HTTP GET /wow/{world,user,view,portal} round-trips through the
- *      ADDITIVE, env-gated ajv validation wired into the vanilla-Node server
- *      (OSL_WOW_VALIDATE=1 -> X-OSL-WoW-Validation: pass:<schema>), body valid;
+ *      ajv validation the world server always runs on its responses
+ *      (X-OSL-WoW-Validation: pass:<schema>), body valid;
  *   C. NEGATIVE — deliberately-bad response payloads are REJECTED;
  *   D. request-body validation — good Node / Node[] pass, bad are REJECTED;
  *   E. the canonical /wow/spatial composition-graph paths are present in the
- *      contract (contract-only: served route still 404s, honestly not-yet-impl).
+ *      contract and served (a path that names no graph id, /wow/spatial/demo,
+ *      answers 404);
+ *   F. the labeled SpatialFabricSubtree extension is strict and fail-closed.
  *
  * Runs the server on an ISOLATED high port (default 18971) — never the live
  * demo ports (8143 / 18151-18153). Writes evidence to
- * evidence/wow-contract-foundation.json. Exits non-zero on any failure.
+ * diagnostics/runtime-wow-contract-foundation.json. Exits non-zero on any failure.
  */
 
 const http = require('http');

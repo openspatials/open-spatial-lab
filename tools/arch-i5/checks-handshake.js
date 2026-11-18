@@ -18,8 +18,9 @@
  *        no pointer appears in any URL or Referer header a world received
  *   ID9  preferences without a height: `language` alone satisfies the preferences claim; the provisional
  *        accessibility members are shape-checked; the world reports each member it received as applied or not
- *   ID10 the pilot statement: every join carries one (human, agent or hybrid); the world copies it onto the User
- *        (User.pilot) and refuses a join without one, or with another value; a client shows hybrid as an agent
+ *   ID10 the pilot statement: a join states one (human, agent or hybrid); the world copies it onto the User
+ *        (User.pilot) and refuses a join with another value; a join without one proceeds, and its User and record
+ *        read "unstated" (never "human"); a client shows hybrid as an agent and unstated as "pilot not stated"
  *
  * Every check also runs against planted faults, each an exact edit of the real code, which must turn it red.
  */
@@ -282,8 +283,9 @@ async function handshakeChecks(ports) {
   ]);
 
   // ---- ID10 -------------------------------------------------------------------------------------------
-  // The pilot statement (User.pilot): what the visitor states about who is at the controls. Every join carries one;
-  // the world copies it onto the User it makes and never supplies one; a client shows hybrid as an agent.
+  // The pilot statement (User.pilot): what the visitor states about who is at the controls. The agent's join carries one;
+  // the world copies it onto the User it makes and never supplies human, agent or hybrid; a join without one (an older
+  // client) proceeds and reads "unstated"; a client shows hybrid as an agent and unstated as "pilot not stated".
   const pilotPanel = async (user) => {
     // The `?wow=` player's panel (web/wow-handshake-mount.mjs), drawn into a stand-in document, as the page draws it.
     const mount = await import(require('url').pathToFileURL(path.join(ROOT, 'web', 'wow-handshake-mount.mjs')).href);
@@ -293,7 +295,7 @@ async function handshakeChecks(ports) {
     mount.mountHandshakePanel(doc, run, {});
     return String(el.innerHTML || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   };
-  await run('ID10', 'the pilot statement (User.pilot): Q asks only for the display name (optional); the agent\'s join always carries a pilot statement; a join stated "agent" yields User.pilot "agent" and one stated "hybrid" User.pilot "hybrid" (read back by GET /wow/user/{id}); a join without a pilot statement, or with another value ("robot", "Human", ""), is answered deny with the reason, recorded, and makes no User (never a silent "human"); the client shows "hybrid" as an agent (pilotShownAs: agent for agent and hybrid), in the user label and in the ?wow= player\'s panel', async (impl) => {
+  await run('ID10', 'the pilot statement (User.pilot): Q asks only for the display name (optional); the agent\'s join always carries a pilot statement; a join stated "agent" yields User.pilot "agent" and one stated "hybrid" User.pilot "hybrid" (read back by GET /wow/user/{id}); a join with another value ("robot", "Human", "") is answered deny with the reason, recorded, and makes no User; a join without a pilot statement (an older client) proceeds, its User reads pilot "unstated" and its record names "unstated" (never a silent "human"); the client shows "hybrid" as an agent (pilotShownAs: agent for agent and hybrid) and "unstated" as "pilot not stated", in the user label and in the ?wow= player\'s panel', async (impl) => {
     const failures = [];
     const notes = [];
     const hs = await lab.agent(impl.agent);
@@ -313,12 +315,11 @@ async function handshakeChecks(ports) {
         else if (user.pilot !== pilot) failures.push(`a join stated "${pilot}": User.pilot is ${JSON.stringify(user.pilot)}`);
         else notes.push(`stated "${pilot}": User ${(entered.answer || {}).user} pilot "${user.pilot}"`);
       }
-      // 2. No pilot statement, or one of another value: deny with the reason, recorded, no User, nothing defaulted.
+      // 2. A pilot statement of another value: deny with the reason, recorded, no User.
       const refused = [];
-      for (const [label, pilot] of [['no pilot statement', undefined], ['"robot"', 'robot'], ['"Human"', 'Human'], ['""', '']]) {
+      for (const [label, pilot] of [['"robot"', 'robot'], ['"Human"', 'Human'], ['""', '']]) {
         const body = await hs.presentation({ values: { display_name: 'Ada' }, key: await hs.visitKey(), audience: Q.base, pilot: 'agent' });
-        if (pilot === undefined) delete body.pilot;
-        else body.pilot = pilot;
+        body.pilot = pilot;
         const before = (Q.records() || []).length;
         const r = await postJoin(Q, body);
         const a = r.json || {};
@@ -326,7 +327,23 @@ async function handshakeChecks(ports) {
         if (r.status !== 403 || a.outcome !== 'deny' || !/pilot/.test(a.reason || '') || a.user || recorded) failures.push(`${label}: ${r.status} ${a.outcome} "${a.reason || ''}"${a.user ? ', user ' + a.user : ''}${recorded ? ' (' + recorded + ')' : ''}`);
         else refused.push(`${label}: deny, "${a.reason}"`);
       }
-      if (refused.length === 4) notes.push(refused.join('; ') + '; each recorded, no User');
+      if (refused.length === 3) notes.push(refused.join('; ') + '; each recorded, no User');
+      // 2b. No pilot statement (a client that predates the rule): the join proceeds; the User and the record read "unstated".
+      let unstatedUser = null;
+      {
+        const body = await hs.presentation({ values: { display_name: 'Old Ada' }, key: await hs.visitKey(), audience: Q.base, pilot: 'agent' });
+        delete body.pilot;
+        const before = (Q.records() || []).length;
+        const r = await postJoin(Q, body);
+        const a = r.json || {};
+        const recorded = recordMatches(Q, a, before);
+        const rec = lastRecord(Q);
+        const user = await userOf(a);
+        if (r.status !== 201 || a.outcome !== 'proceed' || !a.user || recorded) failures.push(`no pilot statement: ${r.status} ${a.outcome} "${a.reason || ''}"${recorded ? ' (' + recorded + ')' : ''}, not 201 proceed`);
+        else if (!user || user.pilot !== 'unstated') failures.push(`no pilot statement: User ${a.user} pilot is ${JSON.stringify(user && user.pilot)}, not "unstated"`);
+        else if (!rec || rec.pilot !== 'unstated') failures.push(`no pilot statement: the record names pilot ${JSON.stringify(rec && rec.pilot)}, not "unstated"`);
+        else { unstatedUser = user; notes.push(`no pilot statement: 201 proceed, User ${a.user} pilot "unstated", the record names "unstated"`); }
+      }
       // 3. The client: hybrid is shown as an agent, in the label and in the player's panel.
       const shown = typeof hs.pilotShownAs === 'function' ? ['agent', 'hybrid', 'human', undefined].map((p) => hs.pilotShownAs(p)) : null;
       if (!shown) failures.push('the client has no pilotShownAs');
@@ -338,6 +355,15 @@ async function handshakeChecks(ports) {
       const panel = await pilotPanel(hybridUser);
       if (!/\bagent\b/.test(panel) || /human/i.test(panel) || panel.indexOf(hybridUser.name) === -1) failures.push(`the player's panel shows the hybrid user as "${panel.slice(0, 200)}"`);
       if (shown && label) notes.push(`the hybrid user is labelled "${label}", in the panel too`);
+      // 3b. The client: "unstated" is shown as "pilot not stated", never as human or agent.
+      const unstatedShown = typeof hs.pilotShownAs === 'function' ? hs.pilotShownAs('unstated') : undefined;
+      if (unstatedShown !== 'pilot not stated') failures.push('pilotShownAs gives unstated -> ' + JSON.stringify(unstatedShown) + ', not "pilot not stated"');
+      const oldUser = unstatedUser || { id: 2, name: 'Old Ada', pilot: 'unstated' };
+      const oldLabel = typeof hs.userLabel === 'function' ? hs.userLabel(oldUser) : null;
+      if (!oldLabel || !/pilot not stated/.test(oldLabel) || /human|\bagent\b/i.test(oldLabel) || oldLabel.indexOf(oldUser.name) === -1) failures.push(`the unstated user is labelled ${JSON.stringify(oldLabel)}`);
+      const oldPanel = await pilotPanel(oldUser);
+      if (!/pilot not stated/.test(oldPanel) || /human/i.test(oldPanel) || oldPanel.indexOf(oldUser.name) === -1) failures.push(`the player's panel shows the unstated user as "${oldPanel.slice(0, 200)}"`);
+      if (oldLabel && unstatedShown === 'pilot not stated') notes.push(`the unstated user is labelled "${oldLabel}", in the panel too`);
       return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : notes.join('; ') };
     } finally {
       await Q.close();
@@ -345,7 +371,10 @@ async function handshakeChecks(ports) {
   }, {}, [
     { name: 'a world that omits pilot from the User it makes', impl: H([['                user.pilot = presented.pilot;\n', '']]) },
     { name: 'a client that shows hybrid as human', impl: { agent: [['  return pilot === "agent" || pilot === "hybrid" ? "agent" : pilot === "human" ? "human" : null;\n', '  return pilot === "agent" ? "agent" : pilot === "human" || pilot === "hybrid" ? "human" : null;\n']] } },
-    { name: 'a world that takes a join without a pilot statement as human', impl: H([["        if (body.pilot === undefined) return { ok : false, reason : 'no pilot statement (pilot: human, agent or hybrid)' };\n", "        if (body.pilot === undefined) body.pilot = 'human';\n"]]) },
+    { name: 'a world that takes a join without a pilot statement as human', impl: H([["        if (body.pilot === undefined) return { ok : true, reason : null, pilot : UNSTATED };\n", "        if (body.pilot === undefined) return { ok : true, reason : null, pilot : 'human' };\n"]]) },
+    { name: 'a world that still refuses a join without a pilot statement', impl: H([["        if (body.pilot === undefined) return { ok : true, reason : null, pilot : UNSTATED };\n", "        if (body.pilot === undefined) return { ok : false, reason : 'no pilot statement (pilot: human, agent or hybrid)' };\n"]]) },
+    { name: 'a world whose record does not name the pilot', impl: H([["            ...(presented.ok ? { pilot : presented.pilot } : {}),\n", '']]) },
+    { name: 'a client that shows unstated as human', impl: { agent: [['  if (pilot === "unstated") return "pilot not stated";\n', '  if (pilot === "unstated") return "human";\n']] } },
     { name: 'a world that accepts a pilot statement of another value', impl: H([["        if (!PILOTS.includes(body.pilot)) return { ok : false, reason : 'pilot statement malformed: expected human, agent or hybrid' };\n", '']]) },
     { name: 'an agent whose join carries no pilot statement', impl: { agent: [['  return { manifest, proof, pilot };\n', '  return { manifest, proof };\n']] } },
   ]);

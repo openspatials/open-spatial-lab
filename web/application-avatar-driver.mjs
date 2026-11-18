@@ -18,6 +18,11 @@ function readPeerAvatars(peerAvatarLayers) {
         ? Number(layer.avatarRig.rotation.y.toFixed(6))
         : null,
     avatar_variant: layer && layer.status ? layer.status.avatar_variant : null,
+    // The peer's user label (name and pilot), and whether it is drawn on the avatar.
+    label:
+      layer && layer.__peerLabel
+        ? { text: layer.__peerLabel, drawn: !!(layer.avatarRig && layer.avatarRig.getObjectByName("peer-label")) }
+        : null,
     visual_separation: layer ? layer.__peerVisualSeparation || null : null,
     attached_item_count:
       layer && typeof layer.debugState === "function"

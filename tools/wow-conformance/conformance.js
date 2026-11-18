@@ -69,8 +69,8 @@ const ENDPOINTS = [
         requestSchema: 'Node[]', canonicalSchema: 'Node', requestBody: true, writes: true,
         fixture: fx.nodeCreateBody },
 
-    // Labeled NON-CANONICAL realtime convention (OSL-WOW-CONTRACT §6). Out of
-    // the OpenAPI HTTP contract on purpose; shape asserted ourselves..
+    // The event stream, listed in the World resource under services.events
+    // (OSL-WOW-CONTRACT §6). A WebSocket upgrade has no `paths` entry; shape asserted ourselves.
     { id: 'events', method: 'WS', path: '/events', kind: 'events',
         convention: 'event-stream (services.events)', contractOnly: true,
         fixture: fx.eventsEnvelopes, trackedBy: 'runtime' },

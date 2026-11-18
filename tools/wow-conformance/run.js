@@ -243,10 +243,12 @@ function printWireSuite(suite)
         w.write('  ' + pad(c.verdict, 8) + pad(c.id, 8) + c.title + '\n');
         for (const p of c.problems) w.write('            problem: ' + p + '\n');
         for (const s of c.skipped) w.write('            skipped (not a pass): ' + s + '\n');
+        if (c.verdict === 'N/A') w.write('            not applicable: ' + c.reason + '\n');
     }
     const count = (v) => suite.checks.filter((c) => c.verdict === v).length;
     w.write('wire suite: ' + count('PASS') + ' pass, ' + count('FAIL') + ' fail, ' + count('PARTIAL') + ' partial, '
-        + count('SKIP') + ' skipped, of ' + suite.checks.length + ' (PARTIAL and SKIP are not passes)\n');
+        + count('SKIP') + ' skipped, ' + count('N/A') + ' not applicable, of ' + suite.checks.length
+        + ' (PARTIAL and SKIP are not passes; N/A is neither a pass nor a failure)\n');
 }
 
 /*

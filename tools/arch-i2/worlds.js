@@ -116,6 +116,8 @@ const MODELS = {
   // A model at an address that looks like a Web of Worlds address: only its type says what it is.
   '/wow/spatial/1/node/model.gltf': { type: 'model/gltf+json', body: () => gltfDocument() },
   '/models/environment.gltf': { type: 'model/gltf+json', body: () => gltfDocument({ environment: true }) },
+  // A model another world relays as a part (I15): its id, its own URL, answers with this model.
+  '/models/relayed-part.gltf': { type: 'model/gltf+json', body: () => gltfDocument() },
 };
 
 /** A static host for the proof's models, served with their model media types. */

@@ -8,7 +8,10 @@
 // turn, up to the nesting limit and the budget. A link that fails keeps the node's placeholder,
 // tinted, with a label naming the reason: "unreachable", "forbidden", "over budget" and the rest.
 // A part another world embedded as a copy is read from its own URL (a relayed inclusion) and mounted
-// where the copy was embedded, under the embedding node; the copy itself is never drawn.
+// where the copy was embedded, under the embedding node; the copy itself is never drawn. A relayed part
+// that fails (its own world does not answer, or refuses) gets a placeholder object at the embedding node,
+// tinted and labelled with the reason, as the spec's SHOULD asks. A relayed part whose URL answers with a
+// model is mounted at the embedding node and handed to the model loader, as an included model is.
 //
 // Model links are left to mountWowSceneAssets, the scene's model loader. A model that sits inside
 // included content goes through filterIncludedEnvironment first, so the included world's sun and
@@ -221,9 +224,49 @@ export function applyComposition(composition, opts) {
   // A part embedded as a copy under this node: mount it as its own world serves it, under this node.
   function mountRelayed(record, group) {
     for (const inclusion of relayedAt.get(`${record.instance} ${record.url}`) || []) {
-      if (inclusion.status === INCLUSION_STATUS.INCLUDED && group) mountGraphs(inclusion, group, record.url);
-      else summary.placeholders.push({ node: record.url, status: inclusion.status, target: inclusion.target, relayed: true });
+      if (inclusion.status === INCLUSION_STATUS.INCLUDED && group) { mountGraphs(inclusion, group, record.url); continue; }
+      if (inclusion.status === INCLUSION_STATUS.MODEL) { mountRelayedModel(inclusion, group); continue; }
+      summary.placeholders.push({ node: record.url, status: inclusion.status, target: inclusion.target, relayed: true });
+      if (!group) continue;
+      drawRelayedPlaceholder(group, inclusion);
     }
+  }
+
+  // A relayed part that answers with a model: a group at the embedding node, with a stand-in box the model
+  // loader retires, handed to the loader (mountWowSceneAssets) like any included model.
+  function mountRelayedModel(inclusion, group) {
+    if (!group) {
+      summary.placeholders.push({ node: inclusion.node, status: inclusion.status, target: inclusion.target, relayed: true });
+      return;
+    }
+    const holder = new THREE.Group();
+    holder.name = `wow-included:${inclusion.target}`;
+    holder.userData.inclusion = { from: inclusion.target, via: inclusion.node, relayed: true };
+    const standIn = placeholderBox(`wow-relayed-model-pending:${inclusion.target}`);
+    holder.add(standIn);
+    attach(group, holder);
+    modelNodes.push({ id: `relayed:${inclusion.target}`, label: `relayed ${inclusion.target}`, uri: inclusion.target, group: holder, placeholder: standIn, included: true, relayed: true });
+    summary.models += 1;
+  }
+
+  function placeholderBox(name) {
+    const placeholder = new THREE.Group();
+    placeholder.name = name;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.7 }));
+    box.position.y = 0.45;
+    placeholder.add(box);
+    return placeholder;
+  }
+
+  // The embedding node has no placeholder of its own for a relayed part: draw one there, with the reason.
+  function drawRelayedPlaceholder(group, inclusion) {
+    const placeholder = placeholderBox(`wow-inclusion-${inclusion.status.replace(/\s+/g, "-")}:${inclusion.target}`);
+    tint(placeholder, COLOR_FAILED);
+    placeholder.userData.inclusionStatus = inclusion.status;
+    placeholder.userData.relayed = inclusion.target;
+    const label = labelSprite(THREE, inclusion.status, opts.document);
+    if (label) placeholder.add(label);
+    attach(group, placeholder);
   }
 
   function markFailed(assetNode, status) {

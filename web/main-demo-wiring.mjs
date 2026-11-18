@@ -9,13 +9,11 @@
 import { applyPortalRingState } from "./main-demo-preview.mjs";
 import { mountMainDemoPlacement } from "./main-demo-placement.mjs";
 import { destinationOf, refusalSentence } from "./main-demo-portals.mjs";
-import { portalLabel } from "./wow-portal-mount.mjs";
+import { portalLabel, keepFollowing as keepToUser, FOLLOW_WATCH_MS } from "./wow-portal-mount.mjs";
 
 // How long a portal whose destination was offline waits before it looks again.
 const PREVIEW_RETRY_MS = 5000;
 const PORTAL_WATCH_MS = 3000;
-// How often a page that follows a user (`#follow=user.{id}`) reads where that user is.
-const FOLLOW_WATCH_MS = 500;
 
 function nameOfDestination(portal) {
   const destination = destinationOf(portal && portal.destination);
@@ -141,28 +139,23 @@ export function createMainDemoWiring(deps) {
   /**
    * Keep a page that follows a user at that user's node: read where the user is every FOLLOW_WATCH_MS and stand there
    * again when the node has moved. When the user is no longer present, stop following and stay where the visitor stands.
+   * The loop is the one the `?wow=` viewer uses too (web/wow-portal-mount.mjs, keepFollowing).
    */
   function keepFollowing(target, arrival) {
-    let last = arrival;
-    const look = async () => {
-      if (isDisposed()) return;
-      const adapter = getAdapter();
-      if (!adapter || isDeparted(adapter)) return;
-      let next = null;
-      try { next = await adapter.applyJoinArrival(target, { from: last }); } catch { next = null; }
-      if (next && !next.arrived && next.gone) {
+    return keepToUser((last) => getAdapter().applyJoinArrival(target, { from: last }), {
+      first: arrival,
+      interval: FOLLOW_WATCH_MS,
+      stopped: () => { if (isDisposed()) return true; const adapter = getAdapter(); return !adapter || isDeparted(adapter); },
+      schedule: (fn, ms) => window.setTimeout(fn, ms),
+      onGone: (next) => {
         doc.body.setAttribute("data-main-join-arrival", JSON.stringify({ intent: "follow", target: `user.${target.user}`, arrived: false, following: false, reason: next.reason }));
         showToast("Stopped following", next.reason, "failed");
         logLine(`follow: stopped (${next.reason})`);
-        return;
-      }
-      if (next && next.arrived && next.moved) {
-        last = next;
+      },
+      onMoved: (next) => {
         doc.body.setAttribute("data-main-join-arrival", JSON.stringify({ intent: "follow", target: `user.${target.user}`, arrived: true, following: true, node: next.node || null }));
-      }
-      window.setTimeout(look, FOLLOW_WATCH_MS);
-    };
-    window.setTimeout(look, FOLLOW_WATCH_MS);
+      },
+    });
   }
 
   /**

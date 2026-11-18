@@ -39,7 +39,7 @@ export type Spatial = components["schemas"]["Spatial"];
 /**
  * `Spatial.extent` (iteration 1, optional): the box the graph occupies, in meters, in the graph's frame. On every
  * axis, `min` MUST NOT exceed `max`. A reader MUST treat an extent whose `min` exceeds `max` as absent.
- * Stated here because generated/wow-types.d.ts predates iteration 1 and does not carry `extent`.
+ * generated/wow-types.d.ts (npm run wow-types) carries `extent` as an inline object; this names its shape.
  */
 export interface SpatialExtent {
   min: [number, number, number];

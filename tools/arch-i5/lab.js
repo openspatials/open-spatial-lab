@@ -27,12 +27,20 @@ const A_CLAIMS = Object.freeze([{ name: 'display_name', required: false }]);
 const DEFAULT_VARIANT = 'collection-adam';
 const ACCEPTED_VARIANT = 'collection-sophie';
 
-/** The server module, real or with edits: { handshake (runtime-handshake.js), server (server.js) } are arrays of [from, to]. */
+/**
+ * The server module, real or with edits: { handshake (runtime-handshake.js), server (server.js), users
+ * (runtime-user-projection.js, wired in through runtime-state.js) } are arrays of [from, to].
+ */
 function serverModule(edits) {
   edits = edits || {};
-  if (!edits.handshake && !edits.server) return require(path.join(ROOT, SRC, 'server.js'));
+  if (!edits.handshake && !edits.server && !edits.users) return require(path.join(ROOT, SRC, 'server.js'));
   const handshake = edits.handshake ? loadMutant(path.join(SRC, 'runtime-handshake.js'), edits.handshake) : require(path.join(ROOT, SRC, 'runtime-handshake.js'));
-  return loadMutant(path.join(SRC, 'server.js'), edits.server || [], { './runtime-handshake': handshake });
+  const overrides = { './runtime-handshake': handshake };
+  if (edits.users) {
+    const users = loadMutant(path.join(SRC, 'runtime-user-projection.js'), edits.users);
+    overrides['./runtime-state'] = loadMutant(path.join(SRC, 'runtime-state.js'), [], { './runtime-user-projection': users });
+  }
+  return loadMutant(path.join(SRC, 'server.js'), edits.server || [], overrides);
 }
 
 /**

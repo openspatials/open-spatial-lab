@@ -70,6 +70,7 @@ class RuntimeUsers
         return {
             id : entry.wow_user_id, // number, per WoW User schema
             name : entry.display_name,
+            pilot : 'unstated', // a present user made no handshake, so it stated no pilot: never human
             AvatarURI : '', // client-side VRM/GLB avatar; no hosted asset
             ...(placedNode != null ? { node : this.spatial.nodeRef(this.spatial.primary, placedNode) } : {}),
             geoPose : this.placements.geoPoseOfNode(placedNode) || this.geoPose(pos, yaw, 0),

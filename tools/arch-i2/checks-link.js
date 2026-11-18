@@ -10,6 +10,10 @@
  *       the host shows n as B serves it now, read from B's own URL and revalidated by its entity tag, and
  *       never the copy; in a browser, the `?wow=` player mounts B's current n where C embeds it, under C's
  *       root, and mounts nothing of the copy
+ *   I14 a part relayed by world D whose own world does not answer: the `?wow=` player draws a placeholder
+ *       object at the embedding node, tinted and labelled with the reason, and lists it in its summary
+ *   I15 a part relayed by world D whose URL answers with a glTF model: the `?wow=` player loads it and
+ *       mounts it at the embedding node through the scene's model loader, as an included model
  */
 
 const crypto = require('crypto');
@@ -46,6 +50,12 @@ async function relayWorld(port, nUrl, models) {
     '/wow/spatial/1/node/1': { id: 1, label: 'C root', localTransform: w.IDENTITY, children: [{ id: 2, label: 'C own node', localTransform: w.translation(0, 1, 0), children: [] }, copy] },
     '/wow/spatial/1/node/2': { id: 2, label: 'C own node', localTransform: w.translation(0, 1, 0), children: [] },
   };
+  const served = await serveGraph(port, resources);
+  return Object.assign(served, { copy });
+}
+
+/** A static world: serves `resources` (by path) as application/wow+json with entity tags, as any world does. */
+async function serveGraph(port, resources) {
   // Cross-origin headers, as a lab world sends them, so the `?wow=` player in a browser can read C too.
   const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'ETag' };
   const server = http.createServer((req, res) => {
@@ -60,7 +70,26 @@ async function relayWorld(port, nUrl, models) {
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
   const base = 'http://127.0.0.1:' + port;
-  return { base, spatialUrl: () => base + '/wow/spatial/1', rootUrl: base + '/wow/spatial/1/node/1', copy, close: () => new Promise((r) => server.close(r)) };
+  return { base, spatialUrl: () => base + '/wow/spatial/1', rootUrl: base + '/wow/spatial/1/node/1', close: () => new Promise((r) => server.close(r)) };
+}
+
+/**
+ * World D, a world that relays two parts it does not own, embedded under its root with their ids set to
+ * the parts' own URLs: one at a world that does not answer (`deadUrl`), one at an address that answers
+ * with a glTF model (`modelUrl`).
+ */
+async function partsRelayWorld(port, deadUrl, modelUrl) {
+  const own = { id: 2, label: 'D own node', localTransform: w.translation(0, 1, 0), children: [] };
+  const resources = {
+    '/wow/spatial/1': { id: 1, rootNodeID: 1 },
+    '/wow/spatial/1/node/1': { id: 1, label: 'D root', localTransform: w.translation(1, 0, 0), children: [
+      own,
+      { id: deadUrl, label: 'unreachable part (relayed by D)', localTransform: w.translation(7, 7, 7), children: [] },
+      { id: modelUrl, label: 'model part (relayed by D)', localTransform: w.translation(7, 7, 7), children: [] },
+    ] },
+    '/wow/spatial/1/node/2': own,
+  };
+  return serveGraph(port, resources);
 }
 
 /** A fetch that records each request's If-None-Match. */
@@ -83,7 +112,10 @@ function taggingFetch() {
  * (window.__wow.renderIdentity()._impl.scene): every object named `wow:` or `wow-included:`, with its
  * parent's name and its matrices.
  */
-async function playerScene(state, ports, hostSpatialUrl, playerEdits) {
+async function playerScene(state, ports, hostSpatialUrl, playerEdits, options) {
+  options = options || {};
+  // Which scene objects to report, by name; I13 reads the player's own mounts (wow: and wow-included:).
+  const pattern = options.pattern || '^wow(-included)?:';
   if (!state.browser) {
     const { findBrowser } = await import(pathToFileURL(path.join(ROOT, 'tools', 'find-browser.mjs')).href);
     const chrome = findBrowser();
@@ -125,19 +157,23 @@ async function playerScene(state, ports, hostSpatialUrl, playerEdits) {
     }
     await page.goto(`http://127.0.0.1:${frontendPort}/index.html?role=source&intro=bypass&wow=${encodeURIComponent(hostSpatialUrl)}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => document.body.dataset.wowInclusionsReady, { timeout: 180000 });
+    // The model loader settles after the inclusions are mounted: it then writes how many models it loaded.
+    if (options.waitForModels) await page.waitForFunction(() => document.body.dataset.wowAssetsLoaded !== undefined, { timeout: 180000 });
     for (const name of planted) if (!served.has(name)) throw staleEdit('the player page', name + ' (never requested, so the planted fault was never loaded)', 0);
-    const objects = await page.evaluate(() => {
+    const objects = await page.evaluate((patternSource) => {
       const runtime = window.__wow && window.__wow.renderIdentity && window.__wow.renderIdentity();
       const scene = runtime && runtime._impl && runtime._impl.scene;
       if (!scene) return null;
       scene.updateMatrixWorld(true);
       const out = [];
       scene.traverse((o) => {
-        if (!/^wow(-included)?:/.test(o.name)) return;
-        out.push({ name: o.name, parent: o.parent ? o.parent.name : null, grandparent: o.parent && o.parent.parent ? o.parent.parent.name : null, local: o.matrix.elements.slice(), world: o.matrixWorld.elements.slice(), children: o.children.map((c) => c.name) });
+        if (!new RegExp(patternSource).test(o.name)) return;
+        let meshes = 0;
+        o.traverse((d) => { if (d.isMesh || d.isSprite) meshes += 1; });
+        out.push({ name: o.name, parent: o.parent ? o.parent.name : null, grandparent: o.parent && o.parent.parent ? o.parent.parent.name : null, local: o.matrix.elements.slice(), world: o.matrixWorld.elements.slice(), children: o.children.map((c) => c.name), meshes, visible: o.visible !== false });
       });
       return out;
-    });
+    }, pattern);
     const inclusions = await page.evaluate(() => (window.__wowInclusions ? window.__wowInclusions.summary : null));
     if (!objects) return { error: 'the player exposes no scene (window.__wow.renderIdentity()._impl.scene)', log: consoleLines.slice(-8) };
     return { objects, inclusions, log: consoleLines };
@@ -350,6 +386,77 @@ async function linkChecks(ports) {
     { name: 'a ?wow= player that mounts the relayed copy', impl: playerMountsCopy },
     { name: 'a ?wow= player that drops the included part', impl: playerDropsPart },
   ]).finally(async () => { if (browserState.browser) await browserState.browser.close(); });
+
+  // I14 and I15: world D relays two parts it does not own; A includes D at Z. The `?wow=` player is read
+  // after its model loader has settled, with its placeholders and loaded models.
+  const partsState = { browser: null };
+  const PARTS_PATTERN = '^wow(-included|-inclusion-[^:]*|-asset)?:';
+  async function relayedParts(impl) {
+    const s = await baseScene(impl, ports);
+    const deadPort = ports.next(); // nothing listens here: D's first part is at a world that does not answer
+    const deadUrl = 'http://127.0.0.1:' + deadPort + '/wow/spatial/1/node/5';
+    const modelUrl = s.models.url('/models/relayed-part.gltf');
+    const D = await partsRelayWorld(ports.next(), deadUrl, modelUrl);
+    try {
+      await s.A.add(1, s.ids.aRoot, [{ label: 'Z', localTransform: w.translation(0, 0, -8), spatialAssetURI: D.spatialUrl() }]);
+      const player = await playerScene(partsState, ports, s.A.spatialUrl(1), impl.playerEdits, { pattern: PARTS_PATTERN, waitForModels: true });
+      if (player.error) return { error: player.error };
+      const objs = player.objects;
+      const dRoot = objs.filter((o) => o.name === 'wow:D root');
+      const failures = [];
+      if (dRoot.length !== 1 || dRoot[0].parent !== 'wow-included:' + D.spatialUrl() || dRoot[0].grandparent !== 'wow:Z') failures.push('D\'s root is not mounted once under Z (' + dRoot.map((o) => o.parent + ' < ' + o.grandparent).join(', ') + ')');
+      const copyDrawn = objs.filter((o) => / \(relayed by D\)$/.test(o.name));
+      if (copyDrawn.length) failures.push(copyDrawn.length + ' object(s) of D\'s copies are drawn (' + copyDrawn.map((o) => o.name).join(', ') + ')');
+      const at = (o) => [o.world[12], o.world[13], o.world[14]];
+      return { failures, objs, dRoot: dRoot[0] || null, rootAt: dRoot[0] ? at(dRoot[0]) : null, at, deadUrl, modelUrl, rootUrl: D.rootUrl, summary: player.inclusions || {} };
+    } finally { await D.close(); await s.close(); }
+  }
+  const near = (a, b) => a.every((v, i) => close(v, b[i], 1e-6));
+
+  // The fault: a player that only lists the failed relayed part and draws nothing at the embedding node.
+  const playerDrawsNoPlaceholder = { playerEdits: { 'wow-inclusion-mount.mjs': [['      drawRelayedPlaceholder(group, inclusion);\n', '']] } };
+  await run('I14', 'world D relays a part whose own world does not answer; A includes D: the ?wow= player draws one placeholder object at the embedding node (D\'s root), tinted, labelled "unreachable", and lists it in its summary; nothing of the copy is drawn', async (impl) => {
+    const r = await relayedParts(impl);
+    if (r.error) return { ok: false, detail: 'player: ' + r.error };
+    const failures = r.failures.slice();
+    const placeholders = r.objs.filter((o) => /^wow-inclusion-unreachable:/.test(o.name) && o.parent === 'wow:D root');
+    if (placeholders.length !== 1) failures.push(placeholders.length + ' placeholder object(s) at D\'s root for the unreachable part, wanted 1 (under D\'s root: ' + (r.dRoot ? r.dRoot.children.join(', ') : 'nothing') + ')');
+    else {
+      const p = placeholders[0];
+      if (!p.visible || p.meshes < 1) failures.push('the placeholder draws nothing (' + p.meshes + ' mesh(es), visible ' + p.visible + ')');
+      if (r.rootAt && !near(r.at(p), r.rootAt)) failures.push('the placeholder is at (' + r.at(p).join(', ') + '), not at the embedding node (' + r.rootAt.join(', ') + ')');
+      if (!p.children.some((c) => /^wow-inclusion-label:unreachable$/.test(c))) failures.push('the placeholder carries no "unreachable" label (' + p.children.join(', ') + ')');
+    }
+    const listed = (r.summary.placeholders || []).filter((e) => e.relayed && e.target === r.deadUrl);
+    if (listed.length !== 1 || listed[0].status !== 'unreachable' || listed[0].node !== r.rootUrl) failures.push('the summary lists the relayed part as ' + JSON.stringify(listed));
+    return { ok: failures.length === 0, detail: failures.length ? failures.slice(0, 5).join('; ') : `the ?wow= player draws "${placeholders[0].name}" under D's root at (${r.at(placeholders[0]).join(', ')}) with ${placeholders[0].meshes} drawn part(s) and its label, and lists ${r.deadUrl} as unreachable (relayed); nothing of the copy drawn` };
+  }, {}, [
+    { name: 'a ?wow= player that draws no placeholder for a relayed part that fails', impl: playerDrawsNoPlaceholder },
+  ]);
+
+  // The fault: a player that skips a relayed part whose URL answers with a model.
+  const playerSkipsRelayedModel = { playerEdits: { 'wow-inclusion-mount.mjs': [['      if (inclusion.status === INCLUSION_STATUS.MODEL) { mountRelayedModel(inclusion, group); continue; }\n', '']] } };
+  await run('I15', 'world D relays a part whose URL answers with a glTF model; A includes D: the ?wow= player loads that model through the scene\'s model loader and mounts it at the embedding node (D\'s root), as an included model; it is not a placeholder; nothing of the copy is drawn', async (impl) => {
+    const r = await relayedParts(impl);
+    if (r.error) return { ok: false, detail: 'player: ' + r.error };
+    const failures = r.failures.slice();
+    const mounts = r.objs.filter((o) => o.name === 'wow-included:' + r.modelUrl && o.parent === 'wow:D root');
+    let loaded = null;
+    if (mounts.length !== 1) failures.push(mounts.length + ' mount(s) of the relayed model ' + r.modelUrl + ' at D\'s root, wanted 1 (under D\'s root: ' + (r.dRoot ? r.dRoot.children.join(', ') : 'nothing') + ')');
+    else {
+      const m = mounts[0];
+      if (r.rootAt && !near(r.at(m), r.rootAt)) failures.push('the relayed model is at (' + r.at(m).join(', ') + '), not at the embedding node (' + r.rootAt.join(', ') + ')');
+      loaded = r.objs.find((o) => /^wow-asset:/.test(o.name) && o.parent === m.name) || null;
+      if (!loaded || loaded.meshes < 1) failures.push('the model loader mounted no model there (children: ' + m.children.join(', ') + ')');
+      const left = r.objs.filter((o) => /^wow-inclusion-/.test(o.name) && o.parent === m.name);
+      if (left.length) failures.push('the model\'s placeholder is still drawn (' + left.map((o) => o.name).join(', ') + ')');
+    }
+    const listed = (r.summary.placeholders || []).filter((e) => e.target === r.modelUrl);
+    if (listed.length) failures.push('the summary lists the relayed model as a placeholder (' + listed.map((e) => e.status).join(', ') + ')');
+    return { ok: failures.length === 0, detail: failures.length ? failures.slice(0, 5).join('; ') : `the ?wow= player mounts ${r.modelUrl} under D's root at (${r.at(mounts[0]).join(', ')}), loaded as "${loaded.name}" with ${loaded.meshes} mesh(es); no placeholder for it; nothing of the copy drawn` };
+  }, {}, [
+    { name: 'a ?wow= player that skips a relayed model', impl: playerSkipsRelayedModel },
+  ]).finally(async () => { if (partsState.browser) await partsState.browser.close(); });
 }
 
 module.exports = { linkChecks };

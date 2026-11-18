@@ -28,8 +28,9 @@ Stage B (issued items, consent before the avatar) is not here either.
    A world MUST record every outcome. The answer MUST NOT grant a permission, and names no scope. 201 for
    proceed and proceed-in-part, 403 for deny, 400 for a body that is not a join, 404 for a world that takes no
    joins.
-5. **A paragraph on joining** in the API's description. The agent MUST check `identity.base` before it
-   discloses anything. Claim values, and anything else about the visitor, MUST NOT appear in a URL. What is
+5. **A paragraph on joining** in the API's description. Joining is OPTIONAL for a world. A world that states
+   `identity` MUST also state `claims` and `issues`. A world that states no identity takes no joins, and the
+   rules of the paragraph do not apply to it. The agent MUST check `identity.base` before it discloses anything. Claim values, and anything else about the visitor, MUST NOT appear in a URL. What is
    made for one world and one visit (the pointer, the signatures, the holder proof and its nonce) MUST NOT be
    reused for another world, and the claim values a world asks for are disclosed to that world. It does not
    say that nothing in a join can identify the visitor: the claim values themselves go to every world that
@@ -44,15 +45,17 @@ Stage B (issued items, consent before the avatar) is not here either.
    `DELETE /wow/user/{userId}`. The delete MUST end that user's visit: afterwards the user MUST no longer be
    present. A world that offers an event stream MUST send `user_left` for that user on it, once. The world MUST
    NOT remove the record of that user's join outcome.
-8. **The pilot statement, `User.pilot`.** Every join carries `pilot` (`UserJoin`), the visitor's statement of
+8. **The pilot statement, `User.pilot`.** A join carries `pilot` (`UserJoin`), the visitor's statement of
    who is at the controls: `human` (a person), `agent` (software acting alone) or `hybrid` (a person and
-   software together). A world MUST copy it onto the User it makes, as `User.pilot`, and MUST NOT supply a
-   value the visitor did not state. A join without a pilot statement, or with another value, MUST be answered
-   with deny and the reason. The value is the visitor's statement, not proof of who is at the controls: a world
-   and a client MUST treat it as a statement only. A client MUST show a user whose pilot is `hybrid` as an
-   agent wherever it shows that user's name or label. `pilot` is not in `UserJoin`'s `required` list and has
-   no type there, so that a join without it, or with any other value, reaches the world and is answered deny
-   and recorded, like every other outcome.
+   software together). A world MUST copy it onto the User it makes, as `User.pilot`, and MUST NOT supply
+   `human`, `agent` or `hybrid` when the visitor stated none. A join whose `pilot` is present with another
+   value MUST be answered with deny and the reason. A world MUST NOT refuse a join only because it states no
+   pilot. It MUST record and show that join as not stated (`User.pilot` is `unstated`), and it MUST NOT treat
+   it as human. The value is the visitor's statement, not proof of who is at the controls: a world and a
+   client MUST treat it as a statement only. A client MUST show a user whose pilot is `hybrid` as an agent,
+   and one whose pilot is `unstated` as not stated, wherever it shows that user's name or label. `pilot` is
+   not in `UserJoin`'s `required` list and has no type there, so that a join without it, or with any other
+   value, reaches the world, which answers it and records the outcome like every other.
 
 `required` lists: `World` keeps no required member, and neither does `World.identity`, so a world that states
 no identity, claims or issues is still valid. `UserJoin` requires `[manifest, proof]`, and `JoinAnswer`
@@ -88,9 +91,11 @@ For the form without the rotation sentences, use the iteration 1 and iteration 2
 `npm run arch-i5-proof` applies it with its own applier, on both forms. It validates the patched World API
 against the OpenAPI 3.0 schema (check W1). It also checks that the text offered here is the contract this lab
 serves and that the world servers behave as described, `user_joined` and `user_left` on the event stream included (check W2). Checks SE1 (following, in a browser) and SE2 (departing) check the behaviour itself. Check ID10 checks the pilot
-statement: the world copies it onto the User, refuses a join without one, and a client shows `hybrid` as an
-agent; W2 checks that `GET /wow/user/{id}` carries it on the wire. Check W3 checks the key words and the
-`required` lists above, on both GeoPose forms of iteration 1, offered, served and built, and that the World API
+statement: the world copies it onto the User, refuses a join with another value, lets a join without one
+proceed with `User.pilot` `unstated` (never `human`) and records it so, and a client shows `hybrid` as an
+agent and `unstated` as not stated; W2 checks that `GET /wow/user/{id}` carries it on the wire, `unstated`
+included. Check W3 checks the key words, that the joining paragraph makes joining opt-in and states no rule
+for every world, and the `required` lists above, on both GeoPose forms of iteration 1, offered, served and built, and that the World API
 and this file each carry the BCP 14 paragraph once. Check W4 checks that no line added by any overlay of
 iterations 1 to 5, in either form, names another project, an implementation, an implementation's own labels
 or a person. `npm run arch-overlays-proof` runs W1 to W4 with no browser.

@@ -3,7 +3,7 @@
 /*
  * Iteration 2 proof: including a graph from another world.   Run: npm run arch-i2-proof
  *
- *   I1-I3, I13  the content link, placement, ownership, and verifying an included part  (tools/arch-i2/checks-link.js)
+ *   I1-I3, I13-I15  the content link, placement, ownership, verifying an included part, relayed parts  (tools/arch-i2/checks-link.js)
  *   I4, I4b  conditional reads and lost updates             (tools/arch-i2/checks-reads.js)
  *   I5-I8b   unreachable, refused, cycles, depth and budget  (tools/arch-i2/checks-failures.js)
  *   I9, I10  a whole world, and frames                      (tools/arch-i2/checks-world.js)

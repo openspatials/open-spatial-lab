@@ -6,7 +6,7 @@
      Portals. A portal leads to a world: its destination is that world's entry URL, and the fragment #join=node.{id} names the node where a visitor arrives. Crossing MUST work as plain navigation to the destination. A client MUST first check that the destination answers and, if it does not, MUST refuse with the reason and stay. Seamless crossing, with state carried across, is an OPTIONAL profile. Portals, views and users are placed by a node (node, relative to the base URL). A geoPose they give is derived from that node's placement and MUST equal it. A portal MUST show its destination only as far as the destination's preview allows. A portal inside a preview MUST show closed.\n\n\
 -    Portal events. When a visitor uses a portal, a world that offers an event stream MUST send portal_activate on it, once for each crossing and before the visitor navigates. The event MUST carry portalId (the id of the portal) and userId (the id of the user who crosses), besides type, revision, time and urls, as the PortalActivate schema lists them; its urls name wow/world, which reports the revision."
 +    Portal events. When a visitor uses a portal, a world that offers an event stream MUST send portal_activate on it, once for each crossing and before the visitor navigates. The event MUST carry portalId (the id of the portal) and userId (the id of the user who crosses), besides type, revision, time and urls, as the PortalActivate schema lists them; its urls name wow/world, which reports the revision.\n\n\
-+    Joining. A world MUST state in its World resource who it is (identity, its base URL), the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A visitor's agent MUST read the World resource from the base URL it is about to post to. Before it discloses anything, it MUST check that identity.base is that base URL. Only then MAY it join with POST /wow/user. The join MUST carry only the claims the world asks for, in a signed manifest, with a holder proof made for this world and this visit. How claims are proven is given by reference. The answer MUST state the outcome (proceed, proceed-in-part or deny) and which of the claims the world asked for were satisfied and which were not. A world MUST record every outcome. The answer MUST NOT grant a permission. Claim values, and anything else about the visitor, MUST NOT appear in a URL. The pointer (the manifest's subject), the signatures, the holder proof and its nonce are made for one world and one visit and MUST NOT be reused for another world; the claim values a world asks for are disclosed to that world.\n\n\
++    Joining. Joining is OPTIONAL for a world. A world that states who it is in its World resource (identity, its base URL) MUST also state the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A world that states no identity takes no joins, and the rules of this paragraph do not apply to it. A visitor's agent MUST read the World resource from the base URL it is about to post to. Before it discloses anything, it MUST check that identity.base is that base URL. Only then MAY it join with POST /wow/user. The join MUST carry only the claims the world asks for, in a signed manifest, with a holder proof made for this world and this visit. How claims are proven is given by reference. The answer MUST state the outcome (proceed, proceed-in-part or deny) and which of the claims the world asked for were satisfied and which were not. A world MUST record every outcome. The answer MUST NOT grant a permission. Claim values, and anything else about the visitor, MUST NOT appear in a URL. The pointer (the manifest's subject), the signatures, the holder proof and its nonce are made for one world and one visit and MUST NOT be reused for another world; the claim values a world asks for are disclosed to that world.\n\n\
 +    Following. A page opened at a world's URL with the fragment #follow MUST join that world as a new or existing user, as a page opened at that URL does. The fragment's verb MUST be matched case-insensitively. With #follow=user.{id} the client MUST place the visitor at the node that places that user (User.node) and MUST keep the visitor there while that user moves. When that user is no longer present, the client SHOULD stop following and leave the visitor where it stands.\n\n\
 +    Departing. DELETE /wow/user/{userId} MUST end that user's visit: afterwards that user MUST no longer be present. A world that offers an event stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of that user's join outcome."
    version: '0.0.1'
@@ -118,23 +118,27 @@
  
      User: 
        type: object
-@@ -563,6 +646,15 @@
+@@ -563,6 +646,19 @@
            description: >-
              The node that places the user, relative to the world's base URL. A geoPose given here is derived
              from that node's placement and MUST equal it.
 +        pilot:
 +          type: string
-+          enum: [human, agent, hybrid]
++          enum: [human, agent, hybrid, unstated]
 +          description: >-
 +            Who is at the controls, as the visitor stated it when joining: human (a person), agent (software
-+            acting alone) or hybrid (a person and software together). A world MUST copy it from the join and
-+            MUST NOT supply a value the visitor did not state. A world and a client MUST treat it as the
++            acting alone) or hybrid (a person and software together), or unstated when the join stated none. A
++            world MUST copy it from the join when the join states one, and MUST NOT supply human, agent or
++            hybrid when it does not. For a join without a pilot statement, a world MUST set it to unstated and
++            MUST NOT treat that user as human. A world and a client MUST treat it as the
 +            visitor's statement, not as proof of who is at the controls. A client
-+            MUST show a user whose pilot is hybrid as an agent wherever it shows that user's name or label.
++            MUST show a user whose pilot is hybrid as an agent wherever it shows that user's name or label. A
++            client MUST show a user whose pilot is unstated as not stated wherever it shows that user's name or
++            label.
  
      View: 
        type: object
-@@ -600,6 +692,69 @@
+@@ -600,6 +696,70 @@
              The node that places the portal, relative to the world's base URL. A geoPose given here is derived
              from that node's placement and MUST equal it.
  
@@ -144,10 +148,11 @@
 +      description: >-
 +        A join. manifest MUST be a signed manifest that carries only the claims the world asks for. proof
 +        MUST be the holder's proof that it controls the manifest's subject, made for this world (its base URL
-+        is the audience) and this visit. Their formats are given by reference. pilot MUST be the visitor's
-+        statement of who is at the controls: human, agent or hybrid. A world MUST answer a join without a
-+        pilot statement, or with another value, with deny and the reason; it MUST NOT supply a value the
-+        visitor did not state.
++        is the audience) and this visit. Their formats are given by reference. pilot, when present, MUST be the
++        visitor's statement of who is at the controls: human, agent or hybrid. A world MUST answer a join whose
++        pilot is present with another value with deny and the reason. A world MUST NOT refuse a join without a
++        pilot statement for that reason alone. It MUST record and show that join as not stated (User.pilot
++        unstated). It MUST NOT treat it as human.
 +      properties:
 +        manifest:
 +          type: object

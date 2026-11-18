@@ -44,7 +44,7 @@ class RuntimeWorldReader
             world_id : this.identity.WORLD_ID,
             spatialID : this.identity.WORLD_ID,
             users : this.presence.users(),
-            convention : 'WS /events (labeled non-canonical; wow-spec/OSL-WOW-CONTRACT.md §6)',
+            convention : 'WS /events (the event stream listed under World.services.events; wow-spec/OSL-WOW-CONTRACT.md §6)',
             event_types : [ 'user_joined', 'user_left', 'node_created', 'node_updated', 'node_deleted' ],
             revision : this.events.currentRevision().revision,
             time : this.events.currentRevision().time,

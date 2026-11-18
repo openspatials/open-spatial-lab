@@ -199,9 +199,13 @@ function canonicalNode()
     };
 }
 
-// Intentionally OUT of the OpenAPI HTTP contract (wow-spec/OSL-WOW-CONTRACT.md
-// §6). No wow-spec schema governs it; the harness asserts this shape ITSELF and
-// flags it labeled non-canonical.
+// Event envelopes of the event stream (World.services.events). Contract §6
+// (wow-spec/OSL-WOW-CONTRACT.md) states the rule: each event carries type,
+// revision, time and urls, as the `Event` schema in wow-spec/schema.yaml lists
+// them. These fixtures are not validated against that schema: the harness
+// asserts their shape itself (conformance.js checkEventEnvelope: an object whose
+// `type` is a known event type). Events on the wire are checked against the
+// served `Event` schema by wire-checks.js eventsWire (i3:W2).
 function eventsEnvelopes()
 {
     return [
