@@ -120,7 +120,7 @@ function restoreEnvironmentIntensity(state) {
   state.intensity = null;
 }
 
-// r160 has no Scene.environmentIntensity. Materials that sample the scene
+// Written for r160, which has no Scene.environmentIntensity; kept under 0.186.1. Materials that sample the scene
 // environment (no own envMap) take the value; prior values are restored.
 function applyEnvironmentIntensity(adapter, state, value) {
   restoreEnvironmentIntensity(state);

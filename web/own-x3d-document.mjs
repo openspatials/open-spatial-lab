@@ -1,5 +1,6 @@
 import { normalizePortalTraversal, portalFrameForLocation } from "./live-adapter-portal-geometry.mjs";
 import { arrivalFrame } from "./main-demo-portals.mjs";
+import { refreshWorldMatrix } from "./three-world-matrix.mjs";
 
 const ANCHOR = "anchor-portal-world.x3d.json";
 const SOFT = "soft-body.x3d.json";
@@ -32,7 +33,7 @@ export function ownX3dPortalEntry({ state, selection, worlds = [], THREE }) {
   const shape = discs[0], realized = state.realization.objects.get(shape.id) ?? [];
   if (realized.length !== 1) return none("x3d_portal_disc_instanced");
   const mesh = realized[0];
-  mesh.updateWorldMatrix(true, false);
+  refreshWorldMatrix(mesh);
   const world4 = mesh.matrixWorld;
   const center = new THREE.Vector3().setFromMatrixPosition(world4).toArray();
   const forward = new THREE.Vector3(0, 1, 0).transformDirection(world4).toArray();

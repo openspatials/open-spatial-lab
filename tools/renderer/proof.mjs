@@ -99,14 +99,6 @@ async function analyse(pngBase64, rects = [], rings = [], tonePoints = null) {
       }
     }
     const tone = samples.map((values) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)]);
-    // The avatar: dark or strongly different pixels in the middle of the view.
-    let middleDark = 0;
-    for (let y = Math.round(H * 0.3); y < Math.round(H * 0.8); y += 3) {
-      for (let x = Math.round(W * 0.42); x < Math.round(W * 0.58); x += 3) {
-        const [r, g, b] = at(x, y);
-        if (r + g + b < 60) middleDark += 1;
-      }
-    }
     // What each named rectangle holds: a flat tint has very few colour groups.
     const regions = rects.map(({ name, x0, y0, x1, y1 }) => {
       const groups = new Map();
@@ -143,9 +135,48 @@ async function analyse(pngBase64, rects = [], rings = [], tonePoints = null) {
     return {
       regions, rings: ringsSeen,
       distinct: buckets.size, dominant: +dominant.toFixed(3), nearBlack: +(nearBlack / total).toFixed(3), bright: +(bright / total).toFixed(3),
-      tone, middleDark,
+      tone,
     };
   }, pngBase64, rects, rings, tonePoints);
+}
+
+// The avatar, whatever its colour: pixels in the middle of the view, where the avatar stands, that change when the
+// avatar alone is hidden for one picture and change back when it is shown again. The lobby around it (walls, the
+// middle portal, a preview that redraws) does not count unless it changes twice in step with the avatar.
+const AVATAR_PIXEL_CHANGE = 40; // the largest of the three colour differences, out of 255
+async function x3dAvatarPixels(page) {
+  const setShown = (shown) => page.evaluate((shown) => { const m = window.__x3domLiveMode; m.provider.setVisible(m.avatarHandle, shown); }, shown);
+  const shown = await page.screenshot({ encoding: "base64" });
+  await setShown(false);
+  await sleep(1500);
+  const hidden = await page.screenshot({ encoding: "base64" });
+  await setShown(true);
+  await sleep(1500);
+  const again = await page.screenshot({ encoding: "base64" });
+  return analysisPage.evaluate(async (shots, limit) => {
+    const pixels = [];
+    let W = 0, H = 0;
+    for (const b64 of shots) {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+      W = bitmap.width; H = bitmap.height;
+      const canvas = new OffscreenCanvas(W, H);
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(bitmap, 0, 0);
+      pixels.push(context.getImageData(0, 0, W, H).data);
+    }
+    const [shown, hidden, again] = pixels;
+    const differs = (a, b, i) => Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2])) > limit;
+    let avatar = 0, sampled = 0;
+    for (let y = Math.round(H * 0.3); y < Math.round(H * 0.8); y += 3) {
+      for (let x = Math.round(W * 0.42); x < Math.round(W * 0.58); x += 3) {
+        const i = 4 * (y * W + x);
+        sampled += 1;
+        if (differs(shown, hidden, i) && differs(again, hidden, i)) avatar += 1;
+      }
+    }
+    return { avatar, sampled };
+  }, [shown, hidden, again], AVATAR_PIXEL_CHANGE);
 }
 
 function assertLooksLikeWorld(seen, label) {
@@ -378,6 +409,7 @@ const x3dApertureRects = (page) => page.evaluate(() => {
   });
 });
 const MIN_PREVIEW_COLOUR_GROUPS = 8;
+const AVATAR_MIN_PIXELS = 150;
 const X3DOM_UNLIT_PREVIEW_MIN_BLUE = 72;
 // Points along each portal's ring on screen, from the frame the world server gave.
 const x3dRingPoints = (page) => page.evaluate(() => {
@@ -492,7 +524,10 @@ function x3dLobbyCheck(kind) {
     assertLooksLikeWorld(seen, `${kind} lobby`);
     assertTone(seen, "green", `${kind} lobby`);
     assert.ok(seen.bright > 0.004, `${kind} lobby: no bright portal rings on screen (${seen.bright})`);
-    assert.ok(seen.middleDark > 150, `${kind} lobby: the avatar is not on screen (${seen.middleDark} dark pixels in the middle)`);
+    const avatarSeen = await x3dAvatarPixels(page);
+    seen.avatar = avatarSeen.avatar;
+    console.log(`      ${kind} avatar: ${avatarSeen.avatar} of ${avatarSeen.sampled} pixels in the middle change when the avatar is hidden and change back when it is shown`);
+    assert.ok(avatarSeen.avatar > AVATAR_MIN_PIXELS, `${kind} lobby: the avatar is not on screen (${avatarSeen.avatar} pixels in the middle change when it is hidden, ${AVATAR_MIN_PIXELS} needed)`);
     assert.equal(state.previews.length, 3, `${kind} lobby: expected three portal previews`);
     // The avatar stands in front of the middle portal, so only the left and right ones are measured.
     console.log(`      ${kind} portal openings: ${seen.regions.map((region) => `${region.name} groups ${region.distinct}, black ${region.black}, mean rgb(${region.mean})`).join("; ")}`);
@@ -1244,7 +1279,9 @@ const x3domEngine = { url: "vendor/x3dom/x3dom-full.js", abort: true };
 const xiteEngine = { url: "vendor/x_ite/x_ite.min.mjs", abort: true };
 const noRoomRule = { url: "render-adapter/canonical-room.mjs", find: "if (!world?.omitLights) mountCanonicalWorldLights(adapter, parent);", replace: "if (!world?.omitLights) mountCanonicalWorldLights(adapter, parent); if (!world?.omitLights) return {};" };
 const noRedrawRule = { url: "x3dom-portal-traversal-glue.mjs", find: 'liveAdapter.addEventListener("crossing", handleCrossing);', replace: "" };
-const avatarGone = { url: "rpm_female_character.glb", status: 404 };
+const avatarGone = { x3dom: { url: "/assets/actionforge/characters/y-bot/y-bot.glb", status: 404 }, x_ite: { url: "/assets/actionforge/characters/adam/adam.glb", status: 404 } };
+// The avatar loads but is never shown: the measure must see no avatar, whatever the avatar's colour.
+const avatarNeverShown = { url: "x3dom-live-mode.mjs", find: 'provider.setVisible(avatarHandle, camera.mode() !== "first_person");', replace: "provider.setVisible(avatarHandle, false);" };
 const worldUrl = "x3d-worlds/anchor-portal-world.x3d.json";
 const noPreviewRule = { url: "x3dom-portal-traversal-glue.mjs", find: "adapter.attachRenderedTexture(material, rt);", replace: "" };
 const noCKey = { url: "x3dom-movement-camera-controller.mjs", find: 'if (event.code === "KeyC")', replace: "if (false)" };
@@ -1294,7 +1331,8 @@ const CHECKS = [
   { name: "X3DOM: lobby drawn, avatar, portal previews, W key", browser: true, body: x3dLobbyCheck("x3dom"), faults: [
     { name: "the X3DOM engine refused", rules: [x3domEngine], patience: 8000, expect: /x3dom did not boot/ },
     { name: "the room not built", rules: [noRoomRule], expect: /room colour is wrong|looks blank/ },
-    { name: "the avatar file missing", rules: [avatarGone], patience: 75000, expect: /the avatar did not load/ },
+    { name: "the avatar file missing", rules: [avatarGone.x3dom], patience: 75000, expect: /the avatar did not load/ },
+    { name: "the avatar loaded but never shown", rules: [avatarNeverShown], expect: /the avatar is not on screen/ },
     { name: "the preview not attached to the aperture", rules: [noPreviewRule], expect: /a portal shows no preview: 0 of the 3/ },
     { name: "the adapter drops unlit, as it once did", rules: [{ url: "render-adapter/x3dom-render-adapter.mjs", find: "side: desc.side, unlit: desc.unlit };", replace: "side: desc.side };" }], expect: /a preview's plane is lit/ },
     { name: "the preview's material asks for light", rules: [{ url: "x3dom-portal-traversal-glue.mjs", find: "unlit: true", replace: "unlit: false" }], expect: /a preview's plane is lit/ },
@@ -1309,7 +1347,8 @@ const CHECKS = [
   { name: "X_ITE: lobby drawn, avatar, W key", browser: true, body: x3dLobbyCheck("x_ite"), faults: [
     { name: "the X_ITE engine refused", rules: [xiteEngine], patience: 8000, expect: /x_ite did not boot/ },
     { name: "the room not built", rules: [noRoomRule], expect: /room colour is wrong|looks blank/ },
-    { name: "the avatar file missing", rules: [avatarGone], patience: 20000, expect: /the avatar did not load/ },
+    { name: "the avatar file missing", rules: [avatarGone.x_ite], patience: 20000, expect: /the avatar did not load/ },
+    { name: "the avatar loaded but never shown", rules: [avatarNeverShown], expect: /the avatar is not on screen/ },
     { name: "the preview not attached to the aperture", rules: [noPreviewRule], expect: /shows no preview, only a flat tint/ },
     { name: "every portal holds the first portal's world", rules: [contentOfFirstPortal], expect: /holds the content of/ },
     { name: "every portal draws the first portal's room", rules: [stageOfFirstPortal], expect: /does not come from that destination's own room/ },
@@ -1517,14 +1556,14 @@ if (FAULT_MODE) {
     }
   }
   if (!ONLY) {
-    const out = ["# The opt-in renderers: what was done and seen", "", "Written by tools/renderer/proof.mjs from one run. Each line names a screenshot, what the proof did, and what it measured in that picture: colour groups (how many groups of colour are in the scene), floor (the colour of the floor at the corners of the scene; in the airport's concourse, on the floor beside the runner), and dark (dark pixels in the middle, where the avatar stands). A check that failed has no lines here.", ""];
+    const out = ["# The opt-in renderers: what was done and seen", "", "Written by tools/renderer/proof.mjs from one run. Each line names a screenshot, what the proof did, and what it measured in that picture: colour groups (how many groups of colour are in the scene), floor (the colour of the floor at the corners of the scene; in the airport's concourse, on the floor beside the runner), and, in the X3D lobby pictures, avatar (of the pixels sampled in the middle of the view, where the avatar stands, how many change when the avatar alone is hidden for one picture and change back when it is shown again; this proves the avatar whatever its colour). A check that failed has no lines here.", ""];
     const notPassed = results.filter((result) => !result.ok).map((result) => result.name);
     out.push(notPassed.length ? `Checks that failed in this run: ${notPassed.join("; ")}.` : `Every check passed in this run (${results.length}).`, "");
     const titles = { three: "three.js (the default)", x3dom: "X3DOM", x_ite: "X_ITE", "soft-body": "John Carlson's soft-body world" };
     for (const series of ["three", "x3dom", "x_ite", "soft-body"]) {
       out.push(`## ${titles[series]}`, "", `Pictures in ${series}/.`, "");
       for (const step of steps[series]) {
-        out.push(`- ${step.file}: ${step.detail} Colour groups ${step.seen.distinct}, largest ${step.seen.dominant}, floor rgb(${step.seen.tone.join(",")}), dark ${step.seen.middleDark}.`);
+        out.push(`- ${step.file}: ${step.detail} Colour groups ${step.seen.distinct}, largest ${step.seen.dominant}, floor rgb(${step.seen.tone.join(",")})${step.seen.avatar === undefined ? "" : `, avatar ${step.seen.avatar}`}.`);
       }
       out.push("");
     }

@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { ThreeRenderAdapter } from "../runtime/scene-core/public/render-adapter/three-render-adapter.mjs";
 import { readEvaluatedAvatarPose } from "../web/evaluated-avatar-pose.mjs";
 
 // Use the browser's bundled engine for matrix/light semantics. The renderer
 // below records contract effects; rendered output has a separate browser check.
-const source = await readFile(new URL("../runtime/scene-core/public/vendor/three/three.module.js", import.meta.url));
-const THREE = await import(`data:text/javascript;base64,${source.toString("base64")}`);
+const THREE = await import(new URL("../runtime/scene-core/public/vendor/three/three.module.js", import.meta.url).href);
 class Renderer {
   constructor() { this.domElement = { style: {} }; this.shadowMap = {}; this.draws = 0; this.target = null; this.color = new THREE.Color(0); }
   getContext() { return {}; }

@@ -136,7 +136,7 @@ The resolver is called as `resolver(uri, { signal })`. It returns a Promise of
 - `signal` aborts when a newer request, a clear or adapter disposal supersedes
   the load.
 
-The adapter copies the data and widens RGB to RGBA, because r160 has no
+The adapter copies the data and widens RGB to RGBA, because three.js has no
 `RGBFormat`. The host may reuse its array. The result is a `DataTexture`
 (`FloatType`, `RGBAFormat`, `LinearSRGBColorSpace`, `flipY`, mapping
 `EquirectangularReflectionMapping`, `needsUpdate`) set as
@@ -181,7 +181,8 @@ Ownership:
 - If the host has replaced the owned texture on the scene, release disposes the
   owned texture and leaves the host's texture in place.
 
-Intensity: r160 has no `Scene.environmentIntensity`. When the environment is
+Intensity: the adapter was written for r160, which has no
+`Scene.environmentIntensity`, and keeps the same method under 0.186.1. When the environment is
 installed, `intensity` is written as `envMapIntensity` on every
 `MeshStandardMaterial` and `MeshPhysicalMaterial` under `sceneRoot` that has no
 own `envMap`. Prior values are remembered. They are restored when the
@@ -191,7 +192,7 @@ adapter wrote.
 
 Materials added after intensity was applied are not covered. They keep their own
 `envMapIntensity` (default 1) until the next `setLighting` environment call.
-There is no per-frame scan and no material hook in r160 that would cover them
+There is no per-frame scan and no material hook in three.js that would cover them
 without per-frame cost. Materials that are shared with objects outside the
 scene also take the value.
 
@@ -203,7 +204,7 @@ Without a resolver, the adapter keeps the earlier behaviour. It reports
 leaves the scene environment unchanged and retains authored lighting.
 
 `src/render-adapter-environment-check.mjs` checks all of this with the actual
-adapter, bundled r160 and a recording renderer. It also runs in-memory negative
+adapter, the bundled three.js 0.186.1 and a recording renderer. It also runs in-memory negative
 controls. This proves ownership and material state, not PMREM output, GPU
 upload or pixels. No browser or GPU qualification was done for this change.
 
@@ -238,8 +239,8 @@ runner and isolated ports when executing these checks.
 
 ## Executable reference qualification
 
-The source check uses the actual browser r160 engine with the installed r173
-glTF/addon loader, matching the browser import map. Do not substitute another
+The source check uses the actual browser engine and the installed glTF/addon
+loader, both three.js 0.186.1, matching the browser import map. Do not substitute another
 dependency version for qualification. Node 22, installed dependencies and Python
 with Pillow/WebP support are needed for the source fixture:
 

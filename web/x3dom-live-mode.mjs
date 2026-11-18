@@ -26,7 +26,13 @@ import { withBase } from "./base-path.mjs";
 // client the three.js path uses (LiveAdapter has zero THREE dependency — confirmed by reading its
 // source — so reusing it here is a straight import, not a port). Still deliberately excluded (see
 // the parity plan's later phases): the full inspector panel (see x3dom-hud-glue.mjs for why).
-const AVATAR_URL = withBase("/assets/avatars/glb/rpm_female_character.glb");
+// The avatar is a collection character the lab already serves. X_ITE draws Adam, the lab's default. X3DOM 1.8.3 refuses
+// any glTF whose required extensions include EXT_texture_webp ("Cannot render glTF"), and every textured collection
+// character carries WebP textures, so X3DOM draws Y Bot, which has no textures.
+const AVATAR_URLS = Object.freeze({
+    x3dom: withBase("/assets/actionforge/characters/y-bot/y-bot.glb"),
+    x_ite: withBase("/assets/actionforge/characters/adam/adam.glb"),
+});
 const CONTROL_KEY_MAP = Object.freeze({ KeyW: "forward", KeyS: "back", KeyA: "left", KeyD: "right", Space: "jump" });
 const RUN_KEY_CODES = new Set(["ShiftLeft", "ShiftRight"]);
 
@@ -54,6 +60,7 @@ function worldFromPath() {
 
 // Lab change: this is the body of his main(), with the engine passed in, so X_ITE can run it too.
 export async function runX3dLiveMode({ adapter, info, bannerText, dragEl, prepare }) {
+    const AVATAR_URL = AVATAR_URLS[info.kind] || AVATAR_URLS.x_ite;
     const params = new URLSearchParams(location.search);
     const role = params.get("role") === "target" ? "target"
         : params.get("role") === "source" ? "source"

@@ -74,6 +74,9 @@ export function createAvatarSelectorController({
     previousFocus: null,
     lastApplyResult: null,
     lastCancelResult: null,
+    // The session's starting avatar, resolved once (startingVariant()) so the live avatar layer can load it as its
+    // FIRST model, and mount() then commits the same answer: no default model is fetched before it.
+    startingResolution: undefined,
   };
 
   const cloneItems = (items) => JSON.parse(JSON.stringify(Array.isArray(items) ? items : []));
@@ -180,6 +183,14 @@ export function createAvatarSelectorController({
     const variant = pool[index];
     writeSavedStartingVariant(storage, variant);
     return { variant, source: "random" };
+  }
+
+  // Resolved once per controller: the boot (before the live avatar layer loads its first model) and mount() read the
+  // same answer, so the random roll happens once and the starting avatar is the only model fetched at boot.
+  function startingVariant() {
+    if (!isPlayer) return null;
+    if (state.startingResolution === undefined) state.startingResolution = resolveStartingAvatarVariant();
+    return state.startingResolution;
   }
 
   function defaultPendingVariant(baseline) {
@@ -337,7 +348,8 @@ export function createAvatarSelectorController({
     if (!mount) return null;
     if (!state.previewLayer) {
       state.previewReady = false;
-      state.previewLayer = createPreviewLayer(mount, role, runtime()?.world || null);
+      // The layer's first model is the pending candidate, so building it fetches no other avatar.
+      state.previewLayer = createPreviewLayer(mount, role, runtime()?.world || null, pendingVariantKey());
       await state.previewLayer.ready;
       state.previewReady = true;
       // A freshly built preview layer has already loaded its OWN default avatar. Record which
@@ -449,8 +461,8 @@ export function createAvatarSelectorController({
         button.className = `avatar-selector-chip${key === variant.key ? " active" : ""}`;
         button.dataset.avatarVariant = key;
         button.setAttribute("data-testid", `avatar-selector-avatar-${key}`);
-        button.textContent = key;
-        button.title = entry.label || key;
+        button.textContent = entry.label || key;
+        button.title = key;
         button.addEventListener("click", () => pickAvatar(key));
         avatarList.appendChild(button);
       }
@@ -862,7 +874,7 @@ export function createAvatarSelectorController({
     // actual model swap on the very next frame — no new switching machinery. A no-op when the
     // resolved variant already matches what is live, so a returning session commits nothing.
     if (isPlayer) {
-      const resolved = resolveStartingAvatarVariant();
+      const resolved = startingVariant();
       const host = runtime();
       const avatar = host && host.avatar;
       if (
@@ -898,6 +910,8 @@ export function createAvatarSelectorController({
     state.previewDragging = false;
     state.previewPointerId = null;
     state.previousFocus = null;
+    // A remount resolves the start again from the session store (which holds any pick applied since).
+    state.startingResolution = undefined;
     state.mounted = false;
     const modal = lookup("avatar-selector-modal");
     if (modal) delete modal.dataset.selectorWired;
@@ -934,6 +948,7 @@ export function createAvatarSelectorController({
 
   const controller = {
     mount,
+    startingVariant,
     open,
     close,
     apply,

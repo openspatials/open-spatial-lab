@@ -94,8 +94,9 @@ pin(`layer declares non-default variant key "${NON_DEFAULT_VARIANT}"`,
 
 // A2. The layer takes NO variant at construction; its status defaults to the
 // default variant and _init() synchronously starts a default-variant load.
-pin("layer status inits avatar_variant to DEFAULT_AVATAR_VARIANT (constructor)",
-  LAYER.includes("avatar_variant: DEFAULT_AVATAR_VARIANT,"));
+pin("layer status inits avatar_variant to options.initialVariant, else DEFAULT_AVATAR_VARIANT (constructor; the peer path passes none)",
+  LAYER.includes("avatar_variant: initialVariant,") &&
+    LAYER.includes("? options.initialVariant : DEFAULT_AVATAR_VARIANT;"));
 pin("layer _init() awaits this._loadVrm() with NO argument (loads the default first)",
   LAYER.includes("await this._loadVrm();"));
 pin("layer _loadVrm() default variant is read from status.avatar_variant",

@@ -83,6 +83,7 @@ import {
 import { createPlayerSessionController } from "./player-session-controller.mjs";
 import { createNotificationToastController } from "./notification-toast-controller.mjs";
 import { createPortalRenderController } from "./portal-render-controller.mjs";
+import { joinArrivalAt, keepFollowing } from "./wow-portal-mount.mjs";
 import { createAvatarSelectorController } from "./avatar-selector-controller.mjs";
 import { createAirportStorefrontInteractionController } from "./airport-storefront-interaction-controller.mjs";
 import { createAirportBoardingJourneyController } from "./airport-boarding-journey-controller.mjs";
@@ -851,8 +852,8 @@ avatarSelectorController = createAvatarSelectorController({
   resolveEquipmentItems,
   noEquipmentChoice: NO_EQUIPMENT_CHOICE,
   applyNoEquipmentChoice: (items) => applyNoEquipmentChoice(items),
-  createPreviewLayer: (mount, previewRole, world) =>
-    new AvatarEquipmentLayer(mount, previewRole, world, { motionPreference }),
+  createPreviewLayer: (mount, previewRole, world, initialVariant) =>
+    new AvatarEquipmentLayer(mount, previewRole, world, { motionPreference, initialVariant }),
   getRuntime: applicationState.selection,
   lookup: $,
   documentTarget: document,
@@ -1022,6 +1023,37 @@ function restoreWowAvatar() {
   movementCameraController.applyPlayerCamera();
 }
 
+// At role=player the `?wow=` viewer's visitor is the embodied avatar: a page opened (or a fragment changed) at
+// `#join=node.{n}` or `#follow=user.{id}` stands the avatar there, the orbit camera follows it from there, and a
+// follow keeps the avatar at the user's node while that user moves.
+let wowAvatarFollow = null;
+async function arriveWowAvatar() {
+  wowAvatarFollow?.stop();
+  wowAvatarFollow = null;
+  const hash = location.hash;
+  const io = { hostUrl: new URL(wowParam, location.href).href, hash, fetch: window.fetch.bind(window) };
+  const arrival = await joinArrivalAt(io).catch((e) => ({ arrived: false, reason: (e && e.message) || String(e) }));
+  if (!arrival || applicationDisposed || location.hash !== hash) return;
+  const note = (a) => document.body.setAttribute("data-wow-avatar-arrival", JSON.stringify({ arrived: a.arrived, node: a.node || null, follow: a.follow ?? null, position: a.position || null, reason: a.reason || null }));
+  const place = (a, azimuth) => {
+    adapter.applyRestoredPose({ position: a.position, rotation_y: a.yaw }, { duringVisit: true });
+    movementCameraController.seedOrbitCamera({ azimuth, avatarPosition: adapter.state.avatar.position });
+    movementCameraController.applyPlayerCamera();
+    note(a);
+  };
+  note(arrival);
+  if (!arrival.arrived) return logLine(`wow avatar arrival: ${arrival.reason}`);
+  place(arrival, arrival.yaw - Math.PI);
+  logLine(`wow avatar arrival: at ${arrival.node}`);
+  if (arrival.follow != null)
+    wowAvatarFollow = keepFollowing((last) => joinArrivalAt({ ...io, from: last }), {
+      first: arrival,
+      stopped: () => applicationDisposed || location.hash !== hash,
+      onMoved: (a) => place(a),
+      onGone: (gone) => { note(gone); logLine(`wow avatar follow: stopped (${gone.reason})`); },
+    });
+}
+
 function publishWowAvatarWalk(spawn, wk) {
   const avatarWalk = {
     embodied: true,
@@ -1085,6 +1117,8 @@ async function mountWowAvatar(resolved, built, loadErr) {
           equipmentLayer.setAvatar(ev.detail.avatar);
       });
       restoreWowAvatar();
+      void arriveWowAvatar();
+      listenAtRoot(window, "hashchange", () => { void arriveWowAvatar(); });
 
       avatarWalk = publishWowAvatarWalk(spawn, wk);
     } catch (e) {
@@ -1331,6 +1365,13 @@ function readPublicDebugState() {
 }
 
 function createLocalAvatarLayer() {
+  // The session's starting avatar is settled before the layer loads its first model, so a visitor who starts as
+  // anyone but the default avatar never downloads the default's model first.
+  const starting = isPlayer ? avatarSelectorController.startingVariant() : null;
+  if (starting && adapter.state.avatar && adapter.state.avatar.avatar_variant !== starting.variant) {
+    adapter.setAvatarVariant(starting.variant);
+    logLine(`selector: session start -> avatar '${starting.variant}' (${starting.source})`);
+  }
   equipmentLayer = new AvatarEquipmentLayer(
     $("scene-mount"),
     role,
@@ -1338,6 +1379,7 @@ function createLocalAvatarLayer() {
     {
       host: avatarLayerHost(),
       motionPreference,
+      initialVariant: adapter.state.avatar ? adapter.state.avatar.avatar_variant : null,
     }
   );
   return equipmentLayer;

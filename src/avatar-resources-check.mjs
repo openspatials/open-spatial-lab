@@ -15,7 +15,7 @@ import { SolverStack } from "../web/avatar/runtime/fitting/solvers.mjs";
 import { readAvatarBindDescription, readEvaluatedAvatarPose } from "../web/evaluated-avatar-pose.mjs";
 import { ThreeRenderAdapter } from "../runtime/scene-core/public/render-adapter/three-render-adapter.mjs";
 
-assert.equal(THREE.REVISION, "160", "use --loader ./tools/renderer/node-fixture-loader.mjs to qualify the actual browser engine");
+assert.equal(THREE.REVISION, "186", "use --loader ./tools/renderer/node-fixture-loader.mjs to qualify the actual browser engine");
 const decoder = spawnSync(process.env.PYTHON || "python3", ["-c", "from PIL import features; assert features.check('webp'), 'Pillow has no WebP support'"], { encoding: "utf8" });
 assert.equal(decoder.status, 0, `Avatar resource check requires Python with Pillow and WebP decoding; set PYTHON to that interpreter. ${decoder.error?.message || decoder.stderr || "decoder prerequisite failed"}`);
 globalThis.self = globalThis;
@@ -41,7 +41,8 @@ const readTracked = path => { const bytes = readFileSync(path); files.set(path, 
 const readBytes = nodeReadBytes(readTracked), readJson = nodeReadJson(path => readTracked(path).toString());
 const source = readFileSync(new URL("avatar-equipment-layer.js", web), "utf8");
 const avatars = [...source.matchAll(/prepared: "([^"]+)"/g)].map(match => fileURLToPath(new URL(match[1].slice(1), web)));
-assert.equal(avatars.length, 4);
+// Every avatar the lab's catalog copy lists (web/assets/avatar-catalog.json, written with the table by the catalog's apply.mjs).
+assert.equal(avatars.length, JSON.parse(readFileSync(new URL("assets/avatar-catalog.json", web), "utf8")).avatars.length);
 const itemUrl = fileURLToPath(new URL("vendor/avatar-evaluator-v1/mannequin/assets/items/items.json", web));
 const items = await loadItemLibrary({ readBytes, readJson, url: itemUrl });
 assert.equal(items.production.length, 7);
@@ -98,6 +99,9 @@ function compareMaterial(a, b) {
     const x = a[channel], y = b[channel]; assert.notEqual(x, y); assert.notEqual(x.source, y.source); assert.notEqual(x.image, y.image); assert.notEqual(x.image.data.buffer, y.image.data.buffer);
     assert.deepEqual(x.image.data, y.image.data);
     for (const field of ["colorSpace", "channel", "wrapS", "wrapT", "minFilter", "magFilter", "flipY", "premultiplyAlpha", "generateMipmaps"]) assert.equal(x[field], y[field], channel + field);
+    // The renderer draws a texture whose matrixAutoUpdate is on with the matrix of its offset, repeat and rotation
+    // (KHR_texture_transform sets those), updated at draw time; with no draw here, update it as the draw does.
+    if (x.matrixAutoUpdate) x.updateMatrix();
     near(x.matrix.toArray(), y.matrix.toArray(), "texture transform");
   }
 }
@@ -116,6 +120,7 @@ function shaderNormal(mesh, index) {
   return normal.applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld)).normalize();
 }
 let representative;
+const channelControls = { normalMap: 0, colorSpace: 0 };
 for (const url of avatars) {
   const library = await loadAvatarLibrary({ readBytes, readJson, url });
   const instance = createAvatarInstance(library), tuning = createTuning(library.data);
@@ -184,10 +189,19 @@ for (const url of avatars) {
   adapter.setSkinPose(binding, withBadFit);
   const fitted = equipment.held || equipment.worn;
   assert(maxError(fitted.node.matrixWorld.elements, binding.items.get(fitted.item.id).matrixWorld.elements) > .01, "bad fit must break attachment agreement"); adapter.setSkinPose(binding, pose);
-  const normalMap = rendered.material.normalMap; rendered.material.normalMap = null;
-  assert.throws(() => compareMaterial(reference.material, rendered.material), "missing normal channel must fail material agreement"); rendered.material.normalMap = normalMap;
-  const colorSpace = rendered.material.map.colorSpace; rendered.material.map.colorSpace = "";
-  assert.throws(() => compareMaterial(reference.material, rendered.material), "wrong color interpretation must fail"); rendered.material.map.colorSpace = colorSpace;
+  // The two channel controls need the channel: a character whose first material has no normal map (or no color map)
+  // cannot lose it; each control must still run on at least one character (checked after the loop).
+  const normalMap = rendered.material.normalMap;
+  if (normalMap) {
+    rendered.material.normalMap = null;
+    assert.throws(() => compareMaterial(reference.material, rendered.material), "missing normal channel must fail material agreement"); rendered.material.normalMap = normalMap;
+    channelControls.normalMap += 1;
+  }
+  if (rendered.material.map) {
+    const colorSpace = rendered.material.map.colorSpace; rendered.material.map.colorSpace = "";
+    assert.throws(() => compareMaterial(reference.material, rendered.material), "wrong color interpretation must fail"); rendered.material.map.colorSpace = colorSpace;
+    channelControls.colorSpace += 1;
+  }
   const invalid = structuredClone(pose); invalid.jointLocalMatrices[0][0] = NaN;
   const before = binding.root.matrix.toArray(); assert.throws(() => adapter.setSkinPose(binding, invalid), /finite/); assert.deepEqual(binding.root.matrix.toArray(), before);
   const alien = new ThreeRenderAdapter(THREE); assert.throws(() => alien.setSkinPose(binding, pose), /belongs/);
@@ -206,7 +220,9 @@ for (const url of avatars) {
   report.avatars.push({ id: library.id, meshes: binding.meshes.length, joints: descriptor.jointIds.length, textures: descriptor.resources.textures.length, vertexError, normalError, itemError, displacement });
   representative ||= descriptor;
 }
+assert(channelControls.normalMap > 0 && channelControls.colorSpace > 0, `the channel controls ran on no character: ${JSON.stringify(channelControls)}`);
 report.sensitivityControls = ["rest-only joints", "lost bind space", "incorrect fitted attachment", "missing normal map", "wrong texture color space"];
+report.channelControlRuns = channelControls;
 // Execute the departing-instance cleanup method against borrowed resource
 // controls. These are library objects: the instance owns only its skeleton.
 const cleanupBody = source.slice(source.indexOf("  _disposeModel(root) {") + "  _disposeModel(root) {".length, source.indexOf("\n  }", source.indexOf("  _disposeModel(root) {")));

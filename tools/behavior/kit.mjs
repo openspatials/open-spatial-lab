@@ -53,6 +53,22 @@ export const PACE_S = 0.8;
 /** 0.6 s of the loop at the collection avatars' walking pace, 1.06 to 1.15 m/s (0.63 to 0.69 m); half pace gives 0.34 m. */
 export const WALK_M = [0.58, 0.8];
 
+/**
+ * The character every page a check opens starts as, unless its address names one (`avatar_variant=`) or the visit says
+ * `startingAvatar: null`. A new session otherwise starts as a random character of the roster, and walking pace follows
+ * each character's clips, so WALK_M and every other distance holds for this character, the lab's default.
+ */
+export const STARTING_AVATAR = "collection-adam";
+
+/** `url` with `avatar_variant=<variant>` added, when it is a page of the lab (an .html file or a folder) that names none. */
+export function withStartingAvatar(url, variant = STARTING_AVATAR) {
+  if (!variant || typeof url !== "string" || !/^https?:/i.test(url)) return url;
+  const parsed = new URL(url);
+  if (parsed.searchParams.has("avatar_variant") || !/(\.html|\/)$/.test(parsed.pathname)) return url;
+  parsed.searchParams.set("avatar_variant", variant);
+  return parsed.href;
+}
+
 /** The smallest signed difference between two angles, in radians. */
 export function angleBetween(a, b) {
   let v = a - b;
@@ -192,10 +208,15 @@ function newContext(browser, labFor, pageErrors) {
       return ctx.memo.get(name);
     },
     /** A new visitor in its own browser profile, or `sameProfileAs` a page already open (a second tab). */
-    async visit(url, { sameProfileAs = null, open = true } = {}) {
+    async visit(url, { sameProfileAs = null, open = true, startingAvatar = STARTING_AVATAR } = {}) {
       const context = sameProfileAs ? sameProfileAs.browserContext() : await browser.createBrowserContext();
       if (!sameProfileAs) ctx.contexts.push(context);
       const page = await context.newPage();
+      // Every address this page goes to, here or in a check's own openPlayer, starts as the same character.
+      if (startingAvatar) {
+        const goto = page.goto.bind(page);
+        page.goto = (target, options) => goto(withStartingAvatar(target, startingAvatar), options);
+      }
       await page.setViewport(VIEWPORT);
       await page.evaluateOnNewDocument(installPageRecorders);
       page.on("pageerror", (error) => ctx.pageErrors.push(String((error && error.message) || error)));

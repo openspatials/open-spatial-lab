@@ -3,12 +3,11 @@ import { readFile } from "node:fs/promises";
 import { ThreeRenderAdapter } from "../runtime/scene-core/public/render-adapter/three-render-adapter.mjs";
 import { OwnX3dRenderAdapter } from "../runtime/scene-core/public/x3d/own-x3d-render-adapter.mjs";
 
-// Environment resource boundary on the actual adapter and the bundled r160
+// Environment resource boundary on the actual adapter and the bundled 0.186.1
 // engine. The renderer below records contract effects only; it proves texture
 // ownership and material state, not PMREM output or pixels.
-const source = await readFile(new URL("../runtime/scene-core/public/vendor/three/three.module.js", import.meta.url));
-const THREE = await import(`data:text/javascript;base64,${source.toString("base64")}`);
-assert.equal(THREE.REVISION, "160");
+const THREE = await import(new URL("../runtime/scene-core/public/vendor/three/three.module.js", import.meta.url).href);
+assert.equal(THREE.REVISION, "186");
 class Renderer {
   constructor() { this.domElement = { style: {} }; this.shadowMap = {}; this.extensions = { has: name => Renderer.floatLinear && name === "OES_texture_float_linear" }; }
   getContext() { return {}; }

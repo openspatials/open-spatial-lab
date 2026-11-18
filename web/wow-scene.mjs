@@ -1,4 +1,5 @@
 import { describeScene, parseOslLight, normalizeGraph } from "#scene-description";
+import { refreshWorldMatrix } from "./three-world-matrix.mjs";
 export { parseOslLight } from "#scene-description";
 // web/wow-scene.mjs
 //
@@ -177,6 +178,148 @@ export function validateFabricSubtreeContract(subtree, opts = {}) {
   };
 }
 
+// The `UniversalExtensionDeclaration` contract (wow-spec/schema.yaml, x-osl-extension), checked structurally.
+//
+// A node is an EXTENSION node iff it carries the labeled member `webofworlds_extension.universal_extensions`, an
+// array of declarations. A `.wasm` suffix is never sniffed. buildWowScene only finds and checks declarations; the
+// mount pass (web/wow-extension-mount.mjs) fetches, loads and draws them.
+
+/** The members the strict `UniversalExtensionDeclaration` schema declares, the ones loadExtension takes. */
+export const EXTENSION_DECLARATION_MEMBERS = Object.freeze([
+  "module", "interface", "attach", "requests", "limits", "data", "purposes",
+]);
+/** The bindings a declaration may name (module.binding). */
+export const EXTENSION_BINDINGS = Object.freeze(["rp1-sneeze-call", "ue-core/0"]);
+/** The budgets a declaration may lower (limits). */
+export const EXTENSION_LIMITS = Object.freeze(["initMs", "eventMs", "memoryBytes", "startMs"]);
+/**
+ * The tokens the Lab grants by host policy, where a declaration requests them: the attachment-confined tokens of the
+ * extension host (runtime/extension-host/capabilities.mjs, ATTACHMENT_TOKENS). Any other requested token needs the
+ * user's consent: it is listed, and the mount pass asks for it (web/wow-extension-consent.mjs) where it has a page.
+ */
+export const EXTENSION_HOST_GRANTED_TOKENS = Object.freeze([
+  "ue.console.log", "ue.data.read", "ue.scene.nodes", "ue.scene.read", "ue.clock.read", "ue.clock.timer",
+]);
+export const EXTENSION_CONSENT_NOTE = "needs consent (Step 5)";
+export const EXTENSION_DECLARATION_REFUSAL = Object.freeze({
+  BAD_LIST: "BAD_LIST",               // universal_extensions is not an array
+  BAD_DECLARATION: "BAD_DECLARATION", // not an object
+  UNKNOWN_MEMBER: "UNKNOWN_MEMBER",   // a member the schema does not declare
+  MISSING_MEMBER: "MISSING_MEMBER",   // a required member is absent
+  BAD_MODULE: "BAD_MODULE",           // module is not { url, integrity, binding }
+  MISSING_INTEGRITY: "MISSING_INTEGRITY",
+  BAD_INTEGRITY: "BAD_INTEGRITY",     // not sha256-<base64 of 32 bytes>
+  UNKNOWN_BINDING: "UNKNOWN_BINDING",
+  BAD_INTERFACE: "BAD_INTERFACE",
+  BAD_ATTACH: "BAD_ATTACH",
+  BAD_REQUESTS: "BAD_REQUESTS",
+  BAD_LIMITS: "BAD_LIMITS",
+  BAD_DATA: "BAD_DATA",
+  BAD_PURPOSES: "BAD_PURPOSES",       // not { requested token: string }
+});
+const refuseDeclaration = (reason, detail) => ({ ok: false, stage: "declaration", reason, detail });
+const isPlainObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+const INTEGRITY = /^sha256-[A-Za-z0-9+/]{43}=$/;
+
+/**
+ * validateExtensionDeclaration(decl) -> { ok: true, effective } | { ok: false, stage: "declaration", reason, detail }
+ *
+ * The PURE mirror of the strict `UniversalExtensionDeclaration` schema, so the client refuses what the schema
+ * refuses. `effective` is a copy with `data` resolved to {} when absent (and `purposes` when present); it is what the
+ * mount pass hands loadExtension. A purpose for a token that `requests` does not name is refused here, which the schema
+ * cannot say.
+ */
+export function validateExtensionDeclaration(decl) {
+  const R = EXTENSION_DECLARATION_REFUSAL;
+  if (!isPlainObject(decl)) return refuseDeclaration(R.BAD_DECLARATION, `a declaration must be an object; got ${Array.isArray(decl) ? "array" : typeof decl}`);
+  const unknown = Object.keys(decl).filter((key) => !EXTENSION_DECLARATION_MEMBERS.includes(key));
+  if (unknown.length) return refuseDeclaration(R.UNKNOWN_MEMBER, `unknown member(s) [${unknown.join(", ")}]; UniversalExtensionDeclaration is strict`);
+  for (const name of ["module", "interface", "attach", "requests", "limits"]) {
+    if (decl[name] === undefined) return refuseDeclaration(R.MISSING_MEMBER, `${name} is required`);
+  }
+  const { module, interface: iface, attach, requests, limits, data, purposes } = decl;
+  if (!isPlainObject(module)) return refuseDeclaration(R.BAD_MODULE, "module must be an object { url, integrity, binding }");
+  const moduleUnknown = Object.keys(module).filter((key) => !["url", "integrity", "binding"].includes(key));
+  if (moduleUnknown.length) return refuseDeclaration(R.UNKNOWN_MEMBER, `unknown module member(s) [${moduleUnknown.join(", ")}]`);
+  if (typeof module.url !== "string" || !module.url) return refuseDeclaration(R.BAD_MODULE, "module.url must be a non-empty string");
+  if (module.integrity === undefined) return refuseDeclaration(R.MISSING_INTEGRITY, "module.integrity is required: the SHA-256 that binds the module to the world file");
+  if (typeof module.integrity !== "string" || !INTEGRITY.test(module.integrity)) return refuseDeclaration(R.BAD_INTEGRITY, "module.integrity must be sha256-<base64 of the 32-byte SHA-256>");
+  if (!EXTENSION_BINDINGS.includes(module.binding)) return refuseDeclaration(R.UNKNOWN_BINDING, `module.binding must be one of [${EXTENSION_BINDINGS.join(", ")}]; got ${JSON.stringify(module.binding)}`);
+  if (typeof iface !== "string" || !iface) return refuseDeclaration(R.BAD_INTERFACE, "interface must be a non-empty string");
+  if (!isPlainObject(attach) || Object.keys(attach).some((key) => key !== "kind") || attach.kind !== "world-node") {
+    return refuseDeclaration(R.BAD_ATTACH, "attach must be { kind: \"world-node\" }");
+  }
+  if (!Array.isArray(requests) || !requests.every((token) => typeof token === "string" && token) || new Set(requests).size !== requests.length) {
+    return refuseDeclaration(R.BAD_REQUESTS, "requests must be an array of distinct non-empty token strings");
+  }
+  if (!isPlainObject(limits)) return refuseDeclaration(R.BAD_LIMITS, "limits must be an object");
+  for (const [key, value] of Object.entries(limits)) {
+    if (!EXTENSION_LIMITS.includes(key)) return refuseDeclaration(R.UNKNOWN_MEMBER, `unknown limit ${key}; limits are [${EXTENSION_LIMITS.join(", ")}]`);
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return refuseDeclaration(R.BAD_LIMITS, `limits.${key} must be a finite positive number`);
+  }
+  if (data !== undefined && !isPlainObject(data)) return refuseDeclaration(R.BAD_DATA, "data must be an object when present");
+  if (purposes !== undefined) {
+    if (!isPlainObject(purposes)) return refuseDeclaration(R.BAD_PURPOSES, "purposes must be an object of requested token -> purpose text");
+    for (const [token, purpose] of Object.entries(purposes)) {
+      if (typeof purpose !== "string") return refuseDeclaration(R.BAD_PURPOSES, `purposes[${JSON.stringify(token)}] must be a string`);
+      if (!requests.includes(token)) return refuseDeclaration(R.BAD_PURPOSES, `purposes names ${JSON.stringify(token)}, which requests does not`);
+    }
+  }
+  return {
+    ok: true,
+    effective: {
+      module: { url: module.url, integrity: module.integrity, binding: module.binding },
+      interface: iface,
+      attach: { kind: attach.kind },
+      requests: [...requests],
+      limits: { ...limits },
+      data: data === undefined ? {} : data,
+      ...(purposes === undefined ? {} : { purposes: { ...purposes } }),
+    },
+  };
+}
+
+/**
+ * carrierReferencesOf(list) -> [{ url } | { error }]: the node's `webofworlds_extension.universal_extension_manifests`,
+ * each item an object with exactly one member `url` (a non-empty string). Discovery records them; the mount pass fetches
+ * and verifies each carrier manifest (web/wow-extension-manifest-adapter.mjs).
+ */
+export function carrierReferencesOf(list) {
+  if (!Array.isArray(list)) return [{ error: "universal_extension_manifests must be an array of { url }" }];
+  return list.map((item) => (isPlainObject(item) && Object.keys(item).length === 1 && typeof item.url === "string" && item.url
+    ? { url: item.url }
+    : { error: "each universal_extension_manifests item must be { url: <non-empty string> }" }));
+}
+
+/** The requested tokens host policy does not grant: they need the user's consent. */
+export function extensionTokensNeedingConsent(effective) {
+  return (effective && Array.isArray(effective.requests) ? effective.requests : []).filter((token) => !EXTENSION_HOST_GRANTED_TOKENS.includes(token));
+}
+
+/**
+ * A labeled marker for an extension: the placeholder of a node whose extensions are not mounted yet, or, with a
+ * `stage`, the warn-tinted marker of a refused or failed declaration. Named by the caller; the stage is in userData.
+ */
+export function makeExtensionMarker(THREE, name, { stage = null, detail = null } = {}) {
+  const group = new THREE.Group();
+  group.name = name;
+  const color = stage ? COL_ASSET_UNAVAILABLE : COL_EXTENSION;
+  const wire = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(0.6, 0.6, 0.6)),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 })
+  );
+  wire.position.y = 0.3;
+  group.add(wire);
+  const core = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.2, 0),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, transparent: true, opacity: 0.75, roughness: 0.5 })
+  );
+  core.position.y = 0.3;
+  group.add(core);
+  group.userData = { ueStage: stage, ueDetail: detail, assetUnavailable: !!stage };
+  return group;
+}
+
 /** True iff `uri` addresses an `.msf` document (used ONLY to WARN, never to discover). */
 function looksLikeMsfUri(uri) {
   return typeof uri === "string" && /\.msf(\?|#|$)/i.test(uri);
@@ -187,6 +330,41 @@ const COL_ASSET_EDGE = 0x3aa0ff;
 const COL_ASSET_FILL = 0x2bd4ff;
 const COL_GROUP = 0x9d7bff;
 const COL_ROOT = 0xffd166;
+const COL_EXTENSION = 0x7ee0a8;
+
+/** A LABELED, obviously-schematic stand-in for a not-yet-loaded glTF asset: `wow-asset-placeholder:<label>`. */
+export function createAssetPlaceholder(THREE, label, isRoot = false) {
+  const group = new THREE.Group();
+  group.name = `wow-asset-placeholder:${label}`;
+  const edge = isRoot ? COL_ROOT : COL_ASSET_EDGE;
+  const wire = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(0.9, 0.9, 0.9)),
+    new THREE.LineBasicMaterial({ color: edge, transparent: true, opacity: 0.9 })
+  );
+  wire.position.y = 0.45;
+  group.add(wire);
+  const core = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.5, 0.5),
+    new THREE.MeshStandardMaterial({
+      color: COL_ASSET_FILL,
+      emissive: COL_ASSET_FILL,
+      emissiveIntensity: 0.25,
+      transparent: true,
+      opacity: 0.55,
+      roughness: 0.5,
+    })
+  );
+  core.position.y = 0.45;
+  group.add(core);
+  return group;
+}
+
+/** The labeled "asset unavailable" placeholder (`wow-asset-unavailable:<label>`, warn tint) for a model that did not load. */
+export function createUnavailableAssetPlaceholder(THREE, label) {
+  const placeholder = createAssetPlaceholder(THREE, label);
+  markPlaceholderUnavailable(placeholder, THREE);
+  return placeholder;
+}
 
 /**
  * Normalize the resolved graph into `{ spatialID, rootId, nodes: Map<number,Node> }`.
@@ -272,31 +450,10 @@ export function buildWowScene(graph, THREE, opts = {}) {
   const nodeGroups = new Map();
   const fabricNodes = []; // { node_id, uri, subtree, placeholder, world_matrix, contract } for the async fabric mount pass
   const unspecifiedContractWarnings = []; // .msf address with NO declared subtree contract
+  const extensionNodes = []; // { node_id, label, declarations, validations, group, placeholder } for the async extension mount pass
 
   function makeAssetPlaceholder(node, isRoot) {
-    // A LABELED, obviously-schematic stand-in for a not-yet-loaded glTF asset.
-    const group = new THREE.Group();
-    group.name = `wow-asset-placeholder:${node.label || node.id}`;
-    const edge = isRoot ? COL_ROOT : COL_ASSET_EDGE;
-    const wire = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.9, 0.9, 0.9)),
-      new THREE.LineBasicMaterial({ color: edge, transparent: true, opacity: 0.9 })
-    );
-    wire.position.y = 0.45;
-    group.add(wire);
-    const core = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, 0.5, 0.5),
-      new THREE.MeshStandardMaterial({
-        color: COL_ASSET_FILL,
-        emissive: COL_ASSET_FILL,
-        emissiveIntensity: 0.25,
-        transparent: true,
-        opacity: 0.55,
-        roughness: 0.5,
-      })
-    );
-    core.position.y = 0.45;
-    group.add(core);
+    const group = createAssetPlaceholder(THREE, node.label || node.id, isRoot);
     counts.meshes += 2;
     return group;
   }
@@ -386,6 +543,13 @@ export function buildWowScene(graph, THREE, opts = {}) {
     const wowExt = node.webofworlds_extension;
     const subtree = wowExt && typeof wowExt === "object" ? wowExt.spatial_fabric_subtree : undefined;
     const isFabric = subtree !== undefined && subtree !== null;
+    // THE EXTENSION DISCRIMINATOR. A node is an EXTENSION node iff it carries the LABELED member
+    // `webofworlds_extension.universal_extensions`. A `.wasm` suffix is never sniffed.
+    const declared = wowExt && typeof wowExt === "object" ? wowExt.universal_extensions : undefined;
+    const isExtension = declared !== undefined && declared !== null;
+    // The second way: references to signed carrier manifests whose extension facets declare the extensions.
+    const carriers = wowExt && typeof wowExt === "object" ? wowExt.universal_extension_manifests : undefined;
+    const isCarrier = carriers !== undefined && carriers !== null;
 
     if (isFabric) {
       // TRANSCLUSION (`<img src>`), NOT traversal (`<a href>`). The fabric is drawn
@@ -481,9 +645,33 @@ export function buildWowScene(graph, THREE, opts = {}) {
     } else if (isPlacementNode(node)) {
       // A node that places a user or a view is where that user or camera is, not a thing
       // in the world: it draws nothing.
-    } else {
+    } else if (!isExtension && !isCarrier) {
       obj.add(makeGroupGizmo(node, isRoot));
       counts.group_gizmos += 1;
+    }
+
+    if (isExtension || isCarrier) {
+      // DISCOVERY ONLY: the declarations are checked here; nothing is fetched or run. The extensions mount BESIDE
+      // anything else the node draws (a glTF asset keeps its own path), in the same group, in this node's frame.
+      const declarations = !isExtension ? [] : Array.isArray(declared) ? declared : [declared];
+      const validations = declarations.map((declaration) => validateExtensionDeclaration(declaration));
+      if (isExtension && !Array.isArray(declared)) {
+        validations[0] = refuseDeclaration(EXTENSION_DECLARATION_REFUSAL.BAD_LIST, "universal_extensions must be an array of declarations");
+      }
+      const placeholder = makeExtensionMarker(THREE, `wow-extension-placeholder:${label}`);
+      obj.add(placeholder);
+      counts.meshes += 1;
+      validations.forEach((validation, index) => {
+        if (validation.ok) return;
+        // FAIL-CLOSED and VISIBLE: a refused declaration keeps a warn-tinted marker labeled with its stage.
+        const marker = makeExtensionMarker(THREE, `ue-refused:declaration:${label}#${index}`, { stage: "declaration", detail: validation.detail });
+        marker.position.x = 0.75 * index;
+        marker.userData.ueRefusal = validation;
+        obj.add(marker);
+        counts.meshes += 1;
+      });
+      const record = { node_id: Number(nodeId), label, declarations, validations, manifest_refs: isCarrier ? carrierReferencesOf(carriers) : [], group: obj, placeholder, is_root: isRoot };
+      extensionNodes.push(record);
     }
 
     nodeObjs.push({
@@ -611,6 +799,9 @@ export function buildWowScene(graph, THREE, opts = {}) {
     // this build is DISCOVERY ONLY. Callers that ignore `fabric_nodes` behave
     // exactly as they do today.
     fabric_nodes: fabricNodes,
+    // The nodes that carry `webofworlds_extension.universal_extensions`, for the async extension mount pass
+    // (web/wow-extension-mount.mjs). Discovery only. Callers that ignore `extension_nodes` behave as before.
+    extension_nodes: extensionNodes,
     render_summary: {
       shape: "wow-composition-graph",
       spatial_id: spatialID,
@@ -662,6 +853,7 @@ export function buildWowScene(graph, THREE, opts = {}) {
           + "in `spatialAssetURI` is spec-LEGAL (the canonical Node types it as a bare string), but the SUBTREE "
           + "CONTRACT is ours, not the standard's. `standards_conformance` stays FALSE.",
       },
+      ...(extensionNodes.length ? { extensions: extensionSummary(extensionNodes) } : {}),
       camera_seed: {
         centroid: [round4(cx), round4(cy), round4(cz)],
         framed_distance: round4(dist),
@@ -689,6 +881,46 @@ export function buildWowScene(graph, THREE, opts = {}) {
       boundary_note:
         "M2 first-light standalone render. No native TeleportXR teleport, no first-party TeleportXR rendering, no standards-conformance claim (runtime scope). Renders only what the graph contains. Referenced glTF assets are EXTERNAL URLs fetched from their own hosts (see THIRD_PARTY_NOTICES.md licensing).",
     },
+  };
+}
+
+/** render_summary.extensions: counts, refusals and the tokens waiting for consent. */
+function extensionSummary(extensionNodes) {
+  const refusals = [], needsConsent = [];
+  let declarations = 0, valid = 0, carrierManifests = 0;
+  for (const node of extensionNodes) {
+    carrierManifests += node.manifest_refs.length;
+    node.validations.forEach((validation, index) => {
+      declarations += 1;
+      if (!validation.ok) {
+        refusals.push({ node_id: node.node_id, label: node.label, index, stage: validation.stage, reason: validation.reason, detail: validation.detail });
+        return;
+      }
+      valid += 1;
+      const tokens = extensionTokensNeedingConsent(validation.effective);
+      if (tokens.length) needsConsent.push({ node_id: node.node_id, label: node.label, index, tokens, note: EXTENSION_CONSENT_NOTE });
+    });
+  }
+  return {
+    extension_nodes: extensionNodes.length,
+    declarations,
+    carrier_manifests: carrierManifests,
+    valid,
+    refused: refusals.length,
+    refusals,
+    needs_consent: needsConsent,
+    discriminator:
+      "a node is an EXTENSION node iff it carries the LABELED `webofworlds_extension.universal_extensions` member or "
+      + "`webofworlds_extension.universal_extension_manifests` (references to signed carrier manifests). "
+      + "The `.wasm` suffix is never sniffed, and an extension node never enters asset_nodes or fabric_nodes.",
+    state_at_build:
+      "DISCOVERY ONLY: declarations checked, nothing fetched or run. Each extension node shows a placeholder; a refused "
+      + "declaration keeps a warn-tinted `ue-refused:declaration:<label>#<index>` marker. The mount pass runs the rest.",
+    grants:
+      "only the attachment-confined tokens a declaration requests are granted, by host policy; any other requested token "
+      + `is not granted and is listed as "${EXTENSION_CONSENT_NOTE}".`,
+    standards_note:
+      "UniversalExtensionDeclaration is a LABELED Lab extension (x-osl-extension:true). `standards_conformance` stays FALSE.",
   };
 }
 
@@ -895,7 +1127,7 @@ function measureVisibleWorldBounds(root, THREE) {
       if (cursor.visible === false) return;
       if (cursor === root) break;
     }
-    node.updateWorldMatrix(true, false);
+    refreshWorldMatrix(node);
     if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
     if (!node.geometry.boundingBox) return;
     if (node.isSkinnedMesh) skinnedMeshes += 1;
@@ -993,4 +1225,6 @@ export default {
   FABRIC_UP_AXES,
   FABRIC_PLACEMENTS,
   FABRIC_SUBTREE_MEMBERS,
+  validateExtensionDeclaration,
+  EXTENSION_DECLARATION_MEMBERS,
 };

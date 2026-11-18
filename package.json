@@ -32,6 +32,11 @@
     "arch-i3-proof": "node tools/arch-i3/proof.js",
     "arch-i4-proof": "node tools/arch-i4/proof.js",
     "arch-i5-proof": "node tools/arch-i5/proof.js",
+    "arch-i6-proof": "node tools/arch-i6/proof.js",
+    "arch-i7-proof": "node tools/arch-i7/proof.js",
+    "arch-a2-proof": "node tools/arch-a2/proof.js",
+    "arch-a2-demo": "node tools/arch-a2/demo.js",
+    "owner-demo": "node tools/arch-i5/owner-demo.js",
     "arch-i4-main-proof": "node tools/arch-i4/main-demo/proof.mjs",
     "arch-overlays-proof": "node tools/arch-overlays/proof.js",
     "check:identity": "node tools/run-checks.mjs identity",
@@ -41,6 +46,7 @@
     "conformance": "node tools/wow-conformance/run.js",
     "conformance:fixtures": "node wow-spec/conformance-fixtures/run.mjs",
     "wow-schema-json": "node wow-spec/build-schema-json.js",
+    "wow-types": "openapi-typescript wow-spec/schema.yaml -o wow-spec/generated/wow-types.d.ts",
     "smoke:wowapi": "node tools/verify-wowapi-smoke.mjs",
     "check:request-target": "node tools/check-request-target.js",
     "check:worlds": "node tools/check-worlds.mjs",
@@ -50,13 +56,13 @@
     "renderer-proof": "node tools/renderer/proof.mjs"
   },
   "dependencies": {
-    "@pixiv/three-vrm": "3.3.3",
-    "three": "0.173.0"
+    "three": "0.186.1"
   },
   "devDependencies": {
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "js-yaml": "5.2.1",
+    "openapi-typescript": "7.4.4",
     "puppeteer-core": "22.15.0"
   }
 }

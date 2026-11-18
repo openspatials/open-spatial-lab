@@ -1,0 +1,163 @@
+{
+  "schema": "osl-avatars-avatar/1",
+  "id": "game-maw-j-laygo",
+  "sample_rate_hz": 240,
+  "planted_threshold_m": 0.03,
+  "avatar": {
+    "file": "game-maw-j-laygo.glb",
+    "family": "mannequin",
+    "bones": 71,
+    "facing_yaw_rad": 0,
+    "scale": 0.9999999508624805,
+    "natural_height_m": 2.2000001081025484,
+    "drawn_height_m": 2.2,
+    "hips_height_m": 0.9037138685248183,
+    "hips_bone": "pelvis"
+  },
+  "clip_pack": {
+    "file": "../../clips/actionforge-clips.glb",
+    "reference_hips_height_m": 0.9166999980209016,
+    "avatar_hips_height_m": 0.9037139438638881,
+    "pelvis_position_scale": 0.9858339105650162
+  },
+  "slots": {
+    "idle": {
+      "file": "../../clips/actionforge-clips.glb",
+      "clip": "idle_loop"
+    },
+    "walk": {
+      "file": "../../clips/actionforge-clips.glb",
+      "clip": "walk_loop"
+    },
+    "jog": {
+      "file": "../../clips/actionforge-clips.glb",
+      "clip": "jog_fwd_loop"
+    },
+    "sprint": {
+      "file": "../../clips/actionforge-clips.glb",
+      "clip": "sprint_loop"
+    },
+    "jumpStart": {
+      "file": "../../clips/actionforge-clips.glb",
+      "clip": "jump_start"
+    },
+    "jumpLoop": {
+      "file": "../../clips/actionforge-clips.glb",
+      "clip": "jump_loop"
+    },
+    "jumpLand": {
+      "file": "../../clips/actionforge-clips.glb",
+      "clip": "jump_land"
+    }
+  },
+  "clip_source": {
+    "idle": "pack:../../clips/actionforge-clips.glb",
+    "walk": "pack:../../clips/actionforge-clips.glb",
+    "jog": "pack:../../clips/actionforge-clips.glb",
+    "sprint": "pack:../../clips/actionforge-clips.glb",
+    "jumpStart": "pack:../../clips/actionforge-clips.glb",
+    "jumpLoop": "pack:../../clips/actionforge-clips.glb",
+    "jumpLand": "pack:../../clips/actionforge-clips.glb"
+  },
+  "planted_feet": {},
+  "model": {
+    "idle_lowest_vertex_y_m": -0.022131732680569425,
+    "idle_loop_lowest_foot_vertex_y_m": -0.02304365319606729,
+    "floor_offset_m": 0.0018216304119136083,
+    "foot_vertex_count": {
+      "l": 235,
+      "r": 292
+    },
+    "rest_floor_heights_m": {
+      "toe": 0.013726232592529197,
+      "foot": 0.14515658639002432
+    }
+  },
+  "clips": {
+    "idle": {
+      "duration_s": 2.5
+    },
+    "walk": {
+      "duration_s": 1.3333333730697632,
+      "speed_mps": 0.9473396430062297,
+      "speed_method": "median backward toe velocity over stance-core samples (toe within 1.5 cm), both feet",
+      "speed_median_of_samples_mps": 0.9279733139331301,
+      "stride_m": 1.2631195616522015,
+      "stance_fraction": {
+        "l": 0.353125,
+        "r": 0.5
+      },
+      "left_touchdown_phase": 0.26875,
+      "stance_toe_mean_vz_mps": -0.9416110976686948,
+      "toe_floor_height_m": {
+        "l": -0.01995767892042946,
+        "r": -0.019592307217972615
+      },
+      "hips_height_range_m": [
+        0.8328508057448791,
+        0.8835245244344156
+      ]
+    },
+    "jog": {
+      "duration_s": 0.9333333373069763,
+      "speed_mps": 5.66091174961813,
+      "speed_method": "median backward toe velocity over stance-core samples (toe within 1.5 cm), both feet",
+      "speed_median_of_samples_mps": 5.71219467964128,
+      "stride_m": 5.283517655471363,
+      "stance_fraction": {
+        "l": 0.10267857142857142,
+        "r": 0.10714285714285714
+      },
+      "left_touchdown_phase": 0.08035714285714286,
+      "stance_toe_mean_vz_mps": -5.780187409277497,
+      "toe_floor_height_m": {
+        "l": -0.04711594178233455,
+        "r": -0.047259472723781254
+      },
+      "hips_height_range_m": [
+        0.674648473791245,
+        0.9103334359868497
+      ]
+    },
+    "sprint": {
+      "duration_s": 0.6666666865348816,
+      "speed_mps": 8.577562815370154,
+      "speed_method": "median backward toe velocity over stance-core samples (toe within 1.5 cm), both feet",
+      "speed_median_of_samples_mps": 8.581189463716406,
+      "stride_m": 5.718375380667631,
+      "stance_fraction": {
+        "l": 0.05,
+        "r": 0.125
+      },
+      "left_touchdown_phase": 0.125,
+      "stance_toe_mean_vz_mps": -8.279324833068667,
+      "toe_floor_height_m": {
+        "l": -0.07129087602735168,
+        "r": -0.05703301167043329
+      },
+      "hips_height_range_m": [
+        0.765363454896387,
+        0.8983939159977375
+      ]
+    },
+    "jumpStart": {
+      "duration_s": 1.3333333730697632,
+      "takeoff_time_s": 0.06666666865348816,
+      "air_hips_height_m": 0.835600591008226,
+      "lowest_hips_time_s": 0,
+      "hips_height_at_takeoff_m": 0.8342323157651436,
+      "clearance_end_m": -0.1138550439015491
+    },
+    "jumpLoop": {
+      "duration_s": 2.5,
+      "lowest_toe_below_floor_line_m": -0.12123454879095338
+    },
+    "jumpLand": {
+      "duration_s": 1.2666666507720947,
+      "contact_time_s": 0,
+      "settle_time_s": 0.19999999749033073,
+      "clearance_start_m": -0.03689579179020311,
+      "lowest_hips_m": 0.4145050065818532
+    }
+  }
+}

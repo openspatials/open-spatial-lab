@@ -21,12 +21,16 @@
  * applyJoinArrival() is the other half: a page opened at `...#join=node.{n}` puts its camera at node n's
  * pose, looking along the node's +Z axis. A page opened at `...#follow=user.{id}` puts its camera at the node
  * that places that user, read from its User resource by userNodeAt(), the read the main page uses too.
+ * joinArrivalAt() is where such a fragment arrives, without moving anything: the viewer's camera (applyJoinArrival)
+ * and, at role=player, the embodied avatar (web/app.js) both stand there. keepFollowing() keeps a visitor at a
+ * followed user's node while that user moves; the main page (web/main-demo-wiring.mjs) and the viewer both use it.
  */
 
 import { readPortals, previewOf, crossPortal, arrivalAt, entryBase, readFlatNode, placePortal, moveNode, changePortal, PREVIEW_COLOR } from "./wow-portal.mjs";
 import { WOW_MEDIA_TYPE } from "./wow-inclusion.mjs";
 import { worldBaseOf } from "./wow-observe.mjs";
 import { drawLabelCanvas } from "./label-canvas.mjs";
+import { refreshWorldMatrix } from "./three-world-matrix.mjs";
 
 const RING_RADIUS = 1.0;
 const RING_CENTER_Y = 1.25;
@@ -108,7 +112,7 @@ export async function mountPortals(opts) {
     portalObject.visible = false;
     // The front of a portal (its node's +Z) is where its preview is seen from. When it faces away from the
     // middle of the world, turn the drawing round, so a visitor in the world sees the front.
-    group.updateWorldMatrix(true, false);
+    refreshWorldMatrix(group);
     const at = new THREE.Vector3().setFromMatrixPosition(group.matrixWorld);
     const front = new THREE.Vector3(0, 0, 1).transformDirection(group.matrixWorld);
     if (facesAway([at.x, at.z], [front.x, front.z])) portalObject.rotation.y = Math.PI;
@@ -253,7 +257,7 @@ export async function mountPortals(opts) {
     if (!visitor) return;
     let changed = false;
     for (const entry of entries) {
-      entry.group.updateWorldMatrix(true, false);
+      refreshWorldMatrix(entry.group);
       const at = new THREE.Vector3().setFromMatrixPosition(entry.group.matrixWorld);
       entry.distance = Math.hypot(at.x - visitor.x, at.z - visitor.z);
       if (entry.radius === null) continue;
@@ -444,7 +448,7 @@ export function mountPlacementTool({ THREE, document, mounted, viewControls, cam
     const atMiddle = Math.hypot(point.x, point.z) < 0.5;
     const yaw = atMiddle ? Math.atan2(camera.position.x - point.x, camera.position.z - point.z) : Math.atan2(-point.x, -point.z);
     const world = new THREE.Matrix4().makeRotationY(yaw).setPosition(point.x, 0, point.z);
-    parent.updateWorldMatrix(true, false);
+    refreshWorldMatrix(parent);
     const local = new THREE.Matrix4().copy(parent.matrixWorld).invert().multiply(world);
     return local.toArray().map((v) => (Math.abs(v) < 1e-9 ? 0 : Math.round(v * 1e6) / 1e6));
   }
@@ -580,25 +584,76 @@ export async function userNodeAt(base, userId, { fetch }) {
   return { node: Number(ref[1]) };
 }
 
+// How often a page that follows a user (`#follow=user.{id}`) reads where that user is.
+export const FOLLOW_WATCH_MS = 500;
+
 /**
- * At `#join=node.{n}`, put the camera at node n's pose: at the node's position, raised to eye height,
- * looking along the node's +Z axis (so the node's own pitch tilts the view). At `#follow=user.{id}` (or
- * `user/{id}`, the verb in either case), do the same at the node that places that user (userNodeAt). Returns
- * the arrival (wow-portal.mjs, arrivalAt), or null.
+ * Where a page opened at `#join=node.{n}` or `#follow=user.{id}` (or `user/{id}`, the verb in either case) arrives in
+ * the world shown from `hostUrl`: node n, or the node that places that user (userNodeAt). Moves nothing. Returns null
+ * for any other fragment; { arrived: false, reason } (a user who is gone also says `gone`) when there is no such
+ * place; else { arrived: true, moved, follow, ...the arrival (wow-portal.mjs, arrivalAt) }, where `follow` is the
+ * followed user's id or null. With `from` (an earlier arrival), `moved` is false when the node has not moved since.
  */
-export async function applyJoinArrival({ hostUrl, camera, hash, fetch }) {
+export async function joinArrivalAt({ hostUrl, hash, fetch, from }) {
   const fragment = decodeURIComponent(String(hash || ""));
   const match = /^#?join=node[./](\d+)$/.exec(fragment);
   const follow = /^#?follow=user[./](\d+)$/i.exec(fragment);
-  if ((!match && !follow) || !camera) return null;
+  if (!match && !follow) return null;
   let nodeId = match ? Number(match[1]) : null;
   if (follow) {
     const placed = await userNodeAt(worldBaseOf(hostUrl), Number(follow[1]), { fetch });
-    if (placed.node == null) return { arrived: false, user: Number(follow[1]), reason: placed.reason };
+    if (placed.node == null) return { arrived: false, user: Number(follow[1]), ...(placed.gone != null ? { gone: placed.gone } : {}), reason: placed.reason };
     nodeId = placed.node;
   }
   const arrival = await arrivalAt(worldBaseOf(hostUrl), nodeId, { fetch });
-  if (!arrival) return { arrived: false, reason: follow ? `user ${follow[1]}'s node ${nodeId} not found` : `arrival node ${match[1]} not found` };
+  if (!arrival) return { arrived: false, ...(follow ? { gone: true } : {}), reason: follow ? `user ${follow[1]}'s node ${nodeId} not found` : `arrival node ${match[1]} not found` };
+  const moved = !(from && from.node === arrival.node && Array.isArray(from.position)
+    && Math.abs(from.yaw - arrival.yaw) < 1e-6 && arrival.position.every((v, i) => Math.abs(v - from.position[i]) < 1e-6));
+  return { arrived: true, moved, follow: follow ? Number(follow[1]) : null, ...arrival };
+}
+
+/**
+ * Keep a visitor at a followed user's node: every `interval` ms, `arriveAgain(last)` reads where the user is now (an
+ * arrival with `moved` and `gone`, as joinArrivalAt and LiveAdapter.applyJoinArrival answer with `from: last`) and
+ * moves the visitor when the node has moved; then onMoved(arrival). When the user is gone, onGone(answer) and the
+ * loop ends. It also ends when stopped() is true, or on stop().
+ */
+export function keepFollowing(arriveAgain, { first = null, interval = FOLLOW_WATCH_MS, stopped = () => false, onMoved = () => {}, onGone = () => {}, schedule = (fn, ms) => setTimeout(fn, ms) } = {}) {
+  let last = first;
+  let ended = false;
+  const look = async () => {
+    if (ended || stopped()) return;
+    let next = null;
+    try { next = await arriveAgain(last); } catch { next = null; }
+    if (ended || stopped()) return;
+    if (next && !next.arrived && next.gone) {
+      ended = true;
+      onGone(next);
+      return;
+    }
+    if (next && next.arrived && next.moved) {
+      last = next;
+      onMoved(next);
+    }
+    schedule(look, interval);
+  };
+  schedule(look, interval);
+  return { stop() { ended = true; } };
+}
+
+/**
+ * At `#join=node.{n}`, put the camera at node n's pose: at the node's position, raised to eye height,
+ * looking along the node's +Z axis (so the node's own pitch tilts the view). At `#follow=user.{id}` (or
+ * `user/{id}`, the verb in either case), do the same at the node that places that user (joinArrivalAt). Returns
+ * the arrival (wow-portal.mjs, arrivalAt), or null. With `from` (an earlier arrival), the camera moves only when
+ * the node has moved since.
+ */
+export async function applyJoinArrival({ hostUrl, camera, hash, fetch, from }) {
+  if (!camera) return null;
+  const found = await joinArrivalAt({ hostUrl, hash, fetch, from });
+  if (!found || !found.arrived) return found;
+  if (!found.moved) return found;
+  const { moved, follow, ...arrival } = found;
   const m = arrival.matrix;
   const length = Math.hypot(m[8], m[9], m[10]) || 1;
   let forward = [m[8] / length, m[9] / length, m[10] / length];
@@ -629,7 +684,7 @@ export async function applyJoinArrival({ hostUrl, camera, hash, fetch }) {
   const drop = atPortal ? -1.4 : 0;
   camera.lookAt(eye[0] + forward[0] * 5, eye[1] + forward[1] * 5 + drop, eye[2] + forward[2] * 5);
   camera.updateMatrixWorld(true);
-  return { arrived: true, ...arrival };
+  return { arrived: true, moved, follow, ...arrival };
 }
 
 /**

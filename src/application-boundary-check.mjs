@@ -256,7 +256,7 @@ await check("scene-description", "Active builders consume plain light and graph 
 });
 
 await check("prefetch-ring-lifetime", "Replaced and deleted rings release only their own resources once", async () => {
-  const engine = await import(`data:text/javascript;base64,${readFileSync(new URL("../runtime/scene-core/public/vendor/three/three.module.js", import.meta.url)).toString("base64")}`);
+  const engine = await import(new URL("../runtime/scene-core/public/vendor/three/three.module.js", import.meta.url).href);
   const moduleUrl = new URL("../web/three-world-presentation.mjs", import.meta.url);
   const source = readFileSync(moduleUrl, "utf8")
     .replace(/import \* as THREE from .*?;/, "const THREE = globalThis.__ringFixtureEngine;")

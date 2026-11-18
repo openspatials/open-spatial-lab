@@ -13,6 +13,7 @@
  * An object the destination restricts arrives as its place and size only, and shows as a faint box with its label
  * (deps.accessGhost, web/hosted-access-label.mjs). A hidden one never arrives.
  */
+import { refreshWorldMatrix } from "./three-world-matrix.mjs";
 
 const COLOR_CLOSED_RING = 0x7a808c;
 const COLOR_CLOSED_FACE = 0x2a2d33;
@@ -124,7 +125,7 @@ export function composeBoundedPreview(content, context, deps) {
     if (!node.closed) continue;
     const group = built.node_groups.get(Number(node.id));
     if (!group) continue;
-    group.updateWorldMatrix(true, false);
+    refreshWorldMatrix(group);
     const at = group.matrixWorld.elements;
     // The portal the visitor would arrive through stands exactly on the plane being looked through: the ring they
     // are looking through is its picture, so it is not drawn again across the opening.

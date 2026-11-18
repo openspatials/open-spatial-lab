@@ -15,7 +15,7 @@ const fixtureURL = pathToFileURL(resolve(process.argv[fixtureIndex + 1]));
 const { decodeTyped } = await import(new URL("./fixture-source.mjs", fixtureURL));
 const fixture = JSON.parse(await readFile(fixtureURL, "utf8"), decodeTyped);
 assert.equal(fixture.schema, "renderer-consumer-fixture/1");
-assert.equal(THREE.REVISION, "160");
+assert.equal(THREE.REVISION, "186");
 const anchorText = await readFile(new URL("../web/x3d-worlds/anchor-portal-world.x3d.json", import.meta.url), "utf8");
 const softText = await readFile(new URL("../web/x3d-worlds/soft-body.x3d.json", import.meta.url), "utf8");
 const anchor = await parseX3dDocument(anchorText);
