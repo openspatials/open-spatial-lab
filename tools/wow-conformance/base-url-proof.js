@@ -15,7 +15,14 @@
  *   3. it runs the same command against planted-fault worlds, one at a time (each an exact edit of the real
  *      server source): a depart that leaves the user present, and a crossing that sends no portal_activate.
  *      Each run must exit 1 and name the check that failed;
- *   4. it shuts every world down.
+ *   4. iteration 5 is opt-in: it starts one Lab world with no join setup (no handshake config) and runs
+ *      `run.js --base <it>`: it must exit 0, and report i5:W2 and i5:SE2 each as N/A (not applicable, never FAIL,
+ *      never PASS) with the reason NA_REASON, and i6:G1 as N/A with the reason I6_NA_REASON (iteration 6 is opt-in
+ *      too: the world serves no protected resource metadata); the "not applicable:" lines are exactly these three,
+ *      by check id. Planted fault: a corpus that marks such a world failed (the gate on
+ *      World.identity removed from tools/wow-conformance/wire-checks.js by an exact edit, loaded through a
+ *      --require hook in the child only): run.js must then exit 1 and name i5:W2 as failed;
+ *   5. it shuts every world down.
  *
  * Exit: 0 when every step holds, 1 otherwise.
  */
@@ -42,6 +49,16 @@ const WIRE_CHECKS = [ 'i1:U3', 'i2:O2', 'i3:W2', 'i4:W2', 'i4:P10', 'i5:W2', 'i5
  */
 const EXPECTED = { 'i4:P10': 'PARTIAL' };
 const P10_SKIP = /skipped \(not a pass\): before navigation: /;
+/** The checks of iteration 5, and the reason the corpus must give for each on a world that states no identity. */
+const I5_CHECKS = [ 'i5:W2', 'i5:SE2' ];
+const NA_REASON = 'the World states no identity: iteration 5 joining is opt-in';
+/** The check of iteration 6 the corpus runs, and its reason on a world that serves no protected resource metadata. */
+const I6_CHECKS = [ 'i6:G1' ];
+const I6_NA_REASON = 'the world serves no protected resource metadata: iteration 6 authorization is opt-in';
+/** The same world with no join setup: no handshake config, so the World states no identity. */
+const NO_JOIN_CONFIG = { base_path: PREFIX };
+/** Planted fault in the corpus itself: the iteration-5 gate removed, so every world runs the i5 checks (S17's behaviour). */
+const CORPUS_FAULT = { file: 'wire-checks.js', from: "const iteration5 = world.identity !== undefined && world.identity !== null;", to: 'const iteration5 = true;' };
 
 /** The world's configuration: the handshake (it accepts joins), a room with a preview of both forms. */
 const CONFIG = {
@@ -72,19 +89,23 @@ function step(name, ok, detail)
 const sha = (file) => (fs.existsSync(file) ? crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') : null);
 
 /** Start one Lab world (real, or with planted-fault edits) on PORT. */
-async function startWorld(edits)
+async function startWorld(edits, config)
 {
     const { boot } = require(path.join(REPO_ROOT, 'tools', 'arch-i1', 'harness'));
-    return boot('b', PORT, { edits: edits || null, config: JSON.parse(JSON.stringify(CONFIG)) });
+    return boot('b', PORT, { edits: edits || null, config: JSON.parse(JSON.stringify(config || CONFIG)) });
 }
 
-/** Run run.js against BASE in a child process; returns { code, out }. */
-function runCorpus(outFile)
+/**
+ * Run run.js against BASE in a child process; returns { code, out }. opts.args replaces the default arguments after
+ * --base; opts.preload is a module the child loads first (node --require).
+ */
+function runCorpus(outFile, opts)
 {
+    opts = opts || {};
     return new Promise((resolve) => {
-        const args = [ RUN, '--base', BASE, '--writes', '--lab-crossing', '--out', outFile ];
-        console.log('  $ node ' + path.relative(REPO_ROOT, RUN) + ' ' + args.slice(1).join(' '));
-        const child = spawn(process.execPath, args, { cwd: REPO_ROOT, env: process.env, stdio: [ 'ignore', 'pipe', 'pipe' ] });
+        const args = [ RUN, '--base', BASE ].concat(opts.args || [ '--writes', '--lab-crossing', '--out', outFile ]);
+        console.log('  $ node ' + path.relative(REPO_ROOT, RUN) + ' ' + args.slice(1).join(' ') + (opts.preload ? '   (child preloads the planted fault)' : ''));
+        const child = spawn(process.execPath, (opts.preload ? [ '--require', opts.preload ] : []).concat(args), { cwd: REPO_ROOT, env: process.env, stdio: [ 'ignore', 'pipe', 'pipe' ] });
         let out = '';
         const take = (chunk) => { out += chunk; for (const l of String(chunk).split('\n')) if (l) process.stdout.write('  | ' + l + '\n'); };
         child.stdout.on('data', take);
@@ -94,11 +115,50 @@ function runCorpus(outFile)
     });
 }
 
-/** The wire-suite verdict run.js printed for one check id: PASS, FAIL, PARTIAL, SKIP or null. */
+/**
+ * A --require hook for the child: it applies one exact edit to one tools/wow-conformance module as it loads. When
+ * the edit's target is not in the source, the child prints why and exits 3, so the planted fault cannot pass unseen.
+ */
+function writeCorpusFaultHook(dir, fault)
+{
+    const file = path.join(dir, 'corpus-fault-hook.js');
+    fs.writeFileSync(file, [
+        "'use strict';",
+        "const fs = require('fs');",
+        "const target = " + JSON.stringify(path.join(__dirname, fault.file)) + ";",
+        "const from = " + JSON.stringify(fault.from) + ";",
+        "const to = " + JSON.stringify(fault.to) + ";",
+        "const js = require.extensions['.js'];",
+        "require.extensions['.js'] = function (module, filename) {",
+        "    if (filename !== target) return js(module, filename);",
+        "    const source = fs.readFileSync(filename, 'utf8');",
+        "    if (source.split(from).length !== 2) { console.log('planted fault: edit target not found once in ' + filename + ': ' + from); process.exit(3); }",
+        "    module._compile(source.replace(from, to), filename);",
+        "};",
+        '',
+    ].join('\n'));
+    return file;
+}
+
+/** The wire-suite verdict run.js printed for one check id: PASS, FAIL, PARTIAL, SKIP, N/A or null. */
 function verdictOf(out, id)
 {
-    const m = new RegExp('^\\s*(PASS|FAIL|PARTIAL|SKIP)\\s+' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'm').exec(out);
+    const m = new RegExp('^\\s*(PASS|FAIL|PARTIAL|SKIP|N/A)\\s+' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'm').exec(out);
     return m ? m[1] : null;
+}
+
+/** Each "not applicable:" line run.js printed, with the id of the check line it follows: [[id, reason]]. */
+function naOf(out)
+{
+    const found = [];
+    let id = null;
+    for (const l of String(out).split('\n')) {
+        const c = /^\s*(?:\|\s*)?(PASS|FAIL|PARTIAL|SKIP|N\/A)\s+(i\d+:[A-Z0-9]+)\b/.exec(l);
+        if (c) { id = c[2]; continue; }
+        const n = /not applicable: (.*)$/.exec(l);
+        if (n) found.push([ id, n[1] ]);
+    }
+    return found;
 }
 
 async function main()
@@ -138,6 +198,35 @@ async function main()
         step('planted fault (' + fault.name + '): run.js exits 1 and names ' + fault.failed + ' as failed', bad.code === 1 && v === 'FAIL',
             'exit ' + bad.code + ', ' + fault.failed + ' ' + (v || 'not reported'));
     }
+
+    // ---- 4. iteration 5 is opt-in: a world with no join setup gets N/A, never FAIL -------------------
+    console.log('\n== the corpus against a Lab world with no join setup (no handshake config) at ' + BASE + ' ==');
+    world = await startWorld(null, NO_JOIN_CONFIG);
+    let plain;
+    try { plain = await runCorpus(null, { args: [] }); }
+    finally { await world.close(); world = null; }
+    const naLines = (plain.out.match(/not applicable: .*/g) || []);
+    const i5 = I5_CHECKS.map((id) => [ id, verdictOf(plain.out, id) ]);
+    const i6 = I6_CHECKS.map((id) => [ id, verdictOf(plain.out, id) ]);
+    // Each "not applicable:" line, by the id of the check it follows; exactly the i5 and the i6 checks, each with its reason.
+    const naById = naOf(plain.out);
+    const wantNa = I5_CHECKS.map((id) => [ id, NA_REASON ]).concat(I6_CHECKS.map((id) => [ id, I6_NA_REASON ]));
+    const naExact = naLines.length === wantNa.length && naById.length === wantNa.length
+        && wantNa.every(([id, reason]) => naById.filter(([nid, r]) => nid === id && r === reason).length === 1);
+    step('run.js --base against a world with no join setup exits 0, with i5:W2 and i5:SE2 each N/A for the opt-in reason, and i6:G1 N/A for its opt-in reason (no protected resource metadata)',
+        plain.code === 0 && i5.every(([, v]) => v === 'N/A') && i6.every(([, v]) => v === 'N/A') && naExact,
+        'exit ' + plain.code + ', ' + i5.concat(i6).map(([id, v]) => id + ' ' + (v || 'not reported')).join(', ') + '; ' + (naById.length ? naById.map(([id, r]) => id + ': not applicable: ' + r).join(' | ') : 'no "not applicable:" line'));
+
+    console.log('\n== planted fault in the corpus: a corpus that marks a world with no join setup failed ==');
+    const hook = writeCorpusFaultHook(tmp, CORPUS_FAULT);
+    world = await startWorld(null, NO_JOIN_CONFIG);
+    let marked;
+    try { marked = await runCorpus(null, { args: [], preload: hook }); }
+    finally { await world.close(); world = null; }
+    const mv = verdictOf(marked.out, 'i5:W2');
+    step('planted fault (a corpus that marks a world with no join setup failed): run.js exits 1 and names i5:W2 as failed', marked.code === 1 && mv === 'FAIL',
+        'exit ' + marked.code + ', i5:W2 ' + (mv || 'not reported'));
+
     step('the Lab evidence file is unchanged after every run', sha(EVIDENCE) === evidenceBefore);
 
     fs.rmSync(tmp, { recursive: true, force: true });

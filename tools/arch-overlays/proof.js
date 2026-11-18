@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * The overlay proof: the proposed Web of Worlds edits of iterations 1 to 5, on both GeoPose forms of
+ * The overlay proof: the proposed Web of Worlds edits of iterations 1 to 6, on both GeoPose forms of
  * iteration 1, with no browser.   Run: npm run arch-overlays-proof
  *
  *   U1-U5, E1    iteration 1's text, both forms               (tools/arch-i1/checks-upstream.js)
@@ -16,11 +16,15 @@
  *   i5 W1-W4     iteration 5 (stage A, the identity handshake)  (tools/arch-i5/checks-overlay.js)
  *                on top of iterations 1 to 4, W3 its conformance vocabulary, W4 neutral wording on every
  *                overlay of iterations 1 to 5
+ *   i6 W1-W4     iteration 6 (permissions, part a: the World,   (tools/arch-i6/checks-overlay.js)
+ *                Asset and User Manifest patches) on top of iterations 1 to 5, W2 with the G1 wire half against
+ *                a world that requires a token, W3 its conformance vocabulary, W4 neutral wording on every overlay
+ *                of iterations 1 to 6
  *
  * Each check runs on both forms (with and without the two rotation sentences), so a text step can be re-proved
  * quickly. The checks that also measure the wire (U3, U4, E1, O2, W2) start lab world servers in this process,
  * on isolated ports from 26000 up (set OSL_ARCH_OVERLAYS_PORT_A to change the first), clear of the other proofs'
- * ports. No browser starts. The full arch-i1..i5 proofs stay the acceptance runs.
+ * ports. No browser starts. The full arch-i1..i6 proofs stay the acceptance runs.
  */
 
 const path = require('path');
@@ -73,7 +77,7 @@ async function extentOfferedCheck() {
 }
 
 async function main() {
-  line('Overlay proof: the proposed Web of Worlds edits of iterations 1 to 5, on both GeoPose forms');
+  line('Overlay proof: the proposed Web of Worlds edits of iterations 1 to 6, on both GeoPose forms');
   const base = Number(process.env.OSL_ARCH_OVERLAYS_PORT_A) || 26000;
   let used = 0;
   const ports = { next: () => base + used++ };
@@ -89,6 +93,8 @@ async function main() {
   await require('../arch-i4/checks-overlay').overlayChecks(ports);
   line('Iteration 5');
   await require('../arch-i5/checks-overlay').overlayChecks(ports);
+  line('Iteration 6');
+  await require('../arch-i6/checks-overlay').overlayChecks(ports);
   finish('arch-overlays.json', 'overlay proof');
   process.exit(process.exitCode || 0);
 }

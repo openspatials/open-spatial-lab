@@ -7,7 +7,7 @@
     "x-osl-source-of-truth": true,
     "x-osl-canonical-basis": "Canonical schemas (World/User/View/Portal/Node/Spatial) and the /wow/world, /wow/user, /wow/view, /wow/portal and /wow/spatial paths are transcribed from the OPEN OpenSpatialWorld API (github.com/WebOfWorlds/WoWAPI, specification/OpenSpatialWorld/API.yaml, openapi 3.0.4, info.version 0.0.1), pinned to upstream commit d39a1a0 (\"fixed node children type\", 2026-05-21).",
     "x-osl-provenance-correction": "CORRECTION (2026-07-11, runtime; supersedes the previous claim here that this file was \"NOT copied from the UNLICENSED simpleWorlds reference implementation\"). That sentence was NOT supportable and is withdrawn. Two things in the first transcription match the STALE spec copy vendored in the simpleWorlds reference implementation rather than the open spec: (1) `Node.children` was typed `integer`, where the open spec says `$ref: Node` (simpleWorlds packages/wow-spec/src/schema.yaml:425-428 types it `integer`; upstream has ONE commit, so NO published upstream state has ever said `integer`); and (2) the dotted operationIds (world.getWorld, user.getUser, user.deleteUser, view.getView, portal.getPortal) match simpleWorlds 5-for-5, where upstream uses getWorldStatus / getUserById / deleteUserById / getViewById / getPortalById. Sourcing was MIXED, not wholesale: the /wow/spatial/{spatialID}/node/{nodeId} path is the OPEN SPEC's, and OSL deliberately REJECTED simpleWorlds' /wow/scene/node divergence (PROP §9). `Node` is now restored VERBATIM from the open spec. What OSL served then (id-ref children) was the LABELED, non-canonical `OSLFlatNode` divergence — declared, never presented as the standard. Since iteration 1 OSL serves the canonical `Node` by default and the flat form only on explicit request. NO simpleWorlds SOURCE CODE is vendored in this repository; the schema typing and operationId NAMING above are the extent of the overlap, and the typing is corrected. LICENSING NOTE: simpleWorlds' license state is self-contradictory — the repo ships an Apache-2.0 LICENSE file while its package.json (root and packages/wow-spec) declares \"license\": \"UNLICENSED\". Because that is unresolved, OSL treats simpleWorlds as DO-NOT-COPY and single-sources the open spec.",
-    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema at d39a1a0 has no destination field. The iteration 4 overlay proposes\n    `destination` (an entry URL) and `node`; the demo's own target description stays a LABELED\n    extension, `osl_destination` (`PortalDestination`).\n  * The event stream (a WebSocket; the lab's worlds serve it at `WS /events`)\n    follows the Events paragraph below: a world that offers an event stream\n    MUST list it in the World resource under services.events, relative to the\n    world's base URL. Its messages are given by the Event schema.\n\nThe key words \"MUST\", \"MUST NOT\", \"REQUIRED\", \"SHALL\", \"SHALL NOT\", \"SHOULD\", \"SHOULD NOT\", \"RECOMMENDED\", \"NOT RECOMMENDED\", \"MAY\", and \"OPTIONAL\" in this document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here.\n\nFrames. All coordinates MUST be in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\nMedia type. Resources MUST be served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json MUST stay available by content negotiation.\n\nEntity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET MUST return ETag and Last-Modified, and MUST answer a matching If-None-Match with 304. The node PUT and DELETE MUST honor If-Match and MUST answer 412, changing nothing, when it does not match (RFC 9110).\n\nCross-origin access. Responses MUST carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses MUST allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match.\n\nEvents. A world that offers an event stream MUST list it in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event MUST carry type, revision (this world's count of its changes, one higher for each), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision), as the Event schema lists them. The revision MUST survive restarts, and World.revision reports the current one. A write that changes nothing MUST NOT produce a revision or an event. A client MAY resume with since=<revision>. A world that can no longer replay from there MUST send resync with its current revision, and the client MUST then re-read.\n\nStream authentication. A world MAY require authorization for its stream. The token MUST then be the stream's first message, the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}. The token MUST NOT appear in a URL. The world MUST close a stream without a valid token within 5 seconds. A world MUST refuse a stream from an origin its policy does not allow.\n\nData points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer MUST NOT pass through children: a child is named by its own node URL. Reading, conditional reading and subscribing MUST NOT create a user.\n\nPortals. A portal leads to a world: its destination is that world's entry URL, and the fragment #join=node.{id} names the node where a visitor arrives. Crossing MUST work as plain navigation to the destination. A client MUST first check that the destination answers and, if it does not, MUST refuse with the reason and stay. Seamless crossing, with state carried across, is an OPTIONAL profile. Portals, views and users are placed by a node (node, relative to the base URL). A geoPose they give is derived from that node's placement and MUST equal it. A portal MUST show its destination only as far as the destination's preview allows. A portal inside a preview MUST show closed.\n\nPortal events. When a visitor uses a portal, a world that offers an event stream MUST send portal_activate on it, once for each crossing and before the visitor navigates. The event MUST carry portalId (the id of the portal) and userId (the id of the user who crosses), besides type, revision, time and urls, as the PortalActivate schema lists them; its urls name wow/world, which reports the revision.\n\nJoining. A world MUST state in its World resource who it is (identity, its base URL), the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A visitor's agent MUST read the World resource from the base URL it is about to post to. Before it discloses anything, it MUST check that identity.base is that base URL. Only then MAY it join with POST /wow/user. The join MUST carry only the claims the world asks for, in a signed manifest, with a holder proof made for this world and this visit. How claims are proven is given by reference. The answer MUST state the outcome (proceed, proceed-in-part or deny) and which of the claims the world asked for were satisfied and which were not. A world MUST record every outcome. The answer MUST NOT grant a permission. Claim values, and anything else about the visitor, MUST NOT appear in a URL. The pointer (the manifest's subject), the signatures, the holder proof and its nonce are made for one world and one visit and MUST NOT be reused for another world; the claim values a world asks for are disclosed to that world.\n\nFollowing. A page opened at a world's URL with the fragment #follow MUST join that world as a new or existing user, as a page opened at that URL does. The fragment's verb MUST be matched case-insensitively. With #follow=user.{id} the client MUST place the visitor at the node that places that user (User.node) and MUST keep the visitor there while that user moves. When that user is no longer present, the client SHOULD stop following and leave the visitor where it stands.\n\nDeparting. DELETE /wow/user/{userId} MUST end that user's visit: afterwards that user MUST no longer be present. A world that offers an event stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of that user's join outcome.\n"
+    "description": "OSL's typed, validated source of truth for the OpenSpatialWorld\n(\"Web of Worlds\") API. This is the contract every WoW-primary OSL\ncomponent builds against.\n\nHONESTY / EXTENSION POLICY (binding, see wow-spec/OSL-WOW-CONTRACT.md):\n  * CANONICAL surfaces carry the tag `canonical` and are transcribed from\n    the open OpenSpatialWorld spec (WoWAPI@d39a1a0). Where OSL diverges\n    from the standard, the operation/schema carries `x-osl-divergence` and\n    the payload schema is a LABELED extension — NEVER a canonical one.\n    (The known divergences are enumerated in OSL-WOW-CONTRACT.md §9.)\n  * OSL ADDITIONS are ADDITIVE, carry the tag `osl-extension`, and every\n    such schema/property is annotated `x-osl-extension: true`. They are\n    NEVER canonical and MUST be surfaced (never hidden) by the conformance\n    components.\n  * `standards_conformance` stays `false` on every `/wow` response\n    (validation-boundary honesty). No cosmetic conformance.\n  * The WoW `Portal` schema at d39a1a0 has no destination field. The iteration 4 overlay proposes\n    `destination` (an entry URL) and `node`; the demo's own target description stays a LABELED\n    extension, `osl_destination` (`PortalDestination`).\n  * The event stream (a WebSocket; the lab's worlds serve it at `WS /events`)\n    follows the Events paragraph below: a world that offers an event stream\n    MUST list it in the World resource under services.events, relative to the\n    world's base URL. Its messages are given by the Event schema.\n\nThe key words \"MUST\", \"MUST NOT\", \"REQUIRED\", \"SHALL\", \"SHALL NOT\", \"SHOULD\", \"SHOULD NOT\", \"RECOMMENDED\", \"NOT RECOMMENDED\", \"MAY\", and \"OPTIONAL\" in this document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here.\n\nFrames. All coordinates MUST be in meters, right-handed, +Y up. A Spatial's GeoPose anchors its origin: at zero angles +X is east, +Y up and +Z south. All other positions are local to their parent.\n\nMedia type. Resources MUST be served as application/wow+json, a working name that stays provisional until the group decides it. It is JSON, and its fragment identifiers are JSON Pointers (RFC 6901, section 6). application/json MUST stay available by content negotiation.\n\nEntity tags. GET /wow/world, GET /wow/spatial/{spatialID} and the node GET MUST return ETag and Last-Modified, and MUST answer a matching If-None-Match with 304. The node PUT and DELETE MUST honor If-Match and MUST answer 412, changing nothing, when it does not match (RFC 9110).\n\nCross-origin access. Responses MUST carry Access-Control-Allow-Origin as the world's policy allows, and Access-Control-Expose-Headers: ETag. Preflight responses MUST allow the methods GET, HEAD, POST, PUT and DELETE, and the request headers Authorization, Content-Type, If-None-Match and If-Match.\n\nEvents. A world that offers an event stream MUST list it in the World resource under services.events, relative to the world's base URL. It carries user_joined, user_left, node_created, node_updated and node_deleted. As simpleWorlds sends them, user_joined carries user (the User), user_left carries userId, node_created and node_updated carry node (the Node), and node_deleted carries nodeId. Each event MUST carry type, revision (this world's count of its changes, one higher for each), time (the server's UTC time of the change, in RFC 3339 form) and urls (every resource whose representation changed, relative to the base: the User for a user event, the node and every ancestor that embeds it for a node event, and wow/world, which reports the revision), as the Event schema lists them. The revision MUST survive restarts, and World.revision reports the current one. A write that changes nothing MUST NOT produce a revision or an event. A client MAY resume with since=<revision>. A world that can no longer replay from there MUST send resync with its current revision, and the client MUST then re-read.\n\nStream authentication. A world MAY require authorization for its stream. The token MUST then be the stream's first message, the JSON text {\"type\": \"auth\", \"token\": \"<access token>\"}. The token MUST NOT appear in a URL. The world MUST close a stream without a valid token within 5 seconds. A world MUST refuse a stream from an origin its policy does not allow.\n\nData points. A data point is a resource URL with a JSON Pointer fragment (RFC 6901, section 6), such as {base}wow/spatial/1/node/42#/properties/temperature. The pointer MUST NOT pass through children: a child is named by its own node URL. Reading, conditional reading and subscribing MUST NOT create a user.\n\nPortals. A portal leads to a world: its destination is that world's entry URL, and the fragment #join=node.{id} names the node where a visitor arrives. Crossing MUST work as plain navigation to the destination. A client MUST first check that the destination answers and, if it does not, MUST refuse with the reason and stay. Seamless crossing, with state carried across, is an OPTIONAL profile. Portals, views and users are placed by a node (node, relative to the base URL). A geoPose they give is derived from that node's placement and MUST equal it. A portal MUST show its destination only as far as the destination's preview allows. A portal inside a preview MUST show closed.\n\nPortal events. When a visitor uses a portal, a world that offers an event stream MUST send portal_activate on it, once for each crossing and before the visitor navigates. The event MUST carry portalId (the id of the portal) and userId (the id of the user who crosses), besides type, revision, time and urls, as the PortalActivate schema lists them; its urls name wow/world, which reports the revision.\n\nJoining. Joining is OPTIONAL for a world. A world that states who it is in its World resource (identity, its base URL) MUST also state the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A world that states no identity takes no joins, and the rules of this paragraph do not apply to it. A visitor's agent MUST read the World resource from the base URL it is about to post to. Before it discloses anything, it MUST check that identity.base is that base URL. Only then MAY it join with POST /wow/user. The join MUST carry only the claims the world asks for, in a signed manifest, with a holder proof made for this world and this visit. How claims are proven is given by reference. The answer MUST state the outcome (proceed, proceed-in-part or deny) and which of the claims the world asked for were satisfied and which were not. A world MUST record every outcome. The answer MUST NOT grant a permission. Claim values, and anything else about the visitor, MUST NOT appear in a URL. The pointer (the manifest's subject), the signatures, the holder proof and its nonce are made for one world and one visit and MUST NOT be reused for another world; the claim values a world asks for are disclosed to that world.\n\nFollowing. A page opened at a world's URL with the fragment #follow MUST join that world as a new or existing user, as a page opened at that URL does. The fragment's verb MUST be matched case-insensitively. With #follow=user.{id} the client MUST place the visitor at the node that places that user (User.node) and MUST keep the visitor there while that user moves. When that user is no longer present, the client SHOULD stop following and leave the visitor where it stands.\n\nDeparting. DELETE /wow/user/{userId} MUST end that user's visit: afterwards that user MUST no longer be present. A world that offers an event stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of that user's join outcome.\n\nAuthorization. A world MAY require a token for its requests. A world that does MUST name its authorization servers in protected resource metadata (RFC 9728) at the address derived from its base URL, {origin}/.well-known/oauth-protected-resource{path prefix}, and a client MUST use that metadata only when its resource equals that base URL. Each token MUST be bound to one world: its audience is the world's base URL (RFC 8707), and a world MUST refuse a token whose audience is not exactly its own base URL, also when the base URL of another world on the same origin starts with its own. A world MUST keep its own grant records. Each names a subject, a scope and the resource it covers, and MAY expire or be withdrawn. A world MUST allow a request only when the token's scopes, and the grant records the world holds for the token's subject when the request arrives, cover it, so that a withdrawn grant refuses the holder's next request. The scope of each request is read for GET and HEAD of the World, User, View, Portal, Spatial and Node resources, observe for the event stream, write for node POST, PUT and DELETE, and enter for joining (POST /wow/user) and leaving (DELETE /wow/user/{userId}, own user only). A write grant MUST name one node, or the whole world, and a write grant on one node MUST NOT cover another node; observe and enter grants MUST cover the whole world. GET /wow/user/{userId} MUST need a read grant that names the world's User resources: a read grant for the rest of the world does not cover them. A world MUST NOT show people to a reader without that grant: user_joined and user_left reach such an observer without user ids, with their revision, and every other path that lists people leaves them out. A request with no token MUST be answered 401 with WWW-Authenticate: Bearer and no error code. An expired token, or a token for another world, MUST be answered 401 with error=\"invalid_token\". A token whose grants do not cover the request MUST be answered 403 with error=\"insufficient_scope\" (RFC 6750, sections 3 and 3.1). The error code MUST be in the WWW-Authenticate header, not only in a body. The 401 answer MUST NOT carry resource_metadata, because RFC 9728, section 3.3 would then require the metadata's resource to equal the request's own URL, which differs from the base URL for every resource below it. On POST /wow/user a 403 with error=\"insufficient_scope\" is that refusal, not a deny. The answer of a join MUST name the scopes granted (JoinAnswer.scope), and they MUST equal the grant records the world holds for that visitor. A world MAY also issue tokens by token exchange (RFC 8693) at its token endpoint: the token of the party acted for is the subject token, a token of the acting party is the actor token, and the issued token is bound to the world as any other. A world MUST issue such a token only when one of its grant records lets the acting party act for that party, and the token MUST carry the act claim, the current actor outermost and each earlier actor nested in it (RFC 8693, section 4.1). For a token with an act claim, a world MUST decide on the grant records of the current actor, not those of the subject, and MUST log the subject and every actor of the chain with each decision. A grant record that lets a party act for another MUST NOT cover the requests that party makes with its own token, so a host that includes a world MUST write into it only with a token that world issued by exchange, with the viewer's token as the subject and the host, named by its base URL, as the actor. A world MUST accept as a subject token only a token of its own authorization server, or of an issuer it lists as trusted whose token names as its audience the world's base URL or the acting party, and MUST refuse any other with error=\"invalid_request\" (RFC 8693, section 2.2.2), also from an issuer it has stopped trusting. On the event stream the token MUST be the first message, as the stream authentication paragraph says, because a browser cannot add a header to a WebSocket. A world MUST close the stream of a holder whose observe grant is withdrawn, or whose token expires, within 5 seconds. A token MUST NOT appear in a URL, and a world MUST NOT accept one there. The token URLs of the oauth2 scheme are relative to the world's base URL, or name the server its metadata gives, since each world names its own authorization server. Outside test environments a world MUST be served over HTTPS. Sender-constrained tokens (DPoP, RFC 9449) are the next step; they are not yet required.\n"
   },
   "servers": [
     {
@@ -43,6 +43,13 @@
             "$ref": "#/components/parameters/IfNoneMatch"
           }
         ],
+        "security": [
+          {
+            "worldAuth": [
+              "read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "world summary (canonical World + labeled OSL extensions)",
@@ -69,6 +76,12 @@
           },
           "304": {
             "$ref": "#/components/responses/NotModified"
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           }
         }
       }
@@ -91,6 +104,13 @@
             }
           }
         ],
+        "security": [
+          {
+            "worldAuth": [
+              "read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "user (canonical User + labeled OSL extensions)",
@@ -106,6 +126,12 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "404": {
             "description": "user not found"
@@ -129,12 +155,25 @@
             }
           }
         ],
+        "security": [
+          {
+            "worldAuth": [
+              "enter"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "User deleted"
           },
           "400": {
             "description": "Invalid user value"
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "default": {
             "description": "Unexpected error"
@@ -161,6 +200,13 @@
             }
           }
         },
+        "security": [
+          {
+            "worldAuth": [
+              "enter"
+            ]
+          }
+        ],
         "responses": {
           "201": {
             "description": "proceed or proceed-in-part; the visitor is now a User of this world",
@@ -179,6 +225,9 @@
           },
           "400": {
             "description": "the body is not a join"
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
           },
           "403": {
             "description": "deny, with the reason and the claims not satisfied",
@@ -218,6 +267,13 @@
             }
           }
         ],
+        "security": [
+          {
+            "worldAuth": [
+              "read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "view (canonical View + labeled OSL extensions)",
@@ -233,6 +289,12 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "404": {
             "description": "view not found"
@@ -258,6 +320,13 @@
             }
           }
         },
+        "security": [
+          {
+            "worldAuth": [
+              "write"
+            ]
+          }
+        ],
         "responses": {
           "201": {
             "description": "the portal added (canonical Portal + labeled OSL extensions)",
@@ -276,6 +345,12 @@
           },
           "400": {
             "description": "the body is not a JSON object"
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "422": {
             "description": "no node, a node that is not in this world, or an active radius out of range"
@@ -311,6 +386,13 @@
             }
           }
         },
+        "security": [
+          {
+            "worldAuth": [
+              "write"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "the portal as changed",
@@ -329,6 +411,12 @@
           },
           "400": {
             "description": "the body is not a JSON object"
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "404": {
             "description": "portal not found"
@@ -358,6 +446,13 @@
             }
           }
         ],
+        "security": [
+          {
+            "worldAuth": [
+              "read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "portal (canonical Portal + labeled OSL extensions)",
@@ -373,6 +468,12 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "404": {
             "description": "portal not found"
@@ -447,6 +548,13 @@
             "$ref": "#/components/parameters/IfNoneMatch"
           }
         ],
+        "security": [
+          {
+            "worldAuth": [
+              "read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "The `Spatial` by default. With `form=node`, the root node, and the response header `X-OSL-WoW-Spatial-Form` says `node`.",
@@ -484,6 +592,12 @@
           },
           "304": {
             "$ref": "#/components/responses/NotModified"
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "404": {
             "description": "spatial graph not found"
@@ -535,6 +649,13 @@
             "$ref": "#/components/parameters/IfNoneMatch"
           }
         ],
+        "security": [
+          {
+            "worldAuth": [
+              "read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "The node as the canonical `Node`; the `OSLFlatNode` when the node form is `flat`.",
@@ -572,6 +693,9 @@
           },
           "304": {
             "$ref": "#/components/responses/NotModified"
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
           },
           "403": {
             "x-osl-extension": true,
@@ -645,6 +769,13 @@
             }
           }
         },
+        "security": [
+          {
+            "worldAuth": [
+              "write"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful operation: the created nodes as `Node[]`, ids assigned at every depth. The response header `X-OSL-WoW-Nodes-Stored` reports stored over sent.",
@@ -682,6 +813,12 @@
           },
           "400": {
             "description": "OSL EXTENSION. `invalid_child_entry`, or, in the `flat` form, `child_id_refs_not_supported_on_create`."
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "404": {
             "description": "parent node not found"
@@ -753,6 +890,13 @@
             }
           }
         },
+        "security": [
+          {
+            "worldAuth": [
+              "write"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful operation: the node as the canonical `Node`.",
@@ -784,6 +928,12 @@
           },
           "400": {
             "description": "Invalid ID supplied"
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "404": {
             "description": "node not found"
@@ -828,12 +978,25 @@
             "$ref": "#/components/parameters/IfMatch"
           }
         ],
+        "security": [
+          {
+            "worldAuth": [
+              "write"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "node deleted"
           },
           "400": {
             "description": "Invalid node value, or the root, which cannot be deleted."
+          },
+          "401": {
+            "description": "no token, or a token that is expired or was issued for another world (WWW-Authenticate)"
+          },
+          "403": {
+            "description": "the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)"
           },
           "404": {
             "description": "node not found"
@@ -849,6 +1012,24 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "worldAuth": {
+        "x-osl-overlay": "iteration-6",
+        "type": "oauth2",
+        "description": "OAuth 2.0 bearer tokens, each bound to one world, as the Authorization paragraph of the World API describes. The token URL is relative to the world's base URL; a client may instead use the token endpoint of the authorization server that the world's protected resource metadata names.",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "oauth/token",
+            "scopes": {
+              "read": "GET and HEAD of the resources",
+              "observe": "the event stream",
+              "write": "node POST, PUT and DELETE",
+              "enter": "joining (POST /wow/user) and leaving (DELETE /wow/user/{userId}, own user only)"
+            }
+          }
+        }
+      }
+    },
     "parameters": {
       "IfNoneMatch": {
         "name": "If-None-Match",
@@ -1198,9 +1379,10 @@
             "enum": [
               "human",
               "agent",
-              "hybrid"
+              "hybrid",
+              "unstated"
             ],
-            "description": "Who is at the controls, as the visitor stated it when joining: human (a person), agent (software acting alone) or hybrid (a person and software together). A world MUST copy it from the join and MUST NOT supply a value the visitor did not state. A world and a client MUST treat it as the visitor's statement, not as proof of who is at the controls. A client MUST show a user whose pilot is hybrid as an agent wherever it shows that user's name or label."
+            "description": "Who is at the controls, as the visitor stated it when joining: human (a person), agent (software acting alone) or hybrid (a person and software together), or unstated when the join stated none. A world MUST copy it from the join when the join states one, and MUST NOT supply human, agent or hybrid when it does not. For a join without a pilot statement, a world MUST set it to unstated and MUST NOT treat that user as human. A world and a client MUST treat it as the visitor's statement, not as proof of who is at the controls. A client MUST show a user whose pilot is hybrid as an agent wherever it shows that user's name or label. A client MUST show a user whose pilot is unstated as not stated wherever it shows that user's name or label."
           }
         }
       },
@@ -1536,6 +1718,116 @@
           }
         }
       },
+      "UniversalExtensionDeclaration": {
+        "x-osl-extension": true,
+        "x-osl-extends": "Node",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "module",
+          "interface",
+          "attach",
+          "requests",
+          "limits"
+        ],
+        "description": "LABELED LAB EXTENSION, carried at `node.webofworlds_extension.universal_extensions` (an array of these). A node is an extension node iff that member is present; the `.wasm` suffix is never the discriminator. When the Lab shows the world, each declaration runs in its own Web Worker, and the scene nodes it makes are drawn under the node that carries it, in that node's frame. A declaration this schema refuses, a module whose SHA-256 differs from `module.integrity`, and a declaration in a world served from another origin are refused before anything runs, with a visible marker labeled with the stage. The standard has no executable node content; `standards_conformance` stays `false`.",
+        "properties": {
+          "module": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url",
+              "integrity",
+              "binding"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The WebAssembly module, resolved against the world file URL."
+              },
+              "integrity": {
+                "type": "string",
+                "pattern": "^sha256-[A-Za-z0-9+/]{43}=$",
+                "description": "The Subresource Integrity form of the SHA-256 of the module bytes. It binds the module to the world file: a module whose hash differs is refused before it is compiled."
+              },
+              "binding": {
+                "type": "string",
+                "enum": [
+                  "rp1-sneeze-call",
+                  "ue-core/0"
+                ],
+                "description": "The import binding the module is built against."
+              }
+            }
+          },
+          "interface": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The interface the binding implements (`ue:host@0.1.0` for `ue-core/0`, `rp1-sneeze-call` for `rp1-sneeze-call`)."
+          },
+          "attach": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "world-node"
+                ],
+                "description": "The extension attaches to the node that carries it."
+              }
+            }
+          },
+          "requests": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The capability tokens the extension requests. The host grants a requested token only by its policy: the attachment-confined tokens are granted; a token that needs the user's consent is granted only when the user allows it in the consent dialog."
+          },
+          "purposes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Why the extension requests a token: a requested token -> its purpose text. The consent dialog shows the text as data, never as markup, and a remembered grant holds only while the purpose is unchanged. A purpose for a token that `requests` does not name is refused at stage `declaration`."
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Budgets that lower the host budgets, never raise them.",
+            "properties": {
+              "initMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "eventMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "memoryBytes": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "startMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The data the attachment reads (its `Data`). Absent means an empty object."
+          }
+        }
+      },
       "Zone": {
         "x-osl-extension": true,
         "type": "object",
@@ -1624,7 +1916,7 @@
         "properties": {
           "algorithm": {
             "type": "string",
-            "description": "MUST be \"Ed25519\" (the Profile A pair; never reinterpreted)."
+            "description": "MUST be \"Ed25519\" (never reinterpreted)."
           },
           "canonicalization": {
             "type": "string",
@@ -1636,7 +1928,7 @@
           },
           "publicKeySpkiB64": {
             "type": "string",
-            "description": "base64 SPKI DER Ed25519 public key (the suite embedded-key escape hatch)."
+            "description": "base64 SPKI DER Ed25519 public key, embedded so the signature verifies without resolving the did:key."
           },
           "created": {
             "type": "string",
@@ -1694,6 +1986,28 @@
           },
           "spatial_fabric_subtree": {
             "$ref": "#/components/schemas/SpatialFabricSubtree"
+          },
+          "universal_extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UniversalExtensionDeclaration"
+            }
+          },
+          "universal_extension_manifests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
           },
           "portal_id": {
             "type": "string"
@@ -1753,7 +2067,7 @@
           "manifest",
           "proof"
         ],
-        "description": "A join. manifest MUST be a signed manifest that carries only the claims the world asks for. proof MUST be the holder's proof that it controls the manifest's subject, made for this world (its base URL is the audience) and this visit. Their formats are given by reference. pilot MUST be the visitor's statement of who is at the controls: human, agent or hybrid. A world MUST answer a join without a pilot statement, or with another value, with deny and the reason; it MUST NOT supply a value the visitor did not state.",
+        "description": "A join. manifest MUST be a signed manifest that carries only the claims the world asks for. proof MUST be the holder's proof that it controls the manifest's subject, made for this world (its base URL is the audience) and this visit. Their formats are given by reference. pilot, when present, MUST be the visitor's statement of who is at the controls: human, agent or hybrid. A world MUST answer a join whose pilot is present with another value with deny and the reason. A world MUST NOT refuse a join without a pilot statement for that reason alone. It MUST record and show that join as not stated (User.pilot unstated). It MUST NOT treat it as human.",
         "properties": {
           "manifest": {
             "type": "object"
@@ -1836,6 +2150,10 @@
           "user": {
             "type": "string",
             "description": "The User the visitor now is, relative to the world's base URL (not on deny)."
+          },
+          "scope": {
+            "type": "string",
+            "description": "The scopes the world grants the visitor, space-delimited, each once, from read, observe, write and enter. They MUST equal the grant records the world holds for that visitor. A world that requires no token MAY leave it out."
           }
         }
       },

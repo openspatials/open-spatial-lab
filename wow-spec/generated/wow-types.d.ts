@@ -32,8 +32,31 @@ export interface paths {
         get: operations["user.getUser"];
         put?: never;
         post?: never;
-        /** Deletes a user. */
+        /**
+         * Deletes a user.
+         * @description MUST end the user's visit: afterwards the user MUST no longer be present. A world that offers an event stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of the user's join outcome.
+         */
         delete: operations["user.deleteUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wow/user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Joins the world as a user, presenting only the claims the world asks for.
+         * @description The body MUST carry a signed manifest holding only the claims this world's World resource asks for, and a holder proof made for this world and this visit. The answer is the outcome: proceed, proceed-in-part or deny, with the claims the world asked for that were satisfied and those that were not, each marked required or optional. The world MUST record every outcome. The answer MUST NOT grant a permission. How claims are proven is given by reference; the World API defines no claim format. Claim values, and anything else about the visitor, MUST NOT appear in a URL.
+         */
+        post: operations["user.join"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -56,6 +79,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/wow/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a portal placed by a node, with an optional destination and active radius. */
+        post: operations["portal.placePortal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/wow/portal/{portalId}": {
         parameters: {
             query?: never;
@@ -65,7 +105,8 @@ export interface paths {
         };
         /** Returns a Portal status. */
         get: operations["portal.getPortal"];
-        put?: never;
+        /** Changes a placed portal's node, destination, label or active radius. */
+        put: operations["portal.updatePortal"];
         post?: never;
         delete?: never;
         options?: never;
@@ -80,8 +121,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Returns the root node of a spatial composition graph (OSL divergence). */
-        get: operations["spatial.getGraphRoot"];
+        /** Returns a Spatial (the graph id, the root node id and the GeoPose anchor of the graph). */
+        get: operations["spatial.getSpatial"];
         put?: never;
         post?: never;
         delete?: never;
@@ -97,13 +138,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Returns a single node of the spatial composition graph (OSL divergence). */
+        /** Returns a node of the spatial composition graph, with its whole subtree embedded. */
         get: operations["spatial.getNode"];
-        /** Update an existing node (OSL divergence). */
+        /** Update an existing node's content, or move it by setting `parent`. */
         put: operations["spatial.updateNode"];
-        /** Create and add new child nodes under the given parent node (OSL divergence). */
+        /** Create and add new child nodes under the given parent node. */
         post: operations["spatial.createNodes"];
-        /** Deletes a node (and its subtree). */
+        /** Deletes a node and its subtree. Its ids are never issued again within the world. */
         delete: operations["spatial.deleteNode"];
         options?: never;
         head?: never;
@@ -114,16 +155,22 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description OGC GeoPose 1.0 Basic-YPR. `position` is latitude and longitude in degrees, and `h` in meters above the WGS-84 ellipsoid. `angles` are `yaw`, `pitch` and `roll` in degrees, applied about the local axes z, y and x in that order. A writer MUST send `lon`. A reader MUST also accept `lan`, the earlier spelling, and MUST refuse a position whose `lon` and `lan` differ. A server MUST NOT emit `lan`. */
         GeoPose: {
-            position?: {
-                lat?: number;
+            position: {
+                lat: number;
+                lon?: number;
+                /**
+                 * @deprecated
+                 * @description Earlier spelling of `lon`.
+                 */
                 lan?: number;
-                h?: number;
-            };
-            angles?: {
-                yaw?: number;
-                pitch?: number;
-                roll?: number;
+                h: number;
+            } | unknown | unknown;
+            angles: {
+                yaw: number;
+                pitch: number;
+                roll: number;
             };
         };
         World: {
@@ -135,7 +182,17 @@ export interface components {
                 version?: number;
                 duration?: number;
             };
+            /** @description The world's location, for discovery. It is not a placement: a reader MUST NOT position anything inside the world by it. */
             geoPose?: components["schemas"]["GeoPose"];
+            /** @description The ids of the world's graphs (Spatial resources), the default graph first. A reader MUST treat an absent `spatials` as an empty list. */
+            spatials?: number[];
+            /** @description This world's current revision, the count of its changes; each event carries the revision it made. */
+            revision?: number;
+            /** @description The world's services, as URI references relative to its base URL. */
+            services?: {
+                /** @description The event stream (WebSocket). */
+                events?: string;
+            };
             presence?: {
                 avatar?: string;
                 navigation?: string;
@@ -159,35 +216,112 @@ export interface components {
                 /** @default 1 */
                 portal_count: number;
             };
+            /** @description What a portal leading here shows: an arrival node, a radius and a preview URL, or an image URL, or both. The arrival node, the radius and the preview URL MUST come together. The preview URL MUST return a Node tree rooted at the arrival node. It MUST hold only this world's nodes within the radius of the arrival node, each relative to it, and only those the reader may see. Reading it MUST NOT create a user. URLs are relative to the world's base URL. */
+            preview?: {
+                /** @description The arrival node. */
+                node?: string;
+                /** @description The radius around the arrival node, in meters. */
+                radius_m?: number;
+                /** @description The preview URL. */
+                url?: string;
+                /** @description An image of this world. */
+                image?: string;
+            } | unknown | unknown;
+            /** @description Who this world is: the base URL it stands behind. A visitor's agent MUST check that it is the base URL it is about to post to before it discloses anything. */
+            identity?: {
+                /** @description This world's base URL. */
+                base?: string;
+                label?: string;
+            };
+            /** @description The claims this world asks a visitor for when the visitor joins (POST /wow/user), each marked required or optional. A visitor's agent MUST send only these. When issuers is present, the claim MUST count only when one of those issuers signed it. The claim names are provisional. */
+            claims?: {
+                name: string;
+                required: boolean;
+                issuers?: string[];
+            }[];
+            /** @description The credential types this world issues. It MAY be empty. */
+            issues?: string[];
         };
         User: {
-            id?: number;
+            id: number;
             name?: string;
             AvatarURI?: string;
             geoPose?: components["schemas"]["GeoPose"];
+            /** @description The node that places the user, relative to the world's base URL. A geoPose given here is derived from that node's placement and MUST equal it. */
+            node?: string;
+            /**
+             * @description Who is at the controls, as the visitor stated it when joining: human (a person), agent (software acting alone) or hybrid (a person and software together), or unstated when the join stated none. A world MUST copy it from the join when the join states one, and MUST NOT supply human, agent or hybrid when it does not. For a join without a pilot statement, a world MUST set it to unstated and MUST NOT treat that user as human. A world and a client MUST treat it as the visitor's statement, not as proof of who is at the controls. A client MUST show a user whose pilot is hybrid as an agent wherever it shows that user's name or label. A client MUST show a user whose pilot is unstated as not stated wherever it shows that user's name or label.
+             * @enum {string}
+             */
+            pilot?: "human" | "agent" | "hybrid" | "unstated";
         };
         View: {
-            id?: number;
+            id: number;
             geoPose?: components["schemas"]["GeoPose"];
+            /** @description The node that places the view, relative to the world's base URL. A geoPose given here is derived from that node's placement and MUST equal it. */
+            node?: string;
         };
         Portal: {
-            id?: number;
+            id: number;
             geoPose?: components["schemas"]["GeoPose"];
+            /** @description The entry URL of the world the portal leads to. Its fragment MAY name where a visitor arrives: #join=node.{id}, a node of that world. Crossing MUST work as navigation to this URL. A portal without a destination leads nowhere: a client MUST NOT cross through it. */
+            destination?: string;
+            /** @description The node that places the portal, relative to the world's base URL. A geoPose given here is derived from that node's placement and MUST equal it. */
+            node?: string;
         };
         Node: {
-            id?: number;
+            /** @description A node id MUST be unique within the world, and a server MUST NOT reuse it. */
+            readonly id: number;
             label?: string;
             names?: string[];
+            /** @description The node this one is placed in. Every node MUST have one parent, except the graph's root, which has none. A PUT of `parent` MUST move the node, with its subtree, under another node of the same graph; a server MUST refuse a move under the node itself or its own descendant. */
             parent?: number;
+            /** @description The child nodes, embedded, derived from the tree. A PUT MAY leave them out or repeat them unchanged. A server MUST NOT change `children` on a PUT, and MUST refuse a PUT whose children differ. */
             children?: components["schemas"]["Node"][];
+            /** @description It MUST be 16 numbers: a column-major 4×4 matrix mapping this node's frame into its parent's frame, in meters. It MUST decompose into translation, rotation and scale, as glTF 2.0 §3.5.3 requires of `node.matrix`, so it has no shear. */
             localTransform?: number[];
+            /** @description The address of this node's content. It MAY name a model, or the Spatial, Node or wow/world resource of any world, which is then shown at this node. A client MUST tell them apart by the media type of the answer, never by the address or the content: application/wow+json marks a Web of Worlds resource. The including node stands in for the included node's parent. A whole world shows its default graph, and its other anchored graphs where their GeoPoses put them. The included world's environment MUST NOT apply to the host. The host MUST set a nesting limit and a budget of included graphs, which it hands out in tree order (depth first, children in order). It MUST refuse an inclusion that closes a cycle, detected by URL, and SHOULD show a placeholder on failure. A host MUST read an included part from the part's own world, at its URL, and MUST revalidate it by its entity tag. A copy of that part relayed or embedded by any other world MUST NOT be shown as that part. When the part's own world does not answer, the host SHOULD show the placeholder. */
             spatialAssetURI?: string;
             appearanceURI?: string;
+            /** @description Data on the node, as a JSON-LD node object: its "@context" names a context document by URL or gives a context inline, and its "@type", expanded through that context, types the node. The context published beside the world schema (schema/context.jsonld) defines the terms used here; its terms are provisional. A node whose type is wow:Environment belongs, with its subtree, to its world's environment, which does not apply when another world includes it. A property whose value is a URL names data held elsewhere. A data point names one value with a JSON Pointer fragment on the node's URL. */
+            properties?: Record<string, never>;
+        };
+        /** @description A change event on a world's event stream (services.events). Besides the members listed here as required, user_joined carries user, user_left userId, node_created and node_updated node, and node_deleted nodeId. */
+        Event: {
+            /** @description user_joined, user_left, node_created, node_updated or node_deleted. */
+            type: string;
+            /** @description The revision this change made. */
+            revision: number;
+            /**
+             * Format: date-time
+             * @description The server's UTC time of the change, in RFC 3339 form.
+             */
+            time: string;
+            /** @description Every resource whose representation changed, relative to the world's base URL. */
+            urls: string[];
+            user?: components["schemas"]["User"];
+            userId?: number;
+            node?: components["schemas"]["Node"];
+            nodeId?: number;
+        };
+        /** @description The portal_activate event, sent on a world's event stream when a visitor uses a portal: once for each crossing, before the visitor navigates. It is an Event that also names the portal and the user who crosses. */
+        PortalActivate: components["schemas"]["Event"] & {
+            /** @description The id of the portal used. */
+            portalId: number;
+            /** @description The id of the user who crosses. */
+            userId: number;
         };
         Spatial: {
-            id?: number;
-            rootNodeID?: number;
+            /** @description The graph's id. It MUST be an integer. */
+            id: number;
+            /** @description The id of the graph's root node. It MUST be an integer. */
+            rootNodeID: number;
             geoPose?: components["schemas"]["GeoPose"];
+            /** @description The box the graph occupies, in meters, in the graph's frame: `min` is its corner with the least x, y and z, and `max` its corner with the greatest. On every axis, `min` MUST NOT exceed `max`. A reader MUST treat an extent whose `min` exceeds `max` as absent. */
+            extent?: {
+                min: number[];
+                max: number[];
+            };
         };
         ProofBoundary: {
             application_level_handoff: boolean;
@@ -206,7 +340,7 @@ export interface components {
             /** @description loadable spatial fabric address of the destination. */
             spatial_fabric_address?: string;
         };
-        /** @description LABELED OSL EXTENSION — carried at `node.webofworlds_extension.spatial_fabric_subtree`. It is the CONTRACT behind the ADDRESS in `Node.spatialAssetURI`, and it is the DISCRIMINATOR: a node is a fabric node iff this member is present. The `.msf` suffix is NEVER sniffed — suffix-sniffing hides exactly the contract this object exists to state. FOUR REQUIRED FIELDS, and every one of them is required for a reason that has already bitten: (a) `unitsPerMeter` has NO DEFAULT. The fabric compositor's `auto` rule is "a fabric whose walk contains celestial nodes composes in AU; any other composes in its native metres". Inherited into a 1:1-metre WoW room, `auto` silently means 1 AU = 1 METRE. That is a defensible reading and a catastrophic default, so it is REFUSED, not defaulted (OSL-FAB-XFORM-1 §3). (b) `upAxis` has NO DEFAULT. The fabric corpus is Z-up; WoW/Three is Y-up. Guess wrong and the solar system lies on its side, silently. An absent or unrecognized `upAxis` is a REFUSAL (OSL-FAB-XFORM-1 §2 — the implementation refuses it, so this contract requires it; a contract that disagreed with its implementation would be the very disease this lane is treating). (c) `placement` has NO DEFAULT. It SELECTS THE BACKEND, and the two backends make DIFFERENT HONESTY CLAIMS (see the property description). Defaulting would pick a claim on the author's behalf. (d) `fabricURI` is the signed document itself. NOTHING HERE EARNS A CONFORMANCE FLIP: `standards_conformance` stays `false`. The capability is labeled OSL, declared as divergence D8, surfaced by the conformance lane — never disguised as canonical. */
+        /** @description LABELED OSL EXTENSION — carried at `node.webofworlds_extension.spatial_fabric_subtree`. It is the CONTRACT behind the ADDRESS in `Node.spatialAssetURI`, and it is the DISCRIMINATOR: a node is a fabric node iff this member is present. The `.msf` suffix is NEVER sniffed — suffix-sniffing hides exactly the contract this object exists to state. FOUR REQUIRED FIELDS, and every one of them is required for a reason that has already bitten: (a) `unitsPerMeter` has NO DEFAULT. The fabric compositor's `auto` rule is "a fabric whose walk contains celestial nodes composes in AU; any other composes in its native metres". Inherited into a 1:1-metre WoW room, `auto` silently means 1 AU = 1 METRE. That is a defensible reading and a catastrophic default, so it is REFUSED, not defaulted (OSL-FAB-XFORM-1 §3). (b) `upAxis` has NO DEFAULT. The fabric corpus is Z-up; WoW/Three is Y-up. Guess wrong and the solar system lies on its side, silently. An absent or unrecognized `upAxis` is a REFUSAL (OSL-FAB-XFORM-1 §2 — the implementation refuses it, so this contract requires it; a contract that disagreed with its implementation would be the very disease this components is treating). (c) `placement` has NO DEFAULT. It SELECTS THE BACKEND, and the two backends make DIFFERENT HONESTY CLAIMS (see the property description). Defaulting would pick a claim on the author's behalf. (d) `fabricURI` is the signed document itself. NOTHING HERE EARNS A CONFORMANCE FLIP: `standards_conformance` stays `false`. The capability is labeled OSL, declared as divergence D8, surfaced by the conformance components — never disguised as canonical. */
         SpatialFabricSubtree: {
             /** @description The signed `.msf` spatial fabric to transclude. NORMALLY IDENTICAL to the node's `spatialAssetURI` (which stays the WoW-native address). Resolved and then VERIFIED fail-closed by the existing `.msf` pipeline (`verifyMsfToken`) — an unverified, unfetchable or tampered fabric is REFUSED with a visible error at EVERY nesting level: never silently dropped, never drawn. */
             fabricURI: string;
@@ -230,7 +364,7 @@ export interface components {
              */
             parallax: number;
             /**
-             * @description FAIL-CLOSED BY DEFAULT. Absent or `true` => the fabric MUST verify (RS256 + x5c chain to a SHIPPED test anchor) or it is REFUSED and NOT DRAWN, keeping a labeled placeholder and a visible error. `false` is a LABELED DEV ESCAPE HATCH ONLY — it must never be set in a demo or a published world, and a world that sets it cannot claim its subtree is verified. NOTE: "VERIFIED" means a valid signature chaining to a shipped TEST anchor; it is NOT an OS-trust / public-PKI claim.
+             * @description FAIL-CLOSED BY DEFAULT. Absent or `true` => the fabric MUST verify (RS256 + x5c chain to a SHIPPED test anchor) or it is REFUSED and NOT DRAWN, keeping a labeled placeholder and a visible error. `false` is a LABELED local demo ESCAPE HATCH ONLY — it must never be set in a demo or a published world, and a world that sets it cannot claim its subtree is verified. NOTE: "VERIFIED" means a valid signature chaining to a shipped TEST anchor; it is NOT an OS-trust / public-PKI claim.
              * @default true
              */
             requireVerified: boolean;
@@ -238,6 +372,46 @@ export interface components {
             maxDepth?: number;
             /** @description The epoch at which the fabric's `map.wasm` is run. Fabrics are TIME-DEPENDENT BY DESIGN (orbits move), so the epoch must be STATED rather than implied by wall-clock. This is also why the fabric's internal nodes are NOT projected back up into the WoW graph as addressable WoW nodes: any such projection is a SNAPSHOT AT AN EPOCH, not a graph (deliberately deferred). */
             epochTicks?: number;
+        };
+        /** @description LABELED LAB EXTENSION, carried at `node.webofworlds_extension.universal_extensions` (an array of these). A node is an extension node iff that member is present; the `.wasm` suffix is never the discriminator. When the Lab shows the world, each declaration runs in its own Web Worker, and the scene nodes it makes are drawn under the node that carries it, in that node's frame. A declaration this schema refuses, a module whose SHA-256 differs from `module.integrity`, and a declaration in a world served from another origin are refused before anything runs, with a visible marker labeled with the stage. The standard has no executable node content; `standards_conformance` stays `false`. */
+        UniversalExtensionDeclaration: {
+            module: {
+                /** @description The WebAssembly module, resolved against the world file URL. */
+                url: string;
+                /** @description The Subresource Integrity form of the SHA-256 of the module bytes. It binds the module to the world file: a module whose hash differs is refused before it is compiled. */
+                integrity: string;
+                /**
+                 * @description The import binding the module is built against.
+                 * @enum {string}
+                 */
+                binding: "rp1-sneeze-call" | "ue-core/0";
+            };
+            /** @description The interface the binding implements (`ue:host@0.1.0` for `ue-core/0`, `rp1-sneeze-call` for `rp1-sneeze-call`). */
+            interface: string;
+            attach: {
+                /**
+                 * @description The extension attaches to the node that carries it.
+                 * @enum {string}
+                 */
+                kind: "world-node";
+            };
+            /** @description The capability tokens the extension requests. The host grants a requested token only by its policy: the attachment-confined tokens are granted; a token that needs the user's consent is granted only when the user allows it in the consent dialog. */
+            requests: string[];
+            /** @description Why the extension requests a token: a requested token -> its purpose text. The consent dialog shows the text as data, never as markup, and a remembered grant holds only while the purpose is unchanged. A purpose for a token that `requests` does not name is refused at stage `declaration`. */
+            purposes?: {
+                [key: string]: string;
+            };
+            /** @description Budgets that lower the host budgets, never raise them. */
+            limits: {
+                initMs?: number;
+                eventMs?: number;
+                memoryBytes?: number;
+                startMs?: number;
+            };
+            /** @description The data the attachment reads (its `Data`). Absent means an empty object. */
+            data?: {
+                [key: string]: unknown;
+            };
         };
         Zone: {
             /** @description e.g. prefetch | trigger */
@@ -260,16 +434,18 @@ export interface components {
             localTransform?: number[];
             spatialAssetURI?: string;
             appearanceURI?: string;
+            /** @description Data on the node, as in the canonical Node. */
+            properties?: Record<string, never>;
             webofworlds_extension?: components["schemas"]["WebOfWorldsExtension"];
         };
         UMSignature: {
-            /** @description MUST be "Ed25519" (the Profile A pair; never reinterpreted). */
+            /** @description MUST be "Ed25519" (never reinterpreted). */
             algorithm?: string;
             /** @description MUST be "JCS-RFC8785". */
             canonicalization?: string;
             /** @description did:key DID URL (offline-resolvable; consistency-checked vs the embedded key). */
             keyRef?: string;
-            /** @description base64 SPKI DER Ed25519 public key (the suite embedded-key escape hatch). */
+            /** @description base64 SPKI DER Ed25519 public key, embedded so the signature verifies without resolving the did:key. */
             publicKeySpkiB64?: string;
             /** @description ISO 8601 (recommended). Lives inside the signature block; excluded from the signing input. */
             created?: string;
@@ -297,6 +473,10 @@ export interface components {
                 [key: string]: unknown;
             };
             spatial_fabric_subtree?: components["schemas"]["SpatialFabricSubtree"];
+            universal_extensions?: components["schemas"]["UniversalExtensionDeclaration"][];
+            universal_extension_manifests?: {
+                url: string;
+            }[];
             portal_id?: string;
             trigger?: components["schemas"]["Zone"];
             zones?: {
@@ -318,6 +498,40 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description A join. manifest MUST be a signed manifest that carries only the claims the world asks for. proof MUST be the holder's proof that it controls the manifest's subject, made for this world (its base URL is the audience) and this visit. Their formats are given by reference. pilot, when present, MUST be the visitor's statement of who is at the controls: human, agent or hybrid. A world MUST answer a join whose pilot is present with another value with deny and the reason. A world MUST NOT refuse a join without a pilot statement for that reason alone. It MUST record and show that join as not stated (User.pilot unstated). It MUST NOT treat it as human. */
+        UserJoin: {
+            manifest: Record<string, never>;
+            proof: Record<string, never>;
+            /** @description The visitor's pilot statement, human, agent or hybrid, as described above. */
+            pilot?: unknown;
+        };
+        /** @description The outcome of a join. A required claim not satisfied MUST give deny. When every required claim is satisfied, an optional claim not satisfied MUST give proceed-in-part. Otherwise the outcome MUST be proceed. Each claim the world asked for MUST be listed once, as satisfied or not satisfied. The answer MUST NOT grant a permission. */
+        JoinAnswer: {
+            /** @enum {string} */
+            outcome: "proceed" | "proceed-in-part" | "deny";
+            reason?: string;
+            satisfied: {
+                name: string;
+                required: boolean;
+                /** @description self-asserted, or issuer-verified when an issuer the world lists for that claim (issuers) signed it. A credential from any other issuer MUST leave the claim self-asserted. */
+                trust?: string;
+            }[];
+            not_satisfied: {
+                name: string;
+                required: boolean;
+                reason?: string;
+                trust?: string;
+            }[];
+            /** @description The User the visitor now is, relative to the world's base URL (not on deny). */
+            user?: string;
+            /** @description The scopes the world grants the visitor, space-delimited, each once, from read, observe, write and enter. They MUST equal the grant records the world holds for that visitor. A world that requires no token MAY leave it out. */
+            scope?: string;
+        };
+        OSLJoinAnswer: components["schemas"]["JoinAnswer"] & {
+            proof_boundary: components["schemas"]["ProofBoundary"];
+            /** @description LABELED lab extension: where the record of this outcome is read, relative to the base URL. */
+            record?: string;
+        };
         OSLUserResponse: components["schemas"]["User"] & {
             proof_boundary: components["schemas"]["ProofBoundary"];
             webofworlds_extension?: components["schemas"]["WebOfWorldsExtension"];
@@ -329,17 +543,56 @@ export interface components {
             proof_boundary: components["schemas"]["ProofBoundary"];
             webofworlds_extension?: components["schemas"]["WebOfWorldsExtension"];
         };
+        OSLPortalPlacement: {
+            /** @description The node that places the portal, relative to the world's base URL (wow/spatial/{g}/node/{n}). */
+            node?: string;
+            /** @description The entry URL the portal leads to; null or absent leads nowhere. */
+            destination?: string | null;
+            label?: string;
+            /** @description The distance, in meters on the floor, at which the portal wakes for a visitor and loads its preview. Above 0 and at most 100. Null or absent: always awake. */
+            active_radius_m?: number | null;
+        };
         OSLPortalResponse: components["schemas"]["Portal"] & {
+            /** @description The distance at which the portal wakes and loads its preview (placement tool). */
+            active_radius_m?: number;
+            /** @description True for a portal placed with the placement tool, which the tool may move and change; absent for a portal from the world's configuration. */
+            placed?: boolean;
             label?: string;
             proof_boundary: components["schemas"]["ProofBoundary"];
             webofworlds_extension?: components["schemas"]["WebOfWorldsExtension"];
-            destination?: components["schemas"]["PortalDestination"];
+            osl_destination?: components["schemas"]["PortalDestination"];
         };
     };
-    responses: never;
-    parameters: never;
+    responses: {
+        /** @description Not modified; the client's copy is current. */
+        NotModified: {
+            headers: {
+                ETag: components["headers"]["ETag"];
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
+        /** @description If-Match does not match the node's current entity tag; read the node again and retry. */
+        PreconditionFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
+    };
+    parameters: {
+        /** @description Entity tags the client holds; a match answers 304 with no body. */
+        IfNoneMatch: string;
+        /** @description The entity tag the change is based on; no match answers 412 and changes nothing. */
+        IfMatch: string;
+    };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Entity tag of this representation. */
+        ETag: string;
+        /** @description When this representation last changed (HTTP-date). */
+        LastModified: string;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -347,7 +600,10 @@ export interface operations {
     "world.getWorld": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Entity tags the client holds; a match answers 304 with no body. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -356,11 +612,29 @@ export interface operations {
             /** @description world summary (canonical World + labeled OSL extensions) */
             200: {
                 headers: {
+                    ETag: components["headers"]["ETag"];
+                    "Last-Modified": components["headers"]["LastModified"];
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/wow+json": components["schemas"]["OSLWorldResponse"];
                     "application/json": components["schemas"]["OSLWorldResponse"];
                 };
+            };
+            304: components["responses"]["NotModified"];
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -382,8 +656,23 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/wow+json": components["schemas"]["OSLUserResponse"];
                     "application/json": components["schemas"]["OSLUserResponse"];
                 };
+            };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description user not found */
             404: {
@@ -419,8 +708,78 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Unexpected error */
             default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "user.join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserJoin"];
+            };
+        };
+        responses: {
+            /** @description proceed or proceed-in-part; the visitor is now a User of this world */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/wow+json": components["schemas"]["OSLJoinAnswer"];
+                    "application/json": components["schemas"]["OSLJoinAnswer"];
+                };
+            };
+            /** @description the body is not a join */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description deny, with the reason and the claims not satisfied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/wow+json": components["schemas"]["OSLJoinAnswer"];
+                    "application/json": components["schemas"]["OSLJoinAnswer"];
+                };
+            };
+            /** @description this world takes no joins */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -445,11 +804,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/wow+json": components["schemas"]["OSLViewResponse"];
                     "application/json": components["schemas"]["OSLViewResponse"];
                 };
             };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description view not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "portal.placePortal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OSLPortalPlacement"];
+            };
+        };
+        responses: {
+            /** @description the portal added (canonical Portal + labeled OSL extensions) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/wow+json": components["schemas"]["OSLPortalResponse"];
+                    "application/json": components["schemas"]["OSLPortalResponse"];
+                };
+            };
+            /** @description the body is not a JSON object */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no node, a node that is not in this world, or an active radius out of range */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -475,8 +902,23 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/wow+json": components["schemas"]["OSLPortalResponse"];
                     "application/json": components["schemas"]["OSLPortalResponse"];
                 };
+            };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description portal not found */
             404: {
@@ -487,34 +929,125 @@ export interface operations {
             };
         };
     };
-    "spatial.getGraphRoot": {
+    "portal.updatePortal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portalId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OSLPortalPlacement"];
+            };
+        };
+        responses: {
+            /** @description the portal as changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/wow+json": components["schemas"]["OSLPortalResponse"];
+                    "application/json": components["schemas"]["OSLPortalResponse"];
+                };
+            };
+            /** @description the body is not a JSON object */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description portal not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the portal comes from the world's configuration */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description a node that is not in this world, or an active radius out of range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "spatial.getSpatial": {
         parameters: {
             query?: {
-                /** @description OSL EXTENSION / VERSIONED OPT-IN. Selects the served representation of the graph root. `descriptor` (alias `spatial`) returns the CANONICAL `Spatial` descriptor {id, rootNodeID, geoPose} — it POINTS AT the root node, it is NOT the root node. `node` (the DEFAULT assumed when `form` is omitted, and the effective result of any other value) returns the LABELED `OSLFlatNode` root itself, so existing clients are never broken. The served form is echoed in the `X-OSL-WoW-Spatial-Form` response header. Equivalent to the `X-OSL-WoW-Spatial-Form` request header, which takes precedence when both are sent. */
+                /** @description OSL EXTENSION. `descriptor` (default; alias `spatial`) returns the `Spatial`. `node` returns the graph's root node itself, as the canonical `Node` or, with the node form `flat`, as the `OSLFlatNode`. The served form is echoed in the `X-OSL-WoW-Spatial-Form` response header. Equivalent to the request header of the same name, which wins. */
                 form?: "descriptor" | "spatial" | "node";
             };
             header?: {
-                /** @description OSL EXTENSION / VERSIONED OPT-IN — the request-header form of the `form` query parameter. `descriptor` (alias `spatial`) returns the canonical `Spatial` descriptor; omitted or any other value returns the root `OSLFlatNode`. Takes precedence over `?form=` when both are supplied. The served form is echoed in the response header of the same name. */
+                /** @description The request-header form of the `form` query parameter. */
                 "X-OSL-WoW-Spatial-Form"?: "descriptor" | "spatial" | "node";
+                /** @description OSL EXTENSION. With `form=node`: `flat` returns the root as the `OSLFlatNode`; omitted or `canonical` returns the canonical `Node`. */
+                "X-OSL-WoW-Node-Form"?: "canonical" | "flat";
+                /** @description Entity tags the client holds; a match answers 304 with no body. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
             };
             path: {
-                /** @description ID of the spatial composition graph. DECLARED DIVERGENCE (D4): the standard types this `integer`; OSL addresses graphs by STRING id (world_id, location_id, 'default', 'world' — see 041 runtime-state.js SPATIAL_ACCEPTED_IDS). */
-                spatialID: string;
+                /** @description ID of the spatial composition graph. An integer. OSL also resolves the deprecated string aliases (world id, location id, 'default', 'world'). */
+                spatialID: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The graph root. DEFAULT (form omitted / form=node): the root node as the LABELED `OSLFlatNode` (non-canonical), response header `X-OSL-WoW-Spatial-Form: node`. VERSIONED OPT-IN (form=descriptor|spatial, or request header `X-OSL-WoW-Spatial-Form: descriptor`): the canonical `Spatial` descriptor {id, rootNodeID, geoPose}, response header `X-OSL-WoW-Spatial-Form: descriptor`. */
+            /** @description The `Spatial` by default. With `form=node`, the root node, and the response header `X-OSL-WoW-Spatial-Form` says `node`. */
             200: {
                 headers: {
-                    /** @description Echoes the served representation. `node` = the default OSLFlatNode root; `descriptor` = the canonical Spatial descriptor returned on the versioned opt-in. Emitted on every 200 from this operation. */
+                    /** @description Echoes the served representation: `descriptor` or `node`. */
                     "X-OSL-WoW-Spatial-Form": "node" | "descriptor";
+                    ETag: components["headers"]["ETag"];
+                    "Last-Modified": components["headers"]["LastModified"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OSLFlatNode"];
+                    "application/wow+json": components["schemas"]["Spatial"];
+                    "application/json": components["schemas"]["Spatial"];
                 };
+            };
+            304: components["responses"]["NotModified"];
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description spatial graph not found */
             404: {
@@ -528,23 +1061,49 @@ export interface operations {
     "spatial.getNode": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description OSL EXTENSION. `flat` returns the node as the `OSLFlatNode` (children are integer ids). Omitted, or `canonical`, returns the canonical `Node`. `?nodeForm=flat` is equivalent. */
+                "X-OSL-WoW-Node-Form"?: "canonical" | "flat";
+                /** @description Entity tags the client holds; a match answers 304 with no body. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path: {
-                spatialID: string;
+                /** @description ID of the spatial composition graph (an integer; string aliases are deprecated). */
+                spatialID: number;
                 nodeId: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description a single composition-graph node (LABELED OSLFlatNode, non-canonical) */
+            /** @description The node as the canonical `Node`; the `OSLFlatNode` when the node form is `flat`. */
             200: {
                 headers: {
+                    /** @description Echoes the served form: `canonical` or `flat`. */
+                    "X-OSL-WoW-Node-Form": "canonical" | "flat";
+                    ETag: components["headers"]["ETag"];
+                    "Last-Modified": components["headers"]["LastModified"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OSLFlatNode"];
+                    "application/wow+json": components["schemas"]["Node"];
+                    "application/json": components["schemas"]["Node"];
                 };
+            };
+            304: components["responses"]["NotModified"];
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OSL EXTENSION. The world's read policy refuses this node to this reader (`node_read_refused`); the canonical form of its parent leaves it out. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description node not found */
             404: {
@@ -558,31 +1117,55 @@ export interface operations {
     "spatial.updateNode": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description OSL EXTENSION. `flat` means the body is an `OSLFlatNode`. Omitted, or `canonical`, means a `Node`. */
+                "X-OSL-WoW-Node-Form"?: "canonical" | "flat";
+                /** @description The entity tag the change is based on; no match answers 412 and changes nothing. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path: {
-                spatialID: string;
+                /** @description ID of the spatial composition graph (an integer; string aliases are deprecated). */
+                spatialID: number;
                 nodeId: number;
             };
             cookie?: never;
         };
-        /** @description the updated node (LABELED OSLFlatNode). PUT updates CONTENT only — it never restructures the graph. `children` may be OMITTED, or ECHOED back unchanged (the read-modify-write pattern); anything else is refused. There is NO canonical opt-in on PUT: flattening an embedded subtree into an update would mean GUESSING "replace" vs "append" — use POST to create children. */
+        /** @description The updated node. `children` is derived from the tree: a PUT may leave it out or repeat it unchanged, and a PUT whose `children` differ from the stored ones is refused. A PUT of `parent` moves the node, with its subtree, under another node of the same graph. */
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OSLFlatNode"];
+                "application/wow+json": components["schemas"]["Node"];
+                "application/json": components["schemas"]["Node"];
             };
         };
         responses: {
-            /** @description Successful operation */
+            /** @description Successful operation: the node as the canonical `Node`. */
             200: {
                 headers: {
+                    /** @description Echoes the served form: `canonical` or `flat`. */
+                    "X-OSL-WoW-Node-Form": "canonical" | "flat";
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OSLFlatNode"];
+                    "application/wow+json": components["schemas"]["Node"];
+                    "application/json": components["schemas"]["Node"];
                 };
             };
             /** @description Invalid ID supplied */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -595,7 +1178,8 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation exception. OSL EXTENSION: `embedded_children_not_supported` (the body carries the CANONICAL `Node` shape) or `child_restructure_not_supported` (the `children` sent differ from the ones stored). Both were previously IGNORED SILENTLY. */
+            412: components["responses"]["PreconditionFailed"];
+            /** @description Validation exception. `child_restructure_not_supported` (the `children` sent differ from the stored ones), `invalid_local_transform`, or a refused move: `parent_not_found`, `parent_would_create_cycle`, `cannot_move_root`, `invalid_parent`, `node_tree_too_deep`. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -615,40 +1199,66 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description OSL EXTENSION. `canonical` = the body is the CANONICAL `Node[]` (children EMBEDDED); flatten it into the OSL graph and return every node stored. Omitted (default) = the body must be `OSLFlatNode[]`; an embedded body is 422'd, never silently truncated. `?nodeForm=canonical` is equivalent. */
-                "X-OSL-WoW-Node-Form"?: "canonical";
+                /** @description OSL EXTENSION. `flat` means the body is `OSLFlatNode[]` (leaf nodes only) and the response is every node stored, as `OSLFlatNode[]`. Omitted, or `canonical`, means the body is the canonical `Node[]`, whose children may be embedded to any depth; the server assigns every id and returns the nodes the caller sent, with their subtrees and the ids assigned. */
+                "X-OSL-WoW-Node-Form"?: "canonical" | "flat";
             };
             path: {
-                spatialID: string;
+                /** @description ID of the spatial composition graph (an integer; string aliases are deprecated). */
+                spatialID: number;
                 /** @description ID of the existing parent node. */
                 nodeId: number;
             };
             cookie?: never;
         };
-        /** @description array of new nodes to add as children. LABELED OSLFlatNode[] by default; canonical Node[] when X-OSL-WoW-Node-Form: canonical is sent. */
+        /** @description Array of new nodes to add as children of the parent. Canonical `Node[]` by default. */
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OSLFlatNode"][];
+                "application/wow+json": components["schemas"]["Node"][];
+                "application/json": components["schemas"]["Node"][];
             };
         };
         responses: {
-            /** @description successful operation. Always OSLFlatNode[] — EVERY node actually stored, parents before children (so a flattened canonical subtree returns more nodes than were sent; see X-OSL-WoW-Nodes-Stored). */
+            /** @description Successful operation: the created nodes as `Node[]`, ids assigned at every depth. The response header `X-OSL-WoW-Nodes-Stored` reports stored over sent. */
             200: {
                 headers: {
+                    /** @description Echoes the served form: `canonical` or `flat`. */
+                    "X-OSL-WoW-Node-Form": "canonical" | "flat";
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OSLFlatNode"][];
+                    "application/wow+json": components["schemas"]["Node"][];
+                    "application/json": components["schemas"]["Node"][];
                 };
             };
-            /** @description OSL EXTENSION. `child_id_refs_not_supported_on_create` — integer child id-refs on a create body (a new node starts as a leaf), or `invalid_child_entry`. Previously these were SILENTLY DROPPED. */
+            /** @description OSL EXTENSION. `invalid_child_entry`, or, in the `flat` form, `child_id_refs_not_supported_on_create`. */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description OSL EXTENSION. `embedded_children_not_supported` — the body carries the CANONICAL `Node` shape (embedded children) and no canonical opt-in was sent. Nothing was stored. Previously the children were SILENTLY DELETED and the caller got 200 OK. */
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description parent node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation exception. A body that is not a valid `Node[]` (`node_validation_failed`), a `localTransform` that is not a placement (`invalid_local_transform`: wrong length, a last row other than 0,0,0,1, a number that overflows, or shear), or a graph that would be too deep (`node_tree_too_deep`). Nothing is stored. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -667,9 +1277,13 @@ export interface operations {
     "spatial.deleteNode": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description The entity tag the change is based on; no match answers 412 and changes nothing. */
+                "If-Match"?: components["parameters"]["IfMatch"];
+            };
             path: {
-                spatialID: string;
+                /** @description ID of the spatial composition graph (an integer; string aliases are deprecated). */
+                spatialID: number;
                 nodeId: number;
             };
             cookie?: never;
@@ -683,13 +1297,35 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid node value */
+            /** @description Invalid node value, or the root, which cannot be deleted. */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
+            /** @description no token, or a token that is expired or was issued for another world (WWW-Authenticate) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            412: components["responses"]["PreconditionFailed"];
             /** @description Unexpected error */
             default: {
                 headers: {

@@ -15,7 +15,8 @@
 // Observing creates no user: the observer never registers presence.
 //
 // A world that requires authorization for its stream gets the access token as the stream's first
-// message. Tokens never go in URLs.
+// message, and a world that requires a token for its requests (iteration 6) gets it in the Authorization
+// header of each read. Tokens never go in URLs.
 //
 // PURE: fetch and WebSocket are passed in (the browser's, or Node 22's), so this runs in the browser
 // (the dashboard and the `?wow=` player), in a world server (mirroring) and in the iteration 3 proof.
@@ -70,7 +71,9 @@ export function openWorldStream(base, opts) {
     if (state.eventsUrl) return state.eventsUrl;
     const worldUrl = new URL("wow/world", base).href;
     if (opts.onRequest) opts.onRequest(worldUrl);
-    const r = await fetchImpl(worldUrl, { headers: { Accept: WOW_MEDIA_TYPE }, cache: "no-store" });
+    const headers = { Accept: WOW_MEDIA_TYPE };
+    if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
+    const r = await fetchImpl(worldUrl, { headers, cache: "no-store" });
     if (!r.ok) throw new Error(`${worldUrl} answered ${r.status}`);
     state.world = await r.json();
     const relative = state.world && state.world.services && state.world.services.events;
@@ -109,11 +112,18 @@ export function openWorldStream(base, opts) {
       // Events are handled one at a time, in the order the world sent them.
       queue = queue.then(() => handle(evt)).catch((error) => { state.error = String(error && error.message || error); });
     };
-    socket.onclose = () => {
+    // A connection that ends, or that never opens, is retried. A browser fires close after a failed connection;
+    // Node's WebSocket fires only error and stays CONNECTING (and close() on it fires error again), so an error
+    // before the connection opened counts as its end.
+    let ended = false;
+    const end = () => {
+      if (ended) return;
+      ended = true;
       if (state.socket === socket) state.socket = null;
       if (!state.closed) { state.status = "reconnecting"; if (opts.onStatus) opts.onStatus(state); scheduleReconnect(); }
     };
-    socket.onerror = () => {};
+    socket.onclose = end;
+    socket.onerror = () => { if (socket.readyState !== 1) end(); };
   }
 
   function scheduleReconnect() {
@@ -157,7 +167,8 @@ export function openWorldStream(base, opts) {
  *
  * @param {object} opts
  *   fetch, WebSocket   the implementations to use
- *   token              an access token for streams that require one (sent first, never in a URL)
+ *   token              an access token, or a function of a world's base URL that gives one: sent as the first
+ *                      message of a stream and in the Authorization header of each read, never in a URL
  *   streamBudget       the most event streams to hold; points in other worlds are marked "over budget"
  *   onChange(point)    called after each change of a watched point
  *   onRequest(url)     called with every URL the observer requests, so a caller can audit them
@@ -172,6 +183,8 @@ export function createObserver(opts = {}) {
   async function read(resource) {
     const kept = resources.get(resource);
     const headers = { Accept: WOW_MEDIA_TYPE };
+    const token = typeof opts.token === "function" ? opts.token(worldBaseOf(resource)) : opts.token;
+    if (token) headers.Authorization = `Bearer ${token}`;
     if (kept && kept.etag) headers["If-None-Match"] = kept.etag;
     if (opts.onRequest) opts.onRequest(resource);
     let r;

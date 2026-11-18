@@ -83,11 +83,13 @@ info:
 
     Portal events. When a visitor uses a portal, a world that offers an event stream MUST send portal_activate on it, once for each crossing and before the visitor navigates. The event MUST carry portalId (the id of the portal) and userId (the id of the user who crosses), besides type, revision, time and urls, as the PortalActivate schema lists them; its urls name wow/world, which reports the revision.
 
-    Joining. A world MUST state in its World resource who it is (identity, its base URL), the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A visitor's agent MUST read the World resource from the base URL it is about to post to. Before it discloses anything, it MUST check that identity.base is that base URL. Only then MAY it join with POST /wow/user. The join MUST carry only the claims the world asks for, in a signed manifest, with a holder proof made for this world and this visit. How claims are proven is given by reference. The answer MUST state the outcome (proceed, proceed-in-part or deny) and which of the claims the world asked for were satisfied and which were not. A world MUST record every outcome. The answer MUST NOT grant a permission. Claim values, and anything else about the visitor, MUST NOT appear in a URL. The pointer (the manifest's subject), the signatures, the holder proof and its nonce are made for one world and one visit and MUST NOT be reused for another world; the claim values a world asks for are disclosed to that world.
+    Joining. Joining is OPTIONAL for a world. A world that states who it is in its World resource (identity, its base URL) MUST also state the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A world that states no identity takes no joins, and the rules of this paragraph do not apply to it. A visitor's agent MUST read the World resource from the base URL it is about to post to. Before it discloses anything, it MUST check that identity.base is that base URL. Only then MAY it join with POST /wow/user. The join MUST carry only the claims the world asks for, in a signed manifest, with a holder proof made for this world and this visit. How claims are proven is given by reference. The answer MUST state the outcome (proceed, proceed-in-part or deny) and which of the claims the world asked for were satisfied and which were not. A world MUST record every outcome. The answer MUST NOT grant a permission. Claim values, and anything else about the visitor, MUST NOT appear in a URL. The pointer (the manifest's subject), the signatures, the holder proof and its nonce are made for one world and one visit and MUST NOT be reused for another world; the claim values a world asks for are disclosed to that world.
 
     Following. A page opened at a world's URL with the fragment #follow MUST join that world as a new or existing user, as a page opened at that URL does. The fragment's verb MUST be matched case-insensitively. With #follow=user.{id} the client MUST place the visitor at the node that places that user (User.node) and MUST keep the visitor there while that user moves. When that user is no longer present, the client SHOULD stop following and leave the visitor where it stands.
 
     Departing. DELETE /wow/user/{userId} MUST end that user's visit: afterwards that user MUST no longer be present. A world that offers an event stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of that user's join outcome.
+
+    Authorization. A world MAY require a token for its requests. A world that does MUST name its authorization servers in protected resource metadata (RFC 9728) at the address derived from its base URL, {origin}/.well-known/oauth-protected-resource{path prefix}, and a client MUST use that metadata only when its resource equals that base URL. Each token MUST be bound to one world: its audience is the world's base URL (RFC 8707), and a world MUST refuse a token whose audience is not exactly its own base URL, also when the base URL of another world on the same origin starts with its own. A world MUST keep its own grant records. Each names a subject, a scope and the resource it covers, and MAY expire or be withdrawn. A world MUST allow a request only when the token's scopes, and the grant records the world holds for the token's subject when the request arrives, cover it, so that a withdrawn grant refuses the holder's next request. The scope of each request is read for GET and HEAD of the World, User, View, Portal, Spatial and Node resources, observe for the event stream, write for node POST, PUT and DELETE, and enter for joining (POST /wow/user) and leaving (DELETE /wow/user/{userId}, own user only). A write grant MUST name one node, or the whole world, and a write grant on one node MUST NOT cover another node; observe and enter grants MUST cover the whole world. GET /wow/user/{userId} MUST need a read grant that names the world's User resources: a read grant for the rest of the world does not cover them. A world MUST NOT show people to a reader without that grant: user_joined and user_left reach such an observer without user ids, with their revision, and every other path that lists people leaves them out. A request with no token MUST be answered 401 with WWW-Authenticate: Bearer and no error code. An expired token, or a token for another world, MUST be answered 401 with error="invalid_token". A token whose grants do not cover the request MUST be answered 403 with error="insufficient_scope" (RFC 6750, sections 3 and 3.1). The error code MUST be in the WWW-Authenticate header, not only in a body. The 401 answer MUST NOT carry resource_metadata, because RFC 9728, section 3.3 would then require the metadata's resource to equal the request's own URL, which differs from the base URL for every resource below it. On POST /wow/user a 403 with error="insufficient_scope" is that refusal, not a deny. The answer of a join MUST name the scopes granted (JoinAnswer.scope), and they MUST equal the grant records the world holds for that visitor. A world MAY also issue tokens by token exchange (RFC 8693) at its token endpoint: the token of the party acted for is the subject token, a token of the acting party is the actor token, and the issued token is bound to the world as any other. A world MUST issue such a token only when one of its grant records lets the acting party act for that party, and the token MUST carry the act claim, the current actor outermost and each earlier actor nested in it (RFC 8693, section 4.1). For a token with an act claim, a world MUST decide on the grant records of the current actor, not those of the subject, and MUST log the subject and every actor of the chain with each decision. A grant record that lets a party act for another MUST NOT cover the requests that party makes with its own token, so a host that includes a world MUST write into it only with a token that world issued by exchange, with the viewer's token as the subject and the host, named by its base URL, as the actor. A world MUST accept as a subject token only a token of its own authorization server, or of an issuer it lists as trusted whose token names as its audience the world's base URL or the acting party, and MUST refuse any other with error="invalid_request" (RFC 8693, section 2.2.2), also from an issuer it has stopped trusting. On the event stream the token MUST be the first message, as the stream authentication paragraph says, because a browser cannot add a header to a WebSocket. A world MUST close the stream of a holder whose observe grant is withdrawn, or whose token expires, within 5 seconds. A token MUST NOT appear in a URL, and a world MUST NOT accept one there. The token URLs of the oauth2 scheme are relative to the world's base URL, or name the server its metadata gives, since each world names its own authorization server. Outside test environments a world MUST be served over HTTPS. Sender-constrained tokens (DPoP, RFC 9449) are the next step; they are not yet required.
 
 servers:
   - url: http://127.0.0.1:18151
@@ -116,6 +118,8 @@ paths:
       summary: Returns a World status as a single data state.
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
+      security:
+        - worldAuth: [read]
       responses:
         '200':
           description: world summary (canonical World + labeled OSL extensions)
@@ -133,6 +137,10 @@ paths:
                 $ref: '#/components/schemas/OSLWorldResponse'
         '304':
           $ref: '#/components/responses/NotModified'
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
 
   # --- User (canonical) ---
   /wow/user/{userId}:
@@ -147,6 +155,8 @@ paths:
           required: true
           schema:
             type: integer
+      security:
+        - worldAuth: [read]
       responses:
         '200':
           description: user (canonical User + labeled OSL extensions)
@@ -159,6 +169,10 @@ paths:
                 $ref: '#/components/schemas/OSLUserResponse'
         '404':
           description: user not found
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
     delete:
       operationId: user.deleteUser
       tags: [canonical]
@@ -173,11 +187,17 @@ paths:
           required: true
           schema:
             type: integer
+      security:
+        - worldAuth: [enter]
       responses:
         '200':
           description: User deleted
         '400':
           description: Invalid user value
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
         default:
           description: Unexpected error
 
@@ -201,6 +221,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UserJoin'
+      security:
+        - worldAuth: [enter]
       responses:
         '201':
           description: proceed or proceed-in-part; the visitor is now a User of this world
@@ -224,6 +246,8 @@ paths:
                 $ref: '#/components/schemas/OSLJoinAnswer'
         '404':
           description: this world takes no joins
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
 
   # --- View (canonical) ---
   /wow/view/{viewId}:
@@ -237,6 +261,8 @@ paths:
           required: true
           schema:
             type: integer
+      security:
+        - worldAuth: [read]
       responses:
         '200':
           description: view (canonical View + labeled OSL extensions)
@@ -249,6 +275,10 @@ paths:
                 $ref: '#/components/schemas/OSLViewResponse'
         '404':
           description: view not found
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
 
   # --- Portal (canonical schema; destination is a LABELED OSL extension) ---
   /wow/portal:
@@ -264,6 +294,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/OSLPortalPlacement'
+      security:
+        - worldAuth: [write]
       responses:
         '201':
           description: the portal added (canonical Portal + labeled OSL extensions)
@@ -278,6 +310,10 @@ paths:
           description: the body is not a JSON object
         '422':
           description: no node, a node that is not in this world, or an active radius out of range
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
 
   /wow/portal/{portalId}:
     put:
@@ -299,6 +335,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/OSLPortalPlacement'
+      security:
+        - worldAuth: [write]
       responses:
         '200':
           description: the portal as changed
@@ -317,6 +355,10 @@ paths:
           description: the portal comes from the world's configuration
         '422':
           description: a node that is not in this world, or an active radius out of range
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
     get:
       operationId: portal.getPortal
       tags: [canonical]
@@ -328,6 +370,8 @@ paths:
           required: true
           schema:
             type: integer
+      security:
+        - worldAuth: [read]
       responses:
         '200':
           description: portal (canonical Portal + labeled OSL extensions)
@@ -340,6 +384,10 @@ paths:
                 $ref: '#/components/schemas/OSLPortalResponse'
         '404':
           description: portal not found
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
 
   # --- Spatial Composition Graph (canonical paths and payloads) ---
   # OVERLAY (iteration 1, proposed upstream edit; x-osl-overlay marks each change). The paths are the
@@ -404,6 +452,8 @@ paths:
             type: string
             enum: [canonical, flat]
         - $ref: '#/components/parameters/IfNoneMatch'
+      security:
+        - worldAuth: [read]
       responses:
         '200':
           description: >-
@@ -431,6 +481,10 @@ paths:
           $ref: '#/components/responses/NotModified'
         '404':
           description: spatial graph not found
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
 
   /wow/spatial/{spatialID}/node/{nodeId}:
     get:
@@ -461,6 +515,8 @@ paths:
             type: string
             enum: [canonical, flat]
         - $ref: '#/components/parameters/IfNoneMatch'
+      security:
+        - worldAuth: [read]
       responses:
         '200':
           description: The node as the canonical `Node`; the `OSLFlatNode` when the node form is `flat`.
@@ -491,6 +547,8 @@ paths:
             (`node_read_refused`); the canonical form of its parent leaves it out.
         '404':
           description: node not found
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
     post:
       operationId: spatial.createNodes
       tags: [canonical]
@@ -535,6 +593,8 @@ paths:
               type: array
               items:
                 $ref: '#/components/schemas/Node'
+      security:
+        - worldAuth: [write]
       responses:
         '200':
           description: >-
@@ -570,6 +630,10 @@ paths:
             `localTransform` that is not a placement (`invalid_local_transform`: wrong length, a last
             row other than 0,0,0,1, a number that overflows, or shear), or a graph that would
             be too deep (`node_tree_too_deep`). Nothing is stored.
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
         default:
           description: Unexpected error
     put:
@@ -611,6 +675,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Node'
+      security:
+        - worldAuth: [write]
       responses:
         '200':
           description: "Successful operation: the node as the canonical `Node`."
@@ -639,6 +705,10 @@ paths:
             Validation exception. `child_restructure_not_supported` (the `children` sent differ from
             the stored ones), `invalid_local_transform`, or a refused move: `parent_not_found`,
             `parent_would_create_cycle`, `cannot_move_root`, `invalid_parent`, `node_tree_too_deep`.
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
         default:
           description: Unexpected error
     delete:
@@ -659,6 +729,8 @@ paths:
           schema:
             type: integer
         - $ref: '#/components/parameters/IfMatch'
+      security:
+        - worldAuth: [write]
       responses:
         '200':
           description: node deleted
@@ -668,6 +740,10 @@ paths:
           description: node not found
         '412':
           $ref: '#/components/responses/PreconditionFailed'
+        '401':
+          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+        '403':
+          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
         default:
           description: Unexpected error
 
@@ -675,6 +751,22 @@ paths:
 # Components
 # ------------------------------------------------------------------
 components:
+  securitySchemes:
+    worldAuth:
+      x-osl-overlay: iteration-6
+      type: oauth2
+      description: >-
+        OAuth 2.0 bearer tokens, each bound to one world, as the Authorization paragraph of the World API describes.
+        The token URL is relative to the world's base URL; a client may instead use the token endpoint of the
+        authorization server that the world's protected resource metadata names.
+      flows:
+        clientCredentials:
+          tokenUrl: oauth/token
+          scopes:
+            read: GET and HEAD of the resources
+            observe: the event stream
+            write: node POST, PUT and DELETE
+            enter: joining (POST /wow/user) and leaving (DELETE /wow/user/{userId}, own user only)
   # OVERLAY (iteration 2, proposed upstream edit): conditional requests (wow-spec/overlays/iteration-2/).
   parameters:
     IfNoneMatch:
@@ -937,13 +1029,17 @@ components:
         pilot:
           x-osl-overlay: iteration-5
           type: string
-          enum: [human, agent, hybrid]
+          enum: [human, agent, hybrid, unstated]
           description: >-
             Who is at the controls, as the visitor stated it when joining: human (a person), agent (software
-            acting alone) or hybrid (a person and software together). A world MUST copy it from the join and
-            MUST NOT supply a value the visitor did not state. A world and a client MUST treat it as the
+            acting alone) or hybrid (a person and software together), or unstated when the join stated none. A
+            world MUST copy it from the join when the join states one, and MUST NOT supply human, agent or
+            hybrid when it does not. For a join without a pilot statement, a world MUST set it to unstated and
+            MUST NOT treat that user as human. A world and a client MUST treat it as the
             visitor's statement, not as proof of who is at the controls. A client
-            MUST show a user whose pilot is hybrid as an agent wherever it shows that user's name or label.
+            MUST show a user whose pilot is hybrid as an agent wherever it shows that user's name or label. A
+            client MUST show a user whose pilot is unstated as not stated wherever it shows that user's name or
+            label.
 
     View:
       type: object
@@ -1348,6 +1444,113 @@ components:
             fabric's internal nodes are NOT projected back up into the WoW graph as addressable WoW nodes:
             any such projection is a SNAPSHOT AT AN EPOCH, not a graph (deliberately deferred).
 
+    UniversalExtensionDeclaration:
+      # LABELED, NON-CANONICAL. One WebAssembly extension that a WoW composition-graph
+      # node carries, in the array `node.webofworlds_extension.universal_extensions`.
+      # The presence of that member is the DISCRIMINATOR: a node is an extension node
+      # iff it carries it. A `.wasm` suffix in `spatialAssetURI` is never sniffed.
+      #
+      # The members are the ones the Lab's extension host takes
+      # (`runtime/extension-host/extension-host.mjs`, loadExtension): the module and its
+      # SHA-256, the interface, how it attaches, the capability tokens it requests, its
+      # limits, and the data its attachment reads.
+      x-osl-extension: true
+      x-osl-extends: Node
+      type: object
+      # STRICT: the client mirror (`validateExtensionDeclaration` in `web/wow-scene.mjs`)
+      # refuses an unknown member, and so does this schema.
+      additionalProperties: false
+      required:
+        - module
+        - interface
+        - attach
+        - requests
+        - limits
+      description: >-
+        LABELED LAB EXTENSION, carried at `node.webofworlds_extension.universal_extensions` (an array of these).
+        A node is an extension node iff that member is present; the `.wasm` suffix is never the discriminator.
+        When the Lab shows the world, each declaration runs in its own Web Worker, and the scene nodes it makes
+        are drawn under the node that carries it, in that node's frame. A declaration this schema refuses, a
+        module whose SHA-256 differs from `module.integrity`, and a declaration in a world served from another
+        origin are refused before anything runs, with a visible marker labeled with the stage. The standard
+        has no executable node content; `standards_conformance` stays `false`.
+      properties:
+        module:
+          type: object
+          additionalProperties: false
+          required:
+            - url
+            - integrity
+            - binding
+          properties:
+            url:
+              type: string
+              minLength: 1
+              description: 'The WebAssembly module, resolved against the world file URL.'
+            integrity:
+              type: string
+              pattern: '^sha256-[A-Za-z0-9+/]{43}=$'
+              description: >-
+                The Subresource Integrity form of the SHA-256 of the module bytes. It binds the module to the
+                world file: a module whose hash differs is refused before it is compiled.
+            binding:
+              type: string
+              enum: [rp1-sneeze-call, ue-core/0]
+              description: 'The import binding the module is built against.'
+        interface:
+          type: string
+          minLength: 1
+          description: 'The interface the binding implements (`ue:host@0.1.0` for `ue-core/0`, `rp1-sneeze-call` for `rp1-sneeze-call`).'
+        attach:
+          type: object
+          additionalProperties: false
+          required:
+            - kind
+          properties:
+            kind:
+              type: string
+              enum: [world-node]
+              description: 'The extension attaches to the node that carries it.'
+        requests:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+          description: >-
+            The capability tokens the extension requests. The host grants a requested token only by its policy:
+            the attachment-confined tokens are granted; a token that needs the user's consent is granted only
+            when the user allows it in the consent dialog.
+        purposes:
+          type: object
+          additionalProperties:
+            type: string
+          description: >-
+            Why the extension requests a token: a requested token -> its purpose text. The consent dialog shows
+            the text as data, never as markup, and a remembered grant holds only while the purpose is unchanged.
+            A purpose for a token that `requests` does not name is refused at stage `declaration`.
+        limits:
+          type: object
+          additionalProperties: false
+          description: 'Budgets that lower the host budgets, never raise them.'
+          properties:
+            initMs:
+              type: number
+              exclusiveMinimum: 0
+            eventMs:
+              type: number
+              exclusiveMinimum: 0
+            memoryBytes:
+              type: number
+              exclusiveMinimum: 0
+            startMs:
+              type: number
+              exclusiveMinimum: 0
+        data:
+          type: object
+          additionalProperties: true
+          description: 'The data the attachment reads (its `Data`). Absent means an empty object.'
+
     Zone:
       # An OSL-native interaction volume around a portal (e.g. a larger prefetch
       # zone vs a smaller traversal trigger).
@@ -1429,16 +1632,16 @@ components:
           $ref: '#/components/schemas/WebOfWorldsExtension'
 
     UMSignature:
-      # runtime — the UniversalManifest Signature Profile A block:
-      # Ed25519 over JCS-RFC8785 canonical bytes, bound to a did:key. This is the
-      # IDENTITY trust spine — SEPARATE from the .msf RS256/x5c engine spine. A REAL
-      # signature; standards_conformance stays false (labeled non-canonical).
+      # runtime — the signature block of a signed user manifest: an Ed25519
+      # signature over JCS-RFC8785 canonical bytes, bound to a did:key. It signs the
+      # user's identity, separately from the .msf RS256/x5c engine signatures. The
+      # signature is real; standards_conformance stays false.
       x-osl-extension: true
       type: object
       properties:
         algorithm:
           type: string
-          description: 'MUST be "Ed25519" (the Profile A pair; never reinterpreted).'
+          description: 'MUST be "Ed25519" (never reinterpreted).'
         canonicalization:
           type: string
           description: 'MUST be "JCS-RFC8785".'
@@ -1447,7 +1650,7 @@ components:
           description: 'did:key DID URL (offline-resolvable; consistency-checked vs the embedded key).'
         publicKeySpkiB64:
           type: string
-          description: 'base64 SPKI DER Ed25519 public key (the suite embedded-key escape hatch).'
+          description: 'base64 SPKI DER Ed25519 public key, embedded so the signature verifies without resolving the did:key.'
         created:
           type: string
           description: 'ISO 8601 (recommended). Lives inside the signature block; excluded from the signing input.'
@@ -1456,13 +1659,12 @@ components:
           description: 'base64url (unpadded) Ed25519 signature over the JCS-RFC8785 signing input.'
 
     OpenUserManifest:
-      # runtime — the retained UM identity fronted via /wow/user. The
-      # OpenUserManifest CONTENT shape {name, age, avatarAssetURI} is the payload UM
-      # Signature Profile A signs (signing input = this object MINUS `signature`),
-      # plus the attached signature block. WoW's canonical User is silent on `age`
-      # and carries no identity signature; this labeled non-canonical additive is
-      # OpenUserManifest ≡ UM (same identity spine, not a new standard). The
-      # signature is REAL; standards_conformance stays false.
+      # runtime — a signed user manifest, served by /wow/user. Its members are
+      # {name, age, avatarAssetURI}, which the signature block signs (the signing
+      # input is this object without `signature`), and the attached signature block
+      # (`signature`, a UMSignature). WoW's canonical User is silent on `age` and
+      # carries no identity signature; this is a labeled additive extension. The
+      # signature is real; standards_conformance stays false.
       x-osl-extension: true
       type: object
       additionalProperties: true
@@ -1516,6 +1718,33 @@ components:
           # OSLFlatNode validation — the fail-closed rule reaches the wire, not
           # just the client.
           $ref: '#/components/schemas/SpatialFabricSubtree'
+        universal_extensions:
+          # The labeled extension declarations a node carries. Its presence is
+          # what makes a node an EXTENSION node (the discriminator; a `.wasm`
+          # suffix is never sniffed). Each item is the STRICT
+          # UniversalExtensionDeclaration.
+          type: array
+          items:
+            $ref: '#/components/schemas/UniversalExtensionDeclaration'
+        universal_extension_manifests:
+          # The second way a node declares extensions: references to signed
+          # carrier manifests (Universal Manifest v0.6, Universal Extensions
+          # profile), each extension an osl:ExtensionFacet. A relative url
+          # resolves against the world file URL. Discovery records the
+          # references; the Lab fetches each carrier and verifies its signature
+          # and dates before it reads a facet or fetches a module
+          # (web/wow-extension-manifest-adapter.mjs). Its presence also makes
+          # the node an EXTENSION node.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - url
+            properties:
+              url:
+                type: string
+                minLength: 1
         portal_id:
           type: string
         trigger:
@@ -1568,10 +1797,11 @@ components:
       description: >-
         A join. manifest MUST be a signed manifest that carries only the claims the world asks for. proof
         MUST be the holder's proof that it controls the manifest's subject, made for this world (its base URL
-        is the audience) and this visit. Their formats are given by reference. pilot MUST be the visitor's
-        statement of who is at the controls: human, agent or hybrid. A world MUST answer a join without a
-        pilot statement, or with another value, with deny and the reason; it MUST NOT supply a value the
-        visitor did not state.
+        is the audience) and this visit. Their formats are given by reference. pilot, when present, MUST be the
+        visitor's statement of who is at the controls: human, agent or hybrid. A world MUST answer a join whose
+        pilot is present with another value with deny and the reason. A world MUST NOT refuse a join without a
+        pilot statement for that reason alone. It MUST record and show that join as not stated (User.pilot
+        unstated). It MUST NOT treat it as human.
       properties:
         manifest:
           type: object
@@ -1625,6 +1855,12 @@ components:
         user:
           type: string
           description: The User the visitor now is, relative to the world's base URL (not on deny).
+        scope:
+          type: string
+          description: >-
+            The scopes the world grants the visitor, space-delimited, each once, from read, observe, write and enter.
+            They MUST equal the grant records the world holds for that visitor. A world that requires no token MAY
+            leave it out.
 
     OSLJoinAnswer:
       x-osl-extension: true
@@ -1652,8 +1888,8 @@ components:
               $ref: '#/components/schemas/ProofBoundary'
             webofworlds_extension:
               $ref: '#/components/schemas/WebOfWorldsExtension'
-            # runtime — LABELED non-canonical additive UM identity: the
-            # signed OpenUserManifest {name, age, avatarAssetURI, signature}. The
+            # runtime — a labeled additive extension: the user's signed user
+            # manifest (OpenUserManifest: name, age, avatarAssetURI, signature). The
             # canonical User above stays pure for the runtime conformance diff; this
             # is the surfaced extension point (never hidden).
             open_user_manifest:

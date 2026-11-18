@@ -12,12 +12,19 @@
  *       body and answer, the joining paragraph, and beside it the following and departing paragraphs and the
  *       DELETE /wow/user/{userId} text; on the event stream a proceeding join sends user_joined and its depart
  *       user_left (the wire, not only the text); User.pilot, and on the wire GET /wow/user/{id} carries the pilot
- *       the join stated
+ *       the join stated, and a join without a pilot statement proceeds and its User reads pilot "unstated".
+ *       The served contract is compared as later iterations leave it: a JoinAnswer member or a POST /wow/user status
+ *       that a later overlay (iteration 6 or above, read from wow-spec/overlays/) adds is not counted as a difference
+ *       for iteration 5; any other addition still is
  *   W3  the conformance vocabulary of iteration 5: the World API after iteration 5 still carries the BCP 14
- *       paragraph once; each normative sentence iteration 5 adds (the joining paragraph, World.identity,
+ *       paragraph once; the joining paragraph makes joining opt-in (OPTIONAL for a world; a world that states
+ *       identity MUST also state claims and issues; a world that states no identity takes no joins and the
+ *       paragraph does not apply to it) and states no rule that every world states identity, claims and issues,
+ *       offered on both forms and served; each normative sentence iteration 5 adds (the joining paragraph, World.identity,
  *       World.claims, World.issues, POST /wow/user, UserJoin, JoinAnswer and its trust rule, and the following and
  *       departing paragraphs and DELETE /wow/user/{userId} beside the join, the pilot statement in UserJoin and
- *       User.pilot) uses a key word; World and World.identity carry no required member, UserJoin [manifest, proof],
+ *       User.pilot, a join without one not refused for that alone, recorded and shown as not stated, never as
+ *       human) uses a key word; World and World.identity carry no required member, UserJoin [manifest, proof],
  *       JoinAnswer [outcome,
  *       satisfied, not_satisfied], and the World.claims items and JoinAnswer's satisfied and not_satisfied items
  *       [name, required]; the offer on both GeoPose forms, the served contract and its build say the same; every
@@ -81,6 +88,44 @@ function iteration5Text(doc) {
   };
 }
 
+const OVERLAYS_ROOT = path.join(ROOT, 'wow-spec', 'overlays');
+/** The later iterations (6 and above) whose overlay folder exists, in order. */
+function laterIterations() {
+  return fs.readdirSync(OVERLAYS_ROOT).map((d) => /^iteration-(\d+)$/.exec(d)).filter((m) => m && Number(m[1]) >= 6).map((m) => Number(m[1])).sort((a, b) => a - b);
+}
+/**
+ * What later overlays (iteration 6 and above) add to the points iteration5Text compares: the JoinAnswer members and
+ * the POST /wow/user statuses. Read by applying each later overlay's World API patch, in order, on the unedited
+ * iteration 5 text of form `form` (a folder's without-rotation-sentences patch serves the without-form when it has one).
+ */
+function laterAdditions(form) {
+  const five = loadIteration5(null, form);
+  let text = five.worldText;
+  for (const n of laterIterations()) {
+    const dir = path.join(OVERLAYS_ROOT, 'iteration-' + n);
+    const own = path.join(dir, 'without-rotation-sentences', 'OpenSpatialWorld.API.yaml.patch');
+    const file = form === 'without' && fs.existsSync(own) ? own : path.join(dir, 'OpenSpatialWorld.API.yaml.patch');
+    if (fs.existsSync(file)) text = up.applyUnifiedDiff(text, up.read(file));
+  }
+  const later = up.yaml.load(text);
+  const members = (doc) => Object.keys((((doc.components || {}).schemas || {}).JoinAnswer || {}).properties || {});
+  const statuses = (doc) => Object.keys((((doc.paths || {})['/wow/user'] || {}).post || {}).responses || {});
+  const before = { members: members(five.world), statuses: statuses(five.world) };
+  return {
+    members: members(later).filter((m) => !before.members.includes(m)),
+    statuses: statuses(later).filter((s) => !before.statuses.includes(s)),
+  };
+}
+/** A copy of the served contract without what later overlays add to iteration 5's points (laterAdditions). */
+function withoutLaterAdditions(contract, additions) {
+  const doc = JSON.parse(JSON.stringify(contract));
+  const answer = ((doc.components || {}).schemas || {}).JoinAnswer;
+  for (const m of additions.members) if (answer && answer.properties) delete answer.properties[m];
+  const post = ((doc.paths || {})['/wow/user'] || {}).post;
+  for (const s of additions.statuses) if (post && post.responses) delete post.responses[s];
+  return doc;
+}
+
 /** The follow and depart text iteration 5 puts beside the join, read from one API description; null where it is absent. */
 function sessionText(doc) {
   const paragraphs = String((doc.info || {}).description || '').split(/\n\s*\n/).map(up.squash);
@@ -130,15 +175,22 @@ async function overlayChecks(ports) {
   const departSendsNoUserLeft = { server: { handshake: [["        emitEvent({ type : 'user_left', userId : key, user : { id : key, name : user.name }, urls : [ 'wow/user/' + key ] });\n", '']] } };
   const offerPilotDrifts = { edits: { 'OpenSpatialWorld.API.yaml.patch': patchEdit('+            MUST show a user whose pilot is hybrid as an agent', '+            MAY show a user whose pilot is hybrid as an agent') } };
   const userWithoutPilot = { server: { handshake: [['                user.pilot = presented.pilot;\n', '']] } };
-  await run('W2', 'the offered text and the lab\'s contract agree on World.identity, World.claims, World.issues, UserJoin, JoinAnswer, the join operation, the joining paragraph, and the following and departing text beside it (two paragraphs and DELETE /wow/user/{userId}); on the wire the World states identity, claims and issues, POST /wow/user answers with a JoinAnswer the contract accepts (201 and 403), the proceeding join sends one user_joined for its User on the event stream and the denied one none, and DELETE of that User sends one user_left for it; the offer and the contract agree on User.pilot, and on the wire GET /wow/user/{id} of the proceeding join carries the pilot it stated', async (impl) => {
+  const offerUnstatedDrifts = { edits: { 'OpenSpatialWorld.API.yaml.patch': patchEdit('+            MUST NOT treat that user as human.', '+            MAY treat that user as human.') } };
+  const contractAddsJoinAnswerMember = { mutateContract: (doc) => { doc.components.schemas.JoinAnswer.properties.welcome = { type: 'string', description: 'A greeting for the visitor.' }; } };
+  const serverDefaultsHuman = { server: { handshake: [["        if (body.pilot === undefined) return { ok : true, reason : null, pilot : UNSTATED };\n", "        if (body.pilot === undefined) return { ok : true, reason : null, pilot : 'human' };\n"]] } };
+  await run('W2', 'the offered text and the lab\'s contract agree on World.identity, World.claims, World.issues, UserJoin, JoinAnswer, the join operation, the joining paragraph, and the following and departing text beside it (two paragraphs and DELETE /wow/user/{userId}); on the wire the World states identity, claims and issues, POST /wow/user answers with a JoinAnswer the contract accepts (201 and 403), the proceeding join sends one user_joined for its User on the event stream and the denied one none, and DELETE of that User sends one user_left for it; the offer and the contract agree on User.pilot, and on the wire GET /wow/user/{id} of the proceeding join carries the pilot it stated; a join without a pilot statement proceeds (201) and GET /wow/user/{id} of its User reads pilot "unstated"', async (impl) => {
     const failures = [];
     const contract = up.yaml.load(up.read(path.join(ROOT, 'wow-spec', 'schema.yaml')));
-    const b = iteration5Text(contract);
+    if (impl.mutateContract) impl.mutateContract(contract);
     const bs = sessionText(contract);
     for (const [key, value] of Object.entries(bs)) if (!value) failures.push('the lab contract: ' + key + ' is missing');
     const bp = pilotText(contract);
     for (const [key, value] of Object.entries(bp)) if (!value) failures.push('the lab contract: ' + key + ' is missing');
+    let later = null;
     eachForm(failures, (form) => {
+      const additions = laterAdditions(form);
+      if (form === 'with') later = additions;
+      const b = iteration5Text(withoutLaterAdditions(contract, additions));
       const offered = loadIteration5(impl.edits, form).world;
       const a = iteration5Text(offered);
       for (const key of Object.keys(a)) if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) failures.push(form + '-form: ' + key + ' differs between the offer and the lab contract');
@@ -160,7 +212,7 @@ async function overlayChecks(ports) {
       const wallet = { claims: { avatar: { uri: 'http://127.0.0.1:1/a.glb' }, preferences: { preferred_height_m: 1.7 } } };
       const r = await joinWire(B.base, { agent: hs, wallet, withholds: [[], ['preferences']], expectStatuses: '201,403', pilot: 'agent', eventsUrl: B.base + 'events', requireValidationHeader: true });
       failures.push(...r.problems);
-      return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : 'offer (both GeoPose forms) = lab contract on 12 points (with the following and departing paragraphs, the DELETE /wow/user/{userId} text and User.pilot); on the wire: the World states identity, claims and issues (pass:OSLWorldResponse); the joins answered ' + r.statuses.join(' and ') + '; the event stream carried ' + r.wire };
+      return { ok: failures.length === 0, detail: failures.length ? failures.join('; ') : 'offer (both GeoPose forms) = lab contract on 12 points (with the following and departing paragraphs, the DELETE /wow/user/{userId} text and User.pilot; not counted, as later overlays add them: JoinAnswer ' + (later && later.members.length ? later.members.join(', ') : 'none') + ', POST /wow/user ' + (later && later.statuses.length ? later.statuses.join(', ') : 'none') + '); on the wire: the World states identity, claims and issues (pass:OSLWorldResponse); the joins answered ' + r.statuses.join(' and ') + '; the event stream carried ' + r.wire };
     } finally {
       await B.close();
     }
@@ -172,6 +224,9 @@ async function overlayChecks(ports) {
     { name: 'a server whose depart sends no user_left', impl: departSendsNoUserLeft },
     { name: 'an offer whose User.pilot text drifted from the contract (hybrid shown as an agent: MAY)', impl: offerPilotDrifts },
     { name: 'a server whose User carries no pilot', impl: userWithoutPilot },
+    { name: 'an offer whose User.pilot text drifted from the contract (an unstated user treated as human: MAY)', impl: offerUnstatedDrifts },
+    { name: 'a server that defaults a missing pilot statement to human', impl: serverDefaultsHuman },
+    { name: 'a served contract whose JoinAnswer has a member no later overlay adds', impl: contractAddsJoinAnswerMember },
   ]);
 
   await vocabularyCheck();
@@ -219,7 +274,8 @@ const deleteText = (doc) => ((((doc.paths || {})['/wow/user/{userId}'] || {}).de
 const trustText = (doc) => doc.components.schemas.JoinAnswer.properties.satisfied.items.properties.trust.description;
 /** The normative sentences iteration 5 adds to the World API. Each anchor is a phrase of the sentence, found before and after the key words. */
 const SENTENCES_I5 = [
-  { where: 'info.description (a world states identity, claims and issues)', text: para5('Joining.'), anchor: 'who it is' },
+  { where: 'info.description (joining is optional for a world)', text: para5('Joining.'), anchor: 'OPTIONAL for a world' },
+  { where: 'info.description (a world that states identity also states claims and issues)', text: para5('Joining.'), anchor: 'who it is' },
   { where: 'info.description (the agent reads the World resource from that base URL)', text: para5('Joining.'), anchor: 'read the World resource' },
   { where: 'info.description (the agent checks identity.base first)', text: para5('Joining.'), anchor: 'identity.base is that base URL' },
   { where: 'info.description (only then it joins)', text: para5('Joining.'), anchor: 'Only then' },
@@ -255,11 +311,36 @@ const SENTENCES_I5 = [
   { where: 'DELETE /wow/user/{userId} (user_left once)', text: deleteText, anchor: 'user_left' },
   { where: 'DELETE /wow/user/{userId} (the join record stays)', text: deleteText, anchor: 'record' },
   { where: 'UserJoin (the pilot statement)', text: schemaText5('UserJoin'), anchor: 'statement of who is at the controls' },
-  { where: 'UserJoin (a join without a pilot statement, or with another value)', text: schemaText5('UserJoin'), anchor: 'without a pilot statement' },
+  { where: 'UserJoin (a join without a pilot statement is not refused for that alone)', text: schemaText5('UserJoin'), anchor: 'without a pilot statement' },
+  { where: 'UserJoin (a pilot statement of another value is denied)', text: schemaText5('UserJoin'), anchor: 'present with another value' },
+  { where: 'UserJoin (recorded and shown as not stated)', text: schemaText5('UserJoin'), anchor: 'record and show that join as not stated' },
+  { where: 'UserJoin (not treated as human)', text: schemaText5('UserJoin'), anchor: 'not treat it as human' },
+  { where: 'User.pilot (unstated for a join without a pilot statement)', text: schemaText5('User', 'pilot'), anchor: 'set it to unstated' },
+  { where: 'User.pilot (an unstated user not treated as human)', text: schemaText5('User', 'pilot'), anchor: 'treat that user as human' },
+  { where: 'User.pilot (unstated shown as not stated)', text: schemaText5('User', 'pilot'), anchor: 'unstated as not stated' },
   { where: 'User.pilot (copied from the join)', text: schemaText5('User', 'pilot'), anchor: 'copy it from the join' },
   { where: 'User.pilot (the visitor\'s statement, not proof)', text: schemaText5('User', 'pilot'), anchor: 'not as proof' },
   { where: 'User.pilot (hybrid shown as an agent)', text: schemaText5('User', 'pilot'), anchor: 'hybrid as an agent' },
 ];
+/**
+ * Joining is opt-in: the sentences the joining paragraph carries for that, and the rule for every world it must not
+ * carry (a world that states no identity takes no joins, so a rule that every world states them contradicts it).
+ */
+const JOINING_OPT_IN = [
+  { what: 'makes joining OPTIONAL for a world', re: /(?:^|\. )Joining is OPTIONAL for a world\./ },
+  { what: 'requires a world that states identity to MUST also state claims and issues', re: /(?:^|\. )A world that states who it is in its World resource \(identity[^)]*\) MUST also state the claims it asks a visitor for \(claims[^)]*\) and the credential types it issues \(issues[^)]*\)\./ },
+  { what: 'says that a world that states no identity takes no joins and the paragraph does not apply to it', re: /(?:^|\. )A world that states no identity takes no joins, and the rules of this paragraph do not apply to it\./ },
+];
+const EVERY_WORLD = /\bA world MUST state in its World resource\b/;
+/** The opt-in problems of one document's joining paragraph. */
+function optInProblems(doc, label) {
+  const text = para5('Joining.')(doc);
+  if (!text) return [label + ' joining paragraph: missing'];
+  const problems = [];
+  for (const { what, re } of JOINING_OPT_IN) if (!re.test(text)) problems.push(label + ' joining paragraph: no sentence that ' + what);
+  if (EVERY_WORLD.test(text)) problems.push(label + ' joining paragraph: states identity, claims and issues as a rule for every world ("A world MUST state in its World resource")');
+  return problems;
+}
 const GENERATED = path.join(ROOT, 'wow-spec', 'generated', 'schema.json');
 const OVERLAY_README_5 = path.join(OVERLAY_5, 'README.md');
 /** How many times a text carries the BCP 14 paragraph. */
@@ -284,14 +365,19 @@ async function vocabularyCheck() {
   const userJoinWithoutList = { mutateOffered: (doc) => { delete doc.components.schemas.UserJoin.required; }, expect: /^with-form: offered World API after iteration 5 UserJoin has no required list/ };
   const claimItemsWithoutList = { mutateOffered: (doc) => { delete doc.components.schemas.World.properties.claims.items.required; }, expect: /^with-form: offered World API after iteration 5 World\.claims items has no required list/ };
   const worldWithRequired = { mutateOffered: (doc) => { doc.components.schemas.World.required = ['identity']; }, expect: /^with-form: offered World API after iteration 5 World has required \["identity"\], wanted no required member/ };
+  const unstatedWithoutKeyword = { edits: { [API]: (p) => swap(p, 'It MUST NOT treat it as human.', 'It does not treat it as human.', W5P) }, expect: /^with-form: offered World API after iteration 5 UserJoin \(not treated as human\): .* has no key word/ };
   const pilotWithoutKeyword = { edits: { [API]: (p) => swap(p, 'A client\n+            MUST show a user whose pilot is hybrid as an agent', 'A client\n+            shows a user whose pilot is hybrid as an agent', W5P) }, expect: /^with-form: offered World API after iteration 5 User\.pilot \(hybrid shown as an agent\): .* has no key word/ };
   const servedDiffers = { mutateOsl: (osl) => { osl.components.schemas.JoinAnswer.required = ['outcome', 'satisfied']; }, expect: /^served contract JoinAnswer requires|^with-form: served and offered differ: JoinAnswer / };
   const servedWithoutKeyword = { mutateOsl: (osl) => { osl.info.description = swap(osl.info.description, 'A world MUST record every outcome.', 'A world should record every outcome.', 'wow-spec/schema.yaml info.description'); }, expect: /^served contract info\.description \(a world records every outcome\): .* has no key word/ };
   const buildNotRebuilt = { mutateGenerated: (doc) => { delete doc.components.schemas.UserJoin.required; }, expect: /^generated schema\.json UserJoin has no required list/ };
   const apiWithoutBcp14 = { edits: { four: { three: { two: { world: (p) => swap(p, '\n     The key words ', '\n-    The key words ', W2P) } } } }, expect: /^with-form: offered World API after iteration 5: \d+ key words and the BCP 14 paragraph 0 times/ };
+  const OPT_IN_START = '+    Joining. Joining is OPTIONAL for a world. A world that states who it is in its World resource (identity, its base URL) MUST also state the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A world that states no identity takes no joins, and the rules of this paragraph do not apply to it. ';
+  const EVERY_WORLD_START = '+    Joining. A world MUST state in its World resource who it is (identity, its base URL), the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). ';
+  const everyWorldMust = { edits: { [API]: (p) => swap(p, OPT_IN_START, EVERY_WORLD_START, W5P) }, expect: /^with-form: offered World API after iteration 5 joining paragraph: states identity, claims and issues as a rule for every world/ };
+  const servedEveryWorldMust = { mutateOsl: (osl) => { osl.info.description = swap(osl.info.description, OPT_IN_START.slice(5), EVERY_WORLD_START.slice(5), 'wow-spec/schema.yaml info.description'); }, expect: /^served contract joining paragraph: states identity, claims and issues as a rule for every world/ };
   const overlayReadmeWithoutBcp14 = { overlayReadme: (t) => swap(t, words.BCP14, 'Key words are used as defined elsewhere.', 'wow-spec/overlays/iteration-5/README.md'), expect: /^the iteration 5 overlay README\.md: \d+ key words and the BCP 14 paragraph 0 times/ };
 
-  await run('W3', 'the conformance vocabulary of iteration 5: the World API after iteration 5 carries the BCP 14 paragraph once; each normative sentence iteration 5 adds (the joining paragraph: identity, claims and issues stated, identity.base checked before anything is disclosed, only the claims asked for, the outcome, every outcome recorded, no permission granted, nothing about the visitor in a URL, nothing reused for another world; World.identity, World.claims, World.issues, POST /wow/user, UserJoin, JoinAnswer and its trust rule) uses a key word; World and World.identity keep no required member, UserJoin [manifest, proof], JoinAnswer [outcome, satisfied, not_satisfied], every claim item [name, required]; served equals offered equals built; on both GeoPose forms; every document with key words carries the BCP 14 paragraph once', async (impl) => {
+  await run('W3', 'the conformance vocabulary of iteration 5: the World API after iteration 5 carries the BCP 14 paragraph once; the joining paragraph makes joining opt-in (OPTIONAL for a world; a world that states identity MUST also state claims and issues; a world that states no identity takes no joins and the paragraph does not apply to it) and states no rule that every world states identity, claims and issues, offered on both forms and served; each normative sentence iteration 5 adds (the joining paragraph: joining optional, identity stated with claims and issues, identity.base checked before anything is disclosed, only the claims asked for, the outcome, every outcome recorded, no permission granted, nothing about the visitor in a URL, nothing reused for another world; World.identity, World.claims, World.issues, POST /wow/user, UserJoin, JoinAnswer and its trust rule; the pilot statement: a join without one not refused for that alone, recorded and shown as not stated, never treated as human) uses a key word; World and World.identity keep no required member, UserJoin [manifest, proof], JoinAnswer [outcome, satisfied, not_satisfied], every claim item [name, required]; served equals offered equals built; on both GeoPose forms; every document with key words carries the BCP 14 paragraph once', async (impl) => {
     const failures = [];
     const osl = up.yaml.load(up.read(path.join(ROOT, 'wow-spec', 'schema.yaml')));
     if (impl.mutateOsl) impl.mutateOsl(osl);
@@ -305,6 +391,7 @@ async function vocabularyCheck() {
       failures.push(...paragraphProblems(out.worldText, label, (out.world.info || {}).description));
       if (!words.hasBcp14((out.world.info || {}).description)) failures.push(label + ': no BCP 14 paragraph citing RFC 2119 and RFC 8174 in info.description');
       failures.push(...words.sentenceProblems(out.world, SENTENCES_I5, label));
+      failures.push(...optInProblems(out.world, label));
       failures.push(...words.requiredProblems(listedSchemas(out.world.components.schemas), REQUIRED_I5, label));
       for (const diff of words.requiredDiffs(listedSchemas(out.world.components.schemas), listedSchemas(osl.components.schemas), names)) failures.push(form + '-form: served and offered differ: ' + diff);
       if (form === 'with') count = words.keywordCount(SENTENCES_I5.map((e) => { try { return words.sentenceWith(e.text(out.world), e.anchor) || ''; } catch (error) { return ''; } }).join(' '));
@@ -315,6 +402,7 @@ async function vocabularyCheck() {
     failures.push(...paragraphProblems(overlayReadme, 'the iteration 5 overlay README.md'));
     // The served contract carries the same sentences with their key words, and its build the same lists.
     failures.push(...words.sentenceProblems(osl, SENTENCES_I5, 'served contract'));
+    failures.push(...optInProblems(osl, 'served contract'));
     failures.push(...words.requiredProblems(listedSchemas(osl.components.schemas), REQUIRED_I5, 'served contract'));
     failures.push(...words.requiredProblems(listedSchemas(generated.components.schemas), REQUIRED_I5, 'generated schema.json'));
     for (const diff of words.requiredDiffs(listedSchemas(osl.components.schemas), listedSchemas(generated.components.schemas), names)) failures.push('generated schema.json is not the served contract: ' + diff);
@@ -324,7 +412,7 @@ async function vocabularyCheck() {
       ok: failures.length === 0,
       detail: failures.length
         ? failures.length + ' problem(s): ' + failures.slice(0, 6).join('; ')
-        : 'the World API after iteration 5 carries the BCP 14 paragraph once on both forms; ' + SENTENCES_I5.length + ' normative sentences in the World API (' + (count || 0) + ' key words) each use one, offered on both forms and served; required lists: ' + Object.entries(REQUIRED_I5).map(([n, l]) => n + (l.length ? ' [' + l.join(', ') + ']' : ' none')).join(', ') + '; served = offered = built; the World API and the overlay README.md each carry the BCP 14 paragraph once',
+        : 'the World API after iteration 5 carries the BCP 14 paragraph once on both forms; the joining paragraph is opt-in (offered on both forms and served) and has no rule for every world; ' + SENTENCES_I5.length + ' normative sentences in the World API (' + (count || 0) + ' key words) each use one, offered on both forms and served; required lists: ' + Object.entries(REQUIRED_I5).map(([n, l]) => n + (l.length ? ' [' + l.join(', ') + ']' : ' none')).join(', ') + '; served = offered = built; the World API and the overlay README.md each carry the BCP 14 paragraph once',
     };
   }, {}, [
     { name: 'a joining sentence without a key word (the identity.base check)', impl: joiningWithoutKeyword },
@@ -338,6 +426,9 @@ async function vocabularyCheck() {
     { name: 'a World API with key words but no BCP 14 paragraph', impl: apiWithoutBcp14 },
     { name: 'an overlay README.md with key words but no BCP 14 paragraph', impl: overlayReadmeWithoutBcp14 },
     { name: 'a User.pilot sentence without a key word (hybrid shown as an agent)', impl: pilotWithoutKeyword },
+    { name: 'a UserJoin sentence without a key word (a join without a pilot statement not treated as human)', impl: unstatedWithoutKeyword },
+    { name: 'an offered joining paragraph with the old rule for every world ("A world MUST state in its World resource ...")', impl: everyWorldMust },
+    { name: 'a served joining paragraph with the old rule for every world ("A world MUST state in its World resource ...")', impl: servedEveryWorldMust },
   ]);
 }
 
@@ -387,11 +478,11 @@ function addedLines(rel, text) {
 
 async function neutralWordingCheck() {
   const fileEdit = (rel, from, to) => ({ [rel]: (t) => swap(t, from, to, 'wow-spec/overlays/' + rel) });
-  const universalManifest = { files: fileEdit('iteration-5/OpenSpatialWorld.API.yaml.patch', '+    Joining. A world', '+    Joining. As in the Universal Manifest, a world'), expect: /^iteration-5\/OpenSpatialWorld\.API\.yaml\.patch:\d+ names the Universal Manifest/ };
+  const universalManifest = { files: fileEdit('iteration-5/OpenSpatialWorld.API.yaml.patch', '+    Joining. Joining is OPTIONAL', '+    Joining. As in the Universal Manifest, joining is OPTIONAL'), expect: /^iteration-5\/OpenSpatialWorld\.API\.yaml\.patch:\d+ names the Universal Manifest/ };
   const labelInWithoutForm = { files: fileEdit('iteration-2/without-rotation-sentences/OpenSpatialWorld.API.yaml.patch', '+    Frames. All coordinates', '+    Frames (x-osl-overlay: iteration-2). All coordinates'), expect: /^iteration-2\/without-rotation-sentences\/OpenSpatialWorld\.API\.yaml\.patch:\d+ names an x-osl label/ };
   const labInReadme = { files: fileEdit('iteration-3/README.md', '\nNothing here has been sent upstream.', '\nNothing here has been sent upstream by the Open Spatial Lab.'), expect: /^iteration-3\/README\.md:\d+ names the Lab/ };
   const personInPatch = { files: fileEdit('iteration-4/OpenSpatialWorld.API.yaml.patch', 'A portal inside a preview MUST show closed.', 'A portal inside a preview MUST show closed, as Don Brutzman proposed.'), expect: /^iteration-4\/OpenSpatialWorld\.API\.yaml\.patch:\d+ names a person/ };
-  const openSpatials = { files: fileEdit('iteration-5/OpenSpatialWorld.API.yaml.patch', '+    Joining. A world', '+    Joining. As in OpenSpatials, a world'), expect: /^iteration-5\/OpenSpatialWorld\.API\.yaml\.patch:\d+ names OpenSpatials/ };
+  const openSpatials = { files: fileEdit('iteration-5/OpenSpatialWorld.API.yaml.patch', '+    Joining. Joining is OPTIONAL', '+    Joining. As in OpenSpatials, joining is OPTIONAL'), expect: /^iteration-5\/OpenSpatialWorld\.API\.yaml\.patch:\d+ names OpenSpatials/ };
 
   await run('W4', 'neutral wording: no added line of any overlay of iterations 1 to 5, in either GeoPose form (the lines each patch adds, and every line of each overlay README.md), names the Universal Manifest, OpenSpatials, the Lab (Open Spatial Lab, OSL), an x-osl label or a person', async (impl) => {
     const failures = [];

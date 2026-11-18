@@ -1,0 +1,263 @@
+--- a/specification/OpenSpatialWorld/API.yaml
++++ b/specification/OpenSpatialWorld/API.yaml
+@@ -15,7 +15,8 @@
+     Portal events. When a visitor uses a portal, a world that offers an event stream MUST send portal_activate on it, once for each crossing and before the visitor navigates. The event MUST carry portalId (the id of the portal) and userId (the id of the user who crosses), besides type, revision, time and urls, as the PortalActivate schema lists them; its urls name wow/world, which reports the revision.\n\n\
+     Joining. Joining is OPTIONAL for a world. A world that states who it is in its World resource (identity, its base URL) MUST also state the claims it asks a visitor for (claims, each claim name marked required or optional) and the credential types it issues (issues, which MAY be empty). A world that states no identity takes no joins, and the rules of this paragraph do not apply to it. A visitor's agent MUST read the World resource from the base URL it is about to post to. Before it discloses anything, it MUST check that identity.base is that base URL. Only then MAY it join with POST /wow/user. The join MUST carry only the claims the world asks for, in a signed manifest, with a holder proof made for this world and this visit. How claims are proven is given by reference. The answer MUST state the outcome (proceed, proceed-in-part or deny) and which of the claims the world asked for were satisfied and which were not. A world MUST record every outcome. The answer MUST NOT grant a permission. Claim values, and anything else about the visitor, MUST NOT appear in a URL. The pointer (the manifest's subject), the signatures, the holder proof and its nonce are made for one world and one visit and MUST NOT be reused for another world; the claim values a world asks for are disclosed to that world.\n\n\
+     Following. A page opened at a world's URL with the fragment #follow MUST join that world as a new or existing user, as a page opened at that URL does. The fragment's verb MUST be matched case-insensitively. With #follow=user.{id} the client MUST place the visitor at the node that places that user (User.node) and MUST keep the visitor there while that user moves. When that user is no longer present, the client SHOULD stop following and leave the visitor where it stands.\n\n\
+-    Departing. DELETE /wow/user/{userId} MUST end that user's visit: afterwards that user MUST no longer be present. A world that offers an event stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of that user's join outcome."
++    Departing. DELETE /wow/user/{userId} MUST end that user's visit: afterwards that user MUST no longer be present. A world that offers an event stream MUST send user_left for that user on it, once. The world MUST NOT remove the record of that user's join outcome.\n\n\
++    Authorization. A world MAY require a token for its requests. A world that does MUST name its authorization servers in protected resource metadata (RFC 9728) at the address derived from its base URL, {origin}/.well-known/oauth-protected-resource{path prefix}, and a client MUST use that metadata only when its resource equals that base URL. Each token MUST be bound to one world: its audience is the world's base URL (RFC 8707), and a world MUST refuse a token whose audience is not exactly its own base URL, also when the base URL of another world on the same origin starts with its own. A world MUST keep its own grant records. Each names a subject, a scope and the resource it covers, and MAY expire or be withdrawn. A world MUST allow a request only when the token's scopes, and the grant records the world holds for the token's subject when the request arrives, cover it, so that a withdrawn grant refuses the holder's next request. The scope of each request is read for GET and HEAD of the World, User, View, Portal, Spatial and Node resources, observe for the event stream, write for node POST, PUT and DELETE, and enter for joining (POST /wow/user) and leaving (DELETE /wow/user/{userId}, own user only). A write grant MUST name one node, or the whole world, and a write grant on one node MUST NOT cover another node; observe and enter grants MUST cover the whole world. GET /wow/user/{userId} MUST need a read grant that names the world's User resources: a read grant for the rest of the world does not cover them. A world MUST NOT show people to a reader without that grant: user_joined and user_left reach such an observer without user ids, with their revision, and every other path that lists people leaves them out. A request with no token MUST be answered 401 with WWW-Authenticate: Bearer and no error code. An expired token, or a token for another world, MUST be answered 401 with error=\"invalid_token\". A token whose grants do not cover the request MUST be answered 403 with error=\"insufficient_scope\" (RFC 6750, sections 3 and 3.1). The error code MUST be in the WWW-Authenticate header, not only in a body. The 401 answer MUST NOT carry resource_metadata, because RFC 9728, section 3.3 would then require the metadata's resource to equal the request's own URL, which differs from the base URL for every resource below it. On POST /wow/user a 403 with error=\"insufficient_scope\" is that refusal, not a deny. The answer of a join MUST name the scopes granted (JoinAnswer.scope), and they MUST equal the grant records the world holds for that visitor. A world MAY also issue tokens by token exchange (RFC 8693) at its token endpoint: the token of the party acted for is the subject token, a token of the acting party is the actor token, and the issued token is bound to the world as any other. A world MUST issue such a token only when one of its grant records lets the acting party act for that party, and the token MUST carry the act claim, the current actor outermost and each earlier actor nested in it (RFC 8693, section 4.1). For a token with an act claim, a world MUST decide on the grant records of the current actor, not those of the subject, and MUST log the subject and every actor of the chain with each decision. A grant record that lets a party act for another MUST NOT cover the requests that party makes with its own token, so a host that includes a world MUST write into it only with a token that world issued by exchange, with the viewer's token as the subject and the host, named by its base URL, as the actor. A world MUST accept as a subject token only a token of its own authorization server, or of an issuer it lists as trusted whose token names as its audience the world's base URL or the acting party, and MUST refuse any other with error=\"invalid_request\" (RFC 8693, section 2.2.2), also from an issuer it has stopped trusting. On the event stream the token MUST be the first message, as the stream authentication paragraph says, because a browser cannot add a header to a WebSocket. A world MUST close the stream of a holder whose observe grant is withdrawn, or whose token expires, within 5 seconds. A token MUST NOT appear in a URL, and a world MUST NOT accept one there. The token URLs of the oauth2 scheme are relative to the world's base URL, or name the server its metadata gives, since each world names its own authorization server. Outside test environments a world MUST be served over HTTPS. Sender-constrained tokens (DPoP, RFC 9449) are the next step; they are not yet required."
+   version: '0.0.1'
+ 
+ servers:
+@@ -50,6 +51,8 @@
+       operationId: getWorldStatus
+       parameters:
+         - $ref: '#/components/parameters/IfNoneMatch'
++      security:
++        - worldAuth: [read]
+       responses:
+         "200": # status code
+           description: "world summary"
+@@ -67,6 +70,10 @@
+                 $ref: "#/components/schemas/World"    
+         "304":
+           $ref: '#/components/responses/NotModified'
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+ 
+ #--- User ---
+   /wow/user/{userId}:
+@@ -82,6 +89,8 @@
+           required: true
+           schema:
+             type: integer
++      security:
++        - worldAuth: [read]
+       responses:
+         "200": # status code
+           description: "world summary"
+@@ -92,6 +101,10 @@
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/User"
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+     delete:
+       tags:
+         - user
+@@ -108,11 +121,17 @@
+           required: true
+           schema:
+             type: integer
++      security:
++        - worldAuth: [enter]
+       responses:
+         '200':
+           description: User deleted
+         '400':
+           description: Invalid user value
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+         default:
+           description: Unexpected error
+   /wow/user:
+@@ -134,6 +153,8 @@
+           application/json:
+             schema:
+               $ref: '#/components/schemas/UserJoin'
++      security:
++        - worldAuth: [enter]
+       responses:
+         '201':
+           description: proceed or proceed-in-part; the visitor is now a User of this world
+@@ -157,6 +178,8 @@
+                 $ref: '#/components/schemas/JoinAnswer'
+         '404':
+           description: this world takes no joins
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+ 
+ #--- View ---
+   /wow/view/{viewId}:
+@@ -172,6 +195,8 @@
+           required: true
+           schema:
+             type: integer
++      security:
++        - worldAuth: [read]
+       responses:
+         "200": # status code
+           description: "world summary"
+@@ -182,6 +207,10 @@
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/View"
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+ 
+ #--- Portal ---
+   /wow/portal/{portalId}:
+@@ -197,6 +226,8 @@
+           required: true
+           schema:
+             type: integer
++      security:
++        - worldAuth: [read]
+       responses:
+         "200": # status code
+           description: "world summary"
+@@ -207,6 +238,10 @@
+             application/json:             
+               schema:
+                 $ref: "#/components/schemas/Portal"        
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+ 
+ #--- Spatial Composition Graph      
+ 
+@@ -225,6 +260,8 @@
+           schema:
+             type: integer
+         - $ref: '#/components/parameters/IfNoneMatch'
++      security:
++        - worldAuth: [read]
+       responses:
+         "200": # status code
+           description: "world summary"
+@@ -242,6 +279,10 @@
+                 $ref: "#/components/schemas/Spatial"    
+         "304":
+           $ref: '#/components/responses/NotModified'
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+   
+ 
+   /wow/spatial/{spatialID}/node/{nodeId}:
+@@ -277,6 +318,8 @@
+               type: array
+               items:
+                 $ref: "#/components/schemas/Node"    
++      security:
++        - worldAuth: [write]
+       responses:
+         '200':
+           description: successful operation
+@@ -291,6 +334,10 @@
+                 type: array
+                 items:
+                   $ref: '#/components/schemas/Node'
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+         default:
+           description: Unexpected error
+     get:
+@@ -312,6 +359,8 @@
+           schema:
+             type: integer
+         - $ref: '#/components/parameters/IfNoneMatch'
++      security:
++        - worldAuth: [read]
+       responses:
+         "200": # status code
+           description: "world summary"
+@@ -329,6 +378,10 @@
+                 $ref: "#/components/schemas/Node"    
+         "304":
+           $ref: '#/components/responses/NotModified'
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+     put:
+       tags:
+         - Spatial Composition Graph
+@@ -358,6 +411,8 @@
+             schema:
+                 $ref: "#/components/schemas/Node"    
+         required: true
++      security:
++        - worldAuth: [write]
+       responses:
+         '200':
+           description: Successful operation
+@@ -376,6 +431,10 @@
+           $ref: '#/components/responses/PreconditionFailed'
+         '422':
+           description: Validation exception
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+         default:
+           description: Unexpected error
+     delete:
+@@ -397,6 +456,8 @@
+           schema:
+             type: integer
+         - $ref: '#/components/parameters/IfMatch'
++      security:
++        - worldAuth: [write]
+       responses:
+         '200':
+           description: node deleted
+@@ -404,6 +465,10 @@
+           description: Invalid node value
+         '412':
+           $ref: '#/components/responses/PreconditionFailed'
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
++        '403':
++          description: the grants of the token do not cover this request (WWW-Authenticate, error insufficient_scope)
+         default:
+           description: Unexpected error
+ 
+@@ -412,6 +477,21 @@
+ #------------------
+ 
+ components:
++  securitySchemes:
++    worldAuth:
++      type: oauth2
++      description: >-
++        OAuth 2.0 bearer tokens, each bound to one world, as the Authorization paragraph of the World API describes.
++        The token URL is relative to the world's base URL; a client may instead use the token endpoint of the
++        authorization server that the world's protected resource metadata names.
++      flows:
++        clientCredentials:
++          tokenUrl: oauth/token
++          scopes:
++            read: GET and HEAD of the resources
++            observe: the event stream
++            write: node POST, PUT and DELETE
++            enter: joining (POST /wow/user) and leaving (DELETE /wow/user/{userId}, own user only)
+   parameters:
+     IfNoneMatch:
+       name: If-None-Match
+@@ -759,6 +839,12 @@
+         user:
+           type: string
+           description: The User the visitor now is, relative to the world's base URL (not on deny).
++        scope:
++          type: string
++          description: >-
++            The scopes the world grants the visitor, space-delimited, each once, from read, observe, write and enter.
++            They MUST equal the grant records the world holds for that visitor. A world that requires no token MAY
++            leave it out.
+ 
+     Spatial: 
+       type: object

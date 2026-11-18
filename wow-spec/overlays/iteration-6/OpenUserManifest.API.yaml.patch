@@ -1,0 +1,52 @@
+--- a/specification/OpenUserManifest/API.yaml
++++ b/specification/OpenUserManifest/API.yaml
+@@ -1,4 +1,4 @@
+-openapi: '3.0.3'
++openapi: '3.0.4'
+ info:
+   title: OpenUserManifest API
+   contact:
+@@ -17,6 +17,8 @@
+       description: Used to authorize resources and simultaneously check whether ETag still matches cached ETag.
+       tags:
+         - Authorize and validate access 
++      security:
++        - worldAuth: [read]
+       responses:
+         '200':
+           description: User has access to this resource. Any other response is regarded as being unauthorized. Redirects are not followed.
+@@ -29,8 +31,12 @@
+           description: Forbidden. User does not have authorization to view this resource.
+         '404':
+           description: Not Found. Element does not exist or user does not have authorization to know whether this resource exists or not.
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+     get:
+       summary: Returns a user manifest as a single data state 
++      security:
++        - worldAuth: [read]
+       responses:
+         "200": # status code
+           description: "asset state and summary"
+@@ -44,7 +50,21 @@
+           description: Forbidden.
+         '404':
+           description: Not Found.
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+ components:
++  securitySchemes:
++    worldAuth:
++      type: oauth2
++      description: >-
++        OAuth 2.0 bearer tokens, each bound to one world, as the Authorization paragraph of the World API describes.
++        The token URL is relative to the world's base URL; a client may instead use the token endpoint of the
++        authorization server that the world's protected resource metadata names.
++      flows:
++        clientCredentials:
++          tokenUrl: oauth/token
++          scopes:
++            read: GET and HEAD of the resources
+   schemas:
+     UserManifest:
+       type: object

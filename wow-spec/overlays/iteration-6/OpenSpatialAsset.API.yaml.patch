@@ -1,0 +1,68 @@
+--- a/specification/OpenSpatialAsset/API.yaml
++++ b/specification/OpenSpatialAsset/API.yaml
+@@ -1,4 +1,4 @@
+-openapi: '3.0.3'
++openapi: '3.0.4'
+ info:
+   title: OpenSpatialAsset API
+   description: >-
+@@ -22,6 +22,8 @@
+       description: Used to authorize resources and simultaneously check whether ETag still matches cached ETag.
+       tags:
+         - Authorize and validate access 
++      security:
++        - worldAuth: [read]
+       responses:
+         '200':
+           description: User has access to this resource. Any other response is regarded as being unauthorized. Redirects are not followed.
+@@ -34,10 +36,14 @@
+           description: Forbidden. User does not have authorization to view this resource.
+         '404':
+           description: Not Found. Element does not exist or user does not have authorization to know whether this resource exists or not.
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+     get:
+       description: Used to negotiate and fetch a data instance as resources.
+       tags:
+         - Asset content provisioning
++      security:
++        - worldAuth: [read]
+       responses:
+         '200':
+           description: Success. See the examples below for a full list of possible Content-Types to return.
+@@ -161,9 +167,13 @@
+               schema:
+                 type: string
+                 format: xml-data
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+   /wow/asset:
+     get:
+       summary: Returns a asset status as a single data state 
++      security:
++        - worldAuth: [read]
+       responses:
+         "200": # status code
+           description: "asset state and summary"
+@@ -177,7 +187,21 @@
+           description: Forbidden.
+         '404':
+           description: Not Found.
++        '401':
++          description: no token, or a token that is expired or was issued for another world (WWW-Authenticate)
+ components:
++  securitySchemes:
++    worldAuth:
++      type: oauth2
++      description: >-
++        OAuth 2.0 bearer tokens, each bound to one world, as the Authorization paragraph of the World API describes.
++        The token URL is relative to the world's base URL; a client may instead use the token endpoint of the
++        authorization server that the world's protected resource metadata names.
++      flows:
++        clientCredentials:
++          tokenUrl: oauth/token
++          scopes:
++            read: GET and HEAD of the resources
+   schemas:
+     GeoPose:
+       description: >-

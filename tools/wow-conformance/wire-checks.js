@@ -13,8 +13,15 @@
  *   eventsWire          i3 W2   World.revision, services.events, the context, and node_updated on a data point
  *   placementWire       i4 W2   Portal, User and View nodes, World.preview, the preview URL, portal_activate
  *   portalActivateWire  i4 P10  one portal_activate per crossing, before navigation and before the departure
- *   joinWire            i5 W2   identity, claims and issues; POST /wow/user (201 and 403); user_joined, user_left; pilot
+ *   joinWire            i5 W2   identity, claims and issues; POST /wow/user (201 and 403); user_joined, user_left; pilot;
+ *                               a join without a pilot statement proceeds and its User reads pilot "unstated"
  *   departWire          i5 SE2  DELETE /wow/user/{id}: the User answers 404, one user_left, the join record stays
+ *   authWire            i6 G1   protected resource metadata at the derived address with resource = the base URL; 401 with
+ *                               WWW-Authenticate: Bearer and no error code (no resource_metadata); 401 invalid_token; no
+ *                               token taken from a URL; with a client: a token from the metadata's authorization server
+ *                               works, and a request outside its grants answers 403 insufficient_scope. Run by arch-i6 W2,
+ *                               and by runWireSuite (i6:G1) on a world that serves protected resource metadata; N/A on
+ *                               a world that serves none (iteration 6 authorization is opt-in)
  *
  * runWireSuite runs them all against one world, as the corpus does. It reads only, with two exceptions: node
  * writes, sent only when the caller asks for them (--writes), and a join with its DELETE, sent only when the
@@ -461,7 +468,9 @@ async function portalActivateWire(base, opts)
  * (each a list of claim names kept back), posted with opts.agent (web/wow-handshake.mjs), answers with a JoinAnswer
  * that validates; the statuses are opts.expectStatuses (e.g. '201,403'); the proceeding join's User carries the
  * pilot it stated; the proceeding join sends one user_joined and the others none; DELETE of that User sends one
- * user_left. opts.requireValidationHeader: judge only by the server's X-OSL-WoW-Validation; otherwise, when the
+ * user_left. Then a join with every wallet claim and no pilot member (as a client that predates the pilot statement
+ * sends it) MUST proceed (201), and GET /wow/user/{id} of its User MUST read pilot "unstated" (never "human"); that
+ * User is then deleted. opts.requireValidationHeader: judge only by the server's X-OSL-WoW-Validation; otherwise, when the
  * world sends none, this suite validates the body with opts.validator.
  * Returns { problems, skipped, statuses, wire }.
  */
@@ -525,6 +534,24 @@ async function joinWire(base, opts)
             else if (Number(downs[0].userId) !== id) problems.push('user_left carries userId ' + downs[0].userId + ', not ' + id);
             wire = 'GET /wow/user/' + id + ' with pilot "' + (userRes.json && userRes.json.pilot) + '" (' + userVerdict.text + '), user_joined for user ' + id + ' (revision ' + (ups[0] && ups[0].revision) + '), none for the deny, and user_left for ' + id + ' after DELETE (revision ' + (downs[0] && downs[0].revision) + ')';
         }
+        // A join without a pilot statement (a client that predates it): it proceeds, and its User reads pilot "unstated".
+        {
+            const body = await hs.presentation({ values: Object.assign({}, opts.wallet.claims), key: await hs.visitKey(), audience: base + '/', pilot });
+            delete body.pilot;
+            const r = await request('POST', base + '/wow/user', body, { Accept: WOW });
+            const a = r.json || {};
+            const made = /^wow\/user\/(\d+)$/.exec(a.user || '');
+            if (r.status !== 201 || !made) problems.push('a join without a pilot statement answered ' + r.status + ' ' + a.outcome + ' "' + (a.reason || '') + '", not 201 with a User');
+            else {
+                const uid = Number(made[1]);
+                const u = await request('GET', base + '/wow/user/' + uid, null, { Accept: WOW });
+                const uv = verdictOf(u, 'OSLUserResponse', opts);
+                if (u.status !== 200 || !u.json || u.json.pilot !== 'unstated') problems.push('a join without a pilot statement: GET /wow/user/' + uid + ' answered ' + u.status + ' with pilot ' + JSON.stringify(u.json && u.json.pilot) + ', not "unstated"');
+                else if (!uv.pass) problems.push('a join without a pilot statement: GET /wow/user/' + uid + ' validates as ' + uv.text);
+                else wire += '; a join without a pilot statement: 201, GET /wow/user/' + uid + ' with pilot "unstated" (' + uv.text + ')';
+                await request('DELETE', base + '/wow/user/' + uid, null, { Accept: WOW });
+            }
+        }
         return { problems, skipped, statuses, wire };
     } finally {
         stream.close();
@@ -583,6 +610,98 @@ async function departWire(base, opts)
     }
 }
 
+// ---- i6 G1 ------------------------------------------------------------------------------------------------
+
+const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange';
+const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
+
+/** Where a world's protected resource metadata is (RFC 9728 §3.1): {origin}/.well-known/oauth-protected-resource{path prefix}. */
+function resourceMetadataUrl(base)
+{
+    const u = new URL(trim(base) + '/');
+    return u.origin + '/.well-known/oauth-protected-resource' + u.pathname.replace(/\/+$/, '');
+}
+
+/** One parameter of a WWW-Authenticate challenge, or null. */
+function challengeParam(header, name)
+{
+    const m = new RegExp('(?:^|[\\s,])' + name + '="([^"]*)"').exec(String(header || ''));
+    return m ? m[1] : null;
+}
+
+/**
+ * i6 G1 on the wire, against a world that requires a token: its protected resource metadata, at the address derived
+ * from its base URL, names the base URL as its resource and an authorization server; a request with no token answers
+ * 401 with WWW-Authenticate: Bearer, no error code and no resource_metadata; a token that is not one of its own answers
+ * 401 with error="invalid_token" in WWW-Authenticate; a token in a URL is not accepted. With opts.client
+ * ({ client_id, client_secret }, a client the world knows), a token from the metadata's authorization server (client
+ * credentials, with the base URL as resource) reads the World, and a request that needs opts.deniedScope (write, a
+ * scope the client is not granted) answers 403 with error="insufficient_scope". When the authorization server's
+ * metadata lists token exchange (RFC 8693), an exchange whose subject token comes from an issuer the world does not
+ * trust, with the client's token as the actor token, answers 400 with error="invalid_request" (RFC 8693 §2.2.2).
+ * Returns { problems, skipped, detail }.
+ */
+async function authWire(base, opts)
+{
+    base = trim(base);
+    opts = opts || {};
+    const problems = [];
+    const skipped = [];
+    const seen = [];
+    const metaUrl = resourceMetadataUrl(base);
+    const meta = await request('GET', metaUrl, null);
+    if (meta.status !== 200 || !meta.json) return { problems: [ metaUrl + ' answered ' + meta.status ], skipped, detail: '' };
+    if (meta.json.resource !== base + '/') problems.push('the metadata\'s resource is ' + JSON.stringify(meta.json.resource) + ', not the base URL ' + base + '/');
+    const servers = Array.isArray(meta.json.authorization_servers) ? meta.json.authorization_servers : [];
+    if (!servers.length) problems.push('the metadata names no authorization server');
+    seen.push('metadata at ' + new URL(metaUrl).pathname + ' with resource ' + meta.json.resource);
+    const none = await request('GET', base + '/wow/world', null, { Accept: WOW });
+    const h0 = String(none.headers['www-authenticate'] || '');
+    if (none.status !== 401 || !/^Bearer\b/.test(h0) || /\berror=/.test(h0)) problems.push('no token: ' + none.status + ' WWW-Authenticate ' + JSON.stringify(h0) + ', not 401 Bearer with no error code');
+    if (/resource_metadata/.test(h0)) problems.push('the 401 carries resource_metadata');
+    const bad = await request('GET', base + '/wow/world', null, { Accept: WOW, Authorization: 'Bearer eyJhbGciOiJFZERTQSJ9.e30.bm90LWEtc2lnbmF0dXJl' });
+    if (bad.status !== 401 || challengeParam(bad.headers['www-authenticate'], 'error') !== 'invalid_token') problems.push('a token that is not the world\'s own: ' + bad.status + ' WWW-Authenticate ' + JSON.stringify(bad.headers['www-authenticate']));
+    const inUrl = await request('GET', base + '/wow/world?access_token=stand-in-not-a-token', null, { Accept: WOW });
+    if (inUrl.status >= 200 && inUrl.status < 300) problems.push('a token in a URL was accepted (' + inUrl.status + ')');
+    seen.push('no token 401 Bearer with no error code; a foreign token 401 invalid_token; a token in a URL ' + inUrl.status);
+    if (!opts.client) {
+        skipped.push('a token from the authorization server, and a 403 insufficient_scope: no client of this world was given');
+        return { problems, skipped, detail: seen.join('; ') };
+    }
+    const as = new URL(servers[0] || 'http://invalid/');
+    const asMeta = await request('GET', as.origin + '/.well-known/oauth-authorization-server' + as.pathname.replace(/\/+$/, ''), null);
+    const endpoint = asMeta.json && asMeta.json.token_endpoint;
+    if (asMeta.status !== 200 || !endpoint) { problems.push('the authorization server metadata answered ' + asMeta.status); return { problems, skipped, detail: seen.join('; ') }; }
+    // RFC 6749 §2.3.1: the client id and secret are form-urlencoded before HTTP Basic.
+    const basic = 'Basic ' + Buffer.from(encodeURIComponent(opts.client.client_id) + ':' + encodeURIComponent(opts.client.client_secret)).toString('base64');
+    const tok = await request('POST', endpoint, 'grant_type=client_credentials&resource=' + encodeURIComponent(base + '/'), { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: basic });
+    const token = tok.json && tok.json.access_token;
+    if (tok.status !== 200 || !token) { problems.push('the token endpoint answered ' + tok.status + ' ' + tok.body.slice(0, 120)); return { problems, skipped, detail: seen.join('; ') }; }
+    const ok = await request('GET', base + '/wow/world', null, { Accept: WOW, Authorization: 'Bearer ' + token });
+    if (ok.status !== 200) problems.push('the World with the token answered ' + ok.status);
+    if (opts.deniedScope === 'write') {
+        const w = await request('POST', base + '/wow/spatial/1/node/0', [], { Accept: WOW, Authorization: 'Bearer ' + token });
+        if (w.status !== 403 || challengeParam(w.headers['www-authenticate'], 'error') !== 'insufficient_scope') problems.push('a write without the write grant: ' + w.status + ' WWW-Authenticate ' + JSON.stringify(w.headers['www-authenticate']));
+        seen.push('a token from ' + endpoint + ' (scope ' + tok.json.scope + ') reads the World (' + ok.status + ') and a write answers ' + w.status + ' ' + challengeParam(w.headers['www-authenticate'], 'error'));
+    } else {
+        skipped.push('a 403 insufficient_scope: no scope the client lacks was named');
+        seen.push('a token from ' + endpoint + ' reads the World (' + ok.status + ')');
+    }
+    const grantTypes = (asMeta.json && asMeta.json.grant_types_supported) || [];
+    if (grantTypes.includes(TOKEN_EXCHANGE)) {
+        const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+        const now = Math.floor(Date.now() / 1000);
+        const stranger = b64({ alg: 'EdDSA', typ: 'at+jwt' }) + '.' + b64({ iss: 'https://issuer.invalid/', aud: base + '/', sub: 'stand-in', scope: 'read', iat: now, exp: now + 60 }) + '.' + Buffer.alloc(64).toString('base64url');
+        const form = new URLSearchParams({ grant_type: TOKEN_EXCHANGE, subject_token: stranger, subject_token_type: ACCESS_TOKEN_TYPE, actor_token: token, actor_token_type: ACCESS_TOKEN_TYPE, resource: base + '/' });
+        const ex = await request('POST', endpoint, form.toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
+        if (ex.status !== 400 || !ex.json || ex.json.error !== 'invalid_request') problems.push('a token exchange from an issuer the world does not trust: ' + ex.status + ' ' + String(ex.body).slice(0, 120) + ', not 400 invalid_request');
+        seen.push('a token exchange whose subject token comes from an untrusted issuer answers ' + ex.status + ' ' + (ex.json && ex.json.error));
+    } else {
+        skipped.push('token exchange: the authorization server metadata does not list it');
+    }
+    return { problems, skipped, detail: seen.join('; ') };
+}
+
 // ---- the suite, against one world -------------------------------------------------------------------------
 
 /** The visitor the corpus joins as: a test wallet. Only the claims a world asks for are sent. */
@@ -599,11 +718,17 @@ const SUITE = [
     { id: 'i4:P10', title: 'one portal_activate per crossing, before navigation and before the departure' },
     { id: 'i5:W2', title: 'identity, claims and issues; POST /wow/user (201 and 403); user_joined, user_left; the pilot on the User' },
     { id: 'i5:SE2', title: 'DELETE /wow/user/{id} ends the visit: the User answers 404, one user_left, the join record stays' },
+    { id: 'i6:G1', title: 'protected resource metadata (resource = the base URL), 401 Bearer with no error code, 401 invalid_token, no token from a URL' },
 ];
 
-/** The verdict of one check: FAIL on any problem; PASS only when nothing was skipped; PARTIAL or SKIP otherwise. */
+/**
+ * The verdict of one check: N/A (not applicable: the check does not apply to this world, entry.reason says why; never
+ * a failure, never a pass, and separate from SKIP); FAIL on any problem; PASS only when nothing was skipped; PARTIAL
+ * or SKIP otherwise.
+ */
 function verdict(entry)
 {
+    if (entry.notApplicable) return 'N/A';
     if (entry.problems.length) return 'FAIL';
     if (!entry.skipped.length) return 'PASS';
     return entry.ran ? 'PARTIAL' : 'SKIP';
@@ -612,7 +737,8 @@ function verdict(entry)
 /**
  * Run every collected wire check against the world at `base`.
  * opts: validator (wow-spec/validate.js), writes (node writes allowed), labCrossing (drive crossings through the
- * Lab's extension endpoints; needs writes). Returns { base, checks: [{ id, title, verdict, problems, skipped }], ok }.
+ * Lab's extension endpoints; needs writes). Returns { base, checks: [{ id, title, verdict, problems, skipped, reason? }], ok };
+ * reason is set on an N/A check and says why the check does not apply.
  */
 async function runWireSuite(base, opts)
 {
@@ -626,9 +752,11 @@ async function runWireSuite(base, opts)
         try { await fn(entry); } catch (error) { entry.problems.push('threw: ' + String((error && error.message) || error)); }
         entry.verdict = verdict(entry);
         delete entry.ran;
+        delete entry.notApplicable;
         checks.push(entry);
     };
     const take = (entry, r) => { entry.problems.push(...r.problems); entry.skipped.push(...(r.skipped || [])); };
+    const notApplicable = (entry, reason) => { entry.notApplicable = true; entry.reason = reason; };
 
     const world = (await getWow(base, '/wow/world')).json || {};
     const eventsUrl = base + '/' + ((world.services && world.services.events) || 'events');
@@ -640,6 +768,11 @@ async function runWireSuite(base, opts)
             : portalId === null ? 'the world serves no portal 1 to cross' : null;
     const crossing = crossingReason ? null : async () => { await labJoin(base, 'corpus-w2-visitor'); await labExitIntent(base, portalId, 'corpus-w2-visitor'); };
 
+    // Iteration 5 is opt-in: its checks run only when the World states an identity. A world that states none gets
+    // N/A for each (never FAIL, never PASS). A World that states an identity runs them, so a malformed identity,
+    // claims or issues is still a FAIL.
+    const iteration5 = world.identity !== undefined && world.identity !== null;
+    const i5Reason = 'the World states no identity: iteration 5 joining is opt-in';
     // Joins: the World says the world takes them when it states its identity and its claims.
     const takesJoins = !!(world.identity && typeof world.identity.base === 'string' && Array.isArray(world.claims));
     const asked = takesJoins ? world.claims.filter((c) => c && typeof c.name === 'string') : [];
@@ -671,6 +804,7 @@ async function runWireSuite(base, opts)
         e.skipped.push('before navigation: this suite is no client and does not navigate, so the time of navigation is not measured');
     });
     await one('i5:W2', async (e) => {
+        if (!iteration5) return notApplicable(e, i5Reason);
         const required = asked.filter((c) => c.required === true).map((c) => c.name);
         const deny = required.length ? [ required[0] ] : null;
         const r = await joinWire(base, {
@@ -682,17 +816,28 @@ async function runWireSuite(base, opts)
         take(e, r);
     });
     await one('i5:SE2', async (e) => {
+        if (!iteration5) return notApplicable(e, i5Reason);
         if (joinReason) { e.ran = false; e.skipped.push('a join and its DELETE: ' + joinReason); return; }
         const r = await departWire(base, { agent, wallet, eventsUrl });
         if (r.fatal) e.problems.push(r.fatal);
         take(e, r);
     });
 
+    // Iteration 6 is opt-in: its wire half runs only when the world serves protected resource metadata at the address
+    // derived from its base URL. A world that serves none gets N/A (never FAIL, never PASS). The suite holds no client of
+    // the world, so the token and the 403 parts are skips (PARTIAL at best), never passes.
+    await one('i6:G1', async (e) => {
+        const meta = await request('GET', resourceMetadataUrl(base), null);
+        if (meta.status !== 200) return notApplicable(e, 'the world serves no protected resource metadata: iteration 6 authorization is opt-in');
+        take(e, await authWire(base, {}));
+    });
+
+    // N/A and SKIP are not failures; only FAIL is.
     return { base, checks, ok: checks.every((c) => c.verdict !== 'FAIL') };
 }
 
 module.exports = {
     WOW, IDENTITY, request, openEventStream, requiredOf, until, sleep, worldDoc, getWow, labJoin, labExitIntent,
     u3Wire, o2Wire, eventsWire, placementWire, previewAlternativeProblems, previewProblems, portalActivateWire,
-    joinWire, departWire, runWireSuite, SUITE,
+    joinWire, departWire, authWire, resourceMetadataUrl, runWireSuite, SUITE,
 };

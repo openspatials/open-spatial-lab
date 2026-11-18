@@ -30,6 +30,13 @@
 //   - The included world's environment does not apply to the host: an included model loses its
 //     directional, hemisphere and ambient lights and its cameras; its point and spot lights stay.
 //
+//   - Iteration 7, a running world inside a world: an included world stays the authority for its own state.
+//     The host's client reads and follows it with the token the viewer holds for that world (`token`, a function
+//     of the world's base URL), acts on it by writing to the node's URL at that world with If-Match, keeps a
+//     refused write as a refusal without changing what it shows, shows "unreachable" while the world does not
+//     answer and resumes its stream from the last revision when it answers again, and shows that world's user
+//     events as the world sends them to this viewer (with a user id only when the world shows people to it).
+//
 // PURE: no DOM and no three.js import; `fetch` is passed in. It runs in Node for the iteration 2
 // proof (npm run arch-i2-proof) and in the browser for the `?wow=` player.
 
@@ -87,6 +94,15 @@ export function resolveReference(reference, baseUrl) {
     return null;
   }
   return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+}
+
+/**
+ * The Authorization header for a request to `url` (iteration 7): `token` is a token, or a function of the world's
+ * base URL that gives the token this viewer holds for that world (none for a public world).
+ */
+export function bearerFor(token, url) {
+  const value = typeof token === "function" ? token(worldBaseOf(url)) : token;
+  return value ? { Authorization: `Bearer ${value}` } : {};
 }
 
 // 4x4 column-major matrices (the API's localTransform layout).
@@ -165,6 +181,7 @@ export function createWowReader(opts = {}) {
     const kept = cache.get(url);
     if (kept && !revalidate) return { ...kept, fromCache: true };
     const headers = { Accept: accept, ...(opts.headers || {}) };
+    Object.assign(headers, bearerFor(opts.token, url));
     if (kept && kept.etag) headers["If-None-Match"] = kept.etag;
     stats.requests += 1;
     let response;
@@ -201,7 +218,7 @@ export function createWowReader(opts = {}) {
   async function head(url) {
     stats.requests += 1;
     try {
-      const response = await fetchImpl(url, { method: "HEAD", headers: { Accept: accept, ...(opts.headers || {}) }, cache: "no-store" });
+      const response = await fetchImpl(url, { method: "HEAD", headers: { Accept: accept, ...(opts.headers || {}), ...bearerFor(opts.token, url) }, cache: "no-store" });
       log.push({ url, status: response.status, method: "HEAD" });
       return { url, status: response.status, type: response.headers.get("content-type") || "" };
     } catch (error) {
@@ -263,7 +280,7 @@ function spatialUrlOfWorld(worldUrl, id) {
  *   - cycles: the cycles found, each with its path.
  */
 export async function composeInclusions(hostUrl, opts = {}) {
-  const reader = opts.reader || createWowReader({ fetch: opts.fetch });
+  const reader = opts.reader || createWowReader({ fetch: opts.fetch, token: opts.token });
   const nestingLimit = Number.isInteger(opts.nestingLimit) ? opts.nestingLimit : DEFAULT_NESTING_LIMIT;
   const budget = Number.isInteger(opts.budget) ? opts.budget : DEFAULT_BUDGET;
   const revalidate = !!opts.revalidate;
@@ -339,6 +356,8 @@ export async function composeInclusions(hostUrl, opts = {}) {
       graphLocal: multiply(parentGraphLocal, local),
       world: multiply(parentWorld, local),
       spatialAssetURI: typeof node.spatialAssetURI === "string" ? node.spatialAssetURI : null,
+      // Iteration 7: the node's properties as its world serves them (a live game's state, for one).
+      properties: node.properties && typeof node.properties === "object" && !Array.isArray(node.properties) ? node.properties : null,
       inclusion: null,
       asset: null,
     };
@@ -560,8 +579,9 @@ function failureOf(answer) {
  *
  * @param {string} nodeUrl
  * @param {(node: object) => object} change   returns the body to PUT, from the node as read
- * @param {{fetch: Function, retries?: number, etag?: string}} opts   `etag` replaces the first read's
- *        tag, for a caller that read the node earlier
+ * @param {{fetch: Function, retries?: number, etag?: string, token?: string|Function}} opts   `etag` replaces
+ *        the first read's tag, for a caller that read the node earlier; `token` (iteration 7) is the token for the
+ *        node's world, or a function of that world's base URL. The answer also carries `sent`, the last body PUT.
  */
 export async function writeNodeSafely(nodeUrl, change, opts = {}) {
   const fetchImpl = opts.fetch || globalThis.fetch;
@@ -569,29 +589,33 @@ export async function writeNodeSafely(nodeUrl, change, opts = {}) {
   const statuses = [];
   let etag = opts.etag || null;
   let node = opts.node || null;
+  let sent = null;
+  const auth = bearerFor(opts.token, nodeUrl);
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     if (!node || !etag) {
-      const r = await fetchImpl(nodeUrl, { headers: { Accept: WOW_MEDIA_TYPE }, cache: "no-store" });
+      const r = await fetchImpl(nodeUrl, { headers: { Accept: WOW_MEDIA_TYPE, ...auth }, cache: "no-store" });
       statuses.push(`GET ${r.status}`);
-      if (!r.ok) return { status: r.status, attempts: attempt, statuses, node: null };
+      if (!r.ok) return { status: r.status, attempts: attempt, statuses, node: null, sent };
       etag = r.headers.get("etag");
       node = await r.json();
     }
     const body = change(JSON.parse(JSON.stringify(node)));
+    sent = body;
     const put = await fetchImpl(nodeUrl, {
       method: "PUT",
-      headers: { Accept: WOW_MEDIA_TYPE, "Content-Type": WOW_MEDIA_TYPE, "If-Match": etag },
+      headers: { Accept: WOW_MEDIA_TYPE, "Content-Type": WOW_MEDIA_TYPE, "If-Match": etag, ...auth },
       body: JSON.stringify(body),
     });
     statuses.push(`PUT ${put.status}`);
     if (put.status !== 412) {
       const value = put.ok ? await put.json() : null;
-      return { status: put.status, attempts: attempt + 1, statuses, node: value, etag: put.headers.get("etag") };
+      if (!put.ok) { try { await put.text(); } catch { /* ignore */ } }
+      return { status: put.status, attempts: attempt + 1, statuses, node: value, etag: put.headers.get("etag"), sent };
     }
     node = null; // read again: someone else changed it
     etag = null;
   }
-  return { status: 412, attempts: retries + 1, statuses, node: null };
+  return { status: 412, attempts: retries + 1, statuses, node: null, sent };
 }
 
 // The included world's environment.
@@ -652,19 +676,27 @@ export function bundleOfGraph(composition, graph) {
  * within the stream budget; an event that names a resource the composition read starts a new
  * composition with conditional reads, so only what changed is read again. No polling.
  *
+ * Iteration 7: an included world is followed, read and written with the token this viewer holds for it
+ * (`token`, a function of the world's base URL). A world whose stream stops answering is read again, so it shows
+ * "unreachable"; its stream is kept and resumes from the last revision (since=), and the world is read again when
+ * it answers. `write(nodeUrl, change)` acts on a node at its own world (writeNodeSafely: If-Match, the world's
+ * token, one retry after 412): an accepted write is shown at once from the world's answer, a refused one is kept in
+ * `refusals` and changes nothing shown. `people` holds each world's user events as the world sent them to this
+ * viewer: `user` is the user's id, or null when the world shows this viewer no people.
+ *
  * @param {string} hostUrl
- * @param {object} opts   composeInclusions' options, plus WebSocket, token, streamBudget and
- *                        onUpdate(composition, event)
+ * @param {object} opts   composeInclusions' options, plus WebSocket, token, streamBudget, reconnectMs,
+ *                        onRequest(url) and onUpdate(composition, event)
  */
 export async function observeComposition(hostUrl, opts = {}) {
-  const reader = createWowReader({ fetch: opts.fetch });
+  const reader = createWowReader({ fetch: opts.fetch, token: opts.token });
   const streamBudget = Number.isInteger(opts.streamBudget) ? opts.streamBudget : DEFAULT_STREAM_BUDGET;
   const options = { ...opts, reader, streamBudget };
   let composition = await composeInclusions(hostUrl, options);
   const streams = new Map();
   let running = Promise.resolve();
   let closed = false;
-  const live = { updates: 0, events: 0 };
+  const live = { updates: 0, events: 0, worlds: {}, people: {}, refusals: [] };
 
   function recompose(evt) {
     running = running.then(async () => {
@@ -680,14 +712,22 @@ export async function observeComposition(hostUrl, opts = {}) {
   }
 
   function sync() {
+    // A world that stopped answering keeps its stream: it reconnects with since=<revision> (iteration 7).
+    const unreachable = new Set(composition.inclusions
+      .filter((i) => i.status === INCLUSION_STATUS.UNREACHABLE)
+      .map((i) => worldBaseOf(i.target)));
     for (const base of composition.streams) {
       if (streams.has(base)) continue;
       streams.set(base, openWorldStream(base, {
         fetch: opts.fetch,
         WebSocket: opts.WebSocket,
         token: typeof opts.token === "function" ? opts.token(base) : opts.token,
+        onRequest: opts.onRequest,
+        reconnectMs: opts.reconnectMs,
+        onStatus: (state) => noteStatus(base, state),
         onEvent: (evt) => {
           live.events += 1;
+          notePeople(base, evt);
           const named = (evt.urls || []).map((u) => new URL(u, base).href);
           if (named.some((u) => reader.cache.has(u))) return recompose(evt);
           return undefined;
@@ -696,8 +736,48 @@ export async function observeComposition(hostUrl, opts = {}) {
       }));
     }
     for (const [base, stream] of streams) {
-      if (!composition.streams.includes(base)) { stream.close(); streams.delete(base); }
+      if (!composition.streams.includes(base) && !unreachable.has(base)) { stream.close(); streams.delete(base); }
     }
+  }
+
+  // A world's stream went down or came back: read the composition again, so the world shows "unreachable" while
+  // it does not answer, and its content again once it does.
+  function noteStatus(base, state) {
+    const was = live.worlds[base];
+    live.worlds[base] = state.status;
+    if (was !== undefined && (was === "live") !== (state.status === "live")) recompose({ type: "status", base, status: state.status });
+  }
+
+  // A world's user events, as the world sent them to this viewer.
+  function notePeople(base, evt) {
+    if (evt.type !== "user_joined" && evt.type !== "user_left") return;
+    live.people[base] = live.people[base] || [];
+    const user = evt.user && evt.user.id !== undefined ? evt.user.id : evt.userId !== undefined ? evt.userId : null;
+    live.people[base].push({ type: evt.type, revision: evt.revision, time: evt.time || null, user });
+  }
+
+  // Show a node as its world answered a write, until the next composition reads it again.
+  function showWritten(nodeUrl, node) {
+    if (!node || typeof node !== "object") return;
+    const local = localTransformOf(node);
+    for (const record of composition.nodes.filter((n) => n.url === nodeUrl)) {
+      const parentWorld = multiply(record.world, invertAffine(record.local));
+      const parentGraphLocal = multiply(record.graphLocal, invertAffine(record.local));
+      record.local = local;
+      record.world = multiply(parentWorld, local);
+      record.graphLocal = multiply(parentGraphLocal, local);
+      if (node.label != null) record.label = String(node.label);
+      record.properties = node.properties && typeof node.properties === "object" && !Array.isArray(node.properties) ? node.properties : null;
+    }
+  }
+
+  async function write(nodeUrl, change, writeOpts = {}) {
+    const result = await writeNodeSafely(nodeUrl, change, { fetch: opts.fetch, token: opts.token, ...writeOpts });
+    const accepted = result.status >= 200 && result.status < 300 && !!result.node;
+    if (accepted) showWritten(nodeUrl, result.node);
+    else live.refusals.push({ node: nodeUrl, status: result.status, statuses: result.statuses.slice(), at: Date.now() });
+    if (opts.onUpdate) opts.onUpdate(composition, { type: accepted ? "written" : "refused", node: nodeUrl, status: result.status });
+    return result;
   }
 
   sync();
@@ -705,6 +785,9 @@ export async function observeComposition(hostUrl, opts = {}) {
     get composition() { return composition; },
     streams,
     live,
+    people: live.people,
+    refusals: live.refusals,
+    write,
     idle: () => running,
     close() { closed = true; for (const stream of streams.values()) stream.close(); },
   };

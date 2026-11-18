@@ -23,9 +23,9 @@
  *   GET  /runtime-state         (WS upgrade; full-state broadcast)
  *   GET /events (WS upgrade; — TYPED,
  *                                GRANULAR realtime events: user_joined/left +
- *                                node_created/updated/deleted. LABELED
- *                                NON-CANONICAL reference-impl convention, NOT
- *                                part of the OpenSpatialWorld read spec.)
+ *                                node_created/updated/deleted. The event
+ *                                stream, listed in the World resource under
+ *                                services.events (OSL-WOW-CONTRACT.md §6).)
  *   GET  /.well-known/spatial-fabric   (fabric discovery, TeleportXR-native shape)
  *   GET  /fabric.json           (OMB fabric manifest — plain-JSON, unsigned,
  *                                labeled. Never call the
@@ -83,6 +83,12 @@ const { createContractEnforcer } = require('./wow-contract-enforcer');
 // The identity handshake (iteration 5, stage A): a world that declares one states its identity, the claims
 // it asks for and what it issues, and answers POST /wow/user with an outcome it records.
 const { createHandshake } = require('./runtime-handshake');
+// Permissions (iteration 6): a world whose `auth` setting is "required" has its own authorization server, and every
+// request passes its check (world-auth.js; the scopes and what a reader sees of people: world-auth-policy.js).
+const { createWorldAuth } = require('./world-auth');
+// A running world inside a world (iteration 7): a small live game a world runs on its own server, only when its
+// config asks for it (cfg.game; runtime-game.js).
+const { createGame } = require('./runtime-game');
 // the PURE structural classifier for incoming node bodies.
 // It is what produces `embedded_children_not_supported` (+ machine-readable
 // remedies) instead of a bare schema error, and CONF-1 keeps that richer refusal
@@ -104,6 +110,7 @@ function createServer(role, extraOpts)
     if (handshake) runtime.countJoinedUsersBy(handshake.count);
     // Nodes that mirror another world's data point are kept up to date by observing it.
     const mirrors = cfg.mirrors === false ? null : createMirrors(runtime, { token : cfg.mirror_token });
+    const game = cfg.game && typeof cfg.game === 'object' ? createGame(runtime, cfg.game) : null;
 
     /*
      * WHERE the node binds vs WHAT the fixture declares.
@@ -200,6 +207,13 @@ function createServer(role, extraOpts)
     // A world may sit at a path prefix (cfg.base_path, such as '/w/b'); its resource URLs are then the
     // base plus wow/... . Requests outside the prefix are not this world's.
     const BASE_PATH = cfg.base_path ? String(cfg.base_path).replace(/\/+$/, '') : '';
+    // Permissions (iteration 6): null when the world's auth setting is "off" (the default), and nothing changes.
+    const auth = createWorldAuth(cfg, { basePath : BASE_PATH, port : cfg.http_port, cors : (req, res) => applyCors(req, res) });
+    /** A value of a path that shows people, and the World resource, as this request's reader may see them. */
+    const peopleFor = (req, value) => (auth ? auth.peopleView(req, value) : value);
+    const worldFor = (req, world) => (auth ? auth.worldView(req, world) : world);
+    // A node that places a person names nobody to a reader without the presence grant (world-auth-policy.js PEOPLE).
+    const placementsFor = (req, value) => (auth ? auth.placementsView(req, value) : value);
     // Which nodes a reader may not see (cfg.read_policy.refusesNode(graphId, nodeId) -> true). A refused
     // node answers 403, and the canonical form of its parent leaves it out.
     const READ_POLICY = cfg.read_policy && typeof cfg.read_policy.refusesNode === 'function' ? cfg.read_policy : null;
@@ -235,7 +249,8 @@ function createServer(role, extraOpts)
     // A world that requires authorization for its stream (cfg.event_auth.tokens) expects the access token
     // as the stream's first message, and closes a stream without a valid one within 5 seconds (it waits
     // 4, so the close arrives inside the 5).
-    const EVENT_AUTH = cfg.event_auth && Array.isArray(cfg.event_auth.tokens) ? cfg.event_auth : null;
+    // A world that requires a token for everything (iteration 6, `auth`) checks its stream's token there instead.
+    const EVENT_AUTH = !auth && cfg.event_auth && Array.isArray(cfg.event_auth.tokens) ? cfg.event_auth : null;
     const EVENT_AUTH_TIMEOUT_MS = 4000;
 
     /**
@@ -247,6 +262,7 @@ function createServer(role, extraOpts)
         opts = opts || {};
         wowAnnotateResponse(res, code, obj);
         const type = wowTypeFor(req);
+        obj = placementsFor(req, obj);
         const body = asSeenFrom(req, JSON.stringify(obj, null, 2));
         const headers = {
             'Content-Type' : type,
@@ -281,6 +297,7 @@ function createServer(role, extraOpts)
         if (raw === undefined || String(raw).trim() === '') return false;
         if (String(raw).trim() === '*') return current === null || current === undefined;
         if (current === null || current === undefined) return true;
+        current = placementsFor(req, current);
         const etag = wowEtag(wowTypeFor(req), JSON.stringify(current, null, 2));
         return !String(raw).split(',').map(tag => tag.trim()).some(tag => tag === etag);
     }
@@ -595,6 +612,15 @@ function createServer(role, extraOpts)
     }
     function handleRequest(req, res)
     {
+        // Permissions (iteration 6): every request passes the world's check first, which answers it or lets it go on.
+        if (auth && !req.oslAuthChecked)
+        {
+            req.oslAuthChecked = true;
+            return auth.gate(req, res, () => {
+                try { handleRequest(req, res); }
+                catch (err) { rejectUnreadableRequest(res, err); }
+            });
+        }
         const url = new URL(req.url, 'http://127.0.0.1:' + cfg.http_port);
         let path = url.pathname;
         if (BASE_PATH)
@@ -670,7 +696,7 @@ function createServer(role, extraOpts)
             });
 
         if (method === 'GET' && path === '/wow/world')
-            return sendWow(req, res, 200, handshake ? Object.assign(runtime.getWowWorld(), handshake.worldFields()) : runtime.getWowWorld(), { tagged : true });
+            return sendWow(req, res, 200, worldFor(req, handshake ? Object.assign(runtime.getWowWorld(), handshake.worldFields()) : runtime.getWowWorld()), { tagged : true });
 
         // The identity handshake (iteration 5). The body carries a manifest with only the claims this world
         // asks for, and a holder proof; the answer is the outcome, recorded. A deny answers 403.
@@ -682,7 +708,16 @@ function createServer(role, extraOpts)
                 const verdict = wowRequestVerdict(res, method, path, body, {});
                 if (verdict && !verdict.valid) return sendJson(res, 400, { ok : false, error : 'invalid_join', detail : verdict.errorsText });
                 handshake.join(body)
-                    .then(({ status, answer }) => sendWow(req, res, status, Object.assign(answer, { proof_boundary : runtime.getWowProofBoundary() })))
+                    .then(({ status, answer }) => {
+                        // Permissions (iteration 6): the answer names the scopes granted, and the User it makes is the visitor's own.
+                        if (auth && req.oslAuth)
+                        {
+                            answer.scope = auth.grantedScope(req.oslAuth.subject);
+                            const made = /^wow\/user\/(\d+)$/.exec(answer.user || '');
+                            if (made) auth.ownUser(made[1], req.oslAuth.subject);
+                        }
+                        return sendWow(req, res, status, Object.assign(answer, { proof_boundary : runtime.getWowProofBoundary() }));
+                    })
                     .catch((e) => sendJson(res, 500, { ok : false, error : 'handshake_failed', detail : String(e && e.message || e) }));
             });
         }
@@ -1034,7 +1069,7 @@ function createServer(role, extraOpts)
         }
 
         if (method === 'GET' && path === '/debug/state')
-            return sendJson(res, 200, runtime.getDebugState());
+            return sendJson(res, 200, peopleFor(req, runtime.getDebugState()));
 
         // OMB fabric manifest: the world description this
         // node serves, projected live. Plain JSON, unsigned, labeled as such.
@@ -1061,14 +1096,14 @@ function createServer(role, extraOpts)
                 // byte-identically.
                 if (chunked === '1' || chunked === 'true')
                 {
-                    return sendJson(res, 200, runtime.getFabricRegionChunk(anchor, radius, {
+                    return sendJson(res, 200, peopleFor(req, runtime.getFabricRegionChunk(anchor, radius, {
                         scope : url.searchParams.get('scope'),
                         cursor : url.searchParams.get('cursor'),
                         max_entities : url.searchParams.get('max_entities'),
                         max_bytes : url.searchParams.get('max_bytes'),
-                    }));
+                    })));
                 }
-                return sendJson(res, 200, runtime.getFabricRegion(anchor, radius));
+                return sendJson(res, 200, peopleFor(req, runtime.getFabricRegion(anchor, radius)));
             } catch (e) {
                 return sendJson(res, 400, { ok : false, error : 'fabric_region_rejected', message : e.message });
             }
@@ -1089,7 +1124,7 @@ function createServer(role, extraOpts)
         }
 
         if (method === 'GET' && path === '/fabric/presence')
-            return sendJson(res, 200, runtime.getFabricPresence());
+            return sendJson(res, 200, peopleFor(req, runtime.getFabricPresence()));
 
         if (method === 'GET' && path === '/.well-known/spatial-fabric')
         {
@@ -1286,9 +1321,9 @@ function createServer(role, extraOpts)
 
     // a SECOND WS path `/events` carries TYPED,
     // GRANULAR WoW realtime envelopes (user_joined/left, node_created/updated/
-    // deleted) — the LABELED NON-CANONICAL reference-impl convention
-    // (wow-spec/OSL-WOW-CONTRACT.md §6), intentionally OUT of the OpenAPI HTTP
-    // contract. The `/runtime-state` full-state broadcast is kept
+    // deleted) — the event stream, listed in the World resource under
+    // services.events (wow-spec/OSL-WOW-CONTRACT.md §6). A WebSocket upgrade is
+    // not an HTTP operation, so it has no `paths` entry. The `/runtime-state` full-state broadcast is kept
     // BYTE-FOR-BYTE (same handshake, same `{type:'state',state}` frames); the
     // `/events` branch is purely additive and shares the frame encoder.
     server.on('upgrade', (req, socket) => {
@@ -1310,6 +1345,13 @@ function createServer(role, extraOpts)
             return;
         }
         // A stream from an origin this world does not allow is refused before the handshake.
+        // Permissions (iteration 6): a token is never taken from a URL; a stream URL that carries one is refused.
+        if (auth && auth.tokenInUrl(url))
+        {
+            socket.write('HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
+            socket.destroy();
+            return;
+        }
         if (wsPath === '/events' && !originAllowed(req.headers.origin))
         {
             socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
@@ -1370,6 +1412,11 @@ function createServer(role, extraOpts)
 
         let unsubscribe = () => {};
         let onMessage = null;
+        let stopWatch = () => {};
+        // What this stream's holder is shown: everything, unless the world requires a token (iteration 6) and the
+        // holder has no presence grant (world-auth.js streamView). The stream starts with startStream().
+        let view = { event : (evt) => evt, state : (snapshot) => snapshot };
+        let startStream = () => {};
         if (wsPath === '/events')
         {
             // Additive realtime channel: an initial hello snapshot (current live
@@ -1382,15 +1429,16 @@ function createServer(role, extraOpts)
             const sinceRaw = url.searchParams.get('since');
             const since = sinceRaw === null || sinceRaw === '' ? null : Number(sinceRaw);
             const begin = () => {
-                sendFrame(runtime.getWowEventsHello());
+                sendFrame(view.event(runtime.getWowEventsHello()));
                 if (since !== null)
                 {
                     const missed = runtime.eventsSince(since);
                     if (missed.resync) sendFrame({ type : 'resync', revision : missed.revision, time : runtime.currentRevision().time });
-                    else for (const evt of missed.events) sendFrame(evt);
+                    else for (const evt of missed.events) sendFrame(view.event(evt));
                 }
-                unsubscribe = runtime.subscribeEvents(evt => sendFrame(evt));
+                unsubscribe = runtime.subscribeEvents(evt => sendFrame(view.event(evt)));
             };
+            startStream = begin;
             if (EVENT_AUTH)
             {
                 const timer = setTimeout(() => closeStream(1008, 'no access token'), EVENT_AUTH_TIMEOUT_MS);
@@ -1404,12 +1452,31 @@ function createServer(role, extraOpts)
                 };
                 socket.on('close', () => clearTimeout(timer));
             }
-            else begin();
+            else if (!auth) begin();
         }
         else
         {
             // /runtime-state: the full-state broadcast.
-            unsubscribe = runtime.subscribe(snapshot => sendFrame({ type : 'state', state : snapshot }));
+            startStream = () => { unsubscribe = runtime.subscribe(snapshot => sendFrame({ type : 'state', state : view.state(snapshot) })); };
+            if (!auth) startStream();
+        }
+        if (auth)
+        {
+            // Permissions (iteration 6): the token is the stream's first message; a holder without the observe grant is
+            // refused, and the stream closes when that grant is withdrawn or the token expires (world-auth.js STREAMS).
+            const timer = setTimeout(() => closeStream(1008, 'no access token'), EVENT_AUTH_TIMEOUT_MS);
+            onMessage = (text) => {
+                onMessage = null;
+                clearTimeout(timer);
+                auth.authorizeStream(text).then((granted) => {
+                    if (!granted.ok) return closeStream(1008, granted.reason.slice(0, 120));
+                    if (socket.destroyed) return;
+                    view = auth.streamView(granted.verified);
+                    stopWatch = auth.watchStream(granted.verified, (why) => { unsubscribe(); closeStream(1008, why); });
+                    startStream();
+                }).catch(() => closeStream(1011, 'the token could not be checked'));
+            };
+            socket.on('close', () => { clearTimeout(timer); stopWatch(); });
         }
 
         // Inbound frames (client frames are masked, RFC 6455 §5.3): the first text message may carry the
@@ -1436,8 +1503,8 @@ function createServer(role, extraOpts)
             }
         });
         openSockets.add(socket);
-        socket.on('close', () => { unsubscribe(); openSockets.delete(socket); });
-        socket.on('error', () => { unsubscribe(); openSockets.delete(socket); });
+        socket.on('close', () => { unsubscribe(); stopWatch(); openSockets.delete(socket); });
+        socket.on('error', () => { unsubscribe(); stopWatch(); openSockets.delete(socket); });
     });
 
     // Track open sockets so tests can force a clean, race-free shutdown.
@@ -1456,6 +1523,7 @@ function createServer(role, extraOpts)
             try { if (typeof runtime.stopPresenceSweeper === 'function') runtime.stopPresenceSweeper(); } catch (e) {}
             try { if (typeof runtime.stopSimulator === 'function') runtime.stopSimulator(); } catch (e) {}
             try { if (mirrors) mirrors.stop(); } catch (e) {}
+            try { if (game) game.stop(); } catch (e) {}
             for (const s of openSockets) { try { s.destroy(); } catch (e) {} }
             openSockets.clear();
             // also tear down the OpenUserManifest origin (safe
@@ -1464,7 +1532,7 @@ function createServer(role, extraOpts)
         });
     }
 
-    return { server, runtime, cfg, closeAll, getAssetRegistry, mirrors, handshake };
+    return { server, runtime, cfg, closeAll, getAssetRegistry, mirrors, handshake, auth, game };
 }
 
 function start(role, extraOpts) {

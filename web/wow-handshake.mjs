@@ -17,7 +17,15 @@
  *      world's answer: the outcome (proceed, proceed-in-part or deny) and the claims satisfied and not satisfied.
  *
  * The world copies the pilot statement onto the User it makes (User.pilot). It is the visitor's statement, not proof
- * of who is at the controls. A client shows a user whose pilot is hybrid as an agent (pilotShownAs, userLabel).
+ * of who is at the controls. A client shows a user whose pilot is hybrid as an agent (pilotShownAs, userLabel). A
+ * join without a pilot statement (a client that predates it) is not refused for that: the world makes its User with
+ * pilot "unstated", which a client shows as "pilot not stated", never as human. This agent always sends one.
+ *
+ * A world that fits visitors may also ask for `body` (the visitor's body: its avatar file's digest, height, bones,
+ * hands, feet and volumes) and `items` (a list of items, each with its `fit`), in the wire form of the contract's body
+ * and item section. The agent sends them only when the world asks, as it does every claim, and unchanged. The world
+ * checks their shapes, refuses a bad item alone (`items_refused` in its answer) and copies what it accepted onto the
+ * User, so every client draws the visitor with the same fit (web/avatar/runtime/wire.mjs reads them).
  *
  * Nothing goes in a URL. The manifest and the holder proof are the lab's own shapes, labelled as a
  * proposal: the World API gives their format by reference, and no manifest format is chosen here.
@@ -26,7 +34,7 @@
 
 import { attachSignatureProfileA, generateKeyPair, publicKeyToDidKey, canonicalize, bytesToBase64Url } from "./signing/index.mjs";
 
-export const CLAIM_NAMES = Object.freeze(["avatar", "display_name", "preferences", "age"]);
+export const CLAIM_NAMES = Object.freeze(["avatar", "display_name", "preferences", "age", "body", "items"]);
 export const OUTCOME = Object.freeze({ PROCEED: "proceed", PART: "proceed-in-part", DENY: "deny" });
 export const TRUST = Object.freeze({ SELF: "self-asserted", ISSUER: "issuer-verified" });
 export const MANIFEST_TYPE = "osl-visit-manifest";
@@ -36,8 +44,9 @@ export const LABEL = "lab proposal; not a conformance claim for any manifest for
 /** The pilot statements a join carries (User.pilot): who the visitor states is at the controls. */
 export const PILOTS = Object.freeze(["human", "agent", "hybrid"]);
 
-/** How a client shows a user's pilot: "agent" for agent and hybrid, "human" for human, null when none is stated. */
+/** How a client shows a user's pilot: "agent" for agent and hybrid, "human" for human, "pilot not stated" for unstated, null when there is none. */
 export function pilotShownAs(pilot) {
+  if (pilot === "unstated") return "pilot not stated";
   return pilot === "agent" || pilot === "hybrid" ? "agent" : pilot === "human" ? "human" : null;
 }
 
@@ -58,9 +67,23 @@ export function baseOf(url) {
   return u.href;
 }
 
-/** Read a world's World resource. */
-export async function readWorld(base, { fetch: f = globalThis.fetch } = {}) {
-  const r = await f(new URL("wow/world", base).href, { headers: { Accept: "application/wow+json, application/json" } });
+/**
+ * The Authorization header for a world that requires a token (iteration 6): the token goes in this header, never in a
+ * URL. No token: no header.
+ */
+export function authorization(token) {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** A fetch that sends `token` in the Authorization header of every request it makes; no token: `f` itself. */
+export function authorizedFetch(f, token) {
+  if (!token) return f;
+  return (url, init = {}) => f(url, { ...init, headers: { ...(init.headers || {}), ...authorization(token) } });
+}
+
+/** Read a world's World resource; `token` is sent in the Authorization header when given. */
+export async function readWorld(base, { fetch: f = globalThis.fetch, token } = {}) {
+  const r = await f(new URL("wow/world", base).href, { headers: { ...authorization(token), Accept: "application/wow+json, application/json" } });
   if (!r.ok) throw new Error(`the World resource answered ${r.status}`);
   return r.json();
 }
@@ -160,11 +183,14 @@ export async function presentation({ values, key, audience, credentials = {}, cr
  *   wallet    { claims: { name: value }, credentials?: { name: issuer }, pilot: "human" | "agent" | "hybrid" }
  *             (what the visitor holds, and the visitor's pilot statement)
  *   withhold  names the visitor keeps back this time (never the pilot statement: every join carries it)
+ *   token     an access token of a world that requires one (iteration 6): sent in the Authorization header of
+ *             the read and of the join, never in a URL
  * Returns { base, world, asked, plan, sent, pilot, pointer, status, answer, refused }.
  * `refused` is set, and nothing is sent, when the counterpart check fails or the visitor states no pilot.
  */
-export async function enterWorld(base, { wallet, withhold = [], fetch: f = globalThis.fetch } = {}) {
+export async function enterWorld(base, { wallet, withhold = [], fetch: f = globalThis.fetch, token } = {}) {
   base = baseOf(base);
+  f = authorizedFetch(f, token);
   const world = await readWorld(base, { fetch: f });
   const check = checkCounterpart(world, base);
   const asked = askedOf(world);
