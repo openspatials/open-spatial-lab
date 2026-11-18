@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en" translate="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="google" content="notranslate">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live data layers</title>
+  <style>
+    :root { --bg: #0b1020; --panel: #121a30; --line: #263250; --text: #e6ecff; --muted: #9aa8c8; --accent: #6fd3ff; --warn: #ff9a6b; --ice: #e8f6ff; --water: #2f7fd8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 1040px; margin: 0 auto; padding: 28px 16px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p.lead { color: var(--muted); margin: 0 0 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .layer { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+    .layer .kind { color: var(--accent); font-weight: 600; }
+    .layer .desc { color: var(--muted); font: 12px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; margin-top: 2px; }
+    .layer .value { font-size: 38px; font-weight: 700; margin: 8px 0 4px; font-variant-numeric: tabular-nums; }
+    .layer .meta { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .layer .meta b { color: var(--text); font-weight: 600; }
+    .badge { display: none; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--warn); color: #1a0d05; font-size: 12px; font-weight: 700; vertical-align: middle; }
+    .layer.stale { border-color: var(--warn); }
+    .layer.stale .badge { display: inline-block; }
+    .layer.stale .value { color: var(--warn); }
+    .pond-wrap { display: flex; align-items: center; gap: 16px; margin-top: 10px; }
+    #pond-state { font-size: 20px; font-weight: 700; }
+    footer { color: var(--muted); margin-top: 20px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Live data layers on one place</h1>
+    <p class="lead">A weather layer and a game layer on <span id="place">—</span>. The game layer's world mirrors the weather value into its own node; its pond freezes below the threshold. Each value shows its age, from the time of the change that set it.</p>
+    <section class="grid">
+      <article class="layer" id="weather" data-layer="weather">
+        <div class="kind">Weather layer <span class="badge">stale</span></div>
+        <div class="desc url"></div>
+        <div class="value">—</div>
+        <div class="meta"><span>revision <b class="revision">—</b></span><span>age <b class="age">—</b></span><span>status <b class="status">pending</b></span></div>
+      </article>
+      <article class="layer" id="game" data-layer="game">
+        <div class="kind">Game layer <span class="badge">stale</span></div>
+        <div class="desc url"></div>
+        <div class="value">—</div>
+        <div class="meta"><span>revision <b class="revision">—</b></span><span>age <b class="age">—</b></span><span>status <b class="status">pending</b></span></div>
+        <div class="pond-wrap">
+          <svg id="pond" width="160" height="96" viewBox="0 0 160 96" role="img" aria-label="pond">
+            <ellipse cx="80" cy="52" rx="74" ry="38" fill="#2a3450"></ellipse>
+            <ellipse id="pond-surface" cx="80" cy="50" rx="68" ry="33" fill="#2f7fd8"></ellipse>
+            <g id="pond-cracks" stroke="#9cc4e4" stroke-width="2" fill="none" visibility="hidden">
+              <path d="M30 46 L58 54 L76 40 L104 58 L132 48"></path>
+              <path d="M76 40 L84 24"></path>
+              <path d="M104 58 L112 76"></path>
+            </g>
+          </svg>
+          <div><div class="muted">pond</div><div id="pond-state" data-state="unknown">—</div><div class="muted" id="pond-rule"></div></div>
+        </div>
+      </article>
+    </section>
+    <footer>Data points are resource URLs plus JSON Pointers, followed through each world's event stream; watching creates no user. Stand-in data on 127.0.0.1.<br>Open Spatial Lab by Grig Bilham, with contributors</footer>
+  </main>
+  <script type="module" src="./live-data-page.mjs"></script>
+</body>
+</html>
