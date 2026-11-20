@@ -1,6 +1,8 @@
-// The Scene, version 0 (docs/engine/SCENE-CONTRACT-V0.md, sections 2 and 3): an ordered stack of layers of plain
-// data. Importers write layers, systems read them through the calls below. Every write raises the revision by one
-// and records a change; a system that asks for changes older than the kept log gets "all" and rebuilds.
+// The Scene, version 0.2 (docs/engine/SCENE-CONTRACT-V0.md, sections 2, 3 and 12): an ordered stack of layers of
+// plain data. Importers write layers, systems read them through the calls below. Every write raises the revision by
+// one and records a change; a system that asks for changes older than the kept log gets "all" and rebuilds.
+// Version 0.2 adds skins: a layer's `bodies` assets (each an avatar-render/1 bind description, unchanged), the `skin`
+// component `{ body, pose }` (the avatar-render/1 completed pose) and `writePose`, which records a change of kind "pose".
 import { composeTRS, multiplyMat4 } from "../core/math.mjs";
 import { freezeDeep, validateField } from "./check.mjs";
 
@@ -8,6 +10,7 @@ export const SCENE_SCHEMA = "scene/0";
 const KEPT_CHANGES = 4096;
 const IDENTITY_PLACEMENT = Object.freeze({ translation: Object.freeze([0, 0, 0]), rotation: Object.freeze([0, 0, 0, 1]), scale: Object.freeze([1, 1, 1]) });
 const LAYER_KINDS = ["content", "meaning"];
+const ASSET_KINDS = ["geometries", "materials", "textures", "images", "bodies"];
 
 function checkTransform(value, path) {
     if (!value || typeof value !== "object") throw new TypeError(`${path}: expected transform`);
@@ -15,6 +18,21 @@ function checkTransform(value, path) {
     validateField("quaternion", value.rotation, `${path}.rotation`);
     validateField("vec3", value.scale, `${path}.scale`);
     return freezeDeep({ translation: [...value.translation], rotation: [...value.rotation], scale: [...value.scale] });
+}
+
+/**
+ * The plain shape of an avatar-render/1 completed pose, copied: the matrices are numbers in arrays of 16, one per joint.
+ * The full validation of the format stays with the renderer that draws it (Renderer contract revision 2).
+ */
+function checkPose(pose, path) {
+    if (!pose || typeof pose !== "object") throw new TypeError(`${path}: expected an avatar-render/1 completed pose`);
+    validateField("numbers", pose.rootMatrix, `${path}.rootMatrix`);
+    if (pose.rootMatrix.length !== 16) throw new TypeError(`${path}.rootMatrix: expected 16 numbers`);
+    validateField("strings", pose.jointIds, `${path}.jointIds`);
+    if (!Array.isArray(pose.jointLocalMatrices) || pose.jointLocalMatrices.length !== pose.jointIds.length) throw new TypeError(`${path}.jointLocalMatrices: expected one matrix per joint`);
+    pose.jointLocalMatrices.forEach((matrix, i) => { validateField("numbers", matrix, `${path}.jointLocalMatrices[${i}]`); if (matrix.length !== 16) throw new TypeError(`${path}.jointLocalMatrices[${i}]: expected 16 numbers`); });
+    if (!Array.isArray(pose.attachments)) throw new TypeError(`${path}.attachments: expected an array`);
+    return freezeDeep(structuredClone(pose));
 }
 
 const isIdentity = ({ translation, rotation, scale }) => translation.every((v) => v === 0)
@@ -60,9 +78,15 @@ export function createScene() {
             for (const entity of entities.values()) {
                 if (entity.parent !== null && !entities.has(entity.parent)) throw new TypeError(`scene.addLayer: ${entity.id} names a missing parent ${entity.parent}`);
             }
-            const assets = { geometries: { ...layer.assets?.geometries }, materials: { ...layer.assets?.materials },
-                textures: { ...layer.assets?.textures }, images: { ...layer.assets?.images } };
+            const assets = Object.fromEntries(ASSET_KINDS.map((kind) => [kind, { ...layer.assets?.[kind] }]));
             for (const group of Object.values(assets)) for (const value of Object.values(group)) freezeDeep(value);
+            for (const [key, body] of Object.entries(assets.bodies)) if (body?.schema !== "avatar-render/1") throw new TypeError(`scene.addLayer: bodies ${JSON.stringify(key)} is not an avatar-render/1 bind description`);
+            for (const entity of entities.values()) {
+                const skin = entity.components?.skin;
+                if (!skin) continue;
+                if (!Object.hasOwn(assets.bodies, skin.body)) throw new TypeError(`scene.addLayer: ${entity.id} names a missing bodies entry ${JSON.stringify(skin.body)}`);
+                checkPose(skin.pose, `${entity.id}.skin.pose`);
+            }
             const { entities: _entities, assets: _assets, ...rest } = layer;
             layers.set(name, { header: freezeDeep({ ...rest, name, visible, placement: checkTransform(placement, "placement") }), entities, order, assets, matrices: new Map() });
             return record("layer-added", { layer: name });
@@ -83,7 +107,7 @@ export function createScene() {
         layers() { return [...layers.keys()]; },
         /** A layer without its entities and assets: name, kind, visible, placement, source, info, navigation, environment, report. */
         layer(name) { return layerOf(name).header; },
-        /** One asset of a layer: kind is "geometries", "materials", "textures" or "images". */
+        /** One asset of a layer: kind is "geometries", "materials", "textures", "images" or "bodies". */
         asset(name, kind, key) {
             const group = layerOf(name).assets[kind];
             if (!group || !Object.hasOwn(group, key)) throw new TypeError(`scene: unknown ${kind} asset ${JSON.stringify(key)}`);
@@ -122,6 +146,17 @@ export function createScene() {
             layer.entities.set(entity.id, freezeDeep({ ...entity, transform: checkTransform(value, "transform") }));
             layer.matrices.clear();
             return record("entity", { layer: ref.layer, id: entity.id }, "transform");
+        },
+        /**
+         * The Animator's write (contract section 12): the entity's latest completed pose, replaced whole. The Scene keeps
+         * a frozen copy, so the writer may reuse its own object.
+         */
+        writePose(ref, pose) {
+            const layer = layerOf(ref?.layer), entity = entityOf(ref), skin = entity.components?.skin;
+            if (!skin) throw new TypeError(`scene.writePose: ${JSON.stringify(entity.id)} has no skin`);
+            const latest = checkPose(pose, "pose");
+            layer.entities.set(entity.id, freezeDeep({ ...entity, components: { ...entity.components, skin: { ...skin, pose: latest } } }));
+            return record("pose", { layer: ref.layer, id: entity.id }, "skin");
         },
         writeGeometry(name, key, attribute, array) {
             if (attribute !== "POSITION") throw new TypeError(`scene.writeGeometry: only POSITION is writable in version 0`);

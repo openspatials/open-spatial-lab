@@ -202,7 +202,7 @@ function resolveBootActive() {
   return playerSessionController.resolveBootActive({ isPlayer, activeParam });
 }
 function persistPlayerLocationState(force = false) {
-  if (!isPlayer || !adapter) return;
+  if (!isPlayer || !adapter || documentAvatarRequested()) return;
   try {
     playerSessionController.persist({
       isPlayer,
@@ -724,7 +724,7 @@ const liveViewport = createLiveViewportController({
 });
 
 movementCameraController = createMovementCameraController({
-  documentViewer: documentViewerMode ? {
+  documentViewer: documentViewerMode && !documentAvatarRequested() ? {
     softBody: params.get("x3dDocument") === "soft-body.x3d.json",
     entry: () => sceneRuntimeController.scene()?.entry,
     activate: event => sceneRuntimeController.activateX3dDocumentAt(event),
@@ -1699,7 +1699,10 @@ async function mainX3dDocument() {
   $("live-backend").textContent = "Local document; no world server session";
   const next = await sceneRuntimeController.mountX3dDocument(selection);
   requireActiveBoot(() => applicationDisposed);
+  const withAvatar = documentAvatarRequested();
+  if (withAvatar) await mountDocumentAvatar(next, selection);
   const debugState = () => ({ kind: "own-x3d-document", file: selection.filename, source_sha256: selection.sha256,
+    ...(withAvatar ? { avatar: documentAvatarDebug(next) } : {}),
     entry: next.entry, camera: next._impl.camera.position.toArray(), actions: movementCameraController.documentActions(),
     renderer: sceneRuntimeController.activeAdapter()?.getCapabilities(), movement: movementCameraController.debug(),
     lighting: ownX3dLightingStatus(x3dEnvironment.selection, next.lighting),
@@ -1715,6 +1718,54 @@ async function mainX3dDocument() {
   document.body.dataset.x3dWorldReady = "1";
   document.body.setAttribute("data-assembly-ready", "1");
   setConnectionPresentation("live", "Local X3D document ready; no server session.");
+}
+
+/**
+ * The document route's visitor: on the anchor world, a page asked for it (x3dAvatar=1) walks the session's avatar
+ * (avatar_variant pins which, as on the Player route) as the Player route does, and its body is drawn from the Scene's
+ * `visitors` layer (Scene contract section 12). Without it the route stays the first-person document viewer.
+ */
+function documentAvatarRequested() {
+  return documentViewerMode && params.get("x3dDocument") === "anchor-portal-world.x3d.json" && params.get("x3dAvatar") === "1";
+}
+
+/**
+ * The anchor document's visitor. The LiveAdapter's client-local walk (the one the ?wow= route uses) stands the avatar
+ * on the floor under the entry viewpoint (the viewpoint is at the NavigationInfo's eye height), facing where it faces,
+ * inside the document's measured extent; the avatar layer, its locomotion tuning and the orbit camera are the Player
+ * route's (bootLive). The layer only evaluates the avatar: the scene runtime writes its pose into the Scene and the
+ * renderer's scene view draws it.
+ */
+async function mountDocumentAvatar(next, selection) {
+  const scene = next.engineScene, entry = next.entry;
+  const navigation = scene.layers().map((name) => scene.layer(name)?.navigation).find(Boolean);
+  const [radius, eye] = navigation?.avatarSize ?? [0.25, 1.6];
+  const yaw = (entry.orientation?.[1] ?? 0) * (entry.orientation?.[3] ?? 0);
+  const extent = new THREE.Box3().setFromObject(next._impl.scene);
+  adapter = new LiveAdapter(role, { noDefaultEquipment: true, motionPreference });
+  adapter.spawnWowLocalAvatar({
+    spawn: [entry.position[0], entry.position[1] - eye, entry.position[2], yaw + Math.PI],
+    bounds: { minX: extent.min.x + radius, maxX: extent.max.x - radius, minZ: extent.min.z + radius, maxZ: extent.max.z - radius },
+    spatialID: "x3d-document", title: selection.filename,
+  });
+  createLocalAvatarLayer();
+  await equipmentLayer.ready;
+  requireActiveBoot(() => applicationDisposed);
+  equipmentLayer.setLocomotionTuningListener((tuning) => adapter.setAvatarLocomotionTuning(tuning));
+  equipmentLayer.setAvatar(adapter.state.avatar);
+  listenAtRoot(adapter, "state", (event) => { if (equipmentLayer && event.detail?.avatar) equipmentLayer.setAvatar(event.detail.avatar); });
+  movementCameraController.seedOrbitCamera({ azimuth: yaw, avatarPosition: adapter.state.avatar.position });
+  $("loc-meta").textContent = "Local X3D document · walking avatar · no server world or collision claim";
+}
+
+function documentAvatarDebug(next) {
+  const scene = next.engineScene, avatar = adapter?.state?.avatar;
+  const visitors = scene.layers().includes("visitors") ? scene.find({ layer: "visitors" }).map((ref) => {
+    const entity = scene.get(ref);
+    return { id: entity.id, skin_body: entity.components.skin?.body ?? null, joints: entity.components.skin?.pose?.jointIds?.length ?? 0 };
+  }) : [];
+  return { variant: avatar?.avatar_variant ?? null, position: avatar?.position ?? null, rotation_y: avatar?.rotation_y ?? null,
+    layers: scene.layers(), visitors, adapter_skins: next._impl.renderAdapter?._skins?.size ?? null, layer: equipmentLayer?.status ?? null };
 }
 function updateFabricPrefetchCard(debug) {
   const notifications = prefetchDebugPanel.render(debug, {

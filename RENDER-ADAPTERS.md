@@ -234,20 +234,16 @@ browser's `./vendor/scene-core/`):
   which kit 1.1.2 pins by content.
 - `scene/scene.mjs`: the Scene, version 0: layers of plain data and the access
   calls `addLayer`, `removeLayer`, `setLayerVisible`, `get`, `find`,
-  `worldMatrix`, `write`, `writeGeometry` and `changes`. Three reading aids are
+  `worldMatrix`, `write`, `writeGeometry` and `changes` (version 0.2 adds
+  `writePose`; see "Skins in the Scene" below). Three reading aids are
   added: `layers()`, `layer(name)` (a layer without its entities and assets) and
   `asset(name, kind, key)`.
 - `scene/check.mjs`: the plain value checks, moved out of the X3D profile.
 - `scene/manager.mjs`: the Scene Manager.
   - `loadLayer(scene, importer, source)` imports and adds one layer.
-  - `createX3dSceneHost({ renderer, preparePhysics })` is the X3D document
-    route's host. `load(text or document)` reads the document with the X3D
-    importer into a new Scene, starts Interaction and the physics sink on it,
-    then calls `renderer.attachScene` and `renderer.syncScene`. The previous
-    Scene stays shown until the new one is built; then it is retired. A later
-    load or `cancel()` supersedes a pending one. `step`, `activate` and `pick`
-    are Interaction on the shown Scene; `dispose()` never disposes the renderer.
-  - `createX3dRuntime(document)` keeps the former `x3d/scene-runtime.mjs` calls.
+  - The document route's host and Interaction on a layer are now
+    `createSceneHost` and `createLayerRuntime` (milestone M2, below). The
+    X3D-named forwards of M1 are gone.
 - `import/x3d/`: the X3D importer. `json-document.mjs` and `profile.mjs` are the
   reader and field list. `to-scene.mjs` turns a read document into one layer and
   a load report, and exports `x3dImporter`, whose `capabilities()` now holds the
@@ -289,7 +285,8 @@ adapter's attached Scene.
 
 The old paths `x3d/profile.mjs`, `x3d/json-document.mjs`,
 `x3d/scene-runtime.mjs`, `x3d/scene-renderer.mjs`, `x3d/soft-body.mjs` and
-`x3d/rgbe-decoder.mjs` are one-line forwards.
+`x3d/rgbe-decoder.mjs` are one-line forwards. `x3d/scene-runtime.mjs` now
+forwards `createLayerRuntime`.
 
 ## The glTF importer and a document route that takes any importer (engine milestone M2)
 
@@ -339,10 +336,10 @@ the same renderer through the Scene.
     draws.
   - Every layer the manager adds records its importer as `layer.importer`
     (`{ format, capabilities }`).
-  - `createX3dSceneHost` and `createX3dRuntime` stay as forwards, in the block
-    between `// forwards:begin` and `// forwards:end`, until
-    `src/x3d-renderer-check.mjs`, `src/x3d-runtime-check.mjs` and
-    `x3d/scene-runtime.mjs` have moved.
+  - The X3D-named forwards that M2 kept in a marked block are gone: their
+    three callers (`src/x3d-renderer-check.mjs`, `src/x3d-runtime-check.mjs`
+    and `x3d/scene-runtime.mjs`) call `createSceneHost` and
+    `createLayerRuntime`.
 - `render/three/scene-view.mjs` also draws the `pbr` material (a
   `MeshStandardMaterial` set up as Three.js's glTF loader sets it up: linear
   factors, sRGB base colour and emissive maps, no vertical flip, glTF's sampler,
@@ -379,6 +376,71 @@ worlds, the four glTF files and the hand-made files in
 one planted fault per check) and `node src/engine-boundary-check.mjs` (the
 engine boundary rules of M1 and M2, one planted fault per rule;
 `--root <dir>` checks another copy).
+
+## Skins in the Scene (engine milestone "skins in the Scene")
+
+The Scene carries avatars as version 0.2 of the Scene contract
+(`docs/engine/SCENE-CONTRACT-V0.md`, section 12, in the container repository)
+defines them. The avatar format is `avatar-render/1`, unchanged.
+
+- `scene/scene.mjs`:
+  - A layer's assets gain `bodies`: each entry is one `avatar-render/1` bind
+    description, as the avatar runtime's pose reader makes it.
+  - The `skin` component is `{ body, pose }`: `body` is a key in the layer's
+    `bodies`, `pose` the `avatar-render/1` completed pose. `addLayer` refuses a
+    skin that names a missing body.
+  - `scene.writePose(ref, pose)` replaces the entity's pose with a frozen copy
+    and records one change of kind `"pose"`. It refuses an entity with no
+    skin and a pose whose matrices are not 16 numbers. The full validation of
+    the format stays with the renderer (`three-avatar-resources.mjs`).
+  - The pose's `rootMatrix` places the body in the world: the entity's
+    `transform` and the layer's `placement` do not apply to a skinned entity.
+- `render/three/scene-view.mjs`:
+  - When a skinned entity appears it builds the body with the adapter's
+    `bindSkin`, adds its root under the view's root and applies the entity's
+    latest pose with `setSkinPose`. A view started from revision 0 (a renderer
+    swapped in) therefore shows each avatar as it stands.
+  - A `"pose"` change applies the new pose in place.
+  - A layer whose entities are all movers (a `skin`, and nothing drawn) and
+    that sets no environment, navigation or defaults is a mover layer: adding,
+    removing, showing or hiding it, or replacing it with the same name, is
+    applied in place. A body whose entity stays with the same body is kept; a
+    body whose entity goes or whose layer is hidden is freed with
+    `disposeSkin`, once. A change to any other layer still rebuilds the view.
+  - `bindSkin`, `setSkinPose` and `disposeSkin` (renderer contract revision 2)
+    are unchanged; the scene view is their only caller on the document route.
+- `web/scene-runtime-controller.mjs`, on the document route (a scene published
+  with its engine Scene as `engineScene`):
+  - Each frame the application adds the content layer `visitors`
+    (`source.format: "application"`) with one entity per shown avatar
+    (`visitor-<n>`, its body keyed the same), or writes each avatar's completed
+    pose with `scene.writePose`, then calls the adapter's `syncScene` so the
+    frame is drawn with this frame's pose, as before.
+  - An avatar the application hides (its model or rig not visible) is left out
+    of the layer, because the Scene has no visibility per entity; its body is
+    freed and built again when it is shown.
+  - The evaluator's own meshes stay hidden from the drawing (layer mask 0)
+    exactly as on the ordinary path; the masking moved into one function both
+    paths call.
+  - The pose writer sits between `// document-route:begin` and
+    `// document-route:end`. The Lab's ordinary worlds keep the present path
+    (`bindSkin` and `setSkinPose` called by the controller).
+- Today the document route creates no avatar layer (`web/app.js`,
+  `mainX3dDocument`), so no avatar is drawn there yet; the path above is
+  exercised by the scene view kit and a controller probe.
+
+Checks:
+
+- `node src/scene-view-kit-check.mjs`, the scene view kit, with kit 1.1.2's
+  two-joint skin (`src/fixtures/scene-view-kit/two-joint-skin.json`, a byte
+  copy): the bent pose moves the points as kit 1.1.2 expects; a view started
+  from revision 0 after the bent pose shows it; a hidden `visitors` layer draws
+  nothing; a body is freed once; `writePose` records one `"pose"` change. One
+  planted fault per check. It is listed in `tools/run-checks-lists.mjs`.
+- `node src/engine-boundary-check.mjs` rule 8: no engine file outside the
+  renderer files, no line of `web/own-x3d-document.mjs` and no line of the
+  controller's document-route block calls `bindSkin`, `setSkinPose` or
+  `disposeSkin`. Rule 6 now reads all of `scene/manager.mjs`.
 
 ## Evaluator distribution and verification
 

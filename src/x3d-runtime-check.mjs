@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { parseX3dDocument } from "../runtime/scene-core/public/x3d/json-document.mjs";
-import { createX3dRuntime } from "../runtime/scene-core/public/x3d/scene-runtime.mjs";
+import { createLayerRuntime } from "../runtime/scene-core/public/x3d/scene-runtime.mjs";
+import { createScene } from "../runtime/scene-core/public/scene/scene.mjs";
+import { documentToLayer } from "../runtime/scene-core/public/import/x3d/to-scene.mjs";
 import { SOFT_BODY_COMPATIBILITY } from "../runtime/scene-core/public/x3d/profile.mjs";
 
 const anchorText = await readFile(new URL("../web/x3d-worlds/anchor-portal-world.x3d.json", import.meta.url), "utf8");
@@ -13,10 +15,17 @@ const frame = (time, position, extra = {}) => ({ time, position, ...allowed, ...
 const fieldEvents = (result, field) => result.events.filter((e) => e.field === field);
 const near = (actual, expected) => { assert.equal(actual.length, expected.length); actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) < 1e-8, `${actual} != ${expected}`)); };
 let cases = 0;
+// The X3D importer's layer in a new Scene, with the Scene Manager's Interaction on it (createLayerRuntime).
+function createRuntime(document, { portalBindings = [] } = {}) {
+    const scene = createScene();
+    scene.addLayer(documentToLayer(document).layer, { name: "world" });
+    return createLayerRuntime(scene, { portalBindings, navigation: document.nodes.filter((n) => n.type === "NavigationInfo").map((n) => n.fields),
+        centerOf: (entity) => entity.extras.x3d.centerOfRotation });
+}
 async function check(name, run) { await run(); cases++; console.log(`PASS ${name}`); }
 
 await check("real entry viewpoint, initial inside, dwell and exit", () => {
-    const runtime = createX3dRuntime(anchorDocument, bound);
+    const runtime = createRuntime(anchorDocument, bound);
     near(runtime.viewpoints[0].position, [0, 1.6, 6]);
     assert.equal(runtime.navigation[0].speed, 2);
     const initial = runtime.step(frame(10, [0, 1.2, -2.5]));
@@ -37,7 +46,7 @@ await check("real entry viewpoint, initial inside, dwell and exit", () => {
 });
 
 await check("swept crossing emits exact boundary times and permits later entry", () => {
-    const runtime = createX3dRuntime(anchorDocument, bound);
+    const runtime = createRuntime(anchorDocument, bound);
     runtime.step(frame(0, [-3, 1.2, -2.5]));
     const result = runtime.step(frame(10, [3, 1.2, -2.5]));
     assert.deepEqual(fieldEvents(result, "isActive").map((e) => e.value), [true, false]);
@@ -56,7 +65,7 @@ await check("parent rotation/translation, local sensor coordinates and viewpoint
             { Viewpoint: { "@position": [2, 0, 0], "@centerOfRotation": [1, 0, 0] } },
         ] } },
     ] } } }));
-    const runtime = createX3dRuntime(document);
+    const runtime = createRuntime(document);
     near(runtime.viewpoints[0].position, [10, 2, 0]);
     near(runtime.viewpoints[0].centerOfRotation, [10, 1, 0]);
     near(runtime.viewpoints[0].orientation, [0, 0, 1, Math.PI / 2]);
@@ -68,22 +77,22 @@ await check("parent rotation/translation, local sensor coordinates and viewpoint
 });
 
 await check("disabled and zero-volume sensors, enabled transition, explicit binding", async () => {
-    const runtime = createX3dRuntime(anchorDocument, bound);
+    const runtime = createRuntime(anchorDocument, bound);
     assert.equal(runtime.step(frame(0, [0, 1.2, -2.5], { sensorEnabled: { PortalTrigger: false } })).events.length, 0);
     assert.equal(runtime.step(frame(1, [0, 1.2, -2.5], { sensorEnabled: { PortalTrigger: true } })).intents.length, 1);
     assert.deepEqual(fieldEvents(runtime.step(frame(2, [0, 1.2, -2.5], { sensorEnabled: { PortalTrigger: false } })), "isActive").map((e) => e.value), [false]);
     const source = JSON.parse(anchorText);
     source.X3D.Scene["-children"].find((n) => n.ProximitySensor).ProximitySensor["@size"] = [0, 3, 1.2];
-    const zero = createX3dRuntime(await parseX3dDocument(JSON.stringify(source)), bound);
+    const zero = createRuntime(await parseX3dDocument(JSON.stringify(source)), bound);
     assert.equal(zero.step(frame(0, [0, 1.2, -2.5])).events.length, 0);
-    const unbound = createX3dRuntime(anchorDocument);
+    const unbound = createRuntime(anchorDocument);
     const sensed = unbound.step(frame(0, [0, 1.2, -2.5]));
     assert.equal(fieldEvents(sensed, "isActive").length, 1);
     assert.equal(sensed.intents.length, 0);
 });
 
 await check("activation and proximity require explicit visible/access allowlist", () => {
-    const runtime = createX3dRuntime(anchorDocument, bound);
+    const runtime = createRuntime(anchorDocument, bound);
     assert.equal(runtime.activate("PortalAnchor", { time: 0 }), null);
     assert.equal(runtime.step(frame(0, [0, 1.2, -2.5], { allowedAnchors: [] })).intents.length, 0);
     const picked = runtime.activate("PortalAnchor", { time: 1, ...allowed });
@@ -98,7 +107,7 @@ await check("activation and proximity require explicit visible/access allowlist"
 });
 
 await check("cancel invalidates held intents, disposal is terminal and instances are independent", () => {
-    const a = createX3dRuntime(anchorDocument, bound), b = createX3dRuntime(anchorDocument, bound);
+    const a = createRuntime(anchorDocument, bound), b = createRuntime(anchorDocument, bound);
     const held = a.step(frame(0, [0, 1.2, -2.5])).intents[0];
     assert.equal(a.isCurrent(held.generation), true);
     a.cancel();
@@ -114,7 +123,7 @@ await check("cancel invalidates held intents, disposal is terminal and instances
 });
 
 await check("pause does not synthesize a crossing across the paused interval", () => {
-    const runtime = createX3dRuntime(anchorDocument, bound);
+    const runtime = createRuntime(anchorDocument, bound);
     runtime.step(frame(0, [-3, 1.2, -2.5]));
     assert.equal(runtime.step(frame(1, [0, 1.2, -2.5], { paused: true })).events.length, 0);
     assert.equal(runtime.step(frame(2, [3, 1.2, -2.5])).intents.length, 0);
@@ -122,7 +131,7 @@ await check("pause does not synthesize a crossing across the paused interval", (
 
 await check("soft-body scene preserves both viewpoints and lobby Anchor intent", async () => {
     const document = await parseX3dDocument(softText, { compatibility: SOFT_BODY_COMPATIBILITY });
-    const runtime = createX3dRuntime(document, bound);
+    const runtime = createRuntime(document, bound);
     assert.equal(runtime.viewpoints.length, 2);
     near(runtime.viewpoints[0].position, [-10, 1.6, 10]);
     assert.equal(runtime.step(frame(1, [-8.59, 1.2, 2.93])).intents[0].urls[0], "/w/lobby/");
@@ -130,9 +139,9 @@ await check("soft-body scene preserves both viewpoints and lobby Anchor intent",
 });
 
 await check("invalid calls fail before changing instance state", () => {
-    assert.throws(() => createX3dRuntime({ ...anchorDocument }), /validated/);
-    assert.throws(() => createX3dRuntime(anchorDocument, { portalBindings: [{ sensor: "Missing", anchor: "PortalAnchor" }] }), /portalBindings/);
-    const runtime = createX3dRuntime(anchorDocument, bound);
+    assert.throws(() => createRuntime({ ...anchorDocument }), /validated/);
+    assert.throws(() => createRuntime(anchorDocument, { portalBindings: [{ sensor: "Missing", anchor: "PortalAnchor" }] }), /portalBindings/);
+    const runtime = createRuntime(anchorDocument, bound);
     runtime.step(frame(1, [0, 1.2, 6]));
     assert.throws(() => runtime.step(frame(0, [0, 1.2, -2.5])), /monotonic/);
     assert.throws(() => runtime.step(frame(2, [0, NaN, 0])), /viewer.position/);
@@ -145,16 +154,16 @@ await check("inherited controls cannot enable a sensor and repeated sensor insta
     const sensor = source.X3D.Scene["-children"].find((n) => n.ProximitySensor).ProximitySensor;
     sensor["@DEF"] = "constructor";
     sensor["@enabled"] = false;
-    const runtime = createX3dRuntime(await parseX3dDocument(JSON.stringify(source)));
+    const runtime = createRuntime(await parseX3dDocument(JSON.stringify(source)));
     assert.equal(runtime.step({ time: 0, position: [0, 1.2, -2.5] }).events.length, 0);
     assert.equal(runtime.step({ time: 1, position: [0, 1.2, -2.5], sensorEnabled: { constructor: true } }).events.length, 4);
     source.X3D.Scene["-children"].push({ ProximitySensor: { "@USE": "constructor" } });
     const awaitedDocument = await parseX3dDocument(JSON.stringify(source));
-    assert.throws(() => createX3dRuntime(awaitedDocument), /multiply instanced/);
+    assert.throws(() => createRuntime(awaitedDocument), /multiply instanced/);
 });
 
 await check("sparse host pose and allowlists reject without advancing time, sensor state or intent sequence", () => {
-    const runtime = createX3dRuntime(anchorDocument, bound), control = createX3dRuntime(anchorDocument, bound);
+    const runtime = createRuntime(anchorDocument, bound), control = createRuntime(anchorDocument, bound);
     assert.deepEqual(runtime.step(frame(1, [0, 1.2, 6])), control.step(frame(1, [0, 1.2, 6])));
     const position = [0, 1.2, -2.5]; delete position[1];
     const orientation = [0, 0, 1, 0]; delete orientation[1];

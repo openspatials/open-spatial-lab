@@ -4,9 +4,9 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import * as THREE from "three";
 import { OwnX3dRenderAdapter } from "../runtime/scene-core/public/x3d/own-x3d-render-adapter.mjs";
-import { documentToLayer } from "../runtime/scene-core/public/import/x3d/to-scene.mjs";
-import { createX3dSceneHost } from "../runtime/scene-core/public/scene/manager.mjs";
-import { parseX3dDocument } from "../runtime/scene-core/public/x3d/json-document.mjs";
+import { documentToLayer, x3dImporter } from "../runtime/scene-core/public/import/x3d/to-scene.mjs";
+import { createSceneHost } from "../runtime/scene-core/public/scene/manager.mjs";
+import { isX3dDocument, parseX3dDocument } from "../runtime/scene-core/public/x3d/json-document.mjs";
 import { SOFT_BODY_COMPATIBILITY } from "../runtime/scene-core/public/x3d/profile.mjs";
 import { prepareWorld } from "../web/soft-body-world.mjs";
 
@@ -30,8 +30,21 @@ function createCanvas() {
     const canvas = { width: 0, height: 0, calls, getContext: () => context }; canvases.push(canvas); return canvas;
 }
 const make = () => new OwnX3dRenderAdapter(THREE, { createCanvas, preparePhysics: prepareWorld });
-// The Scene Manager's document host: import, then scene.addLayer, then renderer.syncScene; Interaction and the physics sink on that Scene.
-const documentsOf = (renderer) => createX3dSceneHost({ renderer, preparePhysics: prepareWorld });
+// The Scene Manager's document host with the X3D importer: import, then scene.addLayer, then renderer.syncScene;
+// Interaction and the physics sink on that Scene. load takes X3D text or a read document, as the document route does.
+const documentsOf = (renderer) => {
+    const host = createSceneHost({ renderer });
+    return Object.freeze({
+        get state() { return host.state; },
+        load(input, { compatibility, portalBindings = [], signal } = {}) {
+            const read = isX3dDocument(input) ? input : null;
+            const importer = read ? { ...x3dImporter, import: async (_source, { options }) => documentToLayer(read, { name: options.name, preparePhysics: options.preparePhysics }) } : x3dImporter;
+            return host.load({ text: read ? null : input }, { importer, signal, centerOf: (entity) => entity.extras.x3d.centerOfRotation,
+                options: { compatibility, preparePhysics: prepareWorld, portalBindings } });
+        },
+        cancel: host.cancel, step: host.step, activate: host.activate, pick: host.pick, dispose: host.dispose,
+    });
+};
 class RendererDouble {
     constructor() { this.domElement = {}; this.disposals = 0; }
     getContext() { return {}; }

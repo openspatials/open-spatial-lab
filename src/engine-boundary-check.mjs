@@ -1,8 +1,10 @@
 // The engine boundary check (docs/engine/STRATEGY.md, rule 4): fails when one engine part reaches into another.
 //   node src/engine-boundary-check.mjs                 check the engine folder, then one planted fault per rule
 //   node src/engine-boundary-check.mjs --root <dir>    check another copy of runtime/scene-core/public (a planted break)
-// Rules 1 to 4 are milestone M1's boundary greps made into one check;
-// rules 5 to 7 are milestone M2's. Prints one JSON summary; exits 1 when a rule is broken or a planted fault is missed.
+// Rules 1 to 4 are milestone M1's boundary greps made into one check; rules 5 to 7 are milestone M2's; rule 8 is the
+// milestone "skins in the Scene" (rule 6 lost its forwards exception there). Rule 8 also reads the document route's
+// application files under web/ (from this code folder, also with --root). Prints one JSON summary; exits 1 when a rule
+// is broken or a planted fault is missed.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +22,8 @@ const filesIn = (dir) => {
         return statSync(path).isDirectory() ? filesIn(join(dir, name)) : name.endsWith(".mjs") || name.endsWith(".js") ? [join(dir, name)] : [];
     });
 };
-const reader = (overrides) => (file) => overrides[file] ?? readFileSync(join(ENGINE, file), "utf8");
+/** Engine files are read under the engine folder; files named "web/..." under this code folder. */
+const reader = (overrides) => (file) => overrides[file] ?? readFileSync(file.startsWith("web/") ? join(CODE, file) : join(ENGINE, file), "utf8");
 const lines = (text) => text.split("\n").map((line, i) => ({ n: i + 1, line }));
 const importsOf = (text) => [...text.matchAll(/\b(?:import|export)\s+(?:[^"';]*?\s+from\s*)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)].map((m) => m[1] ?? m[2]);
 /** An import of `file`, as a path inside the engine folder (or the bare specifier). */
@@ -33,7 +36,12 @@ const READER_FORWARDS = /^x3d\/(json-document|profile|scene-runtime)\.mjs$/;
 const DOCUMENT_METHODS = /loadDocument|cancelDocument|stepDocument|activateAnchor|pickRay|documentState|isX3dDocument|parseX3dDocument/;
 const FORMAT_NAME = /x3d|gltf|\bglb\b|\busdz?\b|collada|\bfbx\b/i;
 const MANAGER = "scene/manager.mjs";
-const FORWARD_EXPORTS = ["createX3dRuntime", "createX3dSceneHost"];
+// The document route's application files: the route's own module whole, and the controller's marked pose writer.
+const ROUTE_FILE = "web/own-x3d-document.mjs";
+const CONTROLLER = "web/scene-runtime-controller.mjs";
+const ROUTE_BLOCK = ["// document-route:begin", "// document-route:end"];
+const SKIN_CALL = /\b(bindSkin|setSkinPose|disposeSkin)\s*(\?\.)?\s*\(/;
+const skinCalls = (file, text, offset = 0) => lines(text).filter(({ line }) => SKIN_CALL.test(line)).map(({ n, line }) => `${file}:${n + offset}: ${line.trim().slice(0, 100)}`);
 
 /** Each rule returns its crossings, as "file:line: what". */
 const RULES = {
@@ -46,20 +54,24 @@ const RULES = {
     // M2
     "5 importers import no Three.js and no renderer file": (read) => IMPORTERS.flatMap(filesIn).flatMap((f) => importsOf(read(f)).map((s) => [s, target(f, s)])
         .filter(([s, t]) => /^three(\/|$)/.test(s) || /^(render|render-adapter|vendor\/three)\//.test(t) || RENDERER.files.includes(t)).map(([s]) => `${f}: imports ${s}`)),
-    "6 scene/manager.mjs names no format outside its forwards block": (read) => {
-        const text = read(MANAGER), begin = text.indexOf("// forwards:begin"), end = text.indexOf("// forwards:end");
-        if (begin < 0 || end < begin) return [`${MANAGER}: no "// forwards:begin" ... "// forwards:end" block`];
-        const crossings = [];
-        const before = text.slice(0, begin), block = text.slice(begin, end), after = text.slice(end + "// forwards:end".length);
-        for (const [part, offset] of [[before, 0], [after, text.slice(0, end).split("\n").length - 1]]) {
-            for (const { n, line } of lines(part)) if (FORMAT_NAME.test(line)) crossings.push(`${MANAGER}:${n + offset}: ${line.trim().slice(0, 100)}`);
-            for (const s of importsOf(part)) if (target(MANAGER, s).startsWith("import/")) crossings.push(`${MANAGER}: imports the importer ${s} outside the forwards block`);
-        }
-        for (const [, name] of block.matchAll(/^export\s+(?:async\s+)?(?:function|const|let|class)\s+(\w+)/gm)) if (!FORWARD_EXPORTS.includes(name)) crossings.push(`${MANAGER}: forwards block exports ${name}, not an old name`);
-        return crossings;
+    "6 scene/manager.mjs names no format and imports no importer": (read) => {
+        const text = read(MANAGER);
+        return [...lines(text).filter(({ line }) => FORMAT_NAME.test(line)).map(({ n, line }) => `${MANAGER}:${n}: ${line.trim().slice(0, 100)}`),
+            ...importsOf(text).filter((s) => target(MANAGER, s).startsWith("import/")).map((s) => `${MANAGER}: imports the importer ${s}`)];
     },
     "7 the Scene, Interaction and Physics import no renderer file": (read) => ["scene", "interaction", "physics", "core"].flatMap(filesIn).flatMap((f) => importsOf(read(f)).map((s) => [s, target(f, s)])
         .filter(([s, t]) => /^three(\/|$)/.test(s) || /^render\//.test(t) || (t.startsWith("render-adapter/") && f !== "core/math.mjs")).map(([s]) => `${f}: imports ${s}`)),
+    // Skins in the Scene
+    "8 on the document route only the Renderer calls bindSkin, setSkinPose or disposeSkin": (read) => {
+        const renderer = new Set(rendererFiles());
+        const engine = ["", ...readdirSync(ENGINE).filter((name) => statSync(join(ENGINE, name)).isDirectory() && name !== "vendor")]
+            .flatMap((dir) => (dir ? filesIn(dir) : readdirSync(ENGINE).filter((name) => /\.m?js$/.test(name))))
+            .filter((f) => !renderer.has(f)).flatMap((f) => skinCalls(f, read(f)));
+        const controller = read(CONTROLLER), begin = controller.indexOf(ROUTE_BLOCK[0]), end = controller.indexOf(ROUTE_BLOCK[1]);
+        if (begin < 0 || end < begin) return [...engine, `${CONTROLLER}: no "${ROUTE_BLOCK[0]}" ... "${ROUTE_BLOCK[1]}" block`];
+        return [...engine, ...skinCalls(ROUTE_FILE, read(ROUTE_FILE)),
+            ...skinCalls(CONTROLLER, controller.slice(begin, end), controller.slice(0, begin).split("\n").length - 1)];
+    },
 };
 
 const run = (overrides = {}) => Object.entries(RULES).map(([rule, check]) => ({ rule, crossings: check(reader(overrides)) }));
@@ -74,8 +86,10 @@ const FAULTS = rootAt > 0 ? [] : [
     { rule: "3 render-adapter/ has no loadDocument", edit: append("render-adapter/three-render-adapter.mjs", "function loadDocument() {}") },
     { rule: "4 no renderer file has a document method", edit: append("x3d/own-x3d-render-adapter.mjs", "const pickRay = null;") },
     { rule: "5 importers import no Three.js and no renderer file", edit: append("import/gltf/read.mjs", 'import { createSceneView } from "../../render/three/scene-view.mjs";') },
-    { rule: "6 scene/manager.mjs names no format outside its forwards block", edit: { [MANAGER]: readFileSync(join(ENGINE, MANAGER), "utf8").replace("// forwards:begin", 'const preferred = "gltf";\n// forwards:begin') } },
+    { rule: "6 scene/manager.mjs names no format and imports no importer", edit: append(MANAGER, 'const preferred = "gltf";') },
     { rule: "7 the Scene, Interaction and Physics import no renderer file", edit: append("interaction/sensors.mjs", 'import { createSceneView } from "../render/three/scene-view.mjs";') },
+    { rule: "8 on the document route only the Renderer calls bindSkin, setSkinPose or disposeSkin", edit: { [CONTROLLER]: readFileSync(join(CODE, CONTROLLER), "utf8")
+        .replace(ROUTE_BLOCK[1], `adapter.setSkinPose(binding, pose);\n  ${ROUTE_BLOCK[1]}`) } },
 ];
 const faults = FAULTS.map(({ rule, edit }) => {
     const found = run(edit).find((r) => r.rule === rule).crossings;

@@ -1,7 +1,6 @@
 // The Scene Manager (docs/engine/SCENE-CONTRACT-V0.md, sections 3, 4 and 6): the one writer of layers. It hands a
 // source to the importer the application names and puts the layer it returns into the Scene. It knows no format: what
-// only one format needs reaches its importer as that importer's options. The old format-named exports are forwards,
-// kept in the marked block at the end until every caller has moved.
+// only one format needs reaches its importer as that importer's options.
 import { decomposeTRS, transformPoint, IDENTITY_MAT4 } from "../core/math.mjs";
 import { createSensors, pickLink } from "../interaction/sensors.mjs";
 import { createSceneSink } from "../physics/bullet/soft-body.mjs";
@@ -226,42 +225,3 @@ export function createSceneHost({ renderer, layer = "world" } = {}) {
         },
     });
 }
-
-// forwards:begin
-// Old X3D-named exports, kept as forwards until every caller has moved (STRATEGY rule 3): x3d/scene-runtime.mjs and
-// src/x3d-runtime-check.mjs call createX3dRuntime; src/x3d-renderer-check.mjs calls createX3dSceneHost. Each passes the
-// X3D importer and what only X3D needs to the format-free code above. The engine boundary check reads no format name
-// outside this block, and only imports, constants and these two forwards inside it.
-import { isX3dDocument } from "../import/x3d/json-document.mjs";
-import { documentToLayer, x3dImporter } from "../import/x3d/to-scene.mjs";
-const x3dNavigation = (document) => document.nodes.filter((n) => n.type === "NavigationInfo").map((n) => n.fields);
-const x3dCenterOf = (entity) => entity.extras.x3d.centerOfRotation;
-/** Forward: the X3D importer's layer in a new Scene, with Interaction on it (former x3d/scene-runtime.mjs). */
-export function createX3dRuntime(document, { portalBindings = [] } = {}) {
-    if (!isX3dDocument(document)) throw new TypeError("runtime: expected a validated X3D document");
-    const scene = createScene();
-    scene.addLayer(documentToLayer(document).layer, { name: "world" });
-    return createLayerRuntime(scene, { portalBindings, navigation: x3dNavigation(document), centerOf: x3dCenterOf });
-}
-/** Forward: createSceneHost with the X3D importer; load takes X3D text or a read document, and the state keeps it. */
-export function createX3dSceneHost({ renderer, preparePhysics = null, layer = "world" } = {}) {
-    const host = createSceneHost({ renderer, layer }), documents = new WeakMap(), states = new WeakMap();
-    const withDocument = (value) => {
-        if (!value) return value;
-        if (!states.has(value)) states.set(value, Object.freeze({ ...value, document: documents.get(value) }));
-        return states.get(value);
-    };
-    return Object.freeze({
-        get state() { return withDocument(host.state); },
-        async load(input, { compatibility, portalBindings = [], signal } = {}) {
-            let read = isX3dDocument(input) ? input : null;
-            const importer = read ? { ...x3dImporter, import: async (_source, { options }) => documentToLayer(read, { name: options.name, preparePhysics: options.preparePhysics }) } : x3dImporter;
-            const loaded = await host.load({ text: read ? null : input }, { importer, signal, centerOf: x3dCenterOf,
-                options: { compatibility, preparePhysics, portalBindings, onDocument: (document) => { read = document; } } });
-            documents.set(loaded, read);
-            return withDocument(loaded);
-        },
-        cancel: host.cancel, step: host.step, activate: host.activate, pick: host.pick, dispose: host.dispose,
-    });
-}
-// forwards:end

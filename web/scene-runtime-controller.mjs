@@ -174,7 +174,7 @@ export function createSceneRuntimeController({
         assertCurrent();
         const { realization, camera } = prepared.state, renderAdapter = prepared.adapter;
         next = { _impl: { scene: realization.scene, camera, renderer: renderAdapter.renderer, renderAdapter },
-          world: null, rendererKind: "webgl", document: prepared.state.document,
+          engineScene: prepared.state.scene, world: null, rendererKind: "webgl", document: prepared.state.document,
           entry: prepared.state.runtime.viewpoints[0], lighting: prepared.lighting,
           x3dPortal: prepared.portal || null, x3dPortalReason: prepared.portalReason ?? null,
           setPhase() {}, setAvatar() {}, resize() {},
@@ -300,6 +300,7 @@ export function createSceneRuntimeController({
     if (!sceneToDispose || typeof sceneToDispose.dispose !== "function") return;
     const renderer = sceneToDispose._impl?.renderer;
     for (const [model, binding] of skinBindings) if (binding.adapter === sceneToDispose._impl?.renderAdapter) releaseSkinBinding(model, binding);
+    if (sceneToDispose.engineScene) releaseVisitors();
     try {
       sceneToDispose.dispose();
     } catch (error) {
@@ -736,12 +737,98 @@ export function createSceneRuntimeController({
 
   function releaseSkinBinding(model, binding) {
     binding.adapter.disposeSkin?.(binding.skin);
-    for (const [mesh, mask] of binding.hiddenMeshes || []) mesh.layers.mask = mask;
+    restoreEvaluatorMeshes(binding.hiddenMeshes);
     skinBindings.delete(model);
   }
 
+  /**
+   * Keep evaluator transforms and visibility policy intact, but only the independent binding contributes pixels to the
+   * shared depth buffer. An item the layer attached itself (attached-equipment-<itemId>) that the binding does not
+   * carry still draws from the rig; every other mesh draws only through the binding. `hiddenMeshes` keeps each hidden
+   * mesh's own mask.
+   */
+  function hideEvaluatorMeshes(model, pose, hiddenMeshes) {
+    const carried = new Set((pose.attachments || []).map(attachment => attachment.itemId));
+    const uncarriedItem = mesh => { for (let node = mesh.parent; node && node !== model; node = node.parent) {
+      if (node.name?.startsWith("attached-equipment-")) return !carried.has(node.name.slice("attached-equipment-".length)); } return false; };
+    model.traverse(mesh => {
+      if (!mesh.isMesh) return;
+      if (uncarriedItem(mesh)) {
+        if (hiddenMeshes.has(mesh)) { mesh.layers.mask = hiddenMeshes.get(mesh); hiddenMeshes.delete(mesh); }
+        return;
+      }
+      if (!hiddenMeshes.has(mesh)) hiddenMeshes.set(mesh, mesh.layers.mask);
+      mesh.layers.mask = 0;
+    });
+  }
+
+  function restoreEvaluatorMeshes(hiddenMeshes) {
+    for (const [mesh, mask] of hiddenMeshes || []) mesh.layers.mask = mask;
+  }
+
+  // document-route:begin
+  // The document route's pose writer (Scene contract section 12). Each shown avatar is an entity with a `skin` in the
+  // application's content layer `visitors`, and its completed pose goes into the Scene with scene.writePose. The
+  // renderer's scene view builds, poses and frees the bodies; nothing here calls the adapter's skin calls. An avatar the
+  // application hides (first person, a model hidden) is not in the layer; the Scene has no per-entity visibility.
+  const VISITORS = "visitors";
+  const IDENTITY_TRANSFORM = Object.freeze({ translation: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] });
+  const visitorIds = new WeakMap(), visitorsWritten = new WeakMap(), visitorMeshes = new Map();
+  let visitorCount = 0;
+
+  const completedPose = ({ rig, ...pose }) => pose;
+  function visitorsLayer(shown) {
+    return {
+      kind: "content", source: { uri: null, format: "application" }, info: { title: "Visitors", notes: [] },
+      navigation: null, environment: null,
+      entities: shown.map(({ id, pose }) => ({ id, name: pose.catalogKey ?? id, parent: null, transform: IDENTITY_TRANSFORM,
+        components: { skin: { body: id, pose: structuredClone(completedPose(pose)) } }, source: null, extras: {} })),
+      assets: { geometries: {}, materials: {}, textures: {}, images: {}, bodies: Object.fromEntries(shown.map(({ id, rig }) => [id, rig])) },
+    };
+  }
+
+  function releaseVisitors() {
+    for (const hiddenMeshes of visitorMeshes.values()) restoreEvaluatorMeshes(hiddenMeshes);
+    visitorMeshes.clear();
+  }
+
+  /**
+   * The document route's frame: the layers' completed poses go into the Scene. The `visitors` layer is replaced when the
+   * set of shown avatars (or a body) changes; otherwise each pose is written. The renderer then syncs, before the
+   * frame is drawn, as the poses were applied before.
+   */
+  function writeVisitorPoses(layers, scene, adapter) {
+    evaluatedPoses = [];
+    const shown = [], active = new Set();
+    for (const layer of [layers.local, ...layers.peers].filter(Boolean)) {
+      const pose = layer.evaluatedPose?.();
+      if (!pose) continue;
+      evaluatedPoses.push(pose);
+      const model = layer._avatarModel;
+      if (!model || !pose.rig) continue;
+      active.add(model);
+      if (!visitorIds.has(model)) visitorIds.set(model, `visitor-${++visitorCount}`);
+      if (!visitorMeshes.has(model)) visitorMeshes.set(model, new Map());
+      hideEvaluatorMeshes(model, pose, visitorMeshes.get(model));
+      layer.status.avatar_resource_path = "explicit";
+      if (model.visible && layer.avatarRig.visible) shown.push({ id: visitorIds.get(model), rig: pose.rig, pose });
+    }
+    for (const [model, hiddenMeshes] of visitorMeshes) if (!active.has(model)) { restoreEvaluatorMeshes(hiddenMeshes); visitorMeshes.delete(model); }
+    if (adapter.attachedScene !== scene) return;
+    const before = visitorsWritten.get(scene) ?? [];
+    const same = before.length === shown.length && shown.every(({ id, rig }, i) => before[i].id === id && before[i].rig === rig);
+    if (!same) {
+      if (scene.layers().includes(VISITORS)) scene.removeLayer(VISITORS);
+      if (shown.length) scene.addLayer(visitorsLayer(shown), { name: VISITORS });
+      visitorsWritten.set(scene, shown.map(({ id, rig }) => ({ id, rig })));
+    } else for (const { id, pose } of shown) scene.writePose({ layer: VISITORS, id }, completedPose(pose));
+    if (!same || shown.length) adapter.syncScene();
+  }
+  // document-route:end
+
   function publishEvaluatedPoses(layers) {
     const adapter = currentScene?._impl?.renderAdapter;
+    if (currentScene?.engineScene && adapter) return writeVisitorPoses(layers, currentScene.engineScene, adapter);
     evaluatedPoses = [];
     const activeModels = new Set();
     for (const layer of [layers.local, ...layers.peers].filter(Boolean)) {
@@ -761,22 +848,7 @@ export function createSceneRuntimeController({
       if (binding.skin.supported) {
         adapter.setSkinPose(binding.skin, explicitAvatarResources ? pose : pose.jointLocalMatrices);
         if (explicitAvatarResources) {
-          // Keep evaluator transforms and visibility policy intact, but only the
-          // independent binding contributes pixels to the shared depth buffer.
-          // An item the layer attached itself (attached-equipment-<itemId>) that the binding does not carry still
-          // draws from the rig; every other mesh draws only through the binding.
-          const carried = new Set((pose.attachments || []).map(attachment => attachment.itemId));
-          const uncarriedItem = mesh => { for (let node = mesh.parent; node && node !== model; node = node.parent) {
-            if (node.name?.startsWith("attached-equipment-")) return !carried.has(node.name.slice("attached-equipment-".length)); } return false; };
-          model.traverse(mesh => {
-            if (!mesh.isMesh) return;
-            if (uncarriedItem(mesh)) {
-              if (binding.hiddenMeshes.has(mesh)) { mesh.layers.mask = binding.hiddenMeshes.get(mesh); binding.hiddenMeshes.delete(mesh); }
-              return;
-            }
-            if (!binding.hiddenMeshes.has(mesh)) binding.hiddenMeshes.set(mesh, mesh.layers.mask);
-            mesh.layers.mask = 0;
-          });
+          hideEvaluatorMeshes(model, pose, binding.hiddenMeshes);
           adapter.setVisible(binding.skin.root, model.visible && layer.avatarRig.visible);
         }
         layer.status.avatar_resource_path = explicitAvatarResources ? "explicit" : "shared-three";

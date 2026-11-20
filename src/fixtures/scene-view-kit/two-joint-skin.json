@@ -1,0 +1,802 @@
+{
+  "schema": "renderer-consumer-fixture/1",
+  "synthetic": true,
+  "description": "Two joints, intervening non-bone translation, one weighted triangle and one static attachment; not catalog evidence",
+  "descriptor": {
+    "schema": "avatar-render/1",
+    "jointIds": [
+      "hip",
+      "tip"
+    ],
+    "parentJointIds": [
+      null,
+      "hip"
+    ],
+    "parentIndices": [
+      -1,
+      0
+    ],
+    "jointFrame": "nearest-mapped-parent-or-holder",
+    "bindLocalMatrices": [
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0.5,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1
+      ]
+    ],
+    "units": "metres",
+    "matrixOrder": "column-major",
+    "resources": {
+      "geometries": [
+        {
+          "id": "geometry-0",
+          "attributes": {
+            "position": {
+              "components": 3,
+              "normalized": false,
+              "data": {
+                "$typed": "Float32Array",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  2,
+                  0,
+                  1,
+                  2,
+                  0
+                ]
+              }
+            },
+            "normal": {
+              "components": 3,
+              "normalized": false,
+              "data": {
+                "$typed": "Float32Array",
+                "values": [
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  1
+                ]
+              }
+            },
+            "uv": {
+              "components": 2,
+              "normalized": false,
+              "data": {
+                "$typed": "Float32Array",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "color": {
+              "components": 3,
+              "normalized": true,
+              "data": {
+                "$typed": "Uint8Array",
+                "values": [
+                  255,
+                  0,
+                  0,
+                  0,
+                  255,
+                  0,
+                  0,
+                  0,
+                  255
+                ]
+              }
+            },
+            "skinIndex": {
+              "components": 4,
+              "normalized": false,
+              "data": {
+                "$typed": "Uint16Array",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0
+                ]
+              }
+            },
+            "skinWeight": {
+              "components": 4,
+              "normalized": false,
+              "data": {
+                "$typed": "Float32Array",
+                "values": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0.25,
+                  0.75,
+                  0,
+                  0
+                ]
+              }
+            }
+          },
+          "index": {
+            "components": 1,
+            "normalized": false,
+            "data": {
+              "$typed": "Uint16Array",
+              "values": [
+                0,
+                1,
+                2
+              ]
+            }
+          },
+          "groups": [
+            {
+              "start": 0,
+              "count": 3,
+              "materialIndex": 0
+            }
+          ],
+          "drawRange": {
+            "start": 0,
+            "count": null
+          }
+        }
+      ],
+      "materials": [
+        {
+          "id": "material-0",
+          "name": "",
+          "model": "metallic-roughness",
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "metalness": 0.2,
+          "roughness": 0.6,
+          "emissiveIntensity": 1,
+          "opacity": 1,
+          "transparent": true,
+          "alphaTest": 0,
+          "side": "double",
+          "depthTest": true,
+          "depthWrite": true,
+          "vertexColors": true,
+          "flatShading": false,
+          "toneMapped": true,
+          "normalScale": [
+            1,
+            1
+          ],
+          "normalSpace": "tangent",
+          "aoIntensity": 1,
+          "maps": {
+            "map": "texture-0"
+          }
+        }
+      ],
+      "textures": [
+        {
+          "id": "texture-0",
+          "name": "",
+          "width": 1,
+          "height": 1,
+          "pixels": {
+            "$typed": "Uint8Array",
+            "values": [
+              230,
+              40,
+              90,
+              180
+            ]
+          },
+          "format": "rgba8",
+          "colorSpace": "srgb",
+          "channel": 0,
+          "uvMatrix": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "wrapS": "clamp",
+          "wrapT": "clamp",
+          "minFilter": "nearest",
+          "magFilter": "nearest",
+          "flipY": false,
+          "premultiplyAlpha": false,
+          "generateMipmaps": false,
+          "anisotropy": 1
+        }
+      ],
+      "meshes": [
+        {
+          "id": "mesh-0",
+          "name": "weighted-triangle",
+          "geometry": "geometry-0",
+          "materials": [
+            "material-0"
+          ],
+          "materialArray": false,
+          "parentJointId": null,
+          "localMatrix": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0.25,
+            0,
+            0,
+            1
+          ],
+          "visible": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "frustumCulled": true,
+          "renderOrder": 0,
+          "skin": {
+            "jointIds": [
+              "hip",
+              "tip"
+            ],
+            "inverseBindMatrices": [
+              [
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                -3,
+                -2.5,
+                4,
+                1
+              ],
+              [
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                -3,
+                -3.5,
+                4,
+                1
+              ]
+            ],
+            "bindMatrix": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              3.25,
+              2,
+              -4,
+              1
+            ],
+            "bindMatrixInverse": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              -3.25,
+              -2,
+              4,
+              1
+            ],
+            "bindMode": "attached"
+          }
+        }
+      ],
+      "items": {
+        "probe-item": {
+          "geometries": [
+            {
+              "id": "geometry-0",
+              "attributes": {
+                "position": {
+                  "components": 3,
+                  "normalized": false,
+                  "data": {
+                    "$typed": "Float32Array",
+                    "values": [
+                      0,
+                      0,
+                      0,
+                      0.10000000149011612,
+                      0,
+                      0,
+                      0,
+                      0.10000000149011612,
+                      0
+                    ]
+                  }
+                },
+                "normal": {
+                  "components": 3,
+                  "normalized": false,
+                  "data": {
+                    "$typed": "Float32Array",
+                    "values": [
+                      0,
+                      0,
+                      1,
+                      0,
+                      0,
+                      1,
+                      0,
+                      0,
+                      1
+                    ]
+                  }
+                }
+              },
+              "index": null,
+              "groups": [],
+              "drawRange": {
+                "start": 0,
+                "count": null
+              }
+            }
+          ],
+          "materials": [
+            {
+              "id": "material-0",
+              "name": "",
+              "model": "metallic-roughness",
+              "color": [
+                0.015996293361446288,
+                0.4019777798219466,
+                0.13286832154414627
+              ],
+              "emissive": [
+                0,
+                0,
+                0
+              ],
+              "metalness": 0,
+              "roughness": 1,
+              "emissiveIntensity": 1,
+              "opacity": 1,
+              "transparent": false,
+              "alphaTest": 0,
+              "side": "front",
+              "depthTest": true,
+              "depthWrite": true,
+              "vertexColors": false,
+              "flatShading": false,
+              "toneMapped": true,
+              "normalScale": [
+                1,
+                1
+              ],
+              "normalSpace": "tangent",
+              "aoIntensity": 1,
+              "maps": {}
+            }
+          ],
+          "textures": [],
+          "meshes": [
+            {
+              "id": "mesh-0",
+              "name": "",
+              "geometry": "geometry-0",
+              "materials": [
+                "material-0"
+              ],
+              "materialArray": false,
+              "parentJointId": null,
+              "localMatrix": [
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0.125,
+                1
+              ],
+              "visible": true,
+              "castShadow": false,
+              "receiveShadow": false,
+              "frustumCulled": true,
+              "renderOrder": 0,
+              "skin": null
+            }
+          ]
+        }
+      }
+    },
+    "skins": [
+      {
+        "name": "weighted-triangle",
+        "frame": "mesh-skin-bind",
+        "jointIds": [
+          "hip",
+          "tip"
+        ],
+        "inverseBindMatrices": [
+          [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            -3,
+            -2.5,
+            4,
+            1
+          ],
+          [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            -3,
+            -3.5,
+            4,
+            1
+          ]
+        ],
+        "bindMatrix": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          3.25,
+          2,
+          -4,
+          1
+        ],
+        "bindMatrixInverse": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          -3.25,
+          -2,
+          4,
+          1
+        ]
+      }
+    ]
+  },
+  "poses": {
+    "rest": {
+      "catalogKey": "synthetic-two-joint",
+      "rootMatrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        3,
+        2,
+        -4,
+        1
+      ],
+      "rootFrame": "world",
+      "frame": "avatar-holder",
+      "jointFrame": "nearest-mapped-parent-or-holder",
+      "units": "metres",
+      "matrixOrder": "column-major",
+      "jointIds": [
+        "hip",
+        "tip"
+      ],
+      "parentJointIds": [
+        null,
+        "hip"
+      ],
+      "jointLocalMatrices": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0.5,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          1
+        ]
+      ],
+      "attachments": [],
+      "attachmentStatus": "unavailable"
+    },
+    "bent": {
+      "catalogKey": "synthetic-two-joint",
+      "rootMatrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        3,
+        2,
+        -4,
+        1
+      ],
+      "rootFrame": "world",
+      "frame": "avatar-holder",
+      "jointFrame": "nearest-mapped-parent-or-holder",
+      "units": "metres",
+      "matrixOrder": "column-major",
+      "jointIds": [
+        "hip",
+        "tip"
+      ],
+      "parentJointIds": [
+        null,
+        "hip"
+      ],
+      "jointLocalMatrices": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0.5,
+          0,
+          1
+        ],
+        [
+          2.220446049250313e-16,
+          1,
+          0,
+          0,
+          -1,
+          2.220446049250313e-16,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          1
+        ]
+      ],
+      "attachments": [
+        {
+          "itemId": "probe-item",
+          "catalogKey": "synthetic-probe",
+          "frame": "avatar-holder",
+          "units": "metres",
+          "matrixOrder": "column-major",
+          "parentMatrix": [
+            2.220446049250313e-16,
+            1,
+            0,
+            0,
+            -1,
+            2.220446049250313e-16,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            1.5,
+            0,
+            1
+          ],
+          "itemMatrix": [
+            2.220446049250313e-16,
+            1,
+            0,
+            0,
+            -1,
+            2.220446049250313e-16,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            -0.09999999999999996,
+            1.7,
+            0.3,
+            1
+          ],
+          "hanimSite": null
+        }
+      ],
+      "attachmentStatus": "evaluated"
+    }
+  }
+}

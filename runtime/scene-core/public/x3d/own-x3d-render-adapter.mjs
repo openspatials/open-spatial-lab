@@ -64,6 +64,7 @@ export class OwnX3dRenderAdapter extends ThreeRenderAdapter {
             const changes = scene.changes(this._seen);
             if (changes === "all" ? view.refresh() : view.apply(changes)) { this._seen = scene.revision; return this._seen; }
         }
+        const skins = [...this._skins];
         let next;
         try { next = createSceneView(this, scene, this._sceneOptions); }
         catch (error) { this._attached = view?.scene ?? null; throw error; }
@@ -75,7 +76,7 @@ export class OwnX3dRenderAdapter extends ThreeRenderAdapter {
         this._view = null;
         const retiring = [
             ...[...this._previews].map((preview) => () => this.disposeRenderedTexture(preview)),
-            ...[...this._skins].map((skin) => () => this.disposeSkin(skin)),
+            ...skins.map((skin) => () => this.disposeSkin(skin)),
             () => view?.dispose(),
         ];
         for (const retire of retiring) { try { retire(); } catch (error) { failures.push(error); } }

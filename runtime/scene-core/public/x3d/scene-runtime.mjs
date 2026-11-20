@@ -1,1 +1,1 @@
-export { createX3dRuntime } from "../scene/manager.mjs";
+export { createLayerRuntime } from "../scene/manager.mjs";

@@ -3,12 +3,20 @@
 // Moved from x3d/scene-renderer.mjs, which built the same objects from an X3D document. It imports no reader.
 // It draws both material models: "classic" (X3D's Material, Phong) and "pbr" (glTF's metallic-roughness, Standard),
 // meshes from typed arrays, directional, point and spot lights, and textures it decodes from the Scene's image bytes.
+// Movers (contract section 12): an entity with a `skin` is a body the adapter builds from the layer's `bodies` entry
+// (bindSkin), posed with the entity's latest completed pose (setSkinPose) and freed once (disposeSkin). A layer whose
+// entities are all movers (the application's `visitors`) is added, removed, shown and hidden in place; a change to any
+// other layer rebuilds the view.
 
 const isScene = (value) => value && typeof value === "object" && value.schema === "scene/0" && typeof value.changes === "function";
 const where = (entity) => entity.source?.path ?? entity.id;
 const key = (ref) => `${ref.layer}\u0000${ref.id}`;
 // Entities that only carry data for other systems draw nothing.
 const DATA_ONLY = ["camera", "sensor", "joint"];
+// What a mover may carry besides its skin: nothing else of it is drawn.
+const MOVER_ONLY = ["skin", "meaning"];
+// Change kinds the view applies in place; any other kind rebuilds it.
+const IN_PLACE = ["entity", "geometry", "pose", "layer-added", "layer-removed", "layer-visible"];
 const isIdentity = ({ translation, rotation, scale }) => translation.every((v) => v === 0)
     && rotation[0] === 0 && rotation[1] === 0 && rotation[2] === 0 && rotation[3] === 1 && scale.every((v) => v === 1);
 // glTF sampler numbers (the WebGL enums the format uses) and the five texture slots of the pbr model.
@@ -27,15 +35,31 @@ const SLOTS = [["baseColorTexture", "map", true], ["metallicRoughnessTexture", "
 export function createSceneView(adapter, scene, { createCanvas } = {}) {
     if (!isScene(scene)) throw new TypeError("Expected a Scene (scene/scene.mjs)");
     const THREE = adapter.raw, root = new THREE.Scene(), owned = new Set(), objects = new Map(), dynamic = new Map();
-    const layers = scene.layers().filter((name) => scene.layer(name).visible);
+    // bodies: key(ref) -> { ref, asset, binding, freed }, one per drawn skinned entity.
+    const bodies = new Map();
+    const shown = () => scene.layers().filter((name) => scene.layer(name).visible);
+    /** A layer that holds only movers and sets nothing for the view (no environment, navigation or defaults). */
+    const isMoverLayer = (name) => {
+        const header = scene.layer(name);
+        if (header.environment?.background || header.environment?.color || header.navigation || header.defaults) return false;
+        return scene.find({ layer: name }).every((ref) => {
+            const components = scene.get(ref).components ?? {};
+            return !!components.skin && Object.keys(components).every((component) => MOVER_ONLY.includes(component));
+        });
+    };
+    const shownMovers = () => shown().filter(isMoverLayer);
+    // The world: the shown layers that are not mover layers. A change to this list, or a world layer replaced or shown
+    // again (a new header), rebuilds the view.
+    const layers = shown().filter((name) => !isMoverLayer(name)), worldHeaders = layers.map((name) => scene.layer(name));
     let disposed = false, camera = null, arrival = null;
     const own = (resource) => { owned.add(resource); return resource; };
     const decoded = new Map(), textures = new Map(), pbrMaterials = new Map(), notDrawn = [];
     const dispose = () => {
         if (disposed) return false;
         disposed = true;
-        root.removeFromParent(); root.clear();
         const failures = [];
+        for (const body of [...bodies.values()]) { try { freeBody(body); } catch (error) { failures.push(error); } }
+        root.removeFromParent(); root.clear();
         for (const resource of owned) { try { resource.dispose(); } catch (error) { failures.push(error); } }
         for (const pending of decoded.values()) pending.then((bitmap) => bitmap?.close?.(), () => {});
         owned.clear(); objects.clear(); dynamic.clear(); decoded.clear(); textures.clear(); pbrMaterials.clear();
@@ -48,6 +72,56 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
         object.userData.source = entity.source ?? null;
         objects.set(key(object.userData.ref), object);
         return object;
+    };
+    /**
+     * A body for a skinned entity, posed with its latest pose. It sits under the view's root: the pose's rootMatrix
+     * places it in the world, so neither the entity's transform nor its layer's placement applies (contract section 12).
+     */
+    const buildBody = (ref) => {
+        const entity = scene.get(ref), asset = scene.asset(ref.layer, "bodies", entity.components.skin.body);
+        const binding = adapter.bindSkin(asset);
+        if (!binding?.supported || !binding.root) {
+            notDrawn.push({ layer: ref.layer, key: entity.components.skin.body, reason: `no body: ${binding?.reason ?? "the adapter built none"}` });
+            return;
+        }
+        binding.root.userData.ref = Object.freeze({ layer: ref.layer, id: ref.id });
+        bodies.set(key(ref), { ref, asset, binding, freed: false });
+        root.add(binding.root);
+        adapter.setSkinPose(binding, entity.components.skin.pose);
+    };
+    /** The latest pose of a drawn body. */
+    const setPose = (ref) => {
+        const body = bodies.get(key(ref));
+        if (!body) return;
+        adapter.setSkinPose(body.binding, scene.get(ref).components.skin.pose);
+    };
+    /** Frees a body once; the adapter may already have retired it (a rebuild retires every skin it holds). */
+    const freeBody = (body) => {
+        if (body.freed) return;
+        body.freed = true;
+        bodies.delete(key(body.ref));
+        adapter.disposeSkin(body.binding);
+    };
+    /**
+     * The bodies of the shown mover layers, made current: a body whose entity is gone, hidden or names another body is
+     * freed; a new one is built; one whose entity and body stay is kept and posed. False when the world changed.
+     */
+    const reconcile = () => {
+        const world = shown().filter((name) => !isMoverLayer(name));
+        if (world.length !== worldHeaders.length || world.some((name, i) => scene.layer(name) !== worldHeaders[i])) return false;
+        const wanted = new Map();
+        for (const name of shownMovers()) for (const ref of scene.find({ component: "skin", layer: name })) wanted.set(key(ref), ref);
+        for (const body of [...bodies.values()]) {
+            if (layers.includes(body.ref.layer)) continue;
+            const ref = wanted.get(key(body.ref));
+            const keep = !!ref && scene.asset(ref.layer, "bodies", scene.get(ref).components.skin.body) === body.asset;
+            if (!keep) freeBody(body);
+        }
+        for (const ref of wanted.values()) {
+            if (bodies.has(key(ref))) setPose(ref);
+            else buildBody(ref);
+        }
+        return true;
     };
     const place = (object, { translation, rotation, scale }) => {
         object.position.fromArray(translation); object.quaternion.fromArray(rotation); object.scale.fromArray(scale);
@@ -263,6 +337,7 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
             const entity = scene.get(ref), components = entity.components ?? {};
             const into = built.get(entity.parent) ?? parent;
             if (components.camera?.arrival && !arrival) arrival = ref;
+            if (components.skin) { buildBody(ref); built.set(entity.id, into); continue; }
             if (DATA_ONLY.some((name) => components[name]) && !components.mesh && !components.text && !components.light && !parents.has(entity.id)) { built.set(entity.id, into); continue; }
             if (components.light && (components.light.type !== "directional" || components.mesh || components.text || parents.has(entity.id) || !isIdentity(entity.transform))) {
                 built.set(entity.id, nodeLight(entity, into, layer)); continue;
@@ -283,6 +358,7 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
             navigation ??= header.navigation ?? header.defaults?.navigation ?? null;
             fallback ??= header.defaults?.camera ?? null;
         }
+        reconcile();
         // The camera for the arrival camera entity, else the layer's default camera; the application moves it.
         // znear and zfar are in the camera entity's own frame (contract 11, item 7): the entity's world scale applies.
         // A null zfar means no far limit; the view then chooses 1000 (in world units) and records it in lens.farChosen.
@@ -323,27 +399,33 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
     };
     return {
         scene, root, camera,
-        /** Applies entity and geometry changes in place; false when the layer stack changed and the view must be rebuilt. */
+        /**
+         * Applies entity, geometry and pose changes, and the adding, removing, showing and hiding of mover layers, in
+         * place; false when the world's layer stack changed (or an unknown change came) and the view must be rebuilt.
+         */
         apply(changes) {
             alive();
-            if (changes.some((change) => change.kind !== "entity" && change.kind !== "geometry")) return false;
-            const transforms = new Map(), geometries = new Set();
+            if (changes.some((change) => !IN_PLACE.includes(change.kind))) return false;
+            if (changes.some((change) => change.kind.startsWith("layer-")) && !reconcile()) return false;
+            const transforms = new Map(), geometries = new Set(), poses = new Map();
             for (const change of changes) {
+                if (change.kind === "pose") { poses.set(key(change.ref), change.ref); continue; }
                 if (!layers.includes(change.ref.layer)) continue;
                 if (change.kind === "entity") transforms.set(key(change.ref), change.ref);
-                else geometries.add(key(change.ref));
+                else if (change.kind === "geometry") geometries.add(key(change.ref));
             }
             for (const ref of transforms.values()) setTransform(ref);
             for (const geometryKey of geometries) setPoints(geometryKey);
+            for (const ref of poses.values()) setPose(ref);
             return true;
         },
-        /** Re-reads every transform and dynamic geometry, for a Scene whose change log no longer reaches this view. */
+        /** Re-reads every transform, dynamic geometry and pose, for a Scene whose change log no longer reaches this view. */
         refresh() {
             alive();
-            const now = scene.layers().filter((name) => scene.layer(name).visible);
-            if (now.length !== layers.length || now.some((name, i) => name !== layers[i])) return false;
+            if (!reconcile()) return false;
             for (const layer of layers) for (const ref of scene.find({ layer })) setTransform(ref);
             for (const geometryKey of dynamic.keys()) setPoints(geometryKey);
+            for (const body of bodies.values()) setPose(body.ref);
             return true;
         },
         dispose,
