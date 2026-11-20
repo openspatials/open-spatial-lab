@@ -5,9 +5,24 @@ import { prepareWorld } from "./soft-body-world.mjs";
 
 // The Scene Manager loads lazily through #scene-manager: index.html's import map in the browser, package.json's "imports" in Node.
 const loadSceneManager = () => import("#scene-manager");
+// The importers sit beside the Scene Manager in the engine folder; each is loaded from the manager's resolved address.
+const IMPORTERS = Object.freeze({ x3d: Object.freeze(["../import/x3d/to-scene.mjs", "x3dImporter"]), gltf: Object.freeze(["../import/gltf/to-scene.mjs", "gltfImporter"]) });
+const loadImporter = async (format) => {
+  const [path, name] = IMPORTERS[format];
+  return (await import(new URL(path, import.meta.resolve("#scene-manager")).href))[name];
+};
 
 const ANCHOR = "anchor-portal-world.x3d.json";
 const SOFT = "soft-body.x3d.json";
+/** glTF files the document route admits, under web/assets/worlds/, by their SHA-256. */
+const GLTF_FILES = Object.freeze({
+  "Duck.glb": "65bf938f54d6073e619e76e007820bbf980cdc3dc0daec0d94830ffc4ae54ab5",
+  "BoomBox.glb": "f8b918445ebdd006768232205a62f5182d2208ca57f84c6ccc084943c0bc8f15",
+  "Lantern.glb": "a79458c4b02d695187a952f23a63b8bf278e7bc3d316a3c2a314f2d6974181f1",
+  "ToyCar.glb": "01a60862de55cd4b9f3acfab0b0def86451800f9c42467fcd61052c16cb9838c",
+});
+/** What the route asks of a glTF layer, which has no NavigationInfo: X3D's default navigation (headlight on) and a framed view when it has no camera. */
+const GLTF_VIEW = Object.freeze({ navigation: Object.freeze({ modes: ["EXAMINE", "ANY"], speed: 1, avatarSize: [0.25, 1.6, 0.75], headlight: true }), frame: true });
 const PORTAL_KEY = "x3d-document:PortalAnchor";
 const LISTED_PAGE = /^\/w\/([a-z0-9-]+)\/$/;
 const APERTURE_STANDOFF_M = 0.012; // the app's aperture offset (three-portal-surfaces.mjs)
@@ -77,8 +92,11 @@ export function ownX3dDocumentSelection({ explicitRoute = false, world = null, p
     return null;
   }
   if (filename == null) filename = ANCHOR;
+  // The importer is picked by file type: .glb files go to the glTF importer, the two X3D worlds to the X3D importer.
+  if (!portal && Object.hasOwn(GLTF_FILES, filename)) return Object.freeze({ filename, format: "gltf", assetPath: `/assets/worlds/${filename}`,
+    mediaType: "model/gltf-binary", sha256: GLTF_FILES[filename], compatibility: undefined, destination: null });
   if (filename !== ANCHOR && filename !== SOFT) throw new TypeError("Unknown X3D document");
-  return Object.freeze({ filename, assetPath: `/x3d-worlds/${filename}`,
+  return Object.freeze({ filename, format: "x3d", assetPath: `/x3d-worlds/${filename}`, mediaType: "model/x3d+json",
     sha256: filename === SOFT ? "c7b42847b502f9c895bec63e05eb5cbc7423e11a8dce47447b0897c05c50a0e6" : "db7491aaa754aa3e33ef409e3812d6803ecb986b07f9f21cbbbe93405b043441",
     compatibility: filename === SOFT ? "carlson-soft-body-1" : undefined,
     destination: filename === SOFT ? "/w/lobby/" : "/w/b/" });
@@ -266,14 +284,23 @@ export function prepareOwnX3dScene({ rendererPreparation, selection, fetchDocume
       await rendererPreparation.ready(); assertCurrent();
       const response = await fetchDocument(selection.assetPath, { signal: abort.signal }); assertCurrent();
       if (!response.ok) throw new Error(`X3D document answered ${response.status}`);
-      const originalText = await response.text(); assertCurrent();
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(originalText)); assertCurrent();
+      const gltf = selection.format === "gltf";
+      const original = gltf ? new Uint8Array(await response.arrayBuffer()) : await response.text(); assertCurrent();
+      const digest = await crypto.subtle.digest("SHA-256", gltf ? original : new TextEncoder().encode(original)); assertCurrent();
       const sha256 = [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
       if (sha256 !== selection.sha256) throw new Error("X3D document digest does not match admitted source");
-      const { createX3dSceneHost } = await loadSceneManager(); assertCurrent();
-      documents = createX3dSceneHost({ renderer: adapter, preparePhysics: prepareWorld });
-      state = await documents.load(originalText, { compatibility: selection.compatibility,
-        signal: abort.signal, portalBindings: [{ sensor: "PortalTrigger", anchor: "PortalAnchor" }] });
+      const { createSceneHost } = await loadSceneManager(); assertCurrent();
+      const importer = await loadImporter(selection.format); assertCurrent();
+      documents = createSceneHost({ renderer: adapter });
+      // X3D needs the soft-body preparation, its compatibility name and the portal binding; the X3D importer also hands
+      // back the document it read, which the portal window below reads. glTF is read in report mode.
+      let read = null;
+      const source = { uri: selection.assetPath, mediaType: selection.mediaType, ...(gltf ? { bytes: original } : { text: original }) };
+      const loaded = await documents.load(source, gltf ? { importer, mode: "report", signal: abort.signal, ...GLTF_VIEW }
+        : { importer, mode: "strict", signal: abort.signal, centerOf: (entity) => entity.extras.x3d.centerOfRotation,
+          options: { compatibility: selection.compatibility, preparePhysics: prepareWorld,
+            portalBindings: [{ sensor: "PortalTrigger", anchor: "PortalAnchor" }], onDocument: (document) => { read = document; } } });
+      state = Object.freeze({ ...loaded, document: read });
       assertCurrent();
       if (state.realization.preparedPhysics) {
         const ammo = await loadAmmo({ signal: abort.signal }); assertCurrent();
@@ -281,6 +308,16 @@ export function prepareOwnX3dScene({ rendererPreparation, selection, fetchDocume
         assertCurrent();
       }
       createPortal();
+      // A layer with no camera: the application moves the renderer's camera to the host's framed viewpoint.
+      const view = state.runtime.viewpoints[0];
+      if (view?.framed) {
+        const camera = adapter.camera;
+        camera.position.fromArray(view.position); camera.quaternion.set(0, 0, 0, 1);
+        camera.near = view.near; camera.far = view.far; camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+      }
+      // Texture images decode asynchronously in the renderer; the route is ready once they have.
+      const images = adapter.sceneRoot?.userData?.imagesReady;
+      if (images) { await images; assertCurrent(); }
       if (lighting) {
         const { environmentReady, ...result } = adapter.setLighting(lighting) ?? {};
         const environment = environmentReady ? await environmentReady : null;

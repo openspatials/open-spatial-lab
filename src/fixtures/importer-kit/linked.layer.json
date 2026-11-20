@@ -1,0 +1,276 @@
+{
+ "layer": {
+  "schema": "scene-layer/0",
+  "name": "world",
+  "kind": "content",
+  "visible": true,
+  "placement": {
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "source": {
+   "uri": "linked.gltf",
+   "format": "gltf",
+   "scene": "scenes/0",
+   "header": {
+    "$sha256": "6f8d8f594341d2b29688811278135d8a08a2d6a35602a8f3149eac1557a2c1f6"
+   }
+  },
+  "info": null,
+  "navigation": null,
+  "environment": {
+   "background": null,
+   "color": null,
+   "intensity": null,
+   "image": null
+  },
+  "entities": [
+   {
+    "id": "nodes/0",
+    "name": null,
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/0/primitives/0",
+        "material": "materials/default"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/0",
+     "type": "node",
+     "mesh": "meshes/0"
+    },
+    "extras": {}
+   }
+  ],
+  "assets": {
+   "geometries": {
+    "meshes/0/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 9,
+       "sha256": "d8b87038ed2ace74ed183166f6b0a541eab77f7184d50e65edc4bca5ccb5445a"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 9,
+       "sha256": "93ffbfc491203a5042ce8729e8bde71460b23b81ce1c3b71292976bcdb6a42bd"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 3,
+      "sha256": "90c2698921ca9fd02950be353f721888760e33ab5095a21e50f1e4360b6de1a0"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/0/primitives/0",
+      "accessors": {
+       "POSITION": "accessors/0",
+       "NORMAL": "accessors/1"
+      },
+      "indices": "accessors/3"
+     },
+     "extras": {}
+    }
+   },
+   "materials": {
+    "materials/default": {
+     "model": "pbr",
+     "colorSpace": "linear",
+     "baseColorFactor": [
+      1,
+      1,
+      1,
+      1
+     ],
+     "metallicFactor": 1,
+     "roughnessFactor": 1,
+     "emissiveFactor": [
+      0,
+      0,
+      0
+     ],
+     "baseColorTexture": null,
+     "metallicRoughnessTexture": null,
+     "normalTexture": null,
+     "occlusionTexture": null,
+     "emissiveTexture": null,
+     "doubleSided": false,
+     "alphaMode": "OPAQUE",
+     "alphaCutoff": 0.5,
+     "source": {
+      "path": "materials/default"
+     },
+     "extras": {}
+    }
+   },
+   "textures": {},
+   "images": {}
+  },
+  "report": {
+   "translated": {
+    "primitive": 1,
+    "mesh": 1,
+    "node": 1,
+    "scene": 1,
+    "accessor": 3,
+    "bufferView": 11,
+    "buffer": 1
+   },
+   "kept": [],
+   "skipped": [
+    {
+     "path": "accessors/2",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    },
+    {
+     "path": "accessors/4",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    },
+    {
+     "path": "accessors/5",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    },
+    {
+     "path": "accessors/6",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    },
+    {
+     "path": "accessors/7",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    },
+    {
+     "path": "accessors/8",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    },
+    {
+     "path": "accessors/9",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    },
+    {
+     "path": "accessors/10",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    }
+   ],
+   "refused": [],
+   "diagnostics": []
+  },
+  "extras": {
+   "gltf": {
+    "scenes": [
+     {
+      "name": null,
+      "nodes": [
+       "nodes/0"
+      ],
+      "extras": null
+     }
+    ]
+   }
+  }
+ },
+ "report": {
+  "translated": {
+   "primitive": 1,
+   "mesh": 1,
+   "node": 1,
+   "scene": 1,
+   "accessor": 3,
+   "bufferView": 11,
+   "buffer": 1
+  },
+  "kept": [],
+  "skipped": [
+   {
+    "path": "accessors/2",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   },
+   {
+    "path": "accessors/4",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   },
+   {
+    "path": "accessors/5",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   },
+   {
+    "path": "accessors/6",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   },
+   {
+    "path": "accessors/7",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   },
+   {
+    "path": "accessors/8",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   },
+   {
+    "path": "accessors/9",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   },
+   {
+    "path": "accessors/10",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   }
+  ],
+  "refused": [],
+  "diagnostics": []
+ }
+}

@@ -1,0 +1,1176 @@
+{
+ "layer": {
+  "schema": "scene-layer/0",
+  "name": "world",
+  "kind": "content",
+  "visible": true,
+  "placement": {
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "source": {
+   "uri": "/assets/worlds/ToyCar.glb",
+   "format": "gltf",
+   "scene": "scenes/0",
+   "header": {
+    "$sha256": "2aa3a4407857ac1fce2adfebdd2bfe1d86b9f61b149b343ef6e57af4b6d12725"
+   }
+  },
+  "info": null,
+  "navigation": null,
+  "environment": {
+   "background": null,
+   "color": null,
+   "intensity": null,
+   "image": null
+  },
+  "entities": [
+   {
+    "id": "nodes/0",
+    "name": "ToyCar",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0.7071068,
+      0,
+      0,
+      0.7071067
+     ],
+     "scale": [
+      0.0001,
+      0.0001,
+      0.0001
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/0/primitives/0",
+        "material": "materials/0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/0",
+     "type": "node",
+     "mesh": "meshes/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/1",
+    "name": "Fabric",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0.7071068,
+      0,
+      0,
+      0.7071067
+     ],
+     "scale": [
+      0.0001,
+      0.0001,
+      0.0001
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/1/primitives/0",
+        "material": "materials/1"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/1",
+     "type": "node",
+     "mesh": "meshes/1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/2",
+    "name": "Glass",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0.7071068,
+      0,
+      0,
+      0.7071067
+     ],
+     "scale": [
+      0.0001,
+      0.0001,
+      0.0001
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/2/primitives/0",
+        "material": "materials/2"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/2",
+     "type": "node",
+     "mesh": "meshes/2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/3",
+    "name": "Camera001",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -0.0169006381,
+      0.0253599286,
+      0.0302319955
+     ],
+     "rotation": [
+      -0.330993533,
+      -0.274300218,
+      -0.101194724,
+      0.8971969
+     ],
+     "scale": [
+      1.00000024,
+      1,
+      1.00000012
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.9,
+      "znear": 0.001,
+      "zfar": 2,
+      "description": "Camera001",
+      "arrival": true
+     }
+    },
+    "source": {
+     "path": "nodes/3",
+     "type": "node",
+     "camera": "cameras/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/4",
+    "name": "Camera002",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -0.04332856,
+      0.0235993266,
+      0.0760967
+     ],
+     "rotation": [
+      -0.12160936,
+      -0.2651013,
+      -0.03372518,
+      0.9559263
+     ],
+     "scale": [
+      0.99999994,
+      1.00000036,
+      1.00000024
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.41,
+      "znear": 0.001,
+      "zfar": 2,
+      "description": "Camera002"
+     }
+    },
+    "source": {
+     "path": "nodes/4",
+     "type": "node",
+     "camera": "cameras/1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/5",
+    "name": "Camera003",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -0.0121543175,
+      0.0101683857,
+      0.0269274339
+     ],
+     "rotation": [
+      -0.103828281,
+      -0.298918,
+      -0.0327368826,
+      0.9480485
+     ],
+     "scale": [
+      0.99999994,
+      1.00000012,
+      0.99999994
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.68,
+      "znear": 0.001,
+      "zfar": 2,
+      "description": "Camera003"
+     }
+    },
+    "source": {
+     "path": "nodes/5",
+     "type": "node",
+     "camera": "cameras/2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/6",
+    "name": "Camera004",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -0.0391006,
+      -0.00724446634,
+      0.0497552231
+     ],
+     "rotation": [
+      0.00262248516,
+      -0.333805561,
+      0.0009287149,
+      0.9426378
+     ],
+     "scale": [
+      1.00000012,
+      1.00000024,
+      1.00000012
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.63,
+      "znear": 0.001,
+      "zfar": 2,
+      "description": "Camera004"
+     }
+    },
+    "source": {
+     "path": "nodes/6",
+     "type": "node",
+     "camera": "cameras/3"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/7",
+    "name": "Camera005",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -0.00747511769,
+      0.0108056553,
+      -0.0208431184
+     ],
+     "rotation": [
+      -0.0464569926,
+      -0.9334676,
+      -0.13119027,
+      0.330558747
+     ],
+     "scale": [
+      1,
+      0.99999994,
+      1.00000036
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.96,
+      "znear": 0.001,
+      "zfar": 2,
+      "description": "Camera005"
+     }
+    },
+    "source": {
+     "path": "nodes/7",
+     "type": "node",
+     "camera": "cameras/4"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/8",
+    "name": "Camera006",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -0.04173353,
+      0.027297115,
+      -0.04835121
+     ],
+     "rotation": [
+      -0.118150666,
+      -0.881382942,
+      -0.307792783,
+      0.338331461
+     ],
+     "scale": [
+      0.9999998,
+      0.999999762,
+      1.00000012
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.96,
+      "znear": 0.001,
+      "zfar": 2,
+      "description": "Camera006"
+     }
+    },
+    "source": {
+     "path": "nodes/8",
+     "type": "node",
+     "camera": "cameras/5"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/9",
+    "name": "Camera007",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0.0137228724,
+      0.009173209,
+      -0.0244436264
+     ],
+     "rotation": [
+      0.0496652424,
+      -0.9284824,
+      -0.134623677,
+      -0.3425349
+     ],
+     "scale": [
+      0.99999994,
+      1.00000012,
+      0.999999762
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.96,
+      "znear": 0.001,
+      "zfar": 2,
+      "description": "Camera007"
+     }
+    },
+    "source": {
+     "path": "nodes/9",
+     "type": "node",
+     "camera": "cameras/6"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/10",
+    "name": "Camera008",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -0.006532357,
+      0.0125829373,
+      0.0118280016
+     ],
+     "rotation": [
+      -0.21798256,
+      -0.300790727,
+      -0.07082678,
+      0.9257387
+     ],
+     "scale": [
+      1,
+      1.00000012,
+      0.99999994
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.96,
+      "znear": 0.001,
+      "zfar": 2,
+      "description": "Camera008"
+     }
+    },
+    "source": {
+     "path": "nodes/10",
+     "type": "node",
+     "camera": "cameras/7"
+    },
+    "extras": {}
+   }
+  ],
+  "assets": {
+   "geometries": {
+    "meshes/0/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 200853,
+       "sha256": "9ea213f75fcce49c0010ed0142451dc57a80b82ad23fd71ac8dbca86b89699bf"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 200853,
+       "sha256": "fb481db3b53595943b930d9685f2a285c5308259d8496f69f7841448c02f51c3"
+      },
+      "TEXCOORD_0": {
+       "$typed": "Float32Array",
+       "length": 133902,
+       "sha256": "c0408e5b49dd2b39975f8fe6f8552837bc6049c513a363cb93fe93b24c702997"
+      }
+     },
+     "indices": {
+      "$typed": "Uint32Array",
+      "length": 266511,
+      "sha256": "aa3700da4a6037ca57c53f46c4c9c9ae5dd2cf4b99849ed8289bce348fee623b"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/0/primitives/0",
+      "accessors": {
+       "POSITION": "accessors/1",
+       "NORMAL": "accessors/2",
+       "TEXCOORD_0": "accessors/3"
+      },
+      "indices": "accessors/0"
+     },
+     "extras": {
+      "gltf": {
+       "mesh": {
+        "name": "ToyCar"
+       }
+      }
+     }
+    },
+    "meshes/1/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 26877,
+       "sha256": "ee3d33082c25c73ea0ef5cf433796c0cdbfa69df72750718e982a93675052bf0"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 26877,
+       "sha256": "fd62c282f1911cce7d1f7849c06c1931d0333a8183978b1dd93c6ad24439fa3b"
+      },
+      "TEXCOORD_0": {
+       "$typed": "Float32Array",
+       "length": 17918,
+       "sha256": "fdb64b67722577e16bf811573335f5b58bbeb520434037c0a0204f5b1917a105"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 52815,
+      "sha256": "347dd50109b937a6e89e64d329b5a465c3e061629ef66819c10c0f075ee47126"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/1/primitives/0",
+      "accessors": {
+       "POSITION": "accessors/5",
+       "NORMAL": "accessors/6",
+       "TEXCOORD_0": "accessors/7"
+      },
+      "indices": "accessors/4"
+     },
+     "extras": {
+      "gltf": {
+       "mesh": {
+        "name": "Fabric"
+       }
+      }
+     }
+    },
+    "meshes/2/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 4557,
+       "sha256": "25f8f42624ecb0f246de32a8e11e068821052b7b1a0a1f06769663a521b57459"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 4557,
+       "sha256": "cb546c28981b0208dbe1be225feee0eafda09b0fdbe8a92722ded2fe29e27882"
+      },
+      "TEXCOORD_0": {
+       "$typed": "Float32Array",
+       "length": 3038,
+       "sha256": "92b736c763a6f7d11d7682e633ca8a801e9435b6afe8539c3eb34114999aac5f"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 7482,
+      "sha256": "caa648d5b1cca8bb03c2ddb987c2896cb5ea7d0dd7298fb272e19852f071a0a8"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/2/primitives/0",
+      "accessors": {
+       "POSITION": "accessors/9",
+       "NORMAL": "accessors/10",
+       "TEXCOORD_0": "accessors/11"
+      },
+      "indices": "accessors/8"
+     },
+     "extras": {
+      "gltf": {
+       "mesh": {
+        "name": "Glass"
+       }
+      }
+     }
+    }
+   },
+   "materials": {
+    "materials/0": {
+     "model": "pbr",
+     "colorSpace": "linear",
+     "baseColorFactor": [
+      1,
+      1,
+      1,
+      1
+     ],
+     "metallicFactor": 1,
+     "roughnessFactor": 1,
+     "emissiveFactor": [
+      1,
+      1,
+      1
+     ],
+     "baseColorTexture": {
+      "texture": "textures/2",
+      "texCoord": 0
+     },
+     "metallicRoughnessTexture": {
+      "texture": "textures/3",
+      "texCoord": 0
+     },
+     "normalTexture": {
+      "texture": "textures/0",
+      "texCoord": 0,
+      "scale": 1
+     },
+     "occlusionTexture": {
+      "texture": "textures/3",
+      "texCoord": 0,
+      "strength": 1
+     },
+     "emissiveTexture": {
+      "texture": "textures/1",
+      "texCoord": 0
+     },
+     "doubleSided": true,
+     "alphaMode": "OPAQUE",
+     "alphaCutoff": 0.5,
+     "source": {
+      "path": "materials/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "ToyCar",
+       "extensions": {
+        "KHR_materials_clearcoat": {
+         "clearcoatFactor": 1,
+         "clearcoatTexture": {
+          "index": 7,
+          "texCoord": 0
+         }
+        }
+       }
+      }
+     }
+    },
+    "materials/1": {
+     "model": "pbr",
+     "colorSpace": "linear",
+     "baseColorFactor": [
+      0.15,
+      0.15,
+      0.15,
+      1
+     ],
+     "metallicFactor": 0,
+     "roughnessFactor": 1,
+     "emissiveFactor": [
+      0,
+      0,
+      0
+     ],
+     "baseColorTexture": {
+      "texture": "textures/6",
+      "texCoord": 0
+     },
+     "metallicRoughnessTexture": null,
+     "normalTexture": {
+      "texture": "textures/4",
+      "texCoord": 0,
+      "scale": 1
+     },
+     "occlusionTexture": {
+      "texture": "textures/5",
+      "texCoord": 0,
+      "strength": 1
+     },
+     "emissiveTexture": null,
+     "doubleSided": true,
+     "alphaMode": "OPAQUE",
+     "alphaCutoff": 0.5,
+     "source": {
+      "path": "materials/1"
+     },
+     "extras": {
+      "gltf": {
+       "name": "Fabric",
+       "extensions": {
+        "KHR_materials_sheen": {
+         "sheenRoughnessFactor": 0.5,
+         "sheenColorFactor": [
+          1,
+          0,
+          0
+         ]
+        }
+       },
+       "textureSlots": {
+        "baseColorTexture": {
+         "extensions": {
+          "KHR_texture_transform": {
+           "offset": [
+            0,
+            0
+           ],
+           "scale": [
+            3,
+            3
+           ],
+           "texCoord": 0
+          }
+         }
+        },
+        "normalTexture": {
+         "extensions": {
+          "KHR_texture_transform": {
+           "offset": [
+            0,
+            0
+           ],
+           "scale": [
+            3,
+            3
+           ],
+           "texCoord": 0
+          }
+         }
+        },
+        "occlusionTexture": {
+         "extensions": {
+          "KHR_texture_transform": {
+           "offset": [
+            0,
+            0
+           ],
+           "scale": [
+            1,
+            1
+           ],
+           "texCoord": 0
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    "materials/2": {
+     "model": "pbr",
+     "colorSpace": "linear",
+     "baseColorFactor": [
+      0.3,
+      0.8,
+      0.3,
+      1
+     ],
+     "metallicFactor": 0,
+     "roughnessFactor": 0,
+     "emissiveFactor": [
+      0,
+      0,
+      0
+     ],
+     "baseColorTexture": null,
+     "metallicRoughnessTexture": null,
+     "normalTexture": null,
+     "occlusionTexture": null,
+     "emissiveTexture": null,
+     "doubleSided": false,
+     "alphaMode": "OPAQUE",
+     "alphaCutoff": 0.5,
+     "source": {
+      "path": "materials/2"
+     },
+     "extras": {
+      "gltf": {
+       "name": "Glass",
+       "extensions": {
+        "KHR_materials_transmission": {
+         "transmissionFactor": 1
+        }
+       }
+      }
+     }
+    }
+   },
+   "textures": {
+    "textures/0": {
+     "image": "images/0",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/0",
+      "sampler": "samplers/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "ToyCar_normal.png"
+      }
+     }
+    },
+    "textures/1": {
+     "image": "images/1",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/1",
+      "sampler": "samplers/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "ToyCar_emissive.png"
+      }
+     }
+    },
+    "textures/2": {
+     "image": "images/2",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/2",
+      "sampler": "samplers/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "ToyCar_basecolor.png"
+      }
+     }
+    },
+    "textures/3": {
+     "image": "images/3",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/3",
+      "sampler": "samplers/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "ToyCar_occlusion_roughness_metallic.png"
+      }
+     }
+    },
+    "textures/4": {
+     "image": "images/4",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/4",
+      "sampler": "samplers/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "Fabric_normal.png"
+      }
+     }
+    },
+    "textures/5": {
+     "image": "images/5",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/5",
+      "sampler": "samplers/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "Fabric_occlusion.png"
+      }
+     }
+    },
+    "textures/6": {
+     "image": "images/6",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/6",
+      "sampler": "samplers/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "Fabric_baseColor.png"
+      }
+     }
+    },
+    "textures/7": {
+     "image": "images/7",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/7",
+      "sampler": "samplers/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "ToyCar_clearcoat.png"
+      }
+     }
+    }
+   },
+   "images": {
+    "images/0": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 98429,
+      "sha256": "f3af8fd862a8a1ed13b6cf508d4edc3df6a484c43ed32bc5927a03b452515833"
+     },
+     "source": {
+      "path": "images/0",
+      "from": "bufferViews/3"
+     },
+     "extras": {}
+    },
+    "images/1": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 83739,
+      "sha256": "f35fdda6764b6b6521296326143a654f6cae13c082fd6021e766677c422cf7e6"
+     },
+     "source": {
+      "path": "images/1",
+      "from": "bufferViews/4"
+     },
+     "extras": {}
+    },
+    "images/2": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 196648,
+      "sha256": "7d51b5df33344f00dbc248f9a6043a7eaa6864b9f7ece1fb90f884a425423ed7"
+     },
+     "source": {
+      "path": "images/2",
+      "from": "bufferViews/5"
+     },
+     "extras": {}
+    },
+    "images/3": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 457137,
+      "sha256": "22911f36dc5e9a3b2acc6dfb8f7946f4c963b5296ab10e8dc6cce260140ce8a3"
+     },
+     "source": {
+      "path": "images/3",
+      "from": "bufferViews/6"
+     },
+     "extras": {}
+    },
+    "images/4": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 294759,
+      "sha256": "24aee901f99facf761329b374b46a83d83060fecac88aa290e2cb92c2f6b90c2"
+     },
+     "source": {
+      "path": "images/4",
+      "from": "bufferViews/7"
+     },
+     "extras": {}
+    },
+    "images/5": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 191518,
+      "sha256": "b9e421842b576be7cf98a8fb8103ebf371b1d3d13eb226379ec4b5d8b8db3fcd"
+     },
+     "source": {
+      "path": "images/5",
+      "from": "bufferViews/8"
+     },
+     "extras": {}
+    },
+    "images/6": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 412812,
+      "sha256": "2d37e6edee4d5249c7076847cd47a732596c0385ce596d8a8d92746b4b902ef7"
+     },
+     "source": {
+      "path": "images/6",
+      "from": "bufferViews/9"
+     },
+     "extras": {}
+    },
+    "images/7": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 15362,
+      "sha256": "0dee4964f011c50bb1942cdc4f373f7e85277a3bbd75ae9f45261b763618f0ec"
+     },
+     "source": {
+      "path": "images/7",
+      "from": "bufferViews/10"
+     },
+     "extras": {}
+    }
+   }
+  },
+  "report": {
+   "translated": {
+    "image": 8,
+    "texture": 8,
+    "sampler": 1,
+    "material": 3,
+    "primitive": 3,
+    "mesh": 3,
+    "node": 11,
+    "scene": 1,
+    "camera": 8,
+    "accessor": 12,
+    "bufferView": 11,
+    "buffer": 1
+   },
+   "kept": [
+    {
+     "path": "materials/0/extensions/KHR_materials_clearcoat",
+     "type": "extension",
+     "reason": "KHR_materials_clearcoat is not read by this importer"
+    },
+    {
+     "path": "materials/1/pbrMetallicRoughness/baseColorTexture/extensions/KHR_texture_transform",
+     "type": "extension",
+     "reason": "KHR_texture_transform is not read by this importer"
+    },
+    {
+     "path": "materials/1/normalTexture/extensions/KHR_texture_transform",
+     "type": "extension",
+     "reason": "KHR_texture_transform is not read by this importer"
+    },
+    {
+     "path": "materials/1/occlusionTexture/extensions/KHR_texture_transform",
+     "type": "extension",
+     "reason": "KHR_texture_transform is not read by this importer"
+    },
+    {
+     "path": "materials/1/extensions/KHR_materials_sheen",
+     "type": "extension",
+     "reason": "KHR_materials_sheen is not read by this importer"
+    },
+    {
+     "path": "materials/2/extensions/KHR_materials_transmission",
+     "type": "extension",
+     "reason": "KHR_materials_transmission is not read by this importer"
+    }
+   ],
+   "skipped": [],
+   "refused": [],
+   "diagnostics": []
+  },
+  "extras": {
+   "gltf": {
+    "scenes": [
+     {
+      "name": null,
+      "nodes": [
+       "nodes/0",
+       "nodes/1",
+       "nodes/2",
+       "nodes/3",
+       "nodes/4",
+       "nodes/5",
+       "nodes/6",
+       "nodes/7",
+       "nodes/8",
+       "nodes/9",
+       "nodes/10"
+      ],
+      "extras": null
+     }
+    ]
+   }
+  }
+ },
+ "report": {
+  "translated": {
+   "image": 8,
+   "texture": 8,
+   "sampler": 1,
+   "material": 3,
+   "primitive": 3,
+   "mesh": 3,
+   "node": 11,
+   "scene": 1,
+   "camera": 8,
+   "accessor": 12,
+   "bufferView": 11,
+   "buffer": 1
+  },
+  "kept": [
+   {
+    "path": "materials/0/extensions/KHR_materials_clearcoat",
+    "type": "extension",
+    "reason": "KHR_materials_clearcoat is not read by this importer"
+   },
+   {
+    "path": "materials/1/pbrMetallicRoughness/baseColorTexture/extensions/KHR_texture_transform",
+    "type": "extension",
+    "reason": "KHR_texture_transform is not read by this importer"
+   },
+   {
+    "path": "materials/1/normalTexture/extensions/KHR_texture_transform",
+    "type": "extension",
+    "reason": "KHR_texture_transform is not read by this importer"
+   },
+   {
+    "path": "materials/1/occlusionTexture/extensions/KHR_texture_transform",
+    "type": "extension",
+    "reason": "KHR_texture_transform is not read by this importer"
+   },
+   {
+    "path": "materials/1/extensions/KHR_materials_sheen",
+    "type": "extension",
+    "reason": "KHR_materials_sheen is not read by this importer"
+   },
+   {
+    "path": "materials/2/extensions/KHR_materials_transmission",
+    "type": "extension",
+    "reason": "KHR_materials_transmission is not read by this importer"
+   }
+  ],
+  "skipped": [],
+  "refused": [],
+  "diagnostics": []
+ }
+}

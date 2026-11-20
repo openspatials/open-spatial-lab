@@ -115,6 +115,8 @@ const MORE = [
   { file: "src/server-runtime-composition-check.mjs", groups: ["server"] },
   { file: "tools/verify-release.mjs" },
   { file: "tools/trace-check.mjs" },
+  { file: "src/importer-kit-check.mjs" },
+  { file: "src/engine-boundary-check.mjs" },
   { file: "tools/check-request-target.js", ports: one("OSL_REQUEST_TARGET_PORT") },
   { file: "tools/wow-conformance/run.js", ports: one("OSL_WOW_CONFORMANCE_PORT") },
   { file: "wow-spec/conformance-fixtures/run.mjs" },

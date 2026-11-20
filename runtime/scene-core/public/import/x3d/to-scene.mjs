@@ -196,13 +196,16 @@ export function documentToLayer(document, { name = "world", preparePhysics = nul
 export const x3dImporter = Object.freeze({
     format: "x3d-json",
     capabilities() {
-        return { x3d: { status: "limited", level: "declared JSON subset and soft-body extension", evidenceScope: "isolated CPU graph checks; native pixels unqualified" } };
+        return { x3d: { status: "limited", level: "declared JSON subset and soft-body extension", evidenceScope: "isolated CPU graph checks; native pixels unqualified",
+            reason: "Strict only: a node or field outside the declared subset stops the import with its path; report mode is not built for X3D." } };
     },
     async import(source, { signal, mode = "strict", options = {} } = {}) {
         if (mode !== "strict") throw new TypeError("X3D importer: only strict mode is built");
         const text = typeof source?.text === "string" ? source.text : source?.bytes ? new TextDecoder().decode(source.bytes) : null;
         const document = await parseX3dDocument(text, { compatibility: options.compatibility, signal });
         signal?.throwIfAborted();
+        // options.onDocument: the application's own use of the read document (its portal bindings); the reading is unchanged.
+        options.onDocument?.(document);
         return documentToLayer(document, { name: options.name, preparePhysics: options.preparePhysics });
     },
 });

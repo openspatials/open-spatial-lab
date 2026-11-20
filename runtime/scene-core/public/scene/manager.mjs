@@ -1,23 +1,26 @@
-// The Scene Manager (docs/engine/SCENE-CONTRACT-V0.md, sections 3 and 6): the one writer of layers. It hands a
-// source to an importer and puts the layer it returns into the Scene.
+// The Scene Manager (docs/engine/SCENE-CONTRACT-V0.md, sections 3, 4 and 6): the one writer of layers. It hands a
+// source to the importer the application names and puts the layer it returns into the Scene. It knows no format: what
+// only one format needs reaches its importer as that importer's options. The old format-named exports are forwards,
+// kept in the marked block at the end until every caller has moved.
 import { decomposeTRS, transformPoint, IDENTITY_MAT4 } from "../core/math.mjs";
-import { isX3dDocument, parseX3dDocument } from "../import/x3d/json-document.mjs";
-import { documentToLayer } from "../import/x3d/to-scene.mjs";
 import { createSensors, pickLink } from "../interaction/sensors.mjs";
 import { createSceneSink } from "../physics/bullet/soft-body.mjs";
 import { freezeDeep } from "./check.mjs";
 import { createScene } from "./scene.mjs";
 
+/** What the layer records about the importer that made it: its format and its capabilities. */
+const importerRecord = (importer) => ({ format: importer.format, capabilities: typeof importer.capabilities === "function" ? importer.capabilities() : {} });
+
 /**
  * Imports one source and puts its layer into the Scene, in place of a layer of the same name.
  * @returns {Promise<{revision: number, report: object}>}
  */
-export async function loadLayer(scene, importer, source, { name = "world", placement, visible, signal, options = {} } = {}) {
+export async function loadLayer(scene, importer, source, { name = "world", placement, visible, signal, resolve, mode = "strict", options = {} } = {}) {
     signal?.throwIfAborted();
-    const { layer, report } = await importer.import(source, { signal, mode: "strict", options: { ...options, name } });
+    const { layer, report } = await importer.import(source, { resolve, signal, mode, options: { ...options, name } });
     signal?.throwIfAborted();
     if (scene.layers().includes(name)) scene.removeLayer(name);
-    return { revision: scene.addLayer(layer, { name, placement, visible }), report };
+    return { revision: scene.addLayer({ ...layer, importer: importerRecord(importer) }, { name, placement, visible }), report };
 }
 
 function quaternionRotation(q) {
@@ -26,35 +29,81 @@ function quaternionRotation(q) {
     return sine < 1e-10 ? [0, 0, 1, 0] : [q[0] / length / sine, q[1] / length / sine, q[2] / length / sine, 2 * Math.acos(w)];
 }
 
-/**
- * Revision 2 compatibility for the document route and the checks in src/: the X3D importer writes a Scene, and
- * Interaction runs on it. The viewpoint list is read from the Scene's camera entities, the navigation list from the
- * document. Same calls and results as the former x3d/scene-runtime.mjs.
- * @param {object} document An immutable parseX3dDocument result.
- * @param {{portalBindings?: Array<{sensor: string, anchor: string}>}} options
- */
-export function createX3dRuntime(document, { portalBindings = [] } = {}) {
-    if (!isX3dDocument(document)) throw new TypeError("runtime: expected a validated X3D document");
-    const scene = createScene();
-    scene.addLayer(documentToLayer(document).layer, { name: "world" });
-    return x3dRuntimeOnScene(scene, document, { portalBindings });
+/** The world-space box around what a layer draws: mesh points and the extents of the parametric shapes. */
+export function layerBounds(scene, layer) {
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    const add = (matrix, point) => { const p = transformPoint(matrix, point); for (let i = 0; i < 3; i++) { min[i] = Math.min(min[i], p[i]); max[i] = Math.max(max[i], p[i]); } };
+    for (const ref of scene.find({ component: "mesh", layer })) {
+        const matrix = scene.worldMatrix(ref);
+        for (const { geometry } of scene.get(ref).components.mesh.primitives) {
+            const g = scene.asset(layer, "geometries", geometry);
+            if (g.type === "mesh") { const p = g.attributes.POSITION; for (let i = 0; i < p.length; i += 3) add(matrix, [p[i], p[i + 1], p[i + 2]]); continue; }
+            const half = g.type === "box" ? g.size.map((v) => v / 2) : [g.radius, g.type === "sphere" ? g.radius : g.height / 2, g.radius];
+            for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) add(matrix, [x * half[0], y * half[1], z * half[2]]);
+        }
+    }
+    return min[0] <= max[0] ? { min, max } : null;
 }
 
-/** The same runtime on a layer of an existing Scene. */
-function x3dRuntimeOnScene(scene, document, { layer = "world", portalBindings = [] } = {}) {
+/**
+ * The default camera for a layer with no camera (contract section 11, item 6): looking down -Z at the centre of what
+ * it draws, from far enough that the whole bounding sphere fits a 45-degree view. It is not an entity; it goes to
+ * `layer.defaults.camera`, in the layer's frame, marked `framed: true`.
+ */
+function framedCamera(scene, layer) {
+    const bounds = layerBounds(scene, layer);
+    const center = bounds ? bounds.min.map((v, i) => (v + bounds.max[i]) / 2) : [0, 0, 0];
+    const radius = bounds ? Math.max(1e-6, Math.hypot(...bounds.max.map((v, i) => v - bounds.min[i])) / 2) : 1;
+    const yfov = Math.PI / 4, distance = radius / Math.sin(yfov / 2);
+    return { type: "perspective", yfov, znear: distance / 100, zfar: distance * 100,
+        description: "Framed view of the layer (no camera in the source)", framed: true,
+        position: [center[0], center[1], center[2] + distance], rotation: [0, 0, 0, 1], centerOfRotation: center };
+}
+
+/**
+ * What the application supplies for a layer whose source gave none (contract section 11, item 6): its navigation
+ * request, and a framed camera when `frame` is set and the layer has no camera entity. Null when neither applies, so a
+ * layer that authored both stays exactly as the importer made it.
+ */
+function layerDefaults(made, { navigation = null, frame = false } = {}) {
+    const defaults = { navigation: made.navigation ? null : navigation ?? null, camera: null };
+    if (frame && !made.entities.some((entity) => entity.components?.camera)) {
+        const probe = createScene();
+        probe.addLayer(made, { name: "probe" });
+        defaults.camera = framedCamera(probe, "probe");
+    }
+    return defaults.navigation || defaults.camera ? defaults : null;
+}
+
+/**
+ * Interaction on one layer of a Scene, with the viewpoint list read from its camera entities (or, when it has none,
+ * from `layer.defaults.camera`) and the navigation list given by the caller, read from the layer, or from
+ * `layer.defaults.navigation`.
+ * @param {{layer?: string, portalBindings?: Array<{sensor: string, anchor: string}>, navigation?: object[]|null,
+ *   centerOf?: Function|null}} options centerOf(entity) gives a camera's local centre of rotation.
+ */
+export function createLayerRuntime(scene, { layer = "world", portalBindings = [], navigation = null, centerOf = null } = {}) {
     const sensors = createSensors(scene, { layer, portalBindings });
-    const nodeId = (entity) => entity.source.def ? `DEF:${entity.source.def}` : entity.source.path;
+    const nodeId = (entity) => entity.source?.def ? `DEF:${entity.source.def}` : entity.source?.path ?? entity.id;
     const viewpoints = scene.find({ component: "camera", layer }).map((ref) => {
         const entity = scene.get(ref), pose = scene.worldMatrix(ref);
         const parent = entity.parent === null ? IDENTITY_MAT4 : scene.worldMatrix({ layer, id: entity.parent });
-        return { id: nodeId(entity), instance: entity.source.instance, description: entity.components.camera.description,
+        return { id: nodeId(entity), instance: entity.source?.instance, description: entity.components.camera.description,
             position: transformPoint(pose, [0, 0, 0]), orientation: quaternionRotation(decomposeTRS(pose).quaternion),
-            fieldOfView: entity.components.camera.yfov, centerOfRotation: transformPoint(parent, entity.extras.x3d.centerOfRotation) };
+            fieldOfView: entity.components.camera.yfov, centerOfRotation: transformPoint(parent, centerOf ? centerOf(entity) : [0, 0, 0]) };
     });
-    const instances = new Map(scene.find({ layer }).map((ref) => [scene.get(ref).source.instance, ref]));
+    const header = scene.layer(layer), defaults = header.defaults ?? {};
+    if (!viewpoints.length && defaults.camera) {
+        const lens = defaults.camera;
+        viewpoints.push({ id: null, instance: null, description: lens.description, framed: lens.framed === true,
+            position: lens.position, orientation: quaternionRotation(lens.rotation), fieldOfView: lens.yfov,
+            centerOfRotation: lens.centerOfRotation, near: lens.znear, far: lens.zfar });
+    }
+    const authored = header.navigation ?? defaults.navigation ?? null;
+    const instances = new Map(scene.find({ layer }).map((ref) => [scene.get(ref).source?.instance ?? ref.id, ref]));
     return Object.freeze({
         viewpoints: freezeDeep(viewpoints),
-        navigation: freezeDeep(document.nodes.filter((n) => n.type === "NavigationInfo").map((n) => n.fields)),
+        navigation: freezeDeep(navigation ?? (authored ? [authored] : [])),
         scene,
         get generation() { return sensors.generation; },
         isCurrent: sensors.isCurrent,
@@ -63,7 +112,7 @@ function x3dRuntimeOnScene(scene, document, { layer = "world", portalBindings = 
             if (sensors.disposed) throw new Error("runtime is disposed");
             const ref = instances.get(instance);
             if (!ref) throw new TypeError("unknown instance");
-            // A Viewpoint's own position and orientation were never part of its placement.
+            // A camera's own position and orientation were never part of its placement.
             const entity = scene.get(ref);
             if (entity.components.camera) return entity.parent === null ? [...IDENTITY_MAT4] : scene.worldMatrix({ layer, id: entity.parent });
             return scene.worldMatrix(ref);
@@ -76,22 +125,22 @@ function x3dRuntimeOnScene(scene, document, { layer = "world", portalBindings = 
 }
 
 /**
- * The Scene Manager for the X3D document route (docs/engine/SCENE-CONTRACT-V0.md, section 6): each load reads the
- * document with the X3D importer into a new Scene, starts Interaction and the Physics sink on it, attaches it to a
- * revision 3 renderer and syncs. The previous Scene stays shown until the renderer has built the new one; then its
- * Interaction and sink are retired. A later load or cancel supersedes a pending one.
- * The state keeps the fields the application reads: document, runtime, realization (scene, objects by X3D node id,
- * preparedPhysics, sink) and camera. The renderer is the caller's; dispose never disposes it.
- * @param {{renderer: object, preparePhysics?: Function, layer?: string}} options preparePhysics is the application's prepareWorld.
+ * The Scene Manager's host for one shown layer (docs/engine/SCENE-CONTRACT-V0.md, section 6). Each load hands the
+ * source to the importer the caller names, puts its layer into a new Scene, starts Interaction and the Physics sink on
+ * it, attaches it to a revision 3 renderer and syncs. The previous Scene stays shown until the renderer has built the
+ * new one; then its Interaction and sink are retired. A later load or cancel supersedes a pending one.
+ * The state keeps the fields the application reads: scene, layer, report, importer, runtime, realization (scene,
+ * objects by source node id, preparedPhysics, sink) and camera. The renderer is the caller's; dispose never disposes it.
+ * @param {{renderer: object, layer?: string}} options
  */
-export function createX3dSceneHost({ renderer, preparePhysics = null, layer = "world" } = {}) {
+export function createSceneHost({ renderer, layer = "world" } = {}) {
     for (const call of ["attachScene", "syncScene", "pick", "detachScene"]) {
         if (typeof renderer?.[call] !== "function") throw new TypeError(`Scene host: the renderer has no ${call} (revision 3)`);
     }
     let generation = 0, state = null, disposed = false;
     const shown = (value) => !!value && renderer.attachedScene === value.scene;
     const live = () => {
-        if (disposed || !shown(state)) throw new Error("No live X3D document");
+        if (disposed || !shown(state)) throw new Error("No live Scene layer");
         return state;
     };
     const retire = (value) => {
@@ -114,21 +163,32 @@ export function createX3dSceneHost({ renderer, preparePhysics = null, layer = "w
     };
     return Object.freeze({
         get state() { return state; },
-        async load(input, { compatibility, portalBindings = [], signal } = {}) {
+        /**
+         * @param {object} source The importer's source: { uri, text | bytes, mediaType }.
+         * @param {{importer: object, mode?: "strict"|"report", resolve?: Function, signal?: AbortSignal, options?: object,
+         *   navigation?: object, centerOf?: Function, frame?: boolean}} how options go to the importer (preparePhysics is
+         *   wrapped so the host keeps what it prepared; portalBindings also go to Interaction). navigation is the
+         *   application's request for a layer whose source has none, written to layer.defaults.navigation; frame writes a
+         *   framed layer.defaults.camera when it has no camera entity. layer.navigation stays as the author wrote it.
+         */
+        async load(source, { importer, mode = "strict", resolve, signal, options = {}, navigation = null, centerOf = null, frame = false } = {}) {
             if (disposed) throw new Error("Scene host disposed");
+            if (typeof importer?.import !== "function") throw new TypeError("Scene host: load needs an importer");
             const mine = ++generation;
             const current = () => {
                 signal?.throwIfAborted();
-                if (disposed || mine !== generation) throw new DOMException("X3D load superseded", "AbortError");
+                if (disposed || mine !== generation) throw new DOMException("Scene load superseded", "AbortError");
             };
-            const document = isX3dDocument(input) ? input : await parseX3dDocument(input, { compatibility, signal });
-            current();
             let preparedPhysics = null;
-            const prepare = typeof preparePhysics === "function" ? (source) => (preparedPhysics = preparePhysics(source)) : null;
-            const { layer: made, report } = documentToLayer(document, { name: layer, preparePhysics: prepare });
+            const given = options.preparePhysics;
+            const importOptions = { ...options, name: layer, ...(typeof given === "function" ? { preparePhysics: (input) => (preparedPhysics = given(input)) } : {}) };
+            const { layer: made, report } = await importer.import(source, { resolve, signal, mode, options: importOptions });
+            current();
+            const record = importerRecord(importer);
             const scene = createScene();
-            scene.addLayer(made, { name: layer });
-            const runtime = x3dRuntimeOnScene(scene, document, { layer, portalBindings });
+            const defaults = layerDefaults(made, { navigation, frame });
+            scene.addLayer({ ...made, importer: record, ...(defaults ? { defaults } : {}) }, { name: layer });
+            const runtime = createLayerRuntime(scene, { layer, portalBindings: options.portalBindings ?? [], centerOf });
             const sink = createSceneSink(scene, layer), fresh = { runtime, realization: { sink } };
             const previous = state;
             try {
@@ -138,14 +198,14 @@ export function createX3dSceneHost({ renderer, preparePhysics = null, layer = "w
                 const failures = [];
                 if (previous && !shown(previous)) { state = null; failures.push(...retire(previous)); }
                 failures.push(...retire(fresh));
-                if (failures.length) throw new AggregateError([error, ...failures], "X3D load and rollback failed");
+                if (failures.length) throw new AggregateError([error, ...failures], "Scene load and rollback failed");
                 throw error;
             }
             state = null;
             const failures = previous ? retire(previous) : [];
-            if (failures.length) { retire(fresh); throw new AggregateError(failures, "Previous X3D resources failed to dispose"); }
+            if (failures.length) { retire(fresh); throw new AggregateError(failures, "Previous Scene resources failed to dispose"); }
             const realization = Object.freeze({ scene: renderer.sceneRoot, objects: objectsByNode(scene), preparedPhysics, sink });
-            state = Object.freeze({ document, scene, layer, report, runtime, realization, camera: renderer.camera, generation: mine });
+            state = Object.freeze({ scene, layer, report, importer: record, runtime, realization, camera: renderer.camera, generation: mine });
             return state;
         },
         /** Supersedes a pending load and resets Interaction, so earlier intents are no longer current. */
@@ -166,3 +226,42 @@ export function createX3dSceneHost({ renderer, preparePhysics = null, layer = "w
         },
     });
 }
+
+// forwards:begin
+// Old X3D-named exports, kept as forwards until every caller has moved (STRATEGY rule 3): x3d/scene-runtime.mjs and
+// src/x3d-runtime-check.mjs call createX3dRuntime; src/x3d-renderer-check.mjs calls createX3dSceneHost. Each passes the
+// X3D importer and what only X3D needs to the format-free code above. The engine boundary check reads no format name
+// outside this block, and only imports, constants and these two forwards inside it.
+import { isX3dDocument } from "../import/x3d/json-document.mjs";
+import { documentToLayer, x3dImporter } from "../import/x3d/to-scene.mjs";
+const x3dNavigation = (document) => document.nodes.filter((n) => n.type === "NavigationInfo").map((n) => n.fields);
+const x3dCenterOf = (entity) => entity.extras.x3d.centerOfRotation;
+/** Forward: the X3D importer's layer in a new Scene, with Interaction on it (former x3d/scene-runtime.mjs). */
+export function createX3dRuntime(document, { portalBindings = [] } = {}) {
+    if (!isX3dDocument(document)) throw new TypeError("runtime: expected a validated X3D document");
+    const scene = createScene();
+    scene.addLayer(documentToLayer(document).layer, { name: "world" });
+    return createLayerRuntime(scene, { portalBindings, navigation: x3dNavigation(document), centerOf: x3dCenterOf });
+}
+/** Forward: createSceneHost with the X3D importer; load takes X3D text or a read document, and the state keeps it. */
+export function createX3dSceneHost({ renderer, preparePhysics = null, layer = "world" } = {}) {
+    const host = createSceneHost({ renderer, layer }), documents = new WeakMap(), states = new WeakMap();
+    const withDocument = (value) => {
+        if (!value) return value;
+        if (!states.has(value)) states.set(value, Object.freeze({ ...value, document: documents.get(value) }));
+        return states.get(value);
+    };
+    return Object.freeze({
+        get state() { return withDocument(host.state); },
+        async load(input, { compatibility, portalBindings = [], signal } = {}) {
+            let read = isX3dDocument(input) ? input : null;
+            const importer = read ? { ...x3dImporter, import: async (_source, { options }) => documentToLayer(read, { name: options.name, preparePhysics: options.preparePhysics }) } : x3dImporter;
+            const loaded = await host.load({ text: read ? null : input }, { importer, signal, centerOf: x3dCenterOf,
+                options: { compatibility, preparePhysics, portalBindings, onDocument: (document) => { read = document; } } });
+            documents.set(loaded, read);
+            return withDocument(loaded);
+        },
+        cancel: host.cancel, step: host.step, activate: host.activate, pick: host.pick, dispose: host.dispose,
+    });
+}
+// forwards:end

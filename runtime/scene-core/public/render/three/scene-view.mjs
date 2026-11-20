@@ -1,16 +1,27 @@
 // The Three.js module's view of a Scene (docs/engine/SCENE-CONTRACT-V0.md, section 5). It builds Three objects from
 // Scene data only, never writes the Scene and keeps no world state: everything here can be rebuilt from revision 0.
 // Moved from x3d/scene-renderer.mjs, which built the same objects from an X3D document. It imports no reader.
+// It draws both material models: "classic" (X3D's Material, Phong) and "pbr" (glTF's metallic-roughness, Standard),
+// meshes from typed arrays, directional, point and spot lights, and textures it decodes from the Scene's image bytes.
 
 const isScene = (value) => value && typeof value === "object" && value.schema === "scene/0" && typeof value.changes === "function";
 const where = (entity) => entity.source?.path ?? entity.id;
 const key = (ref) => `${ref.layer}\u0000${ref.id}`;
 // Entities that only carry data for other systems draw nothing.
 const DATA_ONLY = ["camera", "sensor", "joint"];
+const isIdentity = ({ translation, rotation, scale }) => translation.every((v) => v === 0)
+    && rotation[0] === 0 && rotation[1] === 0 && rotation[2] === 0 && rotation[3] === 1 && scale.every((v) => v === 1);
+// glTF sampler numbers (the WebGL enums the format uses) and the five texture slots of the pbr model.
+const FILTERS = { 9728: "NearestFilter", 9729: "LinearFilter", 9984: "NearestMipmapNearestFilter", 9985: "LinearMipmapNearestFilter", 9986: "NearestMipmapLinearFilter", 9987: "LinearMipmapLinearFilter" };
+const WRAPS = { 33071: "ClampToEdgeWrapping", 33648: "MirroredRepeatWrapping", 10497: "RepeatWrapping" };
+const SLOTS = [["baseColorTexture", "map", true], ["metallicRoughnessTexture", "metalnessMap", false], ["metallicRoughnessTexture", "roughnessMap", false],
+    ["normalTexture", "normalMap", false], ["occlusionTexture", "aoMap", false], ["emissiveTexture", "emissiveMap", true]];
 
 /**
  * Builds one view of every visible layer of a Scene. `createCanvas` is the host's canvas factory, for text.
  * The view's `root` is a Three scene; `camera` is built for the layer's arrival camera entity.
+ * `root.userData.imagesReady` is a promise that settles when every texture image has been decoded (null when there
+ * are none); `root.userData.notDrawn` lists what the view could not draw, with the reason.
  * @returns {{scene: object, root: object, camera: object, apply: Function, refresh: Function, dispose: Function}}
  */
 export function createSceneView(adapter, scene, { createCanvas } = {}) {
@@ -19,13 +30,15 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
     const layers = scene.layers().filter((name) => scene.layer(name).visible);
     let disposed = false, camera = null, arrival = null;
     const own = (resource) => { owned.add(resource); return resource; };
+    const decoded = new Map(), textures = new Map(), pbrMaterials = new Map(), notDrawn = [];
     const dispose = () => {
         if (disposed) return false;
         disposed = true;
         root.removeFromParent(); root.clear();
         const failures = [];
         for (const resource of owned) { try { resource.dispose(); } catch (error) { failures.push(error); } }
-        owned.clear(); objects.clear(); dynamic.clear();
+        for (const pending of decoded.values()) pending.then((bitmap) => bitmap?.close?.(), () => {});
+        owned.clear(); objects.clear(); dynamic.clear(); decoded.clear(); textures.clear(); pbrMaterials.clear();
         if (failures.length) throw new AggregateError(failures, "X3D scene disposal failed");
         return true;
     };
@@ -93,17 +106,100 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
             case "cylinder": description = { type: "cylinder", radiusTop: g.radius, radiusBottom: g.radius, height: g.height, radialSegments: 32 }; break;
             case "sphere": description = { type: "sphere", radius: g.radius, widthSegments: 32, heightSegments: 16 }; break;
             case "mesh": {
-                if (g.mode !== 4) throw new Error(`${geometryKey}: only triangle meshes are drawn`);
-                const geometry = own(new THREE.BufferGeometry());
+                if (!Number.isInteger(g.mode) || g.mode < 0 || g.mode > 6) throw new Error(`${geometryKey}: mode ${g.mode} is not a mesh mode`);
+                const geometry = own(new THREE.BufferGeometry()), { NORMAL, TEXCOORD_0, COLOR_0 } = g.attributes;
                 geometry.setAttribute("position", new THREE.Float32BufferAttribute(g.attributes.POSITION, 3));
-                geometry.setIndex(Array.from(g.indices)); geometry.computeVertexNormals(); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+                const count = g.attributes.POSITION.length / 3;
+                if (NORMAL) geometry.setAttribute("normal", new THREE.Float32BufferAttribute(NORMAL, 3));
+                if (TEXCOORD_0) geometry.setAttribute("uv", new THREE.Float32BufferAttribute(TEXCOORD_0, 2));
+                if (COLOR_0) geometry.setAttribute("color", new THREE.Float32BufferAttribute(COLOR_0, COLOR_0.length / count));
+                const indices = g.mode === 5 || g.mode === 6 ? fanOrStrip(g.indices, count, g.mode) : g.indices;
+                if (indices) geometry.setIndex(Array.from(indices));
+                if (!NORMAL && g.mode >= 4) geometry.computeVertexNormals();
+                geometry.computeBoundingBox(); geometry.computeBoundingSphere();
                 if (g.dynamic) { const list = dynamic.get(`${layer}\u0000${geometryKey}`) ?? []; list.push(geometry); dynamic.set(`${layer}\u0000${geometryKey}`, list); }
-                return new THREE.Mesh(geometry, materialFor(material));
+                const drawn = material.model === "pbr" ? pbrMaterial(materialKey, material, layer, { vertexColors: !!COLOR_0, flat: !NORMAL }) : materialFor(material);
+                if (g.mode >= 4) return new THREE.Mesh(geometry, drawn);
+                // Points and lines take the material's colour and base colour map, as glTF viewers draw them.
+                const basic = own(g.mode === 0 ? new THREE.PointsMaterial({ size: 1, sizeAttenuation: false }) : new THREE.LineBasicMaterial());
+                basic.color.copy(drawn.color); basic.map = drawn.map ?? null; basic.vertexColors = !!COLOR_0;
+                return new (g.mode === 0 ? THREE.Points : g.mode === 1 ? THREE.LineSegments : g.mode === 2 ? THREE.LineLoop : THREE.Line)(geometry, basic);
             }
             default: throw new Error(`${geometryKey}: geometry type ${g.type} is not drawn`);
         }
         const geometry = own(adapter.createGeometry(description));
-        return adapter.createMesh(geometry, materialFor(material));
+        return adapter.createMesh(geometry, material.model === "pbr" ? pbrMaterial(materialKey, material, layer, {}) : materialFor(material));
+    };
+    /** Triangle-strip (5) and triangle-fan (6) indices as a triangle list. */
+    const fanOrStrip = (indices, count, mode) => {
+        const at = (i) => (indices ? indices[i] : i), n = indices ? indices.length : count, out = [];
+        for (let i = 2; i < n; i++) {
+            if (mode === 6) out.push(at(0), at(i - 1), at(i));
+            else if (i % 2 === 0) out.push(at(i - 2), at(i - 1), at(i));
+            else out.push(at(i - 1), at(i - 2), at(i));
+        }
+        return out;
+    };
+    /** Decodes one image of the Scene once; the bytes stay as they are in the Scene. */
+    const decodeImage = (layer, imageKey) => {
+        const id = `${layer}\u0000${imageKey}`;
+        if (!decoded.has(id)) {
+            const image = scene.asset(layer, "images", imageKey);
+            const pending = typeof createImageBitmap !== "function"
+                ? Promise.reject(new Error("this host has no image decoder"))
+                : createImageBitmap(new Blob([image.bytes], { type: image.mimeType ?? "" }), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+            pending.catch((error) => notDrawn.push({ layer, key: imageKey, reason: `image not decoded: ${error?.message ?? error}` }));
+            decoded.set(id, pending);
+        }
+        return decoded.get(id);
+    };
+    /** A texture of the Scene in one colour space: glTF's sampler, no vertical flip (glTF's texture origin is top left). */
+    const textureFor = (layer, textureKey, srgb) => {
+        const id = `${layer}\u0000${textureKey}\u0000${srgb}`;
+        if (textures.has(id)) return textures.get(id);
+        const description = scene.asset(layer, "textures", textureKey);
+        if (!description.image) { notDrawn.push({ layer, key: textureKey, reason: "the texture has no image the Scene holds" }); textures.set(id, null); return null; }
+        const texture = own(new THREE.Texture());
+        texture.flipY = false;
+        texture.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+        const { magFilter, minFilter, wrapS, wrapT } = description.sampler ?? {};
+        texture.magFilter = THREE[FILTERS[magFilter]] ?? THREE.LinearFilter;
+        texture.minFilter = THREE[FILTERS[minFilter]] ?? THREE.LinearMipmapLinearFilter;
+        texture.wrapS = THREE[WRAPS[wrapS]] ?? THREE.RepeatWrapping;
+        texture.wrapT = THREE[WRAPS[wrapT]] ?? THREE.RepeatWrapping;
+        texture.name = textureKey;
+        texture.userData.pending = decodeImage(layer, description.image).then((bitmap) => {
+            if (disposed) return;
+            texture.image = bitmap; texture.needsUpdate = true;
+        }, () => {});
+        textures.set(id, texture);
+        return texture;
+    };
+    /** glTF's metallic-roughness material as a Standard material, set up the way Three.js's own glTF loader sets it up. */
+    const pbrMaterial = (materialKey, description, layer, { vertexColors = false, flat = false }) => {
+        const id = `${layer}\u0000${materialKey}\u0000${vertexColors}\u0000${flat}`;
+        if (pbrMaterials.has(id)) return pbrMaterials.get(id);
+        const [r, g, b, a] = description.baseColorFactor, linear = THREE.LinearSRGBColorSpace;
+        const material = own(new THREE.MeshStandardMaterial({
+            color: new THREE.Color().setRGB(r, g, b, linear), opacity: a, metalness: description.metallicFactor, roughness: description.roughnessFactor,
+            emissive: new THREE.Color().setRGB(...description.emissiveFactor, linear), side: description.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+            transparent: description.alphaMode === "BLEND", vertexColors, flatShading: flat }));
+        if (description.alphaMode === "BLEND") material.depthWrite = false;
+        if (description.alphaMode === "MASK") material.alphaTest = description.alphaCutoff ?? 0.5;
+        for (const [slot, property, srgb] of SLOTS) {
+            const ref = description[slot];
+            if (!ref) continue;
+            if (ref.texCoord !== 0) { notDrawn.push({ layer, key: `${materialKey}/${slot}`, reason: `uses TEXCOORD_${ref.texCoord}; only TEXCOORD_0 is drawn` }); continue; }
+            const texture = textureFor(layer, ref.texture, srgb);
+            if (texture) material[property] = texture;
+        }
+        // The Scene has no tangents, so normal maps use screen-space derivatives; glTF's green channel then points the
+        // other way (Three.js's glTF loader makes the same change when a file has no tangents).
+        if (material.normalMap) material.normalScale.set(description.normalTexture.scale ?? 1, -(description.normalTexture.scale ?? 1));
+        if (material.aoMap) material.aoMapIntensity = description.occlusionTexture.strength ?? 1;
+        material.name = materialKey;
+        pbrMaterials.set(id, material);
+        return material;
     };
     const shapeOf = (entity, layer) => {
         const { mesh, text } = entity.components;
@@ -116,13 +212,37 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
     };
     const addLight = (entity, parent, layer) => {
         const light = entity.components.light;
-        if (light.type !== "directional") throw new Error(`${where(entity)}: ${light.type} lights are not drawn by this view yet`);
+        if (light.type !== "directional") throw new Error(`${where(entity)}: ${light.type} lights are drawn by nodeLight`);
         if (entity.parent !== null && light.scope !== "global") throw new Error(`${where(entity)}: subtree-scoped lighting is unsupported`);
         const directional = new THREE.DirectionalLight(new THREE.Color().fromArray(light.color), light.intensity);
         place(directional, entity.transform);
-        directional.target.position.copy(directional.position).add(new THREE.Vector3().fromArray(light.direction));
+        // The direction is in the entity's frame; an X3D light's frame is its parent's (its rotation is the identity).
+        directional.target.position.copy(directional.position).add(new THREE.Vector3().fromArray(light.direction).applyQuaternion(directional.quaternion));
         parent.add(register(directional, entity, layer), directional.target);
         if (light.ambientIntensity) parent.add(new THREE.AmbientLight(new THREE.Color().fromArray(light.color), light.ambientIntensity));
+    };
+    /**
+     * A light that sits at its entity's origin and shines down the entity's local direction, inside the entity's own
+     * group (glTF's KHR_lights_punctual: point and spot lights, and any light on a placed node or one with children).
+     * Point and spot lights fall off with the square of distance and stop at `range`, as that extension says.
+     */
+    const nodeLight = (entity, into, layer) => {
+        const light = entity.components.light, color = new THREE.Color().setRGB(...light.color, THREE.LinearSRGBColorSpace);
+        const group = register(new THREE.Group(), entity, layer);
+        place(group, entity.transform); into.add(group);
+        let made;
+        if (light.type === "point") made = new THREE.PointLight(color, light.intensity, light.range ?? 0, 2);
+        else if (light.type === "spot") {
+            const { innerConeAngle = 0, outerConeAngle = Math.PI / 4 } = light.spot ?? {};
+            made = new THREE.SpotLight(color, light.intensity, light.range ?? 0, outerConeAngle, 1 - innerConeAngle / outerConeAngle, 2);
+        } else if (light.type === "directional") made = new THREE.DirectionalLight(color, light.intensity);
+        else throw new Error(`${where(entity)}: ${light.type} lights are not drawn by this view`);
+        if (made.target) { made.target.position.fromArray(light.direction ?? [0, 0, -1]); made.add(made.target); }
+        group.add(made);
+        if (light.ambientIntensity) group.add(new THREE.AmbientLight(color, light.ambientIntensity));
+        const shape = shapeOf(entity, layer);
+        if (shape) group.add(shape);
+        return group;
     };
     const buildLayer = (layer) => {
         const header = scene.layer(layer), environment = header.environment ?? {};
@@ -136,12 +256,17 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
             root.background = new THREE.Color().fromArray(environment.background.skyColor);
         }
         if (environment.color) parent.add(new THREE.AmbientLight(new THREE.Color().fromArray(environment.color), environment.intensity));
-        const built = new Map([[null, parent]]);
-        for (const ref of scene.find({ layer })) {
+        const built = new Map([[null, parent]]), refs = scene.find({ layer });
+        // An entity that others name as their parent needs an object of its own, so its children sit in its frame.
+        const parents = new Set(refs.map((ref) => scene.get(ref).parent).filter((id) => id !== null));
+        for (const ref of refs) {
             const entity = scene.get(ref), components = entity.components ?? {};
             const into = built.get(entity.parent) ?? parent;
             if (components.camera?.arrival && !arrival) arrival = ref;
-            if (DATA_ONLY.some((name) => components[name]) && !components.mesh && !components.text && !components.light) { built.set(entity.id, into); continue; }
+            if (DATA_ONLY.some((name) => components[name]) && !components.mesh && !components.text && !components.light && !parents.has(entity.id)) { built.set(entity.id, into); continue; }
+            if (components.light && (components.light.type !== "directional" || components.mesh || components.text || parents.has(entity.id) || !isIdentity(entity.transform))) {
+                built.set(entity.id, nodeLight(entity, into, layer)); continue;
+            }
             if (components.light) { addLight(entity, into, layer); built.set(entity.id, into); continue; }
             const shape = shapeOf(entity, layer);
             if (shape) { place(shape, entity.transform); into.add(register(shape, entity, layer)); built.set(entity.id, shape); continue; }
@@ -150,18 +275,35 @@ export function createSceneView(adapter, scene, { createCanvas } = {}) {
         }
         return header;
     };
-    let navigation = null;
+    let navigation = null, fallback = null;
     try {
-        for (const layer of layers) navigation ??= buildLayer(layer).navigation ?? null;
-        // The camera for the arrival camera entity; the application moves it.
-        const lens = arrival ? scene.get(arrival).components.camera : null;
-        camera = adapter.createPerspectiveCamera({ fov: (lens?.yfov ?? Math.PI / 4) * 180 / Math.PI, aspect: 1, near: lens?.znear ?? 0.1, far: lens?.zfar ?? 1000 });
-        if (arrival) new THREE.Matrix4().fromArray(scene.worldMatrix(arrival)).decompose(camera.position, camera.quaternion, new THREE.Vector3());
+        // What the author wrote comes first; layer.defaults holds what the application supplied (contract 11, item 6).
+        for (const layer of layers) {
+            const header = buildLayer(layer);
+            navigation ??= header.navigation ?? header.defaults?.navigation ?? null;
+            fallback ??= header.defaults?.camera ?? null;
+        }
+        // The camera for the arrival camera entity, else the layer's default camera; the application moves it.
+        // znear and zfar are in the camera entity's own frame (contract 11, item 7): the entity's world scale applies.
+        // A null zfar means no far limit; the view then chooses 1000 (in world units) and records it in lens.farChosen.
+        const lens = arrival ? scene.get(arrival).components.camera : fallback;
+        const pose = new THREE.Matrix4(), position = new THREE.Vector3(), quaternion = new THREE.Quaternion(), scale = new THREE.Vector3(1, 1, 1);
+        if (arrival) pose.fromArray(scene.worldMatrix(arrival)).decompose(position, quaternion, scale);
+        else if (fallback) { position.fromArray(fallback.position); quaternion.fromArray(fallback.rotation ?? [0, 0, 0, 1]); }
+        const worldScale = (Math.abs(scale.x) + Math.abs(scale.y) + Math.abs(scale.z)) / 3;
+        const farChosen = lens ? lens.zfar == null : true;
+        const near = (lens?.znear ?? 0.1) * (lens ? worldScale : 1), far = farChosen ? 1000 : lens.zfar * worldScale;
+        camera = adapter.createPerspectiveCamera({ fov: (lens?.yfov ?? Math.PI / 4) * 180 / Math.PI, aspect: 1, near, far });
+        camera.userData.lens = Object.freeze({ near, far, farChosen, worldScale, from: arrival ? "entity" : fallback ? "defaults" : "none" });
+        if (arrival || fallback) { camera.position.copy(position); camera.quaternion.copy(quaternion); }
         if (navigation?.headlight) {
             const headlight = new THREE.DirectionalLight(0xffffff, 1);
             headlight.target.position.set(0, 0, -1); camera.add(headlight, headlight.target); root.add(camera);
         }
         root.updateMatrixWorld(true);
+        const pending = [...textures.values()].filter(Boolean).map((texture) => texture.userData.pending);
+        root.userData.imagesReady = pending.length ? Promise.all(pending).then(() => undefined) : null;
+        root.userData.notDrawn = notDrawn;
     } catch (error) { try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "X3D construction and rollback failed"); } throw error; }
 
     const alive = () => { if (disposed) throw new Error("X3D scene disposed"); };

@@ -291,6 +291,95 @@ The old paths `x3d/profile.mjs`, `x3d/json-document.mjs`,
 `x3d/scene-runtime.mjs`, `x3d/scene-renderer.mjs`, `x3d/soft-body.mjs` and
 `x3d/rgbe-decoder.mjs` are one-line forwards.
 
+## The glTF importer and a document route that takes any importer (engine milestone M2)
+
+Changed in milestone M2. Two formats now reach
+the same renderer through the Scene.
+
+- `import/gltf/`: the glTF importer, our own code (no Three.js, no renderer
+  file, not Three.js's `GLTFLoader`). `read.mjs` reads a `.glb` or `.gltf`
+  source into its JSON and buffers, and accessors into number arrays; a linked
+  file comes only through the application's `resolve`, never a fetch.
+  `to-scene.mjs` exports `gltfImporter` (format `"gltf"`). It copies scenes and
+  nodes (ids `nodes/<i>`; a matrix becomes translation, rotation and scale),
+  primitives (`POSITION`, `NORMAL`, `TEXCOORD_0`, `COLOR_0`, indices, mode;
+  keys `meshes/<i>/primitives/<j>`), metallic-roughness materials with their
+  five texture slots (`materials/<i>`), textures with their sampler
+  (`textures/<i>`), images as their bytes and type (`images/<i>`), perspective
+  cameras and `KHR_lights_punctual` lights.
+  - Mode `"report"` keeps everything else in `extras.gltf` and lists it in the
+    load report: skins, animations, morph targets, other attributes (for
+    example `TANGENT`), other scenes, and every extension it does not read.
+    Mode `"strict"` stops at the first such thing.
+  - A file that needs a compressed-mesh or compressed-texture decoder
+    (`KHR_draco_mesh_compression`, `EXT_meshopt_compression`,
+    `KHR_texture_basisu`) is refused, with the reason in the error and its
+    `report.refused`.
+- `import/x3d/to-scene.mjs`: reading unchanged. `x3dImporter.capabilities()`
+  gains a `reason`, and `import()` takes `options.onDocument(document)`, which
+  hands the application the document it read (the route's portal window reads
+  it).
+- `scene/manager.mjs` names no format.
+  - `createSceneHost({ renderer })` is the host for any importer:
+    `load(source, { importer, mode, resolve, signal, options, navigation,
+    centerOf, frame })`. `options` go to the importer (`preparePhysics` is
+    wrapped so the host keeps what it prepared; `portalBindings` also go to
+    Interaction). `navigation` is the application's request for a layer whose
+    source has none; the host writes it to `layer.defaults.navigation` and
+    leaves `layer.navigation` as the author wrote it (empty for glTF). `frame`
+    writes a framed default camera to `layer.defaults.camera` (`framed: true`,
+    with `position`, `rotation`, `yfov`, `znear`, `zfar`) for a layer with no
+    camera entity; it is not an entity. A layer that authored both gets no
+    `defaults`, so the X3D worlds are unchanged (Scene contract section 11,
+    item 6). The state is `{ scene, layer, report, importer, runtime, realization,
+    camera, generation }`.
+  - `createLayerRuntime(scene, options)` is Interaction on one layer with its
+    viewpoint list (from camera entities, else from `layer.defaults.camera`)
+    and navigation list (the author's, else `layer.defaults.navigation`); `layerBounds(scene, layer)` is the box around what a layer
+    draws.
+  - Every layer the manager adds records its importer as `layer.importer`
+    (`{ format, capabilities }`).
+  - `createX3dSceneHost` and `createX3dRuntime` stay as forwards, in the block
+    between `// forwards:begin` and `// forwards:end`, until
+    `src/x3d-renderer-check.mjs`, `src/x3d-runtime-check.mjs` and
+    `x3d/scene-runtime.mjs` have moved.
+- `render/three/scene-view.mjs` also draws the `pbr` material (a
+  `MeshStandardMaterial` set up as Three.js's glTF loader sets it up: linear
+  factors, sRGB base colour and emissive maps, no vertical flip, glTF's sampler,
+  normal-map green channel turned because the Scene has no tangents), meshes
+  with `NORMAL`, `TEXCOORD_0` and `COLOR_0` and every glTF mode, and point and
+  spot lights. It decodes texture images from the Scene's bytes with
+  `createImageBitmap`. `root.userData.imagesReady` settles when they are
+  decoded; `root.userData.notDrawn` lists what the view could not draw. The
+  classic material and the X3D drawing are unchanged.
+  - Navigation (the headlight) and the arrival camera fall back to
+    `layer.defaults` when the layer has no authored navigation or camera.
+  - A camera's `znear` and `zfar` are in the camera entity's own frame; the
+    view multiplies them by the entity's world scale (Scene contract section
+    11, item 7). Duck's camera sits under a 0.01 scale, so its near plane is
+    0.01. A `null` `zfar` means no far limit; the view then uses 1000.
+    `camera.userData.lens` records `{ near, far, farChosen, worldScale, from }`.
+- `web/own-x3d-document.mjs` picks the importer by file type. Besides the two
+  X3D worlds it admits `Duck.glb`, `BoomBox.glb`, `Lantern.glb` and
+  `ToyCar.glb` from `web/assets/worlds/`, each by its SHA-256, for example
+  `index.html?renderer=own-x3d&x3dDocument=Duck.glb`. glTF is read in report
+  mode, with X3D's default navigation (headlight on) and a framed view when the
+  file has no camera. The route waits for the texture images before it reports
+  ready.
+- `web/renderer-capability-panel.mjs` lists each shown layer's importer
+  capabilities (the X3D importer's limit is counted again, closing M1's loose
+  end), a count of what was not drawn from the open file with the list behind
+  it, and the chain line, for example "Source: glTF. Importer: glTF.
+  Renderer: Three.js.".
+
+Two checks come with M2, both listed in `tools/run-checks-lists.mjs`:
+`node src/importer-kit-check.mjs` (the importer conformance kit: the two X3D
+worlds, the four glTF files and the hand-made files in
+`src/fixtures/importer-kit/`, each with its expected layer saved as JSON, and
+one planted fault per check) and `node src/engine-boundary-check.mjs` (the
+engine boundary rules of M1 and M2, one planted fault per rule;
+`--root <dir>` checks another copy).
+
 ## Evaluator distribution and verification
 
 `web/vendor/avatar-evaluator-v1` is the active versioned evaluator distribution.

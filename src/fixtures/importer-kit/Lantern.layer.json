@@ -1,0 +1,597 @@
+{
+ "layer": {
+  "schema": "scene-layer/0",
+  "name": "world",
+  "kind": "content",
+  "visible": true,
+  "placement": {
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "source": {
+   "uri": "/assets/worlds/Lantern.glb",
+   "format": "gltf",
+   "scene": "scenes/0",
+   "header": {
+    "$sha256": "af6a3137efd2831ae965f14fdb213d014b9dade1ee082b74aecafdf50b493ad2"
+   }
+  },
+  "info": null,
+  "navigation": null,
+  "environment": {
+   "background": null,
+   "color": null,
+   "intensity": null,
+   "image": null
+  },
+  "entities": [
+   {
+    "id": "nodes/3",
+    "name": "Lantern",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      1,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "nodes/3",
+     "type": "node"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/0",
+    "name": "LanternPole_Body",
+    "parent": "nodes/3",
+    "transform": {
+     "translation": [
+      -3.82315421,
+      13.01603,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/0/primitives/0",
+        "material": "materials/0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/0",
+     "type": "node",
+     "mesh": "meshes/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/1",
+    "name": "LanternPole_Chain",
+    "parent": "nodes/3",
+    "transform": {
+     "translation": [
+      -9.582001,
+      21.0378723,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/1/primitives/0",
+        "material": "materials/0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/1",
+     "type": "node",
+     "mesh": "meshes/1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/2",
+    "name": "LanternPole_Lantern",
+    "parent": "nodes/3",
+    "transform": {
+     "translation": [
+      -9.582007,
+      18.0091515,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/2/primitives/0",
+        "material": "materials/0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/2",
+     "type": "node",
+     "mesh": "meshes/2"
+    },
+    "extras": {}
+   }
+  ],
+  "assets": {
+   "geometries": {
+    "meshes/0/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "TEXCOORD_0": {
+       "$typed": "Float32Array",
+       "length": 1852,
+       "sha256": "c949c482f317ec8f4c4e53e823b3a20a5cf3f6c946ce743450f6a0fe902a0766"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 2778,
+       "sha256": "4fa675f7ca57140ca132ebc9c610d50f6e27270b5dc227e588fabd8b631e76c5"
+      },
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 2778,
+       "sha256": "4f3d85a0c4b43b3c3573e2bf457984d06f1baf3268d075fbaf796a635dcf0c0d"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 2616,
+      "sha256": "a720e797201fcb0386f748b14f9c8966c5463efe582e81e27051bd897d4a928e"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/0/primitives/0",
+      "accessors": {
+       "TEXCOORD_0": "accessors/0",
+       "NORMAL": "accessors/1",
+       "TANGENT": "accessors/2",
+       "POSITION": "accessors/3"
+      },
+      "indices": "accessors/4"
+     },
+     "extras": {
+      "gltf": {
+       "attributes": {
+        "TANGENT": {
+         "accessor": "accessors/2",
+         "array": {
+          "$typed": "Float32Array",
+          "length": 3704,
+          "sha256": "f1c68d446d85e024957c499d1c080118f1b010858460e92201f2e7c9795b25c2"
+         }
+        }
+       },
+       "mesh": {
+        "name": "LanternPole_Body"
+       }
+      }
+     }
+    },
+    "meshes/1/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "TEXCOORD_0": {
+       "$typed": "Float32Array",
+       "length": 1512,
+       "sha256": "fe80ddfccadff9921569ed69028347f00ce2ba94825c25dd8859951ac6ce6a78"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 2268,
+       "sha256": "0eccf45ba94577d267f9c76024d975f2db28816535e2170d9accadcc451f7598"
+      },
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 2268,
+       "sha256": "da03d3e0e10516b65f02cc1395a84a420738efa5b4458e947967b10f657ef15c"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 3744,
+      "sha256": "3db08f5dc9bf3b96fd16d7272e7e423c69f3cf5aad3e187f988a6cf873ccb7b5"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/1/primitives/0",
+      "accessors": {
+       "TEXCOORD_0": "accessors/5",
+       "NORMAL": "accessors/6",
+       "TANGENT": "accessors/7",
+       "POSITION": "accessors/8"
+      },
+      "indices": "accessors/9"
+     },
+     "extras": {
+      "gltf": {
+       "attributes": {
+        "TANGENT": {
+         "accessor": "accessors/7",
+         "array": {
+          "$typed": "Float32Array",
+          "length": 3024,
+          "sha256": "af762cc103644a6d19365f77007b8f5a59852bdf31f69818c61b4642e8102bf4"
+         }
+        }
+       },
+       "mesh": {
+        "name": "LanternPole_Chain"
+       }
+      }
+     }
+    },
+    "meshes/2/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "TEXCOORD_0": {
+       "$typed": "Float32Array",
+       "length": 4926,
+       "sha256": "94b25c0a1d443238f50fa2afb5f9a26bcd8ae71eb619783e022ca2341cfff4da"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 7389,
+       "sha256": "3f45cc05653e1f3fde477e74038b7090298f176a34b15bce6ccc0f74d987114f"
+      },
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 7389,
+       "sha256": "72b6d8b52b0c5f8ed58c6cdec6fbd9b29f973ecedbba0e5f9fa229ef0da1166e"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 9822,
+      "sha256": "ad27a39668742873486ff4e8bd916691de8140a1fe48e3cbcc7d18438a72df97"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/2/primitives/0",
+      "accessors": {
+       "TEXCOORD_0": "accessors/10",
+       "NORMAL": "accessors/11",
+       "TANGENT": "accessors/12",
+       "POSITION": "accessors/13"
+      },
+      "indices": "accessors/14"
+     },
+     "extras": {
+      "gltf": {
+       "attributes": {
+        "TANGENT": {
+         "accessor": "accessors/12",
+         "array": {
+          "$typed": "Float32Array",
+          "length": 9852,
+          "sha256": "7649702da3f123f880e1c385cf43ab71d81fe6852c678244765eacace456cbe9"
+         }
+        }
+       },
+       "mesh": {
+        "name": "LanternPole_Lantern"
+       }
+      }
+     }
+    }
+   },
+   "materials": {
+    "materials/0": {
+     "model": "pbr",
+     "colorSpace": "linear",
+     "baseColorFactor": [
+      1,
+      1,
+      1,
+      1
+     ],
+     "metallicFactor": 1,
+     "roughnessFactor": 1,
+     "emissiveFactor": [
+      1,
+      1,
+      1
+     ],
+     "baseColorTexture": {
+      "texture": "textures/0",
+      "texCoord": 0
+     },
+     "metallicRoughnessTexture": {
+      "texture": "textures/1",
+      "texCoord": 0
+     },
+     "normalTexture": {
+      "texture": "textures/2",
+      "texCoord": 0,
+      "scale": 1
+     },
+     "occlusionTexture": null,
+     "emissiveTexture": {
+      "texture": "textures/3",
+      "texCoord": 0
+     },
+     "doubleSided": false,
+     "alphaMode": "OPAQUE",
+     "alphaCutoff": 0.5,
+     "source": {
+      "path": "materials/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "LanternPost_Mat"
+      }
+     }
+    }
+   },
+   "textures": {
+    "textures/0": {
+     "image": "images/0",
+     "sampler": {
+      "magFilter": null,
+      "minFilter": null,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/0",
+      "sampler": null
+     },
+     "extras": {}
+    },
+    "textures/1": {
+     "image": "images/1",
+     "sampler": {
+      "magFilter": null,
+      "minFilter": null,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/1",
+      "sampler": null
+     },
+     "extras": {}
+    },
+    "textures/2": {
+     "image": "images/2",
+     "sampler": {
+      "magFilter": null,
+      "minFilter": null,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/2",
+      "sampler": null
+     },
+     "extras": {}
+    },
+    "textures/3": {
+     "image": "images/3",
+     "sampler": {
+      "magFilter": null,
+      "minFilter": null,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/3",
+      "sampler": null
+     },
+     "extras": {}
+    }
+   },
+   "images": {
+    "images/0": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 4461532,
+      "sha256": "a2d6aa660f0b9ce46b3863e955248454e73be96063218b799af9f750e0f7be71"
+     },
+     "source": {
+      "path": "images/0",
+      "from": "bufferViews/15"
+     },
+     "extras": {}
+    },
+    "images/1": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 2078597,
+      "sha256": "01b8105756fd86f13e66602f85ee03e7e5daf22a8531f32bef8bbe678cf38cf6"
+     },
+     "source": {
+      "path": "images/1",
+      "from": "bufferViews/16"
+     },
+     "extras": {}
+    },
+    "images/2": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 2619883,
+      "sha256": "3318a4d3bef8be53c192d87b7401145493774126c54a22e50e1269f9476065fa"
+     },
+     "source": {
+      "path": "images/2",
+      "from": "bufferViews/17"
+     },
+     "extras": {}
+    },
+    "images/3": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 169335,
+      "sha256": "eafa6390501d537f5bbcf92c64ad1c39d2493aef4508e9cc9d537771efe8bad7"
+     },
+     "source": {
+      "path": "images/3",
+      "from": "bufferViews/18"
+     },
+     "extras": {}
+    }
+   }
+  },
+  "report": {
+   "translated": {
+    "image": 4,
+    "texture": 4,
+    "material": 1,
+    "primitive": 3,
+    "mesh": 3,
+    "node": 4,
+    "scene": 1,
+    "accessor": 15,
+    "bufferView": 19,
+    "buffer": 1
+   },
+   "kept": [
+    {
+     "path": "meshes/0/primitives/0/attributes/TANGENT",
+     "type": "attribute",
+     "reason": "the Scene has no TANGENT attribute; normal maps use tangents from screen-space derivatives"
+    },
+    {
+     "path": "meshes/1/primitives/0/attributes/TANGENT",
+     "type": "attribute",
+     "reason": "the Scene has no TANGENT attribute; normal maps use tangents from screen-space derivatives"
+    },
+    {
+     "path": "meshes/2/primitives/0/attributes/TANGENT",
+     "type": "attribute",
+     "reason": "the Scene has no TANGENT attribute; normal maps use tangents from screen-space derivatives"
+    }
+   ],
+   "skipped": [],
+   "refused": [],
+   "diagnostics": []
+  },
+  "extras": {
+   "gltf": {
+    "scenes": [
+     {
+      "name": null,
+      "nodes": [
+       "nodes/3"
+      ],
+      "extras": null
+     }
+    ]
+   }
+  }
+ },
+ "report": {
+  "translated": {
+   "image": 4,
+   "texture": 4,
+   "material": 1,
+   "primitive": 3,
+   "mesh": 3,
+   "node": 4,
+   "scene": 1,
+   "accessor": 15,
+   "bufferView": 19,
+   "buffer": 1
+  },
+  "kept": [
+   {
+    "path": "meshes/0/primitives/0/attributes/TANGENT",
+    "type": "attribute",
+    "reason": "the Scene has no TANGENT attribute; normal maps use tangents from screen-space derivatives"
+   },
+   {
+    "path": "meshes/1/primitives/0/attributes/TANGENT",
+    "type": "attribute",
+    "reason": "the Scene has no TANGENT attribute; normal maps use tangents from screen-space derivatives"
+   },
+   {
+    "path": "meshes/2/primitives/0/attributes/TANGENT",
+    "type": "attribute",
+    "reason": "the Scene has no TANGENT attribute; normal maps use tangents from screen-space derivatives"
+   }
+  ],
+  "skipped": [],
+  "refused": [],
+  "diagnostics": []
+ }
+}

@@ -1,0 +1,5440 @@
+{
+ "layer": {
+  "schema": "scene-layer/0",
+  "name": "world",
+  "kind": "content",
+  "visible": true,
+  "placement": {
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "source": {
+   "format": "x3d-json",
+   "header": {
+    "$sha256": "c532248cc3473b385a8159f44f5a24e67a37f8ebd07a619222b11e55defbdb5a"
+   }
+  },
+  "info": null,
+  "navigation": null,
+  "environment": {
+   "background": {
+    "skyColor": [
+     0.749,
+     0.82,
+     0.898
+    ]
+   },
+   "color": [
+    0.251,
+    0.251,
+    0.251
+   ],
+   "intensity": 1,
+   "image": null
+  },
+  "entities": [
+   {
+    "id": "DEF:Entry",
+    "name": "Entry",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -10,
+      1.6,
+      10
+     ],
+     "rotation": [
+      0,
+      -0.38268428076468186,
+      0,
+      0.923879181092213
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 1.0472,
+      "znear": 0.1,
+      "zfar": 1000,
+      "description": "Entry, on the ground, facing the wall",
+      "arrival": true
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[1].Viewpoint",
+     "type": "Viewpoint",
+     "def": "Entry",
+     "instance": "1"
+    },
+    "extras": {
+     "x3d": {
+      "centerOfRotation": [
+       0,
+       0,
+       0
+      ]
+     }
+    }
+   },
+   {
+    "id": "$.X3D.Scene.-children[2].Viewpoint",
+    "name": null,
+    "parent": null,
+    "transform": {
+     "translation": [
+      -14,
+      12,
+      12
+     ],
+     "rotation": [
+      -0.20450623036149765,
+      -0.40715162150223555,
+      -0.09406542260940588,
+      0.8851872429722111
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 1.0472,
+      "znear": 0.1,
+      "zfar": 1000,
+      "description": "John Carlson's overview"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[2].Viewpoint",
+     "type": "Viewpoint",
+     "def": null,
+     "instance": "2"
+    },
+    "extras": {
+     "x3d": {
+      "centerOfRotation": [
+       0,
+       3,
+       0
+      ]
+     }
+    }
+   },
+   {
+    "id": "DEF:PortalTrigger",
+    "name": "PortalTrigger",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "sensor": {
+      "type": "proximity",
+      "center": [
+       -8.59,
+       1.2,
+       2.93
+      ],
+      "size": [
+       1.6,
+       2.4,
+       1.6
+      ],
+      "enabled": true
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[3].ProximitySensor",
+     "type": "ProximitySensor",
+     "def": "PortalTrigger",
+     "instance": "3"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[4].Transform",
+    "name": null,
+    "parent": null,
+    "transform": {
+     "translation": [
+      -8.59,
+      1.6,
+      2.93
+     ],
+     "rotation": [
+      0,
+      -0.38268428076468186,
+      0,
+      0.923879181092213
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[4].Transform",
+     "type": "Transform",
+     "def": null,
+     "instance": "4"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:PortalAnchor",
+    "name": "PortalAnchor",
+    "parent": "$.X3D.Scene.-children[4].Transform",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "link": {
+      "url": [
+       "/w/lobby/"
+      ],
+      "parameter": [
+       "target=_self"
+      ],
+      "description": "Portal to the Lobby",
+      "metadata": null
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[4].Transform.-children[0].Anchor",
+     "type": "Anchor",
+     "def": "PortalAnchor",
+     "instance": "4/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:PortalDisc",
+    "name": "PortalDisc",
+    "parent": "DEF:PortalAnchor",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0.7071080798594735,
+      0,
+      0,
+      0.7071054825112363
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[4].Transform.-children[0].Anchor.-children[0].Transform",
+     "type": "Transform",
+     "def": "PortalDisc",
+     "instance": "4/0/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[4].Transform.-children[0].Anchor.-children[0].Transform.-children[0].Shape",
+    "name": null,
+    "parent": "DEF:PortalDisc",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g0",
+        "material": "m0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[4].Transform.-children[0].Anchor.-children[0].Transform.-children[0].Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "4/0/0/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[6].DirectionalLight",
+    "name": null,
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "light": {
+      "type": "directional",
+      "color": [
+       1,
+       1,
+       1
+      ],
+      "intensity": 1,
+      "direction": [
+       0.4667,
+       -1,
+       -1
+      ],
+      "ambientIntensity": 0,
+      "scope": "subtree"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[6].DirectionalLight",
+     "type": "DirectionalLight",
+     "def": null,
+     "instance": "6"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[7].Transform",
+    "name": null,
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      6,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[7].Transform",
+     "type": "Transform",
+     "def": null,
+     "instance": "7"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[7].Transform.-children[0].Shape",
+    "name": null,
+    "parent": "$.X3D.Scene.-children[7].Transform",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "text": {
+      "string": [
+       "X3D JSON",
+       "Ammo.js",
+       "Three.JS",
+       "WebGPU"
+      ],
+      "size": 0.8,
+      "justify": [
+       "BEGIN",
+       "FIRST"
+      ],
+      "family": [
+       "SERIF"
+      ],
+      "spacing": 1,
+      "material": "m1"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[7].Transform.-children[0].Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "7/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "name": null,
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection",
+     "type": "RigidBodyCollection",
+     "def": null,
+     "instance": "8"
+    },
+    "extras": {
+     "x3d": {
+      "gravity": [
+       0,
+       -9.8,
+       0
+      ]
+     }
+    }
+   },
+   {
+    "id": "DEF:Ground",
+    "name": "Ground",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      -0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0
+     },
+     "collider": {
+      "shape": "g1"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[1].RigidBody",
+     "type": "RigidBody",
+     "def": "Ground",
+     "instance": "8/Ground"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[1].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Ground",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g1",
+        "material": "m2"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[1].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Ground/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Base",
+    "name": "Base",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      -3,
+      0.1,
+      -5
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0
+     },
+     "collider": {
+      "shape": "g2"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[2].RigidBody",
+     "type": "RigidBody",
+     "def": "Base",
+     "instance": "8/Base"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[2].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Base",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g2",
+        "material": "m3"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[2].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Base/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Pylon",
+    "name": "Pylon",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      -3,
+      3,
+      -5
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0
+     },
+     "collider": {
+      "shape": "g3"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[3].RigidBody",
+     "type": "RigidBody",
+     "def": "Pylon",
+     "instance": "8/Pylon"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[3].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Pylon",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g3",
+        "material": "m4"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[3].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Pylon/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Arm",
+    "name": "Arm",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      -3,
+      6.2,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 2
+     },
+     "collider": {
+      "shape": "g4"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[4].RigidBody",
+     "type": "RigidBody",
+     "def": "Arm",
+     "instance": "8/Arm"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[4].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Arm",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g4",
+        "material": "m5"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[4].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Arm/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L1_1",
+    "name": "Brick_L1_1",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.3,
+      -4.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g5"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[5].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L1_1",
+     "instance": "8/Brick_L1_1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[5].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L1_1",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g5",
+        "material": "m6"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[5].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L1_1/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L1_2",
+    "name": "Brick_L1_2",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.3,
+      -3
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g6"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[6].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L1_2",
+     "instance": "8/Brick_L1_2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[6].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L1_2",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g6",
+        "material": "m7"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[6].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L1_2/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L1_3",
+    "name": "Brick_L1_3",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.3,
+      -1.8
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g7"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[7].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L1_3",
+     "instance": "8/Brick_L1_3"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[7].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L1_3",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g7",
+        "material": "m8"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[7].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L1_3/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L1_4",
+    "name": "Brick_L1_4",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.3,
+      -0.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g8"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[8].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L1_4",
+     "instance": "8/Brick_L1_4"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[8].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L1_4",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g8",
+        "material": "m9"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[8].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L1_4/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L1_5",
+    "name": "Brick_L1_5",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.3,
+      0.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g9"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[9].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L1_5",
+     "instance": "8/Brick_L1_5"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[9].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L1_5",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g9",
+        "material": "m10"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[9].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L1_5/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L1_6",
+    "name": "Brick_L1_6",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.3,
+      1.8
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g10"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[10].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L1_6",
+     "instance": "8/Brick_L1_6"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[10].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L1_6",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g10",
+        "material": "m11"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[10].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L1_6/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L1_7",
+    "name": "Brick_L1_7",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.3,
+      3
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g11"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[11].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L1_7",
+     "instance": "8/Brick_L1_7"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[11].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L1_7",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g11",
+        "material": "m12"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[11].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L1_7/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L1_8",
+    "name": "Brick_L1_8",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.3,
+      4.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g12"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[12].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L1_8",
+     "instance": "8/Brick_L1_8"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[12].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L1_8",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g12",
+        "material": "m13"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[12].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L1_8/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L2_1",
+    "name": "Brick_L2_1",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.9,
+      -3.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g13"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[13].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L2_1",
+     "instance": "8/Brick_L2_1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[13].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L2_1",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g13",
+        "material": "m14"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[13].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L2_1/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L2_2",
+    "name": "Brick_L2_2",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.9,
+      -2.4
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g14"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[14].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L2_2",
+     "instance": "8/Brick_L2_2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[14].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L2_2",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g14",
+        "material": "m15"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[14].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L2_2/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L2_3",
+    "name": "Brick_L2_3",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.9,
+      -1.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g15"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[15].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L2_3",
+     "instance": "8/Brick_L2_3"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[15].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L2_3",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g15",
+        "material": "m16"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[15].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L2_3/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L2_4",
+    "name": "Brick_L2_4",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.9,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g16"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[16].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L2_4",
+     "instance": "8/Brick_L2_4"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[16].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L2_4",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g16",
+        "material": "m17"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[16].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L2_4/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L2_5",
+    "name": "Brick_L2_5",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.9,
+      1.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g17"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[17].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L2_5",
+     "instance": "8/Brick_L2_5"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[17].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L2_5",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g17",
+        "material": "m18"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[17].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L2_5/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L2_6",
+    "name": "Brick_L2_6",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.9,
+      2.4
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g18"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[18].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L2_6",
+     "instance": "8/Brick_L2_6"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[18].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L2_6",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g18",
+        "material": "m19"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[18].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L2_6/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L2_7",
+    "name": "Brick_L2_7",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0.9,
+      3.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g19"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[19].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L2_7",
+     "instance": "8/Brick_L2_7"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[19].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L2_7",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g19",
+        "material": "m20"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[19].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L2_7/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L3_1",
+    "name": "Brick_L3_1",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      1.5,
+      -3
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g20"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[20].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L3_1",
+     "instance": "8/Brick_L3_1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[20].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L3_1",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g20",
+        "material": "m21"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[20].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L3_1/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L3_2",
+    "name": "Brick_L3_2",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      1.5,
+      -1.8
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g21"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[21].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L3_2",
+     "instance": "8/Brick_L3_2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[21].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L3_2",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g21",
+        "material": "m22"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[21].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L3_2/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L3_3",
+    "name": "Brick_L3_3",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      1.5,
+      -0.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g22"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[22].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L3_3",
+     "instance": "8/Brick_L3_3"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[22].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L3_3",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g22",
+        "material": "m23"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[22].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L3_3/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L3_4",
+    "name": "Brick_L3_4",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      1.5,
+      0.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g23"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[23].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L3_4",
+     "instance": "8/Brick_L3_4"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[23].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L3_4",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g23",
+        "material": "m24"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[23].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L3_4/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L3_5",
+    "name": "Brick_L3_5",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      1.5,
+      1.8
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g24"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[24].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L3_5",
+     "instance": "8/Brick_L3_5"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[24].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L3_5",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g24",
+        "material": "m25"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[24].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L3_5/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L3_6",
+    "name": "Brick_L3_6",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      1.5,
+      3
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g25"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[25].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L3_6",
+     "instance": "8/Brick_L3_6"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[25].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L3_6",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g25",
+        "material": "m26"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[25].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L3_6/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L4_1",
+    "name": "Brick_L4_1",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.1,
+      -2.4
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g26"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[26].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L4_1",
+     "instance": "8/Brick_L4_1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[26].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L4_1",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g26",
+        "material": "m27"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[26].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L4_1/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L4_2",
+    "name": "Brick_L4_2",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.1,
+      -1.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g27"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[27].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L4_2",
+     "instance": "8/Brick_L4_2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[27].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L4_2",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g27",
+        "material": "m28"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[27].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L4_2/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L4_3",
+    "name": "Brick_L4_3",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.1,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g28"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[28].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L4_3",
+     "instance": "8/Brick_L4_3"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[28].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L4_3",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g28",
+        "material": "m29"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[28].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L4_3/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L4_4",
+    "name": "Brick_L4_4",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.1,
+      1.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g29"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[29].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L4_4",
+     "instance": "8/Brick_L4_4"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[29].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L4_4",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g29",
+        "material": "m30"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[29].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L4_4/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L4_5",
+    "name": "Brick_L4_5",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.1,
+      2.4
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g30"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[30].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L4_5",
+     "instance": "8/Brick_L4_5"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[30].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L4_5",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g30",
+        "material": "m31"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[30].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L4_5/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L5_1",
+    "name": "Brick_L5_1",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.7,
+      -1.8
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g31"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[31].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L5_1",
+     "instance": "8/Brick_L5_1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[31].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L5_1",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g31",
+        "material": "m32"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[31].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L5_1/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L5_2",
+    "name": "Brick_L5_2",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.7,
+      -0.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g32"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[32].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L5_2",
+     "instance": "8/Brick_L5_2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[32].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L5_2",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g32",
+        "material": "m33"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[32].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L5_2/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L5_3",
+    "name": "Brick_L5_3",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.7,
+      0.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g33"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[33].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L5_3",
+     "instance": "8/Brick_L5_3"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[33].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L5_3",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g33",
+        "material": "m34"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[33].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L5_3/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L5_4",
+    "name": "Brick_L5_4",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      2.7,
+      1.8
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g34"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[34].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L5_4",
+     "instance": "8/Brick_L5_4"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[34].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L5_4",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g34",
+        "material": "m35"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[34].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L5_4/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L6_1",
+    "name": "Brick_L6_1",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      3.3,
+      -1.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g35"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[35].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L6_1",
+     "instance": "8/Brick_L6_1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[35].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L6_1",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g35",
+        "material": "m36"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[35].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L6_1/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L6_2",
+    "name": "Brick_L6_2",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      3.3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g36"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[36].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L6_2",
+     "instance": "8/Brick_L6_2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[36].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L6_2",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g36",
+        "material": "m37"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[36].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L6_2/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L6_3",
+    "name": "Brick_L6_3",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      3.3,
+      1.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g37"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[37].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L6_3",
+     "instance": "8/Brick_L6_3"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[37].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L6_3",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g37",
+        "material": "m38"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[37].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L6_3/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L7_1",
+    "name": "Brick_L7_1",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      3.9,
+      -0.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g38"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[38].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L7_1",
+     "instance": "8/Brick_L7_1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[38].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L7_1",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g38",
+        "material": "m39"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[38].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L7_1/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L7_2",
+    "name": "Brick_L7_2",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      3.9,
+      0.6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g39"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[39].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L7_2",
+     "instance": "8/Brick_L7_2"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[39].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L7_2",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g39",
+        "material": "m40"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[39].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L7_2/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Brick_L8_1",
+    "name": "Brick_L8_1",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      4.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g40"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[40].RigidBody",
+     "type": "RigidBody",
+     "def": "Brick_L8_1",
+     "instance": "8/Brick_L8_1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[40].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Brick_L8_1",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g40",
+        "material": "m41"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[40].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Brick_L8_1/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Cylinder",
+    "name": "Cylinder",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      4.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "rigid",
+      "mass": 0.5
+     },
+     "collider": {
+      "shape": "g41"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[41].RigidBody",
+     "type": "RigidBody",
+     "def": "Cylinder",
+     "instance": "8/Cylinder"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[41].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+    "name": null,
+    "parent": "DEF:Cylinder",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g41",
+        "material": "m42"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[41].RigidBody.-geometry[0].CollidableShape.-shape.Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/Cylinder/shape"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Cloth",
+    "name": "Cloth",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "soft",
+      "mass": 1.5,
+      "dynamicGeometry": "g42"
+     },
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g42",
+        "material": "m43"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[42].SoftBody",
+     "type": "SoftBody",
+     "def": "Cloth",
+     "instance": "8/Cloth"
+    },
+    "extras": {
+     "x3d": {
+      "position": [
+       -3,
+       1,
+       2
+      ],
+      "geometry": {
+       "type": "ElevationGrid",
+       "xDimension": 36,
+       "zDimension": 26,
+       "xSpacing": 0.2,
+       "zSpacing": 0.2
+      }
+     }
+    }
+   },
+   {
+    "id": "DEF:SquishyBall",
+    "name": "SquishyBall",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "body": {
+      "type": "soft",
+      "mass": 2.5,
+      "dynamicGeometry": "g43"
+     },
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g43",
+        "material": "m44"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[43].SoftBody",
+     "type": "SoftBody",
+     "def": "SquishyBall",
+     "instance": "8/SquishyBall"
+    },
+    "extras": {
+     "x3d": {
+      "position": [
+       0,
+       15,
+       1.5
+      ],
+      "geometry": {
+       "type": "Sphere",
+       "radius": 1
+      }
+     }
+    }
+   },
+   {
+    "id": "DEF:ArmHinge",
+    "name": "ArmHinge",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "joint": {
+      "type": "hinge",
+      "bodyA": "DEF:Pylon",
+      "bodyB": "DEF:Arm",
+      "anchor": [
+       -3,
+       6,
+       -5
+      ],
+      "axis": [
+       0,
+       1,
+       0
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-joints[0].SingleAxisHingeJoint",
+     "type": "SingleAxisHingeJoint",
+     "def": "ArmHinge",
+     "instance": "8/ArmHinge"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:ArmClothStitch",
+    "name": "ArmClothStitch",
+    "parent": "$.X3D.Scene.-children[8].RigidBodyCollection",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "joint": {
+      "type": "stitch",
+      "bodyA": "DEF:Arm",
+      "bodyB": "DEF:Cloth",
+      "indices": [
+       0,
+       7,
+       14,
+       21,
+       28,
+       35
+      ],
+      "weights": [
+       1,
+       1,
+       1,
+       1,
+       1,
+       1
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-joints[1].Stitch",
+     "type": "Stitch",
+     "def": "ArmClothStitch",
+     "instance": "8/ArmClothStitch"
+    },
+    "extras": {}
+   }
+  ],
+  "assets": {
+   "geometries": {
+    "g0": {
+     "type": "cylinder",
+     "radius": 0.9,
+     "height": 0.05
+    },
+    "g1": {
+     "type": "box",
+     "size": [
+      40,
+      1,
+      40
+     ]
+    },
+    "g2": {
+     "type": "box",
+     "size": [
+      1,
+      0.2,
+      1
+     ]
+    },
+    "g3": {
+     "type": "box",
+     "size": [
+      0.4,
+      6,
+      0.4
+     ]
+    },
+    "g4": {
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      7.4
+     ]
+    },
+    "g5": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g6": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g7": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g8": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g9": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g10": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g11": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g12": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g13": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g14": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g15": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g16": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g17": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g18": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g19": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g20": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g21": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g22": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g23": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g24": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g25": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g26": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g27": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g28": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g29": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g30": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g31": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g32": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g33": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g34": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g35": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g36": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g37": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g38": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g39": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g40": {
+     "type": "box",
+     "size": [
+      0.6,
+      0.6,
+      1.2
+     ]
+    },
+    "g41": {
+     "type": "cylinder",
+     "radius": 1,
+     "height": 1
+    },
+    "g42": {
+     "type": "mesh",
+     "attributes": {
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 2808,
+       "sha256": "2aa6c73f100242e0be7658577e18aa8a8eb8125fc504dbc9b7a1a56a3033bbf9"
+      }
+     },
+     "indices": {
+      "$typed": "Uint32Array",
+      "length": 5250,
+      "sha256": "04465e9e27391decf2ad8843b7f99dc34b93b18ad8fc52636aa0eb3a92c97991"
+     },
+     "mode": 4,
+     "dynamic": true
+    },
+    "g43": {
+     "type": "mesh",
+     "attributes": {
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 1683,
+       "sha256": "1e2aa3988d82a56982eaf856f21419b315453f4a072aa766b4db6e146f5fc73d"
+      }
+     },
+     "indices": {
+      "$typed": "Uint32Array",
+      "length": 2880,
+      "sha256": "7bfd20fce4b4b2eb2b1f0c93747c499e388603295df1cbcc95b5ff7f6efd9154"
+     },
+     "mode": 4,
+     "dynamic": true
+    }
+   },
+   "materials": {
+    "m0": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0,
+      0,
+      0
+     ],
+     "emissiveColor": [
+      1,
+      0.48,
+      0.23
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m1": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      1,
+      1,
+      0
+     ],
+     "emissiveColor": [
+      0.5,
+      0.5,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": true
+    },
+    "m2": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.8,
+      0.8
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m3": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.37,
+      0.37,
+      0.37
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m4": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.37,
+      0.37,
+      0.37
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m5": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.37,
+      0.37,
+      0.37
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m6": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m7": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m8": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m9": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.2,
+      0.1
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m10": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m11": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m12": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m13": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.2,
+      0.1
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m14": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m15": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m16": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m17": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.2,
+      0.1
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m18": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m19": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m20": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m21": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m22": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m23": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m24": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m25": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m26": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m27": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.2,
+      0.1
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m28": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m29": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.2,
+      0.1
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m30": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m31": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.2,
+      0.1
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m32": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m33": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m34": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m35": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m36": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m37": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.6,
+      0.2,
+      0.1
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m38": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m39": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m40": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.7,
+      0.4,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m41": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m42": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.8,
+      0.3,
+      0.2
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m43": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.9,
+      0.9,
+      0.9
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": true
+    },
+    "m44": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.2,
+      0.8,
+      0.4
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": true
+    }
+   },
+   "textures": {},
+   "images": {}
+  },
+  "report": {
+   "translated": {
+    "Background": 1,
+    "Viewpoint": 2,
+    "ProximitySensor": 1,
+    "Transform": 3,
+    "Anchor": 1,
+    "Cylinder": 2,
+    "Appearance": 45,
+    "Material": 45,
+    "Shape": 45,
+    "EnvironmentLight": 1,
+    "DirectionalLight": 1,
+    "Text": 1,
+    "FontStyle": 1,
+    "RigidBodyCollection": 1,
+    "CollidableShape": 43,
+    "RigidBody": 41,
+    "Box": 40,
+    "SoftBody": 2,
+    "ElevationGrid": 1,
+    "Sphere": 1,
+    "SingleAxisHingeJoint": 1,
+    "Stitch": 1
+   },
+   "kept": [],
+   "skipped": [],
+   "refused": [],
+   "diagnostics": [
+    {
+     "code": "omitted-empty-soft-body",
+     "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[0]",
+     "message": "Pinned Features placeholder omitted; the visible Text remains."
+    }
+   ]
+  }
+ },
+ "report": {
+  "translated": {
+   "Background": 1,
+   "Viewpoint": 2,
+   "ProximitySensor": 1,
+   "Transform": 3,
+   "Anchor": 1,
+   "Cylinder": 2,
+   "Appearance": 45,
+   "Material": 45,
+   "Shape": 45,
+   "EnvironmentLight": 1,
+   "DirectionalLight": 1,
+   "Text": 1,
+   "FontStyle": 1,
+   "RigidBodyCollection": 1,
+   "CollidableShape": 43,
+   "RigidBody": 41,
+   "Box": 40,
+   "SoftBody": 2,
+   "ElevationGrid": 1,
+   "Sphere": 1,
+   "SingleAxisHingeJoint": 1,
+   "Stitch": 1
+  },
+  "kept": [],
+  "skipped": [],
+  "refused": [],
+  "diagnostics": [
+   {
+    "code": "omitted-empty-soft-body",
+    "path": "$.X3D.Scene.-children[8].RigidBodyCollection.-bodies[0]",
+    "message": "Pinned Features placeholder omitted; the visible Text remains."
+   }
+  ]
+ }
+}

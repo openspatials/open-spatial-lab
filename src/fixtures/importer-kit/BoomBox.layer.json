@@ -1,0 +1,366 @@
+{
+ "layer": {
+  "schema": "scene-layer/0",
+  "name": "world",
+  "kind": "content",
+  "visible": true,
+  "placement": {
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "source": {
+   "uri": "/assets/worlds/BoomBox.glb",
+   "format": "gltf",
+   "scene": "scenes/0",
+   "header": {
+    "$sha256": "af6a3137efd2831ae965f14fdb213d014b9dade1ee082b74aecafdf50b493ad2"
+   }
+  },
+  "info": null,
+  "navigation": null,
+  "environment": {
+   "background": null,
+   "color": null,
+   "intensity": null,
+   "image": null
+  },
+  "entities": [
+   {
+    "id": "nodes/0",
+    "name": "BoomBox",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      1,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/0/primitives/0",
+        "material": "materials/0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/0",
+     "type": "node",
+     "mesh": "meshes/0"
+    },
+    "extras": {}
+   }
+  ],
+  "assets": {
+   "geometries": {
+    "meshes/0/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "TEXCOORD_0": {
+       "$typed": "Float32Array",
+       "length": 7150,
+       "sha256": "9010267af351b91367604b1123dbe94382345dafdd16e7474353c83fab925d3a"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 10725,
+       "sha256": "b75d00138908e17a8fcec424731f76bbd26c1f2af50b0501ca1a92ce1ef4c7e8"
+      },
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 10725,
+       "sha256": "f9c3fc2091231dcd3e60e332e0f8d033d70f6165808093cdb92d0945076c587b"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 18108,
+      "sha256": "7118d8f04e249c5b3e3245e83d45f06f40c539d1a29e37c25f5586c4a757d23d"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/0/primitives/0",
+      "accessors": {
+       "TEXCOORD_0": "accessors/0",
+       "NORMAL": "accessors/1",
+       "TANGENT": "accessors/2",
+       "POSITION": "accessors/3"
+      },
+      "indices": "accessors/4"
+     },
+     "extras": {
+      "gltf": {
+       "attributes": {
+        "TANGENT": {
+         "accessor": "accessors/2",
+         "array": {
+          "$typed": "Float32Array",
+          "length": 14300,
+          "sha256": "0f5fb9c7c46de0be519b6f6e883c0391cdf15592cc48fb42db03b86484692f45"
+         }
+        }
+       },
+       "mesh": {
+        "name": "BoomBox"
+       }
+      }
+     }
+    }
+   },
+   "materials": {
+    "materials/0": {
+     "model": "pbr",
+     "colorSpace": "linear",
+     "baseColorFactor": [
+      1,
+      1,
+      1,
+      1
+     ],
+     "metallicFactor": 1,
+     "roughnessFactor": 1,
+     "emissiveFactor": [
+      1,
+      1,
+      1
+     ],
+     "baseColorTexture": {
+      "texture": "textures/0",
+      "texCoord": 0
+     },
+     "metallicRoughnessTexture": {
+      "texture": "textures/1",
+      "texCoord": 0
+     },
+     "normalTexture": {
+      "texture": "textures/2",
+      "texCoord": 0,
+      "scale": 1
+     },
+     "occlusionTexture": {
+      "texture": "textures/1",
+      "texCoord": 0,
+      "strength": 1
+     },
+     "emissiveTexture": {
+      "texture": "textures/3",
+      "texCoord": 0
+     },
+     "doubleSided": false,
+     "alphaMode": "OPAQUE",
+     "alphaCutoff": 0.5,
+     "source": {
+      "path": "materials/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "BoomBox_Mat"
+      }
+     }
+    }
+   },
+   "textures": {
+    "textures/0": {
+     "image": "images/0",
+     "sampler": {
+      "magFilter": null,
+      "minFilter": null,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/0",
+      "sampler": null
+     },
+     "extras": {}
+    },
+    "textures/1": {
+     "image": "images/1",
+     "sampler": {
+      "magFilter": null,
+      "minFilter": null,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/1",
+      "sampler": null
+     },
+     "extras": {}
+    },
+    "textures/2": {
+     "image": "images/2",
+     "sampler": {
+      "magFilter": null,
+      "minFilter": null,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/2",
+      "sampler": null
+     },
+     "extras": {}
+    },
+    "textures/3": {
+     "image": "images/3",
+     "sampler": {
+      "magFilter": null,
+      "minFilter": null,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/3",
+      "sampler": null
+     },
+     "extras": {}
+    }
+   },
+   "images": {
+    "images/0": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 3285844,
+      "sha256": "099816a7afc5f6690494313ac8039806fd6d5b84179126a808b2678aaab3563a"
+     },
+     "source": {
+      "path": "images/0",
+      "from": "bufferViews/5"
+     },
+     "extras": {}
+    },
+    "images/1": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 4471451,
+      "sha256": "496704a4836ff364dc4441f41651edb25178498926c859933e33df42d6361412"
+     },
+     "source": {
+      "path": "images/1",
+      "from": "bufferViews/6"
+     },
+     "extras": {}
+    },
+    "images/2": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 2514469,
+      "sha256": "c9a7904e7f25246ac47f86c337cfd4ec8e103fff83e07d3af472e5c620ec6f27"
+     },
+     "source": {
+      "path": "images/2",
+      "from": "bufferViews/7"
+     },
+     "extras": {}
+    },
+    "images/3": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 132833,
+      "sha256": "e9970da7010591b73070151fe5039a158413499e38300d14106e367472c03b5b"
+     },
+     "source": {
+      "path": "images/3",
+      "from": "bufferViews/8"
+     },
+     "extras": {}
+    }
+   }
+  },
+  "report": {
+   "translated": {
+    "image": 4,
+    "texture": 4,
+    "material": 1,
+    "primitive": 1,
+    "mesh": 1,
+    "node": 1,
+    "scene": 1,
+    "accessor": 5,
+    "bufferView": 9,
+    "buffer": 1
+   },
+   "kept": [
+    {
+     "path": "meshes/0/primitives/0/attributes/TANGENT",
+     "type": "attribute",
+     "reason": "the Scene has no TANGENT attribute; normal maps use tangents from screen-space derivatives"
+    }
+   ],
+   "skipped": [],
+   "refused": [],
+   "diagnostics": []
+  },
+  "extras": {
+   "gltf": {
+    "scenes": [
+     {
+      "name": null,
+      "nodes": [
+       "nodes/0"
+      ],
+      "extras": null
+     }
+    ]
+   }
+  }
+ },
+ "report": {
+  "translated": {
+   "image": 4,
+   "texture": 4,
+   "material": 1,
+   "primitive": 1,
+   "mesh": 1,
+   "node": 1,
+   "scene": 1,
+   "accessor": 5,
+   "bufferView": 9,
+   "buffer": 1
+  },
+  "kept": [
+   {
+    "path": "meshes/0/primitives/0/attributes/TANGENT",
+    "type": "attribute",
+    "reason": "the Scene has no TANGENT attribute; normal maps use tangents from screen-space derivatives"
+   }
+  ],
+  "skipped": [],
+  "refused": [],
+  "diagnostics": []
+ }
+}

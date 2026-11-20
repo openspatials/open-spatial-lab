@@ -1,0 +1,1005 @@
+{
+ "layer": {
+  "schema": "scene-layer/0",
+  "name": "world",
+  "kind": "content",
+  "visible": true,
+  "placement": {
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "source": {
+   "format": "x3d-json",
+   "header": {
+    "$sha256": "323b110a0194225df009d9e702492093ece585372c3c3b27e50ba8c80dc4486b"
+   }
+  },
+  "info": {
+   "title": "Anchor portal test world",
+   "notes": [
+    "Open Spatial Lab renderer lane test world",
+    "Click the orange disc, or walk into it, to cross to Location B"
+   ]
+  },
+  "navigation": {
+   "modes": [
+    "WALK",
+    "EXAMINE",
+    "ANY"
+   ],
+   "speed": 2,
+   "avatarSize": [
+    0.25,
+    1.6,
+    0.75
+   ],
+   "headlight": false
+  },
+  "environment": {
+   "background": {
+    "skyColor": [
+     0.09,
+     0.13,
+     0.22
+    ]
+   },
+   "color": null,
+   "intensity": null,
+   "image": null
+  },
+  "entities": [
+   {
+    "id": "DEF:Entry",
+    "name": "Entry",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      1.6,
+      6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.9,
+      "znear": 0.1,
+      "zfar": 1000,
+      "description": "Entry, facing the portal",
+      "arrival": true
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[2].Viewpoint",
+     "type": "Viewpoint",
+     "def": "Entry",
+     "instance": "2"
+    },
+    "extras": {
+     "x3d": {
+      "centerOfRotation": [
+       0,
+       0,
+       0
+      ]
+     }
+    }
+   },
+   {
+    "id": "$.X3D.Scene.-children[4].DirectionalLight",
+    "name": null,
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "light": {
+      "type": "directional",
+      "color": [
+       1,
+       1,
+       1
+      ],
+      "intensity": 0.9,
+      "direction": [
+       -0.4,
+       -1,
+       -0.6
+      ],
+      "ambientIntensity": 0.5,
+      "scope": "global"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[4].DirectionalLight",
+     "type": "DirectionalLight",
+     "def": null,
+     "instance": "4"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:Floor",
+    "name": "Floor",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      -0.05,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[5].Transform",
+     "type": "Transform",
+     "def": "Floor",
+     "instance": "5"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[5].Transform.-children[0].Shape",
+    "name": null,
+    "parent": "DEF:Floor",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g0",
+        "material": "m0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[5].Transform.-children[0].Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "5/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:BackWall",
+    "name": "BackWall",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      2.5,
+      -6
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[6].Transform",
+     "type": "Transform",
+     "def": "BackWall",
+     "instance": "6"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[6].Transform.-children[0].Shape",
+    "name": null,
+    "parent": "DEF:BackWall",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g1",
+        "material": "m1"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[6].Transform.-children[0].Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "6/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:ColumnLeft",
+    "name": "ColumnLeft",
+    "parent": null,
+    "transform": {
+     "translation": [
+      -3.2,
+      1.5,
+      -2.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[7].Transform",
+     "type": "Transform",
+     "def": "ColumnLeft",
+     "instance": "7"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[7].Transform.-children[0].Shape",
+    "name": null,
+    "parent": "DEF:ColumnLeft",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g2",
+        "material": "m2"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[7].Transform.-children[0].Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "7/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:ColumnRight",
+    "name": "ColumnRight",
+    "parent": null,
+    "transform": {
+     "translation": [
+      3.2,
+      1.5,
+      -2.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[8].Transform",
+     "type": "Transform",
+     "def": "ColumnRight",
+     "instance": "8"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[8].Transform.-children[0].Shape",
+    "name": null,
+    "parent": "DEF:ColumnRight",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g3",
+        "material": "m3"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[8].Transform.-children[0].Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "8/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:PortalTrigger",
+    "name": "PortalTrigger",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "sensor": {
+      "type": "proximity",
+      "center": [
+       0,
+       1.2,
+       -2.5
+      ],
+      "size": [
+       2.4,
+       3,
+       1.2
+      ],
+      "enabled": true
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[9].ProximitySensor",
+     "type": "ProximitySensor",
+     "def": "PortalTrigger",
+     "instance": "9"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:PortalToLocationB",
+    "name": "PortalToLocationB",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      1.2,
+      -2.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[10].Transform",
+     "type": "Transform",
+     "def": "PortalToLocationB",
+     "instance": "10"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:PortalAnchor",
+    "name": "PortalAnchor",
+    "parent": "DEF:PortalToLocationB",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "link": {
+      "url": [
+       "/w/b/"
+      ],
+      "parameter": [
+       "target=_self"
+      ],
+      "description": "Portal to Location B",
+      "metadata": {
+       "type": "MetadataSet",
+       "id": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet",
+       "def": null,
+       "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet",
+       "fields": {
+        "name": "wow:portal",
+        "reference": "https://github.com/WebOfWorlds/WoWAPI"
+       },
+       "children": {
+        "value": [
+         {
+          "type": "MetadataString",
+          "id": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet.-value[0].MetadataString",
+          "def": null,
+          "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet.-value[0].MetadataString",
+          "fields": {
+           "name": "target_world",
+           "value": [
+            "demo-room-b"
+           ]
+          },
+          "children": {}
+         },
+         {
+          "type": "MetadataString",
+          "id": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet.-value[1].MetadataString",
+          "def": null,
+          "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet.-value[1].MetadataString",
+          "fields": {
+           "name": "target_location_id",
+           "value": [
+            "location-b"
+           ]
+          },
+          "children": {}
+         },
+         {
+          "type": "MetadataString",
+          "id": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet.-value[2].MetadataString",
+          "def": null,
+          "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet.-value[2].MetadataString",
+          "fields": {
+           "name": "crossing",
+           "value": [
+            "walk-through-or-activate"
+           ]
+          },
+          "children": {}
+         },
+         {
+          "type": "MetadataFloat",
+          "id": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet.-value[3].MetadataFloat",
+          "def": null,
+          "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-metadata.MetadataSet.-value[3].MetadataFloat",
+          "fields": {
+           "name": "radius_m",
+           "value": [
+            1.1
+           ]
+          },
+          "children": {}
+         }
+        ]
+       }
+      }
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor",
+     "type": "Anchor",
+     "def": "PortalAnchor",
+     "instance": "10/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:PortalDisc",
+    "name": "PortalDisc",
+    "parent": "DEF:PortalAnchor",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0.7071080798594735,
+      0,
+      0,
+      0.7071054825112363
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-children[0].Transform",
+     "type": "Transform",
+     "def": "PortalDisc",
+     "instance": "10/0/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-children[0].Transform.-children[0].Shape",
+    "name": null,
+    "parent": "DEF:PortalDisc",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "g4",
+        "material": "m4"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-children[0].Transform.-children[0].Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "10/0/0/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "DEF:PortalLabel",
+    "name": "PortalLabel",
+    "parent": "DEF:PortalAnchor",
+    "transform": {
+     "translation": [
+      0,
+      1.45,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-children[1].Transform",
+     "type": "Transform",
+     "def": "PortalLabel",
+     "instance": "10/0/1"
+    },
+    "extras": {}
+   },
+   {
+    "id": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-children[1].Transform.-children[0].Shape",
+    "name": null,
+    "parent": "DEF:PortalLabel",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "text": {
+      "string": [
+       "Location B"
+      ],
+      "size": 0.35,
+      "justify": [
+       "MIDDLE",
+       "MIDDLE"
+      ],
+      "family": [
+       "SERIF"
+      ],
+      "spacing": 1,
+      "material": "m5"
+     }
+    },
+    "source": {
+     "path": "$.X3D.Scene.-children[10].Transform.-children[0].Anchor.-children[1].Transform.-children[0].Shape",
+     "type": "Shape",
+     "def": null,
+     "instance": "10/0/1/0"
+    },
+    "extras": {}
+   }
+  ],
+  "assets": {
+   "geometries": {
+    "g0": {
+     "type": "box",
+     "size": [
+      14,
+      0.1,
+      18
+     ]
+    },
+    "g1": {
+     "type": "box",
+     "size": [
+      14,
+      5,
+      0.2
+     ]
+    },
+    "g2": {
+     "type": "cylinder",
+     "radius": 0.3,
+     "height": 3
+    },
+    "g3": {
+     "type": "cylinder",
+     "radius": 0.3,
+     "height": 3
+    },
+    "g4": {
+     "type": "cylinder",
+     "radius": 1.1,
+     "height": 0.05
+    }
+   },
+   "materials": {
+    "m0": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.11,
+      0.32,
+      0.5
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 1,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m1": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.2,
+      0.42,
+      0.62
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 1,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m2": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.85,
+      0.87,
+      0.9
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 1,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m3": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      0.85,
+      0.87,
+      0.9
+     ],
+     "emissiveColor": [
+      0,
+      0,
+      0
+     ],
+     "ambientIntensity": 1,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m4": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      1,
+      0.48,
+      0.23
+     ],
+     "emissiveColor": [
+      0.55,
+      0.26,
+      0.12
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": false
+    },
+    "m5": {
+     "model": "classic",
+     "colorSpace": "linear",
+     "diffuseColor": [
+      1,
+      1,
+      1
+     ],
+     "emissiveColor": [
+      1,
+      1,
+      1
+     ],
+     "ambientIntensity": 0.2,
+     "specularColor": [
+      0,
+      0,
+      0
+     ],
+     "shininess": 0.2,
+     "transparency": 0,
+     "doubleSided": true
+    }
+   },
+   "textures": {},
+   "images": {}
+  },
+  "report": {
+   "translated": {
+    "WorldInfo": 1,
+    "NavigationInfo": 1,
+    "Viewpoint": 1,
+    "Background": 1,
+    "DirectionalLight": 1,
+    "Transform": 7,
+    "Box": 2,
+    "Appearance": 6,
+    "Material": 6,
+    "Shape": 6,
+    "Cylinder": 3,
+    "ProximitySensor": 1,
+    "Anchor": 1,
+    "MetadataSet": 1,
+    "Text": 1,
+    "FontStyle": 1
+   },
+   "kept": [],
+   "skipped": [],
+   "refused": [],
+   "diagnostics": []
+  }
+ },
+ "report": {
+  "translated": {
+   "WorldInfo": 1,
+   "NavigationInfo": 1,
+   "Viewpoint": 1,
+   "Background": 1,
+   "DirectionalLight": 1,
+   "Transform": 7,
+   "Box": 2,
+   "Appearance": 6,
+   "Material": 6,
+   "Shape": 6,
+   "Cylinder": 3,
+   "ProximitySensor": 1,
+   "Anchor": 1,
+   "MetadataSet": 1,
+   "Text": 1,
+   "FontStyle": 1
+  },
+  "kept": [],
+  "skipped": [],
+  "refused": [],
+  "diagnostics": []
+ }
+}

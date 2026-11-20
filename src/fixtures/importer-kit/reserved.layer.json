@@ -1,0 +1,600 @@
+{
+ "layer": {
+  "schema": "scene-layer/0",
+  "name": "world",
+  "kind": "content",
+  "visible": true,
+  "placement": {
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "source": {
+   "uri": "reserved.gltf",
+   "format": "gltf",
+   "scene": "scenes/0",
+   "header": {
+    "$sha256": "5afe58ac4639e842f3ef09f4d57b4fdf46e645a4eb9caa00ff82f5fb14d66851"
+   }
+  },
+  "info": null,
+  "navigation": null,
+  "environment": {
+   "background": null,
+   "color": null,
+   "intensity": null,
+   "image": null
+  },
+  "entities": [
+   {
+    "id": "nodes/0",
+    "name": "Root",
+    "parent": null,
+    "transform": {
+     "translation": [
+      1,
+      2,
+      3
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      2,
+      2,
+      2
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "nodes/0",
+     "type": "node"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/1",
+    "name": "Skinned",
+    "parent": "nodes/0",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/0/primitives/0",
+        "material": "materials/0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/1",
+     "type": "node",
+     "mesh": "meshes/0"
+    },
+    "extras": {
+     "gltf": {
+      "skin": "skins/0",
+      "weights": [
+       0.25
+      ]
+     }
+    }
+   },
+   {
+    "id": "nodes/2",
+    "name": "Lamp",
+    "parent": "nodes/0",
+    "transform": {
+     "translation": [
+      0,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "light": {
+      "type": "point",
+      "color": [
+       1,
+       0.9,
+       0.8
+      ],
+      "intensity": 20,
+      "direction": [
+       0,
+       0,
+       -1
+      ],
+      "range": 10,
+      "spot": null,
+      "scope": "global"
+     }
+    },
+    "source": {
+     "path": "nodes/2",
+     "type": "node",
+     "light": "extensions/KHR_lights_punctual/lights/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/3",
+    "name": "Eye",
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      1,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.8,
+      "znear": 0.1,
+      "zfar": 100,
+      "description": null,
+      "arrival": true
+     }
+    },
+    "source": {
+     "path": "nodes/3",
+     "type": "node",
+     "camera": "cameras/0"
+    },
+    "extras": {
+     "gltf": {
+      "camera": {
+       "aspectRatio": 1.5
+      }
+     }
+    }
+   }
+  ],
+  "assets": {
+   "geometries": {
+    "meshes/0/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 9,
+       "sha256": "d8b87038ed2ace74ed183166f6b0a541eab77f7184d50e65edc4bca5ccb5445a"
+      },
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 9,
+       "sha256": "93ffbfc491203a5042ce8729e8bde71460b23b81ce1c3b71292976bcdb6a42bd"
+      },
+      "COLOR_0": {
+       "$typed": "Float32Array",
+       "length": 12,
+       "sha256": "eb8329d357ac90ed79393607ae5cb9b9b5b305c7ce5dd25a9a4fa7b3cef9d934"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 3,
+      "sha256": "90c2698921ca9fd02950be353f721888760e33ab5095a21e50f1e4360b6de1a0"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/0/primitives/0",
+      "accessors": {
+       "POSITION": "accessors/0",
+       "NORMAL": "accessors/1",
+       "COLOR_0": "accessors/2",
+       "JOINTS_0": "accessors/4",
+       "WEIGHTS_0": "accessors/5"
+      },
+      "indices": "accessors/3"
+     },
+     "extras": {
+      "gltf": {
+       "attributes": {
+        "JOINTS_0": {
+         "accessor": "accessors/4",
+         "array": {
+          "$typed": "Uint8Array",
+          "length": 12,
+          "sha256": "15ec7bf0b50732b49f8228e07d24365338f9e3ab994b00af08e5a3bffe55fd8b"
+         }
+        },
+        "WEIGHTS_0": {
+         "accessor": "accessors/5",
+         "array": {
+          "$typed": "Float32Array",
+          "length": 12,
+          "sha256": "ee9b3797eecf64277e89a8c78ea6e632532f60053359cf053f51de9d25d16956"
+         }
+        }
+       },
+       "targets": [
+        {
+         "POSITION": {
+          "accessor": "accessors/6",
+          "array": {
+           "$typed": "Float32Array",
+           "length": 9,
+           "sha256": "4f0a0349424b24563583165c17d43de8e1a81a957abbe0570cfac1c2e914f2d7"
+          }
+         }
+        }
+       ],
+       "mesh": {
+        "weights": [
+         0
+        ]
+       }
+      }
+     }
+    }
+   },
+   "materials": {
+    "materials/0": {
+     "model": "pbr",
+     "colorSpace": "linear",
+     "baseColorFactor": [
+      1,
+      0,
+      0,
+      1
+     ],
+     "metallicFactor": 1,
+     "roughnessFactor": 1,
+     "emissiveFactor": [
+      0,
+      0,
+      0
+     ],
+     "baseColorTexture": null,
+     "metallicRoughnessTexture": null,
+     "normalTexture": null,
+     "occlusionTexture": null,
+     "emissiveTexture": null,
+     "doubleSided": false,
+     "alphaMode": "OPAQUE",
+     "alphaCutoff": 0.5,
+     "source": {
+      "path": "materials/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "Unlit red",
+       "extensions": {
+        "KHR_materials_unlit": {}
+       }
+      }
+     }
+    }
+   },
+   "textures": {},
+   "images": {}
+  },
+  "report": {
+   "translated": {
+    "material": 1,
+    "primitive": 1,
+    "mesh": 1,
+    "node": 4,
+    "scene": 1,
+    "camera": 1,
+    "light": 1,
+    "accessor": 10,
+    "bufferView": 11,
+    "buffer": 1
+   },
+   "kept": [
+    {
+     "path": "materials/0/extensions/KHR_materials_unlit",
+     "type": "extension",
+     "reason": "KHR_materials_unlit is not read by this importer"
+    },
+    {
+     "path": "meshes/0/weights",
+     "type": "morph weights",
+     "reason": "morph targets are reserved (contract section 8)"
+    },
+    {
+     "path": "meshes/0/primitives/0/attributes/JOINTS_0",
+     "type": "attribute",
+     "reason": "skins are reserved (contract section 8)"
+    },
+    {
+     "path": "meshes/0/primitives/0/attributes/WEIGHTS_0",
+     "type": "attribute",
+     "reason": "skins are reserved (contract section 8)"
+    },
+    {
+     "path": "meshes/0/primitives/0/targets",
+     "type": "morph targets",
+     "reason": "morph targets are reserved (contract section 8)"
+    },
+    {
+     "path": "nodes/1/weights",
+     "type": "morph weights",
+     "reason": "morph targets are reserved (contract section 8)"
+    },
+    {
+     "path": "nodes/1/skin",
+     "type": "skin",
+     "reason": "skins are reserved (contract section 8); the mesh is drawn unskinned"
+    },
+    {
+     "path": "scenes/1",
+     "type": "scene",
+     "reason": "only scene 0 is shown"
+    },
+    {
+     "path": "nodes/4",
+     "type": "node",
+     "reason": "not in the scene that is shown"
+    },
+    {
+     "path": "nodes/5",
+     "type": "node",
+     "reason": "not in the scene that is shown"
+    },
+    {
+     "path": "skins/0",
+     "type": "skin",
+     "reason": "skins are reserved (contract section 8)"
+    },
+    {
+     "path": "animations/0",
+     "type": "animation",
+     "reason": "animation tracks are reserved (contract section 8)"
+    },
+    {
+     "path": "extensionsUsed/EXT_declared_nowhere",
+     "type": "extension",
+     "reason": "EXT_declared_nowhere is declared but found on no object; not read by this importer"
+    }
+   ],
+   "skipped": [
+    {
+     "path": "cameras/1",
+     "type": "camera",
+     "reason": "no node of the shown scene places it"
+    },
+    {
+     "path": "accessors/10",
+     "type": "accessor",
+     "reason": "used by no mesh, skin or animation"
+    }
+   ],
+   "refused": [],
+   "diagnostics": []
+  },
+  "extras": {
+   "gltf": {
+    "skins": [
+     {
+      "name": null,
+      "joints": [
+       "nodes/1"
+      ],
+      "skeleton": null,
+      "inverseBindMatrices": {
+       "accessor": "accessors/7",
+       "array": {
+        "$typed": "Float32Array",
+        "length": 16,
+        "sha256": "5998e9d1dd9bf48af6af87a1ef8c7783b818ac8329637ada08cc5fb329042376"
+       }
+      },
+      "extras": null,
+      "extensions": null
+     }
+    ],
+    "animations": [
+     {
+      "name": "Lift",
+      "channels": [
+       {
+        "sampler": 0,
+        "target": {
+         "node": "nodes/2",
+         "path": "translation"
+        }
+       }
+      ],
+      "samplers": [
+       {
+        "input": {
+         "accessor": "accessors/8",
+         "array": {
+          "$typed": "Float32Array",
+          "length": 2,
+          "sha256": "22b6f43bd8d27738d3213f29e96b62d01d9d6c0ab4f9732aaae803186f51eab7"
+         }
+        },
+        "output": {
+         "accessor": "accessors/9",
+         "array": {
+          "$typed": "Float32Array",
+          "length": 6,
+          "sha256": "5b2342f4326491e0410698a0fb40c024fc8f633eac9891a756e5c40c871bd66f"
+         }
+        },
+        "interpolation": "LINEAR"
+       }
+      ],
+      "extras": null,
+      "extensions": null
+     }
+    ],
+    "scenes": [
+     {
+      "name": null,
+      "nodes": [
+       "nodes/0",
+       "nodes/3"
+      ],
+      "extras": null
+     },
+     {
+      "name": null,
+      "nodes": [
+       "nodes/5"
+      ],
+      "extras": null
+     }
+    ]
+   }
+  }
+ },
+ "report": {
+  "translated": {
+   "material": 1,
+   "primitive": 1,
+   "mesh": 1,
+   "node": 4,
+   "scene": 1,
+   "camera": 1,
+   "light": 1,
+   "accessor": 10,
+   "bufferView": 11,
+   "buffer": 1
+  },
+  "kept": [
+   {
+    "path": "materials/0/extensions/KHR_materials_unlit",
+    "type": "extension",
+    "reason": "KHR_materials_unlit is not read by this importer"
+   },
+   {
+    "path": "meshes/0/weights",
+    "type": "morph weights",
+    "reason": "morph targets are reserved (contract section 8)"
+   },
+   {
+    "path": "meshes/0/primitives/0/attributes/JOINTS_0",
+    "type": "attribute",
+    "reason": "skins are reserved (contract section 8)"
+   },
+   {
+    "path": "meshes/0/primitives/0/attributes/WEIGHTS_0",
+    "type": "attribute",
+    "reason": "skins are reserved (contract section 8)"
+   },
+   {
+    "path": "meshes/0/primitives/0/targets",
+    "type": "morph targets",
+    "reason": "morph targets are reserved (contract section 8)"
+   },
+   {
+    "path": "nodes/1/weights",
+    "type": "morph weights",
+    "reason": "morph targets are reserved (contract section 8)"
+   },
+   {
+    "path": "nodes/1/skin",
+    "type": "skin",
+    "reason": "skins are reserved (contract section 8); the mesh is drawn unskinned"
+   },
+   {
+    "path": "scenes/1",
+    "type": "scene",
+    "reason": "only scene 0 is shown"
+   },
+   {
+    "path": "nodes/4",
+    "type": "node",
+    "reason": "not in the scene that is shown"
+   },
+   {
+    "path": "nodes/5",
+    "type": "node",
+    "reason": "not in the scene that is shown"
+   },
+   {
+    "path": "skins/0",
+    "type": "skin",
+    "reason": "skins are reserved (contract section 8)"
+   },
+   {
+    "path": "animations/0",
+    "type": "animation",
+    "reason": "animation tracks are reserved (contract section 8)"
+   },
+   {
+    "path": "extensionsUsed/EXT_declared_nowhere",
+    "type": "extension",
+    "reason": "EXT_declared_nowhere is declared but found on no object; not read by this importer"
+   }
+  ],
+  "skipped": [
+   {
+    "path": "cameras/1",
+    "type": "camera",
+    "reason": "no node of the shown scene places it"
+   },
+   {
+    "path": "accessors/10",
+    "type": "accessor",
+    "reason": "used by no mesh, skin or animation"
+   }
+  ],
+  "refused": [],
+  "diagnostics": []
+ }
+}

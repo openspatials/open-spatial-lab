@@ -1,0 +1,326 @@
+{
+ "layer": {
+  "schema": "scene-layer/0",
+  "name": "world",
+  "kind": "content",
+  "visible": true,
+  "placement": {
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "source": {
+   "uri": "/assets/worlds/Duck.glb",
+   "format": "gltf",
+   "scene": "scenes/0",
+   "header": {
+    "$sha256": "47a46837fdabb47e86ffe0110b841ec950801b8bd70f598337e409f088eed2cb"
+   }
+  },
+  "info": null,
+  "navigation": null,
+  "environment": {
+   "background": null,
+   "color": null,
+   "intensity": null,
+   "image": null
+  },
+  "entities": [
+   {
+    "id": "nodes/0",
+    "name": null,
+    "parent": null,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      0.009999999776482582,
+      0.009999999776482582,
+      0.009999999776482582
+     ]
+    },
+    "components": {},
+    "source": {
+     "path": "nodes/0",
+     "type": "node"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/2",
+    "name": null,
+    "parent": "nodes/0",
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "components": {
+     "mesh": {
+      "primitives": [
+       {
+        "geometry": "meshes/0/primitives/0",
+        "material": "materials/0"
+       }
+      ]
+     }
+    },
+    "source": {
+     "path": "nodes/2",
+     "type": "node",
+     "mesh": "meshes/0"
+    },
+    "extras": {}
+   },
+   {
+    "id": "nodes/1",
+    "name": null,
+    "parent": "nodes/0",
+    "transform": {
+     "translation": [
+      400.1130065917969,
+      463.2640075683594,
+      -431.0780334472656
+     ],
+     "rotation": [
+      -0.12106388300148066,
+      0.8780589498760827,
+      0.30577249018066477,
+      0.34764810052439704
+     ],
+     "scale": [
+      1.0000000113971144,
+      0.9999999976071307,
+      1.0000000316240416
+     ]
+    },
+    "components": {
+     "camera": {
+      "type": "perspective",
+      "yfov": 0.6605925559997559,
+      "znear": 1,
+      "zfar": 10000,
+      "description": null,
+      "arrival": true
+     }
+    },
+    "source": {
+     "path": "nodes/1",
+     "type": "node",
+     "camera": "cameras/0"
+    },
+    "extras": {
+     "gltf": {
+      "camera": {
+       "aspectRatio": 1.5
+      }
+     }
+    }
+   }
+  ],
+  "assets": {
+   "geometries": {
+    "meshes/0/primitives/0": {
+     "type": "mesh",
+     "attributes": {
+      "NORMAL": {
+       "$typed": "Float32Array",
+       "length": 7197,
+       "sha256": "efae66db7c3405150396630b35310557868a82c551ac8d22634186b156e40b0a"
+      },
+      "POSITION": {
+       "$typed": "Float32Array",
+       "length": 7197,
+       "sha256": "6c0e727f2d154a5985452ba548f4a5813425a6da0286a6b2099760551e9854b9"
+      },
+      "TEXCOORD_0": {
+       "$typed": "Float32Array",
+       "length": 4798,
+       "sha256": "2ce81a1c667c5e87aeb976c6d9396d405582675fd31a93e0f35ee450a88184ff"
+      }
+     },
+     "indices": {
+      "$typed": "Uint16Array",
+      "length": 12636,
+      "sha256": "e794cce1fbea63157740d1767928826e3cf6e3bbe79e3838df8cfbc65cb3aea3"
+     },
+     "mode": 4,
+     "dynamic": false,
+     "source": {
+      "path": "meshes/0/primitives/0",
+      "accessors": {
+       "NORMAL": "accessors/1",
+       "POSITION": "accessors/2",
+       "TEXCOORD_0": "accessors/3"
+      },
+      "indices": "accessors/0"
+     },
+     "extras": {
+      "gltf": {
+       "mesh": {
+        "name": "LOD3spShape"
+       }
+      }
+     }
+    }
+   },
+   "materials": {
+    "materials/0": {
+     "model": "pbr",
+     "colorSpace": "linear",
+     "baseColorFactor": [
+      1,
+      1,
+      1,
+      1
+     ],
+     "metallicFactor": 0,
+     "roughnessFactor": 1,
+     "emissiveFactor": [
+      0,
+      0,
+      0
+     ],
+     "baseColorTexture": {
+      "texture": "textures/0",
+      "texCoord": 0
+     },
+     "metallicRoughnessTexture": null,
+     "normalTexture": null,
+     "occlusionTexture": null,
+     "emissiveTexture": null,
+     "doubleSided": false,
+     "alphaMode": "OPAQUE",
+     "alphaCutoff": 0.5,
+     "source": {
+      "path": "materials/0"
+     },
+     "extras": {
+      "gltf": {
+       "name": "blinn3-fx"
+      }
+     }
+    }
+   },
+   "textures": {
+    "textures/0": {
+     "image": "images/0",
+     "sampler": {
+      "magFilter": 9729,
+      "minFilter": 9986,
+      "wrapS": 10497,
+      "wrapT": 10497
+     },
+     "source": {
+      "path": "textures/0",
+      "sampler": "samplers/0"
+     },
+     "extras": {}
+    }
+   },
+   "images": {
+    "images/0": {
+     "mimeType": "image/png",
+     "bytes": {
+      "$typed": "Uint8Array",
+      "length": 16302,
+      "sha256": "8aedb428cbb815dffea650fe75bff032ea240f00ccad2f64dc8f62a0c5e30313"
+     },
+     "source": {
+      "path": "images/0",
+      "from": "bufferViews/3"
+     },
+     "extras": {}
+    }
+   }
+  },
+  "report": {
+   "translated": {
+    "image": 1,
+    "texture": 1,
+    "sampler": 1,
+    "material": 1,
+    "primitive": 1,
+    "mesh": 1,
+    "node": 3,
+    "scene": 1,
+    "camera": 1,
+    "accessor": 4,
+    "bufferView": 4,
+    "buffer": 1
+   },
+   "kept": [],
+   "skipped": [],
+   "refused": [],
+   "diagnostics": []
+  },
+  "extras": {
+   "gltf": {
+    "scenes": [
+     {
+      "name": null,
+      "nodes": [
+       "nodes/0"
+      ],
+      "extras": null
+     }
+    ]
+   }
+  }
+ },
+ "report": {
+  "translated": {
+   "image": 1,
+   "texture": 1,
+   "sampler": 1,
+   "material": 1,
+   "primitive": 1,
+   "mesh": 1,
+   "node": 3,
+   "scene": 1,
+   "camera": 1,
+   "accessor": 4,
+   "bufferView": 4,
+   "buffer": 1
+  },
+  "kept": [],
+  "skipped": [],
+  "refused": [],
+  "diagnostics": []
+ }
+}

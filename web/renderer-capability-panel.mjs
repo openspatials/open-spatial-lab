@@ -1,5 +1,28 @@
 // The source and importer of each layer of the Scene the adapter shows, by the layer's source format.
-const SOURCES = Object.freeze({ "x3d-json": Object.freeze({ source: "X3D", importer: "X3D" }) });
+const SOURCES = Object.freeze({ "x3d-json": Object.freeze({ source: "X3D", importer: "X3D" }), gltf: Object.freeze({ source: "glTF", importer: "glTF" }) });
+
+const shownLayers = (adapter) => {
+  const scene = adapter?.attachedScene;
+  if (!scene || typeof scene.layers !== "function") return [];
+  return scene.layers().map((name) => scene.layer(name)).filter((layer) => layer.visible);
+};
+
+/** Each shown layer's importer and its capabilities, as the Scene Manager recorded them on the layer. */
+export function sceneImporters(adapter) {
+  return shownLayers(adapter).filter((layer) => layer.importer).map((layer) => ({ layer: layer.name,
+    importer: SOURCES[layer.importer.format]?.importer ?? layer.importer.format, capabilities: Object.entries(layer.importer.capabilities ?? {}) }));
+}
+
+/** What the open file has that was not drawn: the importer's kept, skipped and refused lines, and the renderer's own list. */
+export function notDrawn(adapter) {
+  const items = [];
+  for (const layer of shownLayers(adapter)) {
+    const report = layer.report ?? {};
+    for (const list of ["kept", "skipped", "refused"]) for (const item of report[list] ?? []) items.push({ by: "importer", list, path: item.path, reason: item.reason ?? "" });
+  }
+  for (const item of adapter?.sceneRoot?.userData?.notDrawn ?? []) items.push({ by: "renderer", list: "not drawn", path: item.key, reason: item.reason });
+  return items;
+}
 
 /** The chain in use, e.g. "Source: X3D. Importer: X3D. Renderer: Three.js.", or null when the adapter shows no Scene. */
 export function sceneChainLine(adapter, report) {
@@ -35,8 +58,9 @@ export function createRendererCapabilityPanel({ document, readAdapter, readAvata
   };
   const refresh = () => {
     const adapter = readAdapter(), report = adapter?.getCapabilities();
-    const features = Object.entries(report?.features || {});
-    const limits = features.filter(([, value]) => value.status !== "supported").length;
+    const features = Object.entries(report?.features || {}), importers = sceneImporters(adapter);
+    const limits = features.filter(([, value]) => value.status !== "supported").length
+      + importers.reduce((sum, { capabilities }) => sum + capabilities.filter(([, value]) => value.status !== "supported").length, 0);
     summary.textContent = `Renderer: ${report?.engine || "loading"}${limits ? ` · ${limits} limits` : ""}`;
     panel.replaceChildren();
     row("Renderer", `${report?.engine || "loading"} ${report?.version || ""} · requested ${rendererChoice?.requested || "default"}`);
@@ -46,6 +70,22 @@ export function createRendererCapabilityPanel({ document, readAdapter, readAvata
       line.id = "renderer-scene-chain";
       line.textContent = chain;
       panel.append(line);
+    }
+    for (const { importer, capabilities } of importers) {
+      for (const [, feature] of capabilities) row(`Importer ${importer}`, `${feature.status} · ${feature.level} — ${feature.reason ?? feature.evidenceScope ?? ""}`);
+    }
+    if (importers.length) {
+      const items = notDrawn(adapter), list = document.createElement("details");
+      list.id = "renderer-not-drawn";
+      const label = document.createElement("summary");
+      label.textContent = `Not drawn from this file: ${items.length}`;
+      list.append(label);
+      for (const item of items) {
+        const entry = document.createElement("p");
+        entry.textContent = `${item.path} (${item.by}, ${item.list}): ${item.reason}`;
+        list.append(entry);
+      }
+      panel.append(list);
     }
     if (rendererChoice?.fallback) row("Fallback", rendererChoice.message);
     const avatar = readAvatar();
