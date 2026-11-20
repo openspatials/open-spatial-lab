@@ -34,7 +34,7 @@ let foreignFrames=0;
 globalThis.requestAnimationFrame=()=>{foreignFrames++;throw Error("second host clock");};
 
 function fixture({gateAt=null,failAt=null,realPhysics=false,environment=null}={}) {
-  const gate=deferred(),trace=[],adapters=[],physics=[],frames=new Map(),documentTarget=new FakeTarget(),windowTarget=new FakeTarget();let id=0,phase=null,permission=true;
+  const gate=deferred(),trace=[],adapters=[],physics=[],frames=new Map(),documentTarget=new FakeTarget(),windowTarget=new FakeTarget();let id=0,phase=null,permission=true,viewed=null;
   const host=Object.assign(new FakeTarget(),{clientWidth:800,clientHeight:600,getBoundingClientRect:()=>({left:0,top:0,width:800,height:600})});
   documentTarget.body=new FakeTarget();documentTarget.createElement=()=>new FakeTarget();documentTarget.getElementById=()=>null;
   windowTarget.location={href:"https://fixture.invalid/index.html?renderer=own-x3d",origin:"https://fixture.invalid"};
@@ -45,11 +45,11 @@ function fixture({gateAt=null,failAt=null,realPhysics=false,environment=null}={}
   let movement;
   const controller=createSceneRuntimeController({THREE,applicationState,isPlayer:true,role:"player",sharedAvatarCompositing:true,
     documentTarget,windowTarget,locationHref:windowTarget.location.href,getMount:()=>host,getRuntime:()=>null,getAvatarLayers:()=>({peers:[]}),logLine(){},
-    createRenderAdapter(){const a=chooseRenderAdapter(THREE,"?renderer=own-x3d",{ownX3d:{createCanvas,preparePhysics:prepareWorld}}).active.adapter;if(environment){assert.deepEqual(a.setEnvironmentResolver(environment.resolver),{supported:true,resolver:true});const setLighting=a.setLighting.bind(a);a.setLighting=description=>{trace.push("set-lighting");return setLighting(description);};}const load=a.loadDocument.bind(a);a.loadDocument=async(...args)=>{await phaseWait("document");return load(...args);};adapters.push(a);return a;},
-    fetchX3dDocument:async path=>{await phaseWait("fetch");return {ok:true,text:async()=>texts[path]};},
+    createRenderAdapter(){const a=chooseRenderAdapter(THREE,"?renderer=own-x3d",{ownX3d:{createCanvas,preparePhysics:prepareWorld}}).active.adapter;if(environment){assert.deepEqual(a.setEnvironmentResolver(environment.resolver),{supported:true,resolver:true});const setLighting=a.setLighting.bind(a);a.setLighting=description=>{trace.push("set-lighting");return setLighting(description);};}adapters.push(a);return a;},
+    fetchX3dDocument:async path=>{await phaseWait("fetch");return {ok:true,text:async()=>{await phaseWait("document");return texts[path];}};},
     loadX3dAmmo:async()=>{await phaseWait("ammo");return realPhysics?recordingAmmo():{Ammo:{}};},
     createX3dPhysics:(_ammo,prepared,sink)=>{assert.equal(prepared.soft.length,2);const actual=realPhysics?createSoftBodyWorld(_ammo,prepared,sink):null;let disposed=false;const p={steps:[],step(dt,actions){assert.equal(disposed,false);actual?.step(dt,actions);this.steps.push([dt,actions]);trace.push("physics-step");},dispose(){assert.equal(disposed,false);disposed=true;actual?.dispose();if(realPhysics)_ammo.assertClean();try { sink.readPoints(prepared.soft[0].def); } catch { trace.push("sink-already-disposed"); } trace.push("physics-dispose");}};physics.push(p);return p;},
-    readX3dViewer:state=>({position:state.camera.position.toArray(),orientation:state.runtime.viewpoints[0].orientation,...movement?.documentActions()}),
+    readX3dViewer:state=>{viewed=state;return {position:state.camera.position.toArray(),orientation:state.runtime.viewpoints[0].orientation,...movement?.documentActions()};},
     readX3dPermission:()=>permission&&controller.scene()?.document?["DEF:PortalAnchor"]:[],onX3dIntent:intent=>trace.push(["intent",intent]),
     readX3dLighting:()=>environment?.lighting??null,
   });
@@ -57,7 +57,7 @@ function fixture({gateAt=null,failAt=null,realPhysics=false,environment=null}={}
   function start(selection){movement=createMovementCameraController({cameraBridge:bridge,documentViewer:{softBody:selection===soft,entry:()=>controller.scene()?.entry,activate:event=>controller.activateX3dDocumentAt(event)},isPlayer:true,role:"player",windowTarget,documentTarget,lookup:key=>key==="scene-mount"?host:null,
     requestFrame:fn=>{frames.set(++id,fn);return id;},cancelFrame:key=>frames.delete(key),now:()=>0,getRuntime:()=>null,sceneRuntime:controller,getAvatarLayers:()=>({peers:[]}),logLine(){},showToast(){},isTypingTarget:()=>false});movement.start();return movement;}
   function frame(time){assert.equal(frames.size,1,"one shared host frame");const [key,fn]=frames.entries().next().value;frames.delete(key);fn(time);}
-  return {controller,applicationState,gate,phase:()=>phase,trace,adapters,physics,frames,documentTarget,windowTarget,host,start,frame,permission:value=>{permission=value;},dispose(){movement?.dispose();controller.dispose();applicationState.dispose();}};
+  return {controller,applicationState,gate,phase:()=>phase,state:()=>viewed,trace,adapters,physics,frames,documentTarget,windowTarget,host,start,frame,permission:value=>{permission=value;},dispose(){movement?.dispose();controller.dispose();applicationState.dispose();}};
 }
 
 await check("selection", "Actual selected constructor and bootstrap use the own class without changing defaults or legacy dispatch",async()=>{
@@ -94,10 +94,10 @@ await check("content-and-intents", "Original digest and host intent checks rejec
   let current=true,allowed=[],sent=0;const adapter=new OwnX3dRenderAdapter(Engine,{createCanvas,preparePhysics:prepareWorld});
   const preparation=prepareOwnX3dScene({rendererPreparation:{handle:adapter,ready:async()=>{},dispose:()=>adapter.dispose()},selection:anchor,
     fetchDocument:async()=>({ok:true,text:async()=>texts[anchor.assetPath]}),readViewer:()=>({position:[0,1.6,6]}),readPermission:()=>allowed,dispatchIntent:()=>sent++,isCurrent:()=>current});
-  await preparation.ready();const intent=adapter.activateAnchor("DEF:PortalAnchor",{time:0,allowedAnchors:["DEF:PortalAnchor"]});assert.equal(preparation.handle.dispatch(intent),false);allowed=["DEF:PortalAnchor"];
+  await preparation.ready();const intent=preparation.handle.state.runtime.activate("DEF:PortalAnchor",{time:0,allowedAnchors:["DEF:PortalAnchor"]});assert.equal(preparation.handle.dispatch(intent),false);allowed=["DEF:PortalAnchor"];
   assert.equal(preparation.handle.dispatch({...intent,urls:["/w/airport/"]}),false,"host denies unadmitted destination");assert.equal(preparation.handle.dispatch({...intent,generation:intent.generation+1}),false,"host denies stale runtime generation");
   current=false;assert.equal(preparation.handle.dispatch(intent),false,"host denies retired scene");current=true;assert.equal(preparation.handle.dispatch(intent),true);assert.equal(preparation.handle.dispatch(intent),false);assert.equal(sent,1);preparation.dispose();
-  const changed=new OwnX3dRenderAdapter(Engine,{createCanvas,preparePhysics:prepareWorld});const bad=prepareOwnX3dScene({rendererPreparation:{handle:changed,ready:async()=>{},dispose:()=>changed.dispose()},selection:anchor,fetchDocument:async()=>({ok:true,text:async()=>texts[anchor.assetPath]+"\n"}),isCurrent:()=>true});await assert.rejects(bad.ready(),/digest does not match/);assert.equal(changed.documentState,null);
+  const changed=new OwnX3dRenderAdapter(Engine,{createCanvas,preparePhysics:prepareWorld});const bad=prepareOwnX3dScene({rendererPreparation:{handle:changed,ready:async()=>{},dispose:()=>changed.dispose()},selection:anchor,fetchDocument:async()=>({ok:true,text:async()=>texts[anchor.assetPath]+"\n"}),isCurrent:()=>true});await assert.rejects(bad.ready(),/digest does not match/);assert.equal(bad.handle.state,null);
 });
 await check("documents", "Both original texts reach actual own admission and preserve authored Entry and disposal order",async()=>{
   for(const selection of [anchor,soft]){const h=fixture();const scene=await h.controller.mountX3dDocument(selection);assert.ok(h.controller.activeAdapter() instanceof OwnX3dRenderAdapter);assert.equal(scene.document.schema,"x3d-subset/1");assert.deepEqual(scene._impl.camera.position.toArray(),selection===soft?[-10,1.6,10]:[0,1.6,6]);assert.equal(h.physics.length,selection===soft?1:0);assert.equal(h.adapters[0].renderer.draws,0,"no draw during unpublished preparation");const renderer=h.adapters[0].renderer;h.dispose();if(selection===soft)assert.ok(h.trace.indexOf("physics-dispose")<h.trace.indexOf("renderer-dispose"),"physics before renderer sink disposal");scene.renderFrame(5000);assert.equal(renderer.draws,0,"retired callback cannot draw");}
@@ -117,7 +117,7 @@ await check("async-retirement", "Fetch, document and Ammo continuations cannot p
   const h=fixture({gateAt:"ammo"});const first=h.controller.mountX3dDocument(soft);const rejected=assert.rejects(first,{name:"AbortError"});await until(()=>h.phase()==="ammo");const replacement=await h.controller.mountX3dDocument(anchor);await rejected;h.gate.resolve();await tick();assert.equal(h.controller.scene(),replacement,"late readiness cannot replace current scene");assert.equal(h.physics.length,0);h.dispose();
 });
 await check("replacement-intents", "Ready replacement retires physics; host checks generation, permission, destination and deduplication",async()=>{
-  const h=fixture();const old=await h.controller.mountX3dDocument(soft),oldAdapter=h.controller.activeAdapter();const state=oldAdapter.documentState;const held=oldAdapter.activateAnchor("DEF:PortalAnchor",{time:0,allowedAnchors:["DEF:PortalAnchor"]});
+  const h=fixture();const old=await h.controller.mountX3dDocument(soft),oldAdapter=h.controller.activeAdapter();old.evaluateFrame(0);const state=h.state();const held=state.runtime.activate("DEF:PortalAnchor",{time:0,allowedAnchors:["DEF:PortalAnchor"]});
   const next=await h.controller.mountX3dDocument(anchor);assert.equal(oldAdapter._disposed,true);assert.equal(state.runtime.isCurrent(held.generation),false);const current=h.controller.activeAdapter();h.permission(false);assert.equal(next.activateAnchor({origin:[0,1.6,6],direction:[0,0,-1]}),false);h.permission(true);
   const camera=next._impl.camera;camera.position.set(0,1.6,6);next.evaluateFrame(.01);camera.position.set(0,1.6,-6);next.evaluateFrame(.01);const dispatched=h.trace.filter(v=>Array.isArray(v)&&v[0]==="intent");assert.equal(dispatched.length,1,"one current authorized intent");camera.position.set(0,1.6,6);next.evaluateFrame(.01);camera.position.set(0,1.6,-6);next.evaluateFrame(.01);assert.equal(h.trace.filter(v=>Array.isArray(v)&&v[0]==="intent").length,1,"host deduplicates destination intent");h.dispose();assert.equal(current._disposed,true);
 });

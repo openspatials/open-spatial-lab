@@ -4,7 +4,8 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import * as THREE from "three";
 import { OwnX3dRenderAdapter } from "../runtime/scene-core/public/x3d/own-x3d-render-adapter.mjs";
-import { realizeX3dScene } from "../runtime/scene-core/public/x3d/scene-renderer.mjs";
+import { documentToLayer } from "../runtime/scene-core/public/import/x3d/to-scene.mjs";
+import { createX3dSceneHost } from "../runtime/scene-core/public/scene/manager.mjs";
 import { parseX3dDocument } from "../runtime/scene-core/public/x3d/json-document.mjs";
 import { SOFT_BODY_COMPATIBILITY } from "../runtime/scene-core/public/x3d/profile.mjs";
 import { prepareWorld } from "../web/soft-body-world.mjs";
@@ -29,6 +30,8 @@ function createCanvas() {
     const canvas = { width: 0, height: 0, calls, getContext: () => context }; canvases.push(canvas); return canvas;
 }
 const make = () => new OwnX3dRenderAdapter(THREE, { createCanvas, preparePhysics: prepareWorld });
+// The Scene Manager's document host: import, then scene.addLayer, then renderer.syncScene; Interaction and the physics sink on that Scene.
+const documentsOf = (renderer) => createX3dSceneHost({ renderer, preparePhysics: prepareWorld });
 class RendererDouble {
     constructor() { this.domElement = {}; this.disposals = 0; }
     getContext() { return {}; }
@@ -60,7 +63,7 @@ globalThis.requestAnimationFrame = () => { rafCalls++; throw new Error("Unexpect
 async function check(name, run) { await run(); cases++; console.log(`PASS ${name}`); }
 try {
     await check("authored portal geometry, linear materials, text, lights, camera and background", async () => {
-        const adapter = make(), state = await adapter.loadDocument(anchor);
+        const adapter = make(), state = await documentsOf(adapter).load(anchor);
         near(state.camera.position.toArray(), [0, 1.6, 6]); near([state.camera.fov], [0.9 * 180 / Math.PI]);
         near(state.realization.scene.background.toArray(), [0.09, 0.13, 0.22]);
         const floor = byDef(state, "Floor").children[0];
@@ -80,17 +83,17 @@ try {
         const disposed = observeDisposal(state.realization.scene); adapter.dispose(); adapter.dispose(); disposed();
     });
     await check("stable ray node/Anchor identity, host policy and semantic stepping", async () => {
-        const adapter = make(), state = await adapter.loadDocument(anchor, bound);
+        const adapter = make(), documents = documentsOf(adapter), state = await documents.load(anchor, bound);
         const ray = { origin: [0, 1.2, 6], direction: [0, 0, -1], allowedIds: ["DEF:PortalAnchor"] };
-        assert.equal(adapter.pickRay({ ...ray, allowedIds: [] }), null);
-        const hit = adapter.pickRay(ray); assert.equal(hit.anchorId, "DEF:PortalAnchor"); assert.equal(hit.type, "Shape"); assert.equal(hit.frame, "world");
-        assert.ok(hit.distance > 8 && hit.distance < 9); assert.equal(adapter.pickRay(ray).instance, hit.instance);
-        byDef(state, "PortalAnchor").visible = false; assert.equal(adapter.pickRay(ray), null); byDef(state, "PortalAnchor").visible = true;
-        assert.throws(() => adapter.pickRay({ ...ray, allowedIds: new Array(1) }), /ray.allowedIds/);
-        assert.equal(adapter.activateAnchor("PortalAnchor", { time: 0 }), null);
-        assert.equal(adapter.stepDocument({ time: 1, position: [0, 1.2, -2.5], allowedAnchors: ["PortalAnchor"] }).intents[0].urls[0], "/w/b/");
-        const intent = adapter.activateAnchor("PortalAnchor", { time: 2, allowedAnchors: ["PortalAnchor"] }); adapter.cancelDocument(); assert.equal(state.runtime.isCurrent(intent.generation), false);
-        adapter.dispose(); assert.throws(() => adapter.stepDocument({ time: 3, position: [0, 0, 0] }), /live/);
+        assert.equal(documents.pick({ ...ray, allowedIds: [] }), null);
+        const hit = documents.pick(ray); assert.equal(hit.anchorId, "DEF:PortalAnchor"); assert.equal(hit.type, "Shape"); assert.equal(hit.frame, "world");
+        assert.ok(hit.distance > 8 && hit.distance < 9); assert.equal(documents.pick(ray).instance, hit.instance);
+        byDef(state, "PortalAnchor").visible = false; assert.equal(documents.pick(ray), null); byDef(state, "PortalAnchor").visible = true;
+        assert.throws(() => documents.pick({ ...ray, allowedIds: new Array(1) }), /ray.allowedIds/);
+        assert.equal(documents.activate("PortalAnchor", { time: 0 }), null);
+        assert.equal(documents.step({ time: 1, position: [0, 1.2, -2.5], allowedAnchors: ["PortalAnchor"] }).intents[0].urls[0], "/w/b/");
+        const intent = documents.activate("PortalAnchor", { time: 2, allowedAnchors: ["PortalAnchor"] }); documents.cancel(); assert.equal(state.runtime.isCurrent(intent.generation), false);
+        adapter.dispose(); assert.throws(() => documents.step({ time: 3, position: [0, 0, 0] }), /live/);
     });
     await check("transformed viewpoint and distinct USE placements/resources", async () => {
         const document = await parseX3dDocument(JSON.stringify({ X3D: { "@version": "4.0", "@profile": "Interactive", Scene: { "-children": [
@@ -98,13 +101,13 @@ try {
                 { Viewpoint: { "@position": [2, 0, 0] } }, { Shape: { "@DEF": "Shared", "-geometry": { Box: {} } } },
             ] } }, { Transform: { "@translation": [-2, 0, 0], "-children": [{ Shape: { "@USE": "Shared" } }] } },
         ] } } }));
-        const adapter = make(), state = await adapter.loadDocument(document), placements = state.realization.objects.get("DEF:Shared");
+        const adapter = make(), state = await documentsOf(adapter).load(document), placements = state.realization.objects.get("DEF:Shared");
         near(state.camera.position.toArray(), [10, 2, 0]); near(new THREE.Vector3(1, 0, 0).applyQuaternion(state.camera.quaternion).toArray(), [0, 1, 0]);
         assert.equal(placements.length, 2); assert.notEqual(placements[0].geometry, placements[1].geometry);
         near(placements[0].getWorldPosition(new THREE.Vector3()).toArray(), [10, 0, 0]); near(placements[1].getWorldPosition(new THREE.Vector3()).toArray(), [-2, 0, 0]); adapter.dispose();
     });
     await check("real soft world retains 41 rigid/two soft bodies; sink changes geometry, normals and bounds", async () => {
-        const adapter = make(), state = await adapter.loadDocument(soft), realized = state.realization;
+        const adapter = make(), documents = documentsOf(adapter), state = await documents.load(soft), realized = state.realization;
         assert.equal(realized.preparedPhysics.rigid.length, 41); assert.equal(realized.preparedPhysics.soft.length, 2);
         near(state.camera.position.toArray(), [-10, 1.6, 10]);
         for (const body of realized.preparedPhysics.rigid) assert.ok(byDef(state, body.def).children[0].isMesh);
@@ -113,7 +116,7 @@ try {
             const before = Array.from(geometry.attributes.position.array), normals = Array.from(geometry.attributes.normal.array);
             const changed = before.map((v, i) => i === 0 ? v + 0.5 : i % 3 === 1 ? v + 2 + (i === 1 ? 1 : 0) : v);
             const oldMax = geometry.boundingBox.max.y, version = geometry.attributes.position.version;
-            realized.sink.setPoints(body.def, changed);
+            realized.sink.setPoints(body.def, changed); adapter.syncScene();
             assert.equal(geometry.attributes.position.version, version + 1); assert.ok(geometry.boundingBox.max.y >= oldMax + 1.9);
             assert.notDeepEqual(Array.from(geometry.attributes.normal.array), normals); assert.ok(Number.isFinite(geometry.boundingSphere.radius));
             near(realized.sink.readPoints(body.def).flat(), changed, 1e-5);
@@ -122,34 +125,34 @@ try {
             near(realized.sink.readPoints(body.def).flat(), changed, 1e-5);
         }
         const first = realized.preparedPhysics.rigid[0].def;
-        realized.sink.setPose(first, [1, 2, 3], [0, 1, 0, Math.PI / 2]); near(byDef(state, first).position.toArray(), [1, 2, 3]);
-        const done = observeDisposal(realized.scene); adapter.dispose(); done(); assert.throws(() => realized.sink.readPoints("Cloth"), /disposed/);
+        realized.sink.setPose(first, [1, 2, 3], [0, 1, 0, Math.PI / 2]); adapter.syncScene(); near(byDef(state, first).position.toArray(), [1, 2, 3]);
+        const done = observeDisposal(realized.scene); adapter.dispose(); documents.dispose(); done(); assert.throws(() => realized.sink.readPoints("Cloth"), /disposed/);
     });
     await check("independent loads, replacement, rejected loads, cancellation and abort", async () => {
-        const a = make(), b = make(), old = await a.loadDocument(anchor), other = await b.loadDocument(anchor);
+        const a = make(), b = make(), A = documentsOf(a), B = documentsOf(b), old = await A.load(anchor), other = await B.load(anchor);
         assert.notEqual(byDef(old, "Floor").children[0].material, byDef(other, "Floor").children[0].material);
-        const done = observeDisposal(old.realization.scene); await a.loadDocument(soft); done();
-        const current = a.documentState; await assert.rejects(a.loadDocument("{}")); assert.equal(a.documentState, current);
-        const pending = a.loadDocument(anchorText); a.cancelDocument(); await assert.rejects(pending, { name: "AbortError" }); assert.equal(a.documentState, current);
-        const superseded = a.loadDocument(anchorText); const newest = await a.loadDocument(soft); await assert.rejects(superseded, { name: "AbortError" }); assert.equal(a.documentState, newest);
-        await assert.rejects(a.loadDocument(anchor, { signal: AbortSignal.abort() }), { name: "AbortError" });
+        const done = observeDisposal(old.realization.scene); await A.load(soft); done();
+        const current = A.state; await assert.rejects(A.load("{}")); assert.equal(A.state, current);
+        const pending = A.load(anchorText); A.cancel(); await assert.rejects(pending, { name: "AbortError" }); assert.equal(A.state, current);
+        const superseded = A.load(anchorText); const newest = await A.load(soft); await assert.rejects(superseded, { name: "AbortError" }); assert.equal(A.state, newest);
+        await assert.rejects(A.load(anchor, { signal: AbortSignal.abort() }), { name: "AbortError" });
         a.dispose(); assert.equal(byDef(other, "Floor").children[0].material.color.b, 0.5); b.dispose();
-        await assert.rejects(a.loadDocument(anchor), /disposed/);
+        await assert.rejects(A.load(anchor), /disposed/);
     });
     await check("construction failure rolls back allocated resources and preserves prior scene", async () => {
-        const adapter = make(), old = await adapter.loadDocument(anchor), geometries = [];
+        const adapter = make(), documents = documentsOf(adapter), old = await documents.load(anchor), geometries = [];
         const create = adapter.createGeometry.bind(adapter); adapter.createGeometry = (desc) => {
             const geometry = create(desc), count = { n: 0 }; geometry.addEventListener("dispose", () => count.n++); geometries.push(count); return geometry;
         };
         adapter._sceneOptions.createCanvas = () => { throw new Error("canvas failure"); };
-        await assert.rejects(adapter.loadDocument(anchor), /canvas failure/); assert.equal(adapter.documentState, old);
+        await assert.rejects(documents.load(anchor), /canvas failure/); assert.equal(documents.state, old);
         assert.equal(geometries.length, 5); assert.ok(geometries.every((g) => g.n === 1));
-        assert.throws(() => realizeX3dScene(adapter, { ...anchor }), /validated/);
+        assert.throws(() => documentToLayer({ ...anchor }), /validated/);
         const unsupported = await parseX3dDocument(JSON.stringify({ X3D: { "@version": "4.0", "@profile": "Interactive", Scene: { "-children": [{ Shape: { "-geometry": { ElevationGrid: {} } } }] } } }));
-        await assert.rejects(adapter.loadDocument(unsupported), /soft-body topology/); adapter.dispose();
+        await assert.rejects(documents.load(unsupported), /soft-body topology/); adapter.dispose();
     });
     await check("explicit fixture weighted skin, materials, texture, equipment and disposal", async () => {
-        const adapter = make(); await adapter.loadDocument(anchor);
+        const adapter = make(); await documentsOf(adapter).load(anchor);
         assert.throws(() => adapter.bindSkin({ source: new THREE.Group() }), /explicit/);
         assert.throws(() => adapter.createInlineAsset(), /unsupported/);
         const skin = adapter.bindSkin(fixture.descriptor), second = adapter.bindSkin(fixture.descriptor), mesh = skin.meshes[0];
@@ -168,23 +171,23 @@ try {
         adapter.disposeSkin(skin); adapter.disposeSkin(skin); done(); adapter.dispose(); doneSecond();
     });
     await check("throwing disposal still releases other scene resources and clears live document", async () => {
-        const adapter = make(), state = await adapter.loadDocument(anchor), done = observeDisposal(state.realization.scene);
+        const adapter = make(), documents = documentsOf(adapter), state = await documents.load(anchor), done = observeDisposal(state.realization.scene);
         byDef(state, "Floor").children[0].geometry.addEventListener("dispose", () => { throw new Error("injected dispose failure"); });
-        await assert.rejects(adapter.loadDocument(soft), /failed to dispose/); done();
-        assert.equal(adapter.documentState, null); assert.throws(() => adapter.stepDocument({ time: 0, position: [0, 0, 0] }), /live/);
-        await adapter.loadDocument(anchor); adapter.dispose();
+        await assert.rejects(documents.load(soft), /failed to dispose/); done();
+        assert.equal(documents.state, null); assert.throws(() => documents.step({ time: 0, position: [0, 0, 0] }), /live/);
+        await documents.load(anchor); adapter.dispose();
     });
     await check("mount forces host cadence even when frameLoop true is requested", async () => {
         const adapter = new OwnX3dRenderAdapter({ ...THREE, WebGLRenderer: RendererDouble }, { createCanvas, preparePhysics: prepareWorld });
-        const preloaded = await adapter.loadDocument(anchor); adapter.mount(host, { frameLoop: true }); assert.equal(preloaded.camera.aspect, 2);
-        const state = await adapter.loadDocument(anchor); assert.equal(state.camera.aspect, 2);
+        const documents = documentsOf(adapter), preloaded = await documents.load(anchor); adapter.mount(host, { frameLoop: true }); assert.equal(preloaded.camera.aspect, 2);
+        const state = await documents.load(anchor); assert.equal(state.camera.aspect, 2);
         assert.equal(adapter.getCapabilities().engine, "own-x3d"); assert.equal(adapter.getCapabilities().features.portalPreview.status, "limited");
         const renderer = adapter._renderer; adapter.dispose(); assert.equal(renderer.disposals, 1); assert.equal(rafCalls, 0);
     });
     await check("mounted preview failure cannot prevent remaining resources, renderer or canvas retirement", async () => {
         for (const replacement of [false, true]) {
             const adapter = new OwnX3dRenderAdapter({ ...THREE, WebGLRenderer: RendererDouble }, { createCanvas, preparePhysics: prepareWorld });
-            adapter.mount(host); const state = await adapter.loadDocument(anchor), sceneDone = observeDisposal(state.realization.scene);
+            adapter.mount(host); const documents = documentsOf(adapter), state = await documents.load(anchor), sceneDone = observeDisposal(state.realization.scene);
             const first = adapter.createRenderedTexture(), remaining = adapter.createRenderedTexture(), renderer = adapter._renderer;
             adapter.bindRenderedTextureScene(first, state.realization.scene, state.camera);
             let firstDisposed = 0, remainingDisposed = 0;
@@ -192,9 +195,9 @@ try {
             remaining.target.addEventListener("dispose", () => { remainingDisposed++; });
             const skin = adapter.bindSkin(fixture.descriptor), skinDone = observeDisposal(skin.root);
             if (replacement) {
-                await assert.rejects(adapter.loadDocument(soft), (error) => error instanceof AggregateError && error.errors.some((e) => /target listener/.test(e.message)));
+                await assert.rejects(documents.load(soft), (error) => error instanceof AggregateError && error.errors.some((e) => /target listener/.test(e.message)));
                 assert.equal(renderer.disposals, 0); assert.equal(renderer.domElement.parentNode, host);
-                assert.equal(adapter._disposed, false); assert.equal(adapter.documentState, null);
+                assert.equal(adapter._disposed, false); assert.equal(documents.state, null);
             } else {
                 renderer.disposalError = new Error("injected renderer disposal failure");
                 assert.throws(() => adapter.dispose(), (error) => error instanceof AggregateError && error.errors.length === 2);
@@ -204,6 +207,7 @@ try {
             assert.equal(firstDisposed, 1); assert.equal(remainingDisposed, 1); sceneDone(); skinDone();
             assert.equal(first.scene, null); assert.equal(first.camera, null);
             assert.equal(adapter._previews.size, 0); assert.equal(adapter._skins.size, 0);
+            documents.dispose();
             assert.throws(() => state.runtime.step({ time: 0, position: [0, 0, 0] }), /disposed/);
             assert.throws(() => state.realization.sink.readPoints("none"), /disposed/);
             adapter.dispose(); adapter.dispose(); assert.equal(renderer.disposals, 1); assert.equal(renderer.domElement.parentNode, null);
@@ -213,7 +217,7 @@ try {
         const adapterURL = new URL("../runtime/scene-core/public/x3d/own-x3d-render-adapter.mjs", import.meta.url);
         const environmentDisposals = async (Adapter, { keepWrapper }) => {
             const adapter = new Adapter(THREE, { createCanvas, preparePhysics: prepareWorld });
-            await adapter.loadDocument(anchor);
+            await documentsOf(adapter).load(anchor);
             let resolved = 0;
             const map = () => ({ kind: "equirect-linear-rgb", width: 4, height: 2, data: new Float32Array(4 * 2 * 3).fill(0.5) });
             assert.deepEqual(adapter.setEnvironmentResolver(async (asset, { signal }) => { resolved++; assert.equal(signal.aborted, false); return map(); }), { supported: true, resolver: true });

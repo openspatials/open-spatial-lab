@@ -1,6 +1,10 @@
 import { normalizePortalTraversal, portalFrameForLocation } from "./live-adapter-portal-geometry.mjs";
 import { arrivalFrame } from "./main-demo-portals.mjs";
 import { refreshWorldMatrix } from "./three-world-matrix.mjs";
+import { prepareWorld } from "./soft-body-world.mjs";
+
+// The Scene Manager loads lazily through #scene-manager: index.html's import map in the browser, package.json's "imports" in Node.
+const loadSceneManager = () => import("#scene-manager");
 
 const ANCHOR = "anchor-portal-world.x3d.json";
 const SOFT = "soft-body.x3d.json";
@@ -37,7 +41,7 @@ export function ownX3dPortalEntry({ state, selection, worlds = [], THREE }) {
   const world4 = mesh.matrixWorld;
   const center = new THREE.Vector3().setFromMatrixPosition(world4).toArray();
   const forward = new THREE.Vector3(0, 1, 0).transformDirection(world4).toArray();
-  const semantic = state.runtime.matrixOf(mesh.userData.x3d.instance);
+  const semantic = state.runtime.matrixOf(mesh.userData.source.instance);
   const semanticResidual = Math.max(...world4.elements.map((value, i) => Math.abs(value - semantic[i])));
   const { radius, height } = shape.children.geometry.fields;
   const viewpoint = state.runtime.viewpoints[0]?.position ?? null;
@@ -147,7 +151,8 @@ export function prepareOwnX3dScene({ rendererPreparation, selection, fetchDocume
     selection = ownX3dDocumentSelection({ explicitRoute: true, world: selection.filename });
   } catch (error) { rendererPreparation.dispose(); throw error; }
   const abort = new AbortController();
-  let retired = false, state = null, physics = null, elapsed = 0, lightingResult = null;
+  // documents: the Scene Manager's host for this route (scene/manager.mjs), made once its module has loaded.
+  let retired = false, state = null, physics = null, elapsed = 0, lightingResult = null, documents = null;
   let portal = null, portalReason = null, aperture = null, idleMaterial = null, applied = 0, windowTarget = null;
   const dispatched = new Set();
   const assertCurrent = () => {
@@ -222,7 +227,7 @@ export function prepareOwnX3dScene({ rendererPreparation, selection, fetchDocume
     for (const release of [() => aperture?.removeFromParent(), () => aperture?.geometry.dispose(), () => idleMaterial?.dispose()]) {
       try { release(); } catch (error) { failures.push(error); }
     }
-    for (const release of [() => adapter.cancelDocument(), () => physics?.dispose(), () => rendererPreparation.dispose()]) {
+    for (const release of [() => documents?.cancel(), () => physics?.dispose(), () => rendererPreparation.dispose(), () => documents?.dispose()]) {
       try { release(); } catch (error) { failures.push(error); }
     }
     physics = null;
@@ -242,7 +247,8 @@ export function prepareOwnX3dScene({ rendererPreparation, selection, fetchDocume
       if (!paused) elapsed += seconds;
       physics?.step(seconds, { paused, armMovement: viewer.armMovement ?? 0 });
       if (retired || !isCurrent()) return;
-      const result = adapter.stepDocument({ time: elapsed, position: viewer.position,
+      adapter.syncScene();
+      const result = documents.step({ time: elapsed, position: viewer.position,
         orientation: viewer.orientation, allowedAnchors: readPermission(), paused });
       for (const intent of result.intents) dispatch(intent);
     },
@@ -250,8 +256,8 @@ export function prepareOwnX3dScene({ rendererPreparation, selection, fetchDocume
     activate(ray) {
       if (retired || !isCurrent() || !state) return false;
       const allowedAnchors = readPermission();
-      const hit = adapter.pickRay({ ...ray, allowedIds: allowedAnchors });
-      return hit ? dispatch(adapter.activateAnchor(hit.anchorId, { time: elapsed, allowedAnchors })) : false;
+      const hit = documents.pick({ ...ray, allowedIds: allowedAnchors });
+      return hit ? dispatch(documents.activate(hit.anchorId, { time: elapsed, allowedAnchors })) : false;
     },
     dispatch, dispose,
   });
@@ -264,7 +270,9 @@ export function prepareOwnX3dScene({ rendererPreparation, selection, fetchDocume
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(originalText)); assertCurrent();
       const sha256 = [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
       if (sha256 !== selection.sha256) throw new Error("X3D document digest does not match admitted source");
-      state = await adapter.loadDocument(originalText, { compatibility: selection.compatibility,
+      const { createX3dSceneHost } = await loadSceneManager(); assertCurrent();
+      documents = createX3dSceneHost({ renderer: adapter, preparePhysics: prepareWorld });
+      state = await documents.load(originalText, { compatibility: selection.compatibility,
         signal: abort.signal, portalBindings: [{ sensor: "PortalTrigger", anchor: "PortalAnchor" }] });
       assertCurrent();
       if (state.realization.preparedPhysics) {

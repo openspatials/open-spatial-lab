@@ -197,7 +197,8 @@ without per-frame cost. Materials that are shared with objects outside the
 scene also take the value.
 
 The environment stays on the scene where it was installed. After `useScene` or
-an owned-X3D `loadDocument`, call `setLighting` again.
+an owned-X3D document load (a `syncScene` that builds a new Scene), call
+`setLighting` again.
 
 Without a resolver, the adapter keeps the earlier behaviour. It reports
 `environment.asset` and `environment.intensity` unsupported (status `limited`),
@@ -219,6 +220,76 @@ scene and camera, then request a frame. Restore the previous render target and
 clear state, dispose targets exactly once, and stop if callbacks retire the mount.
 The existing portal manager also uses `renderScene` for its filtered destination
 compositions. This is local preview rendering, not a promise of cross-engine parity.
+
+## The Scene, the X3D importer and renderer revision 3 (engine milestone M1)
+
+The engine contract is `docs/engine/SCENE-CONTRACT-V0.md` in the container
+repository. The X3D reader and the drawing code share no file; the Scene is the
+only thing passed between them. Under `runtime/scene-core/public/` (the
+browser's `./vendor/scene-core/`):
+
+- `core/math.mjs`: a one-line re-export of `render-adapter/spatial-math.mjs`, so
+  the Scene, the importer and Interaction take their matrix math from `core/`,
+  not from the renderer's folder. The file itself stays in `render-adapter/`,
+  which kit 1.1.2 pins by content.
+- `scene/scene.mjs`: the Scene, version 0: layers of plain data and the access
+  calls `addLayer`, `removeLayer`, `setLayerVisible`, `get`, `find`,
+  `worldMatrix`, `write`, `writeGeometry` and `changes`. Three reading aids are
+  added: `layers()`, `layer(name)` (a layer without its entities and assets) and
+  `asset(name, kind, key)`.
+- `scene/check.mjs`: the plain value checks, moved out of the X3D profile.
+- `scene/manager.mjs`: the Scene Manager.
+  - `loadLayer(scene, importer, source)` imports and adds one layer.
+  - `createX3dSceneHost({ renderer, preparePhysics })` is the X3D document
+    route's host. `load(text or document)` reads the document with the X3D
+    importer into a new Scene, starts Interaction and the physics sink on it,
+    then calls `renderer.attachScene` and `renderer.syncScene`. The previous
+    Scene stays shown until the new one is built; then it is retired. A later
+    load or `cancel()` supersedes a pending one. `step`, `activate` and `pick`
+    are Interaction on the shown Scene; `dispose()` never disposes the renderer.
+  - `createX3dRuntime(document)` keeps the former `x3d/scene-runtime.mjs` calls.
+- `import/x3d/`: the X3D importer. `json-document.mjs` and `profile.mjs` are the
+  reader and field list. `to-scene.mjs` turns a read document into one layer and
+  a load report, and exports `x3dImporter`, whose `capabilities()` now holds the
+  `x3d` entry the adapter used to report. A soft body's prepared surface is the
+  body entity's own dynamic mesh.
+- `interaction/sensors.mjs`: proximity sensors and links on `sensor` and `link`
+  components, and `pickLink`, which turns the host's allowlist into refs, asks
+  the renderer's `pick` and names the hit entity and its nearest link.
+- `physics/bullet/soft-body.mjs`: the physics step, moved from `x3d/` with its
+  step logic unchanged, and `createSceneSink(scene, layer)`: the sink the step
+  writes through, as two Scene writes (a rigid body's transform, a soft body's
+  `POSITION`).
+- `render/three/scene-view.mjs`: the Three.js module's view of a Scene, moved
+  from `x3d/scene-renderer.mjs`. It builds the same objects from Scene data,
+  never writes the Scene and imports no reader. Each drawn object carries
+  `userData.ref` (`{ layer, id }`) and `userData.source` (the entity's source).
+- `assets/rgbe-decoder.mjs`: the HDR decoder, moved from `x3d/`.
+
+`OwnX3dRenderAdapter` (`x3d/own-x3d-render-adapter.mjs`) keeps revision 2 and
+adds revision 3:
+
+- `attachScene(scene)` remembers the Scene and builds nothing.
+- `syncScene()` applies `scene.changes` since the last call. Transforms and
+  dynamic geometry change in place. A new Scene, or a changed layer stack, is
+  rebuilt; a failed build keeps the previous view, and a successful one retires
+  the previous view and the previews and skins drawn over it.
+- `pick({ origin, direction, allowed })` answers with
+  `{ ref, distance, point, normal }` or null; `allowed` lists refs.
+- `detachScene()` frees everything built from the Scene. `attachedScene` reads
+  the Scene the adapter is attached to.
+
+`loadDocument`, `cancelDocument`, `stepDocument`, `activateAnchor`, `pickRay` and
+`documentState` are gone from the adapter. No render adapter method takes an X3D
+document. `web/own-x3d-document.mjs` loads the Scene Manager and passes the
+application's `prepareWorld` to the importer; `web/own-x3d-ammo.mjs` stays in
+`web/` for M1. The capability panel shows the chain in use, for example
+"Source: X3D. Importer: X3D. Renderer: Three.js.", read from the layers of the
+adapter's attached Scene.
+
+The old paths `x3d/profile.mjs`, `x3d/json-document.mjs`,
+`x3d/scene-runtime.mjs`, `x3d/scene-renderer.mjs`, `x3d/soft-body.mjs` and
+`x3d/rgbe-decoder.mjs` are one-line forwards.
 
 ## Evaluator distribution and verification
 

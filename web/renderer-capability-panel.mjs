@@ -1,3 +1,19 @@
+// The source and importer of each layer of the Scene the adapter shows, by the layer's source format.
+const SOURCES = Object.freeze({ "x3d-json": Object.freeze({ source: "X3D", importer: "X3D" }) });
+
+/** The chain in use, e.g. "Source: X3D. Importer: X3D. Renderer: Three.js.", or null when the adapter shows no Scene. */
+export function sceneChainLine(adapter, report) {
+  const scene = adapter?.attachedScene;
+  if (!scene || typeof scene.layers !== "function") return null;
+  const renderer = String(report?.backend || "").startsWith("three") ? "Three.js" : report?.engine || "unknown";
+  const layers = scene.layers().map((name) => scene.layer(name)).filter((layer) => layer.visible);
+  if (!layers.length) return null;
+  return layers.map((layer) => {
+    const format = layer.source?.format, known = SOURCES[format];
+    return `Source: ${known?.source ?? format ?? "unknown"}. Importer: ${known?.importer ?? "unknown"}. Renderer: ${renderer}.`;
+  }).join(" ");
+}
+
 /** A projection of the active adapter and existing settings; owns no renderer policy. */
 export function createRendererCapabilityPanel({ document, readAdapter, readAvatar, readRefresh, rendererChoice }) {
   const host = document.querySelector(".header-actions");
@@ -18,12 +34,19 @@ export function createRendererCapabilityPanel({ document, readAdapter, readAvata
     panel.append(item);
   };
   const refresh = () => {
-    const report = readAdapter()?.getCapabilities();
+    const adapter = readAdapter(), report = adapter?.getCapabilities();
     const features = Object.entries(report?.features || {});
     const limits = features.filter(([, value]) => value.status !== "supported").length;
     summary.textContent = `Renderer: ${report?.engine || "loading"}${limits ? ` · ${limits} limits` : ""}`;
     panel.replaceChildren();
     row("Renderer", `${report?.engine || "loading"} ${report?.version || ""} · requested ${rendererChoice?.requested || "default"}`);
+    const chain = sceneChainLine(adapter, report);
+    if (chain) {
+      const line = document.createElement("p");
+      line.id = "renderer-scene-chain";
+      line.textContent = chain;
+      panel.append(line);
+    }
     if (rendererChoice?.fallback) row("Fallback", rendererChoice.message);
     const avatar = readAvatar();
     row("Avatar", avatar?.avatar_variant || "loading");

@@ -213,7 +213,7 @@ async function waitForNavigation(seen, limitMs = NAV_WAIT_MS) {
 const softPoints = (page, name) => page.evaluate((wanted) => {
   const scene = window.__assembly.scene._impl.scene;
   let mesh = null;
-  scene.traverse((node) => { if (!mesh && node.isMesh && node.name === wanted && node.userData?.x3d?.type === "SoftBody") mesh = node; });
+  scene.traverse((node) => { if (!mesh && node.isMesh && node.name === wanted && node.userData?.source?.type === "SoftBody") mesh = node; });
   if (!mesh) return null;
   mesh.updateMatrixWorld(true);
   const m = mesh.matrixWorld.elements, a = mesh.geometry.attributes.position, out = [];
@@ -435,14 +435,14 @@ const statements = [
 ];
 
 const DOC = "web/own-x3d-document.mjs";
-const RENDER = "runtime/scene-core/public/x3d/scene-renderer.mjs";
+const RENDER = "runtime/scene-core/public/render/three/scene-view.mjs";
 const faults = [
   { statement: "anchor-boots", name: "shapes realized hidden, so only the background draws", expect: /authored content covers/, edits: [
-    { file: RENDER, find: `case "Shape": parent.add(register(shapeMesh(node), node, instance, anchorId)); break;`, replace: `case "Shape": { const hidden = register(shapeMesh(node), node, instance, anchorId); hidden.visible = false; parent.add(hidden); break; }` }] },
+    { file: RENDER, find: `if (shape) { place(shape, entity.transform); into.add(register(shape, entity, layer)); built.set(entity.id, shape); continue; }`, replace: `if (shape) { place(shape, entity.transform); const hidden = register(shape, entity, layer); hidden.visible = false; into.add(hidden); built.set(entity.id, shape); continue; }` }] },
   { statement: "soft-boots", name: "lighting removed: directional and environment light at zero", expect: /lit content covers/, edits: [
-    { file: RENDER, find: "new THREE.DirectionalLight(new THREE.Color().fromArray(f.color), f.intensity)", replace: "new THREE.DirectionalLight(new THREE.Color().fromArray(f.color), 0)" },
-    { file: RENDER, find: "if (f.ambientIntensity) parent.add(", replace: "if (false) parent.add(" },
-    { file: RENDER, find: "new THREE.AmbientLight(new THREE.Color().fromArray(f.color), f.ambientIntensity), node, instance)); break;", replace: "new THREE.AmbientLight(new THREE.Color().fromArray(f.color), 0), node, instance)); break;" }] },
+    { file: RENDER, find: "new THREE.DirectionalLight(new THREE.Color().fromArray(light.color), light.intensity)", replace: "new THREE.DirectionalLight(new THREE.Color().fromArray(light.color), 0)" },
+    { file: RENDER, find: "if (light.ambientIntensity) parent.add(", replace: "if (false) parent.add(" },
+    { file: RENDER, find: "new THREE.AmbientLight(new THREE.Color().fromArray(environment.color), environment.intensity));", replace: "new THREE.AmbientLight(new THREE.Color().fromArray(environment.color), 0));" }] },
   { statement: "walk-speed", name: "the document viewer walks at half speed", expect: /walked at [\d.]+ m\/s/, edits: [
     { file: "web/movement-camera-controller.mjs", find: "const distance = 2.4 * deltaSeconds;", replace: "const distance = 1.2 * deltaSeconds;" }] },
   { statement: "anchor-click", name: "the route allowlist names /w/a/ for the anchor document", expect: /no navigation after a click/, edits: [
@@ -450,9 +450,9 @@ const faults = [
   { statement: "soft-crossing", name: "crossing intents are never dispatched", expect: /no navigation after walking/, edits: [
     { file: DOC, find: "for (const intent of result.intents) dispatch(intent);", replace: "for (const intent of []) dispatch(intent);" }] },
   { statement: "soft-physics", name: "physics never advances", expect: /the ball fell/, edits: [
-    { file: "runtime/scene-core/public/x3d/soft-body.mjs", find: "world.stepSimulation(delta, 10);", replace: "world.stepSimulation(0, 10);" }] },
+    { file: "runtime/scene-core/public/physics/bullet/soft-body.mjs", find: "world.stepSimulation(delta, 10);", replace: "world.stepSimulation(0, 10);" }] },
   { statement: "route-dispose", name: "the scene is released before physics", expect: /the scene was released before physics/, edits: [
-    { file: DOC, find: "for (const release of [() => adapter.cancelDocument(), () => physics?.dispose(), () => rendererPreparation.dispose()]) {", replace: "for (const release of [() => adapter.cancelDocument(), () => rendererPreparation.dispose(), () => physics?.dispose()]) {" }] },
+    { file: DOC, find: "for (const release of [() => documents?.cancel(), () => physics?.dispose(), () => rendererPreparation.dispose(), () => documents?.dispose()]) {", replace: "for (const release of [() => documents?.cancel(), () => rendererPreparation.dispose(), () => physics?.dispose(), () => documents?.dispose()]) {" }] },
   { statement: "redirect", name: "x3d-world.html no longer redirects own-x3d", expect: /the page stayed at/, edits: [
     { file: "web/x3d-world.mjs", find: `if (requestedKind === "own-x3d") {`, replace: `if (false) {` }] },
 ];
