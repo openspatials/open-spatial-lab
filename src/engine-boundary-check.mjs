@@ -3,8 +3,10 @@
 //   node src/engine-boundary-check.mjs --root <dir>    check another copy of runtime/scene-core/public (a planted break)
 // Rules 1 to 4 are milestone M1's boundary greps made into one check; rules 5 to 7 are milestone M2's; rule 8 is the
 // milestone "skins in the Scene" (rule 6 lost its forwards exception there). Rule 8 also reads the document route's
-// application files under web/ (from this code folder, also with --root). Prints one JSON summary; exits 1 when a rule
-// is broken or a planted fault is missed.
+// application files under web/ (from this code folder, also with --root). Rule 9 is the milestone "the first dressed
+// avatar": a processor's output reaches the engine only as a file (docs/engine/PROCESSOR-CONTRACT-V0.md), so no engine
+// file imports the garment processor (fitting/garments/ in the avatars build), by path or by name. Prints one JSON
+// summary; exits 1 when a rule is broken or a planted fault is missed.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +43,12 @@ const ROUTE_FILE = "web/own-x3d-document.mjs";
 const CONTROLLER = "web/scene-runtime-controller.mjs";
 const ROUTE_BLOCK = ["// document-route:begin", "// document-route:end"];
 const SKIN_CALL = /\b(bindSkin|setSkinPose|disposeSkin)\s*(\?\.)?\s*\(/;
+/** Every engine file but vendor/, the root's files included. */
+const engineFiles = () => ["", ...readdirSync(ENGINE).filter((name) => statSync(join(ENGINE, name)).isDirectory() && name !== "vendor")]
+    .flatMap((dir) => (dir ? filesIn(dir) : readdirSync(ENGINE).filter((name) => /\.m?js$/.test(name))));
+// The garment processor, in the avatars build: its folder (fitting/garments/), or any module named for garments.
+const GARMENT_PROCESSOR = /(^|[\/])fitting[\/]garments([\/]|$)|garment/i;
+const requiresOf = (text) => [...text.matchAll(/\brequire\s*\(\s*["']([^"']+)["']\s*\)/g)].map((m) => m[1]);
 const skinCalls = (file, text, offset = 0) => lines(text).filter(({ line }) => SKIN_CALL.test(line)).map(({ n, line }) => `${file}:${n + offset}: ${line.trim().slice(0, 100)}`);
 
 /** Each rule returns its crossings, as "file:line: what". */
@@ -64,14 +72,18 @@ const RULES = {
     // Skins in the Scene
     "8 on the document route only the Renderer calls bindSkin, setSkinPose or disposeSkin": (read) => {
         const renderer = new Set(rendererFiles());
-        const engine = ["", ...readdirSync(ENGINE).filter((name) => statSync(join(ENGINE, name)).isDirectory() && name !== "vendor")]
-            .flatMap((dir) => (dir ? filesIn(dir) : readdirSync(ENGINE).filter((name) => /\.m?js$/.test(name))))
-            .filter((f) => !renderer.has(f)).flatMap((f) => skinCalls(f, read(f)));
+        const engine = engineFiles().filter((f) => !renderer.has(f)).flatMap((f) => skinCalls(f, read(f)));
         const controller = read(CONTROLLER), begin = controller.indexOf(ROUTE_BLOCK[0]), end = controller.indexOf(ROUTE_BLOCK[1]);
         if (begin < 0 || end < begin) return [...engine, `${CONTROLLER}: no "${ROUTE_BLOCK[0]}" ... "${ROUTE_BLOCK[1]}" block`];
         return [...engine, ...skinCalls(ROUTE_FILE, read(ROUTE_FILE)),
             ...skinCalls(CONTROLLER, controller.slice(begin, end), controller.slice(0, begin).split("\n").length - 1)];
     },
+    // The first dressed avatar
+    "9 no engine file imports the garment processor": (read) => engineFiles().flatMap((f) => {
+        const text = read(f);
+        return [...importsOf(text), ...requiresOf(text)].filter((s) => GARMENT_PROCESSOR.test(s) || GARMENT_PROCESSOR.test(target(f, s)))
+            .map((s) => `${f}: imports ${s}`);
+    }),
 };
 
 const run = (overrides = {}) => Object.entries(RULES).map(([rule, check]) => ({ rule, crossings: check(reader(overrides)) }));
@@ -90,6 +102,7 @@ const FAULTS = rootAt > 0 ? [] : [
     { rule: "7 the Scene, Interaction and Physics import no renderer file", edit: append("interaction/sensors.mjs", 'import { createSceneView } from "../render/three/scene-view.mjs";') },
     { rule: "8 on the document route only the Renderer calls bindSkin, setSkinPose or disposeSkin", edit: { [CONTROLLER]: readFileSync(join(CODE, CONTROLLER), "utf8")
         .replace(ROUTE_BLOCK[1], `adapter.setSkinPose(binding, pose);\n  ${ROUTE_BLOCK[1]}`) } },
+    { rule: "9 no engine file imports the garment processor", edit: append("scene/scene.mjs", 'import { loadSkinned } from "../../../../fitting/garments/skinned.mjs";') },
 ];
 const faults = FAULTS.map(({ rule, edit }) => {
     const found = run(edit).find((r) => r.rule === rule).crossings;

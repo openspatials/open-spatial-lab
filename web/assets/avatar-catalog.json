@@ -58,6 +58,17 @@
       "license": "Adobe Mixamo character"
     },
     {
+      "key": "collection-amy--top-tight",
+      "label": "Amy, fitted top",
+      "type": "glb",
+      "url": "/assets/actionforge/characters/amy--top-tight/amy--top-tight.glb",
+      "prepared": "/assets/actionforge/characters/amy--top-tight/amy--top-tight.avatar.json",
+      "runtime": "actionforge",
+      "scale": 1,
+      "rotation_y": 0,
+      "license": "Adobe Mixamo character"
+    },
+    {
       "key": "collection-brian",
       "label": "Brian",
       "type": "glb",
