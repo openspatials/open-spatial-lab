@@ -1,8 +1,10 @@
 // Ported by hand from Nicholas Polys's public fork npolys/open-spatial-lab, commit 99175b4b6,
 // web/x3dom-gltf-humanoid-provider.mjs. Apache-2.0, like the rest of the lab. Nicholas Polys is co-author of lab commit ef702ec.
 // Changes in this copy: kind follows the adapter, and the equipment scale goes through adapter.multiplyScale(), so X_ITE can use this provider too.
+// Lab change: the anchors come from the avatar's <id>.body.json when it has one (see anchorsFromBody).
 
 import { HumanoidProvider } from "./humanoid-provider.mjs";
+import { composeTRS, transformPoint } from "./vendor/scene-core/render-adapter/spatial-math.mjs";
 
 // Scoped deliverable — see humanoid-provider.mjs. Name says "gltf" deliberately: this targets
 // glTF/VRM avatars directly via X3DOMRenderAdapter's Inline-slot-pool mechanism (real, verified —
@@ -29,6 +31,52 @@ const ATTACHMENT_ANCHOR_PRESETS = Object.freeze({
 // assetRoot.scale.setScalar(0.2) nests inside visualRoot before applyLocalTransform runs on
 // visualRoot itself) — mirrored here so both engines render equipped items at the same size.
 const EQUIPMENT_ASSET_SCALE = 0.2;
+// Lab change: the presets above were tuned to the Ready Player Me arms-down avatar. A collection character has a
+// <id>.body.json beside its glb (same folder and stem), measured in the avatar frame the engines draw it in: metres,
+// +X the avatar's left, +Y up, +Z forward (its rest_pose position_m already carries the glTF root's -90 degree X
+// rotation: y-bot's pelvis has local_translation z 0.854 and position_m y 0.854). anchorsFromBody places each anchor
+// there; a missing or unreadable body.json keeps the presets.
+// The head items' authored offsets (equipment-view.js legacy transforms plus their 0.2-scaled undersides) lift them
+// 0.2 m (hat), 0.15 m (helmet) and 0.24 m (crown) above the head anchor. The three.js seat rule (seatHeadItem in
+// avatar-equipment-layer.js) puts the hat's underside 0.067 m below the head top, the helmet's 0.077 m and the
+// crown's 0.039 m. One drop below the measured head top lands all three within 4 cm of that rule.
+const HEAD_ITEM_SEAT_DROP_M = 0.26;
+
+/** Anchor offsets in the avatar frame from a body.json: hands at the grip hollow (or the palm), head at its top. */
+export function anchorsFromBody(body) {
+    const pose = body && body.rest_pose;
+    const roles = body && body.roles;
+    if (!pose || !roles)
+        return {};
+    const out = {};
+    for (const [name, side] of [["leftHand", "l"], ["rightHand", "r"]]) {
+        const bone = pose[roles[name]];
+        const hand = body.hands && body.hands[side];
+        const grip = hand && ((hand.hollow && hand.hollow.position_m) || hand.palm_m);
+        if (bone && Array.isArray(bone.position_m) && Array.isArray(bone.rotation) && Array.isArray(grip))
+            out[name] = transformPoint(composeTRS(bone.position_m, bone.rotation, [1, 1, 1]), grip);
+    }
+    const head = pose[roles.head];
+    const top = body.volumes && body.volumes.head && body.volumes.head.max_m && body.volumes.head.max_m[1];
+    if (head && Array.isArray(head.position_m) && Number.isFinite(top))
+        out.head = [head.position_m[0], head.position_m[1] + top - HEAD_ITEM_SEAT_DROP_M, head.position_m[2]];
+    return out;
+}
+
+// One fetch per avatar URL, shared by the local avatar and every peer drawn with the same model.
+const bodyAnchorsByUrl = new Map();
+function bodyAnchorsFor(url) {
+    const bodyUrl = typeof url === "string" && /\.glb(?=$|[?#])/.test(url) ? url.replace(/\.glb(?=$|[?#])/, ".body.json") : null;
+    if (!bodyUrl)
+        return Promise.resolve({});
+    if (!bodyAnchorsByUrl.has(url)) {
+        bodyAnchorsByUrl.set(url, fetch(bodyUrl)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((body) => anchorsFromBody(body))
+            .catch(() => ({})));
+    }
+    return bodyAnchorsByUrl.get(url);
+}
 // Lab change: his fork used 15000. A 6 MB avatar on a machine with no graphics card took longer.
 const AVATAR_LOAD_TIMEOUT_MS = 60000;
 
@@ -47,12 +95,25 @@ export class X3domGltfHumanoidProvider extends HumanoidProvider {
         if (position)
             this._adapter.setPosition(node, position[0], position[1], position[2]);
         node._x3domAnchors = {};
+        node._x3domAnchorOffsets = {};
         for (const [name, offset] of Object.entries(ATTACHMENT_ANCHOR_PRESETS)) {
             const anchor = this._adapter.createGroup(`equipment-anchor-${name}`);
             this._adapter.setPosition(anchor, offset[0], offset[1], offset[2]);
             this._adapter.add(node, anchor);
             node._x3domAnchors[name] = anchor;
+            node._x3domAnchorOffsets[name] = { source: "preset", offset: offset.slice() };
         }
+        // Lab change: move the anchors to the avatar's own body once its body.json has loaded; items already attached
+        // move with them. Resolves with the offsets used (also on node._x3domAnchorOffsets).
+        node._x3domAnchorsPlaced = bodyAnchorsFor(url).then((fromBody) => {
+            for (const [name, offset] of Object.entries(fromBody)) {
+                if (!node._x3domAnchors[name])
+                    continue;
+                this._adapter.setPosition(node._x3domAnchors[name], offset[0], offset[1], offset[2]);
+                node._x3domAnchorOffsets[name] = { source: "body.json", offset };
+            }
+            return node._x3domAnchorOffsets;
+        });
         return { handle: node, ready: ready.then(() => node) };
     }
     setPosition(handle, x, y, z) { this._adapter.setPosition(handle, x, y, z); }

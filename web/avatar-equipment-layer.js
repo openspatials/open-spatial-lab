@@ -109,7 +109,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-brian": {
@@ -126,7 +126,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-bryce": {
@@ -143,7 +143,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-david": {
@@ -160,7 +160,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-joe": {
@@ -177,7 +177,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-josh": {
@@ -194,7 +194,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-kate": {
@@ -211,7 +211,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-leonard": {
@@ -228,7 +228,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-martha": {
@@ -245,7 +245,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-remy": {
@@ -262,7 +262,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-roth": {
@@ -279,7 +279,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-suzie": {
@@ -296,7 +296,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-x-bot": {
@@ -313,7 +313,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-y-bot": {
@@ -330,7 +330,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-aj": {
@@ -347,7 +347,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-akai-e-espiritu": {
@@ -364,7 +364,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-alien-soldier": {
@@ -381,7 +381,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-arissa": {
@@ -398,7 +398,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-big-vegas": {
@@ -415,7 +415,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-brute": {
@@ -432,7 +432,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-castle-guard-02": {
@@ -449,7 +449,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-claire": {
@@ -466,7 +466,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-copzombie-l-actisdato": {
@@ -483,7 +483,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-crypto": {
@@ -500,7 +500,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-demon-t-wiezzorek": {
@@ -517,7 +517,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-doozy": {
@@ -534,7 +534,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-drake": {
@@ -551,7 +551,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-ely-by-k-atienza": {
@@ -568,7 +568,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-erika-archer": {
@@ -585,7 +585,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-eve-by-j-gonzales": {
@@ -602,7 +602,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-ganfaul-m-aure": {
@@ -619,7 +619,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-girlscout-t-masuyama": {
@@ -636,7 +636,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-goblin-d-shareyko": {
@@ -653,7 +653,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-helium": {
@@ -670,7 +670,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-jolleen": {
@@ -687,7 +687,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-jones": {
@@ -704,7 +704,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-kaya": {
@@ -721,7 +721,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-knight-d-pelegrini": {
@@ -738,7 +738,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-lola-b-styperek": {
@@ -755,7 +755,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-maw-j-laygo": {
@@ -772,7 +772,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-maynard": {
@@ -789,7 +789,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-medea-by-m-arrebola": {
@@ -806,7 +806,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-mousey": {
@@ -823,7 +823,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-mutant": {
@@ -840,7 +840,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-olivia": {
@@ -857,7 +857,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-paladin-wprop-j-nordstrom": {
@@ -874,7 +874,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-parasite-l-starkie": {
@@ -891,7 +891,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-peasant-girl": {
@@ -908,7 +908,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-peasant-man": {
@@ -925,7 +925,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-pumpkinhulk-l-shaw": {
@@ -942,7 +942,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-skeletonzombie-t-avelange": {
@@ -959,7 +959,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-sporty-granny": {
@@ -976,7 +976,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-survivor-a-lusth": {
@@ -993,7 +993,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-the-boss": {
@@ -1010,7 +1010,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-timmy": {
@@ -1027,7 +1027,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-ty": {
@@ -1044,7 +1044,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-uriel-a-plotexia": {
@@ -1061,7 +1061,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-vampire-a-lusth": {
@@ -1078,7 +1078,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-vanguard-by-t-choonyung": {
@@ -1095,7 +1095,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-warrok-w-kurniawan": {
@@ -1112,7 +1112,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-whiteclown-n-hallin": {
@@ -1129,7 +1129,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
   "collection-game-zlorp": {
@@ -1146,7 +1146,7 @@ export const AVATAR_VARIANTS = Object.freeze({
     equipment_attachment: "actionforge-bone-frames",
     licence: "Adobe Mixamo character",
     licence_holder: "Adobe Mixamo",
-    starting_pool: true,
+    starting_pool: false,
     structured_unsupported: [],
   },
 });
