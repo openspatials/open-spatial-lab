@@ -143,6 +143,10 @@ await finish({ checkFile: "src/extension-host-browser-check.mjs", faults: [
     edits: [{ file: HOST, find: "const targets = [timer.attachment];", replace: "const targets = [...attachments];" }] },
   { statement: "web-integrity", name: "skip the hash check", expect: /a wrong integrity loads/,
     edits: [{ file: HOST, find: "if (digest !== declaration.module.integrity)", replace: "if (false)" }] },
+  { statement: "web-event-soft-overrun", name: "end the worker at the soft limit", expect: /ended at the soft limit/,
+    edits: [{ file: HOST, find: "const hardMs = kind === \"init\" ? limits.initMs : limits.eventHardMs;", replace: "const hardMs = kind === \"init\" ? limits.initMs : limits.eventMs;" }] },
+  { statement: "web-second-budget-holds", name: "no hold", expect: /no event of the busy extension was held/,
+    edits: [{ file: HOST, find: "if (usedMs() >= limits.secondMs) return hold(item);", replace: "if (false) return hold(item);" }] },
   { statement: "web-sandbox-is-worker", name: "run the guest on the main page instead of in a Worker", expect: /not a DedicatedWorkerGlobalScope/,
     edits: [{ file: WEB, find: "const worker = new Worker(new URL(import.meta.url), { type: \"module\" });", replace: [
       "const worker = (() => {",

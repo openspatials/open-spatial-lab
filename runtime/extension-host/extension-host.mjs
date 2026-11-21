@@ -11,6 +11,15 @@
 // requests and storage backend), which runs here, with the fetch and the storage backend this host is given, and hands
 // its events (fetch results) to one attachment's Notify the same way. Lifecycle calls and events run one at a time.
 //
+// Time budgets. The sandbox measures each call on this thread, from its start to its end, so the time is elapsed time,
+// not the extension's own CPU time (a browser gives no CPU time per worker); a loaded machine makes calls look longer.
+// So a lifecycle or event call has two limits: over eventMs (the soft limit) it is counted (overruns, overrunsInRow)
+// and the extension goes on; at eventHardMs the watchdog ends the worker, as do OVERRUNS_IN_A_ROW soft overruns in a
+// row. Init has the one limit initMs. Over any one second the calls of one extension may take secondMs: while that
+// window is full, its timer events and page events (notify: pointer input) are held, one per timer, and delivered when
+// the window has room; lifecycle calls and fetch results are never held. setPaused(true) (the page is hidden) holds
+// every timer and page event: a page event is dropped, and each timer that came due fires once on setPaused(false).
+//
 // The page may change an attachment's grant while the extension runs (setGrant: the user allowed or withdrew a token)
 // and hand an attachment an event of its own (notify: a pointer event). A grant change reaches the worker at once, so
 // the next call is checked against it, and the attachment's requests in flight whose token is no longer granted are
@@ -30,6 +39,15 @@ const BINDINGS = Object.freeze({
   "ue-core/0": new URL("./bindings/ue-core.mjs", import.meta.url).href,
 });
 
+// One import per binding, shared by every extension a page loads at once. ue-core.mjs has a top-level await (its JSON
+// table), and WebKit 26 settles a second import() of such a module that starts while the first is still evaluating
+// before the module has run, so its exports throw "Cannot access 'NAME' before initialization".
+const bindingImports = new Map();
+const importBinding = (url) => {
+  if (!bindingImports.has(url)) bindingImports.set(url, import(url));
+  return bindingImports.get(url);
+};
+
 /** Sandbox adapters by name. */
 const SANDBOXES = Object.freeze({
   node: new URL("./sandbox-node.mjs", import.meta.url).href,
@@ -42,7 +60,12 @@ export function defaultSandbox() {
 }
 
 /** The host's budgets. A declaration's limits may lower them, never raise them. */
-export const DEFAULT_BUDGETS = Object.freeze({ initMs: 500, eventMs: 20, memoryBytes: 16 * MIB, startMs: 5000 });
+export const DEFAULT_BUDGETS = Object.freeze({ initMs: 500, eventMs: 20, eventHardMs: 250, secondMs: 250, memoryBytes: 16 * MIB, startMs: 5000 });
+/** Soft overruns in a row that end the worker. */
+export const OVERRUNS_IN_A_ROW = 10;
+/** The window of the budget per second, in milliseconds. */
+const WINDOW_MS = 1000;
+const now = () => globalThis.performance.now();
 
 const oneLine = (error) => String((error && error.message) || error).replace(/\s+/g, " ").trim();
 const mib = (bytes) => `${Math.round((bytes / MIB) * 100) / 100} MiB`;
@@ -179,8 +202,10 @@ const KEPT_EVENTS = 100;
  * Loads one extension and opens its first attachment ({ index, fabric, pose, placement }, where fabric.Data is the tree
  * DATA and NODE_MAP_DATA read, pose is optional, and placement { world, node } names where it is placed, for its
  * storage). Resolves, never rejects, to the extension: { ok, error, stage, binding, log, logEntries, nodes, refusals,
- * calls, events, memoryBytes, budgetExceeded, callMs, open(attachment), close(index), shutdown(), sandbox,
- * sandboxScope, running, setGrant(index, grant), grantOf(index), notify(index, event) }. logEntries are the log lines
+ * calls, events, memoryBytes, budgetExceeded, callMs, overruns, overrunsInRow, heldEvents, paused, open(attachment),
+ * close(index), shutdown(), sandbox, sandboxScope, running, setGrant(index, grant), grantOf(index), notify(index, event),
+ * setPaused(paused) }. overruns counts the calls over the soft limit eventMs, overrunsInRow those in a row; heldEvents
+ * counts the events held by the budget per second; paused is the last setPaused value. logEntries are the log lines
  * with the attachment each came from; events are the Notify events
  * handed to the module ({ attachment, event }, the last 100). `stage` names where a refusal or failure happened:
  * declaration, integrity, compile, imports, memory, worker, init or open. `sandbox` ("node" or "web") overrides the
@@ -190,8 +215,9 @@ const KEPT_EVENTS = 100;
  *
  * setGrant(index, grant) replaces one open attachment's grant (cut down to what the declaration requests, like the
  * first one) while the extension runs and resolves { ok, error, grant }. notify(index, event) hands one open attachment
- * a Notify event from the page; it resolves once the event has run. `running` is true while the worker runs and an
- * attachment is open.
+ * a Notify event from the page; it resolves once the event has run, is held, or is dropped (while paused). `running` is
+ * true while the worker runs and an attachment is open. `budgets` may set any of DEFAULT_BUDGETS (the host's own);
+ * declaration.limits may lower them, never raise them.
  */
 export async function loadExtension({ bytes, declaration, grant = [], budgets = {}, attachment = { index: 1, fabric: { Data: {} } }, sandbox: sandboxKind, fetch: fetchImpl, storage } = {}) {
   const nodes = new Map();
@@ -204,9 +230,18 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
   let requested = new Set();
   let firstGrant = [];
   const grants = new Map();
+  // The budget per second: the calls that ended in the last WINDOW_MS ({ at, ms }); events held while it is full; the
+  // timers that came due while paused.
+  const spentWindow = [];
+  const held = [];
+  const queuedTimers = new Set();
+  const dueWhilePaused = new Set();
+  let releaseHandle = null;
+  let paused = false;
 
   const extension = {
     ok: false, error: null, stage: null, binding: null, sandbox: null, sandboxScope: null, log: [], logEntries: [], refusals: [], calls: [], events: [], memoryBytes: 0, budgetExceeded: false, callMs: null,
+    overruns: 0, overrunsInRow: 0, heldEvents: 0, paused: false,
     get nodes() { return [...nodes.values()].map((node) => ({ ...node })); },
     get running() { return !!sandbox && !sandbox.ended && attachments.size > 0; },
     open: (next) => openAttachment(next),
@@ -214,7 +249,8 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
     async shutdown() { for (const index of [...attachments]) await closeAttachment(index); },
     setGrant: async (index, next) => setGrant(index, next),
     grantOf: (index) => [...(grants.get(index) || firstGrant)],
-    notify: (index, event) => deliver(index, event),
+    notify: (index, event) => dispatch({ index, event }),
+    setPaused: (value) => setPaused(value),
   };
   const fail = (stage, error) => {
     extension.ok = false;
@@ -248,25 +284,121 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
     queue = next.catch(() => {});
     return next;
   };
-  const runNow = async (op, args, budgetMs) => {
-    const result = await sandbox.call(op, args, budgetMs);
+  // One call. `kind` "init" has the one limit initMs; "event" (every other call) the soft limit eventMs and the hard
+  // limit eventHardMs, which the sandbox's watchdog enforces.
+  const runNow = async (op, args, kind = "event") => {
+    const hardMs = kind === "init" ? limits.initMs : limits.eventHardMs;
+    const result = await sandbox.call(op, args, hardMs);
     extension.memoryBytes = Math.max(extension.memoryBytes, result.memoryBytes || 0);
+    if (Number.isFinite(result.callMs)) spentWindow.push({ at: now(), ms: result.callMs });
     if (result.budgetExceeded) {
       extension.budgetExceeded = true;
       extension.callMs = result.callMs;
-    }
-    if (sandbox.ended) {
-      clearTimers();
-      if (services) services.closeAll();
-    }
+      if (!extension.error) extension.error = result.error;
+    } else if (kind === "event" && result.ok) countOverrun(result.callMs);
+    if (sandbox.ended) endEvents();
     return result;
   };
-  const run = (op, args, budgetMs) => serial(() => runNow(op, args, budgetMs));
+  const run = (op, args, kind) => serial(() => runNow(op, args, kind));
 
-  // A host-side event for one attachment (a fetch result): to its Notify, while it is open.
+  // The soft limit: a call over eventMs is counted; OVERRUNS_IN_A_ROW in a row end the worker.
+  function countOverrun(callMs) {
+    if (!(callMs > limits.eventMs)) {
+      extension.overrunsInRow = 0;
+      return;
+    }
+    extension.overruns += 1;
+    extension.overrunsInRow += 1;
+    if (extension.overrunsInRow >= OVERRUNS_IN_A_ROW) {
+      extension.budgetExceeded = true;
+      extension.callMs = callMs;
+      extension.error = `${OVERRUNS_IN_A_ROW} calls in a row ran over the ${limits.eventMs} ms event budget; the worker was ended`;
+      sandbox.terminate();
+    }
+  }
+  function endEvents() {
+    clearTimers();
+    if (services) services.closeAll();
+    held.length = 0;
+    dueWhilePaused.clear();
+    if (releaseHandle) clearTimeout(releaseHandle);
+    releaseHandle = null;
+  }
+
+  // The budget per second: the call time of the calls that ended within the last WINDOW_MS.
+  function usedMs() {
+    const from = now() - WINDOW_MS;
+    while (spentWindow.length && spentWindow[0].at <= from) spentWindow.shift();
+    return spentWindow.reduce((sum, entry) => sum + entry.ms, 0);
+  }
+  function hold(item) {
+    if (item.timer !== undefined && held.some((other) => other.timer === item.timer)) return;
+    held.push(item);
+    extension.heldEvents += 1;
+    scheduleRelease();
+  }
+  // When the oldest call leaves the window, the held events go again, in order (each is checked again).
+  function scheduleRelease() {
+    if (releaseHandle || paused || !held.length || !sandbox || sandbox.ended) return;
+    usedMs();
+    const wait = spentWindow.length ? Math.max(1, Math.ceil(spentWindow[0].at + WINDOW_MS - now())) : 1;
+    releaseHandle = setTimeout(() => {
+      releaseHandle = null;
+      for (const item of held.splice(0)) dispatch({ ...item, released: true });
+    }, wait);
+    if (releaseHandle && typeof releaseHandle.unref === "function") releaseHandle.unref();
+  }
+  // While paused, a timer that comes due is kept to fire once on resume; a page event is dropped.
+  function keepWhilePaused(item) {
+    if (item.timer !== undefined) dueWhilePaused.add(item.timer);
+  }
+  function setPaused(value) {
+    paused = !!value;
+    extension.paused = paused;
+    if (paused) {
+      if (releaseHandle) clearTimeout(releaseHandle);
+      releaseHandle = null;
+      return;
+    }
+    const due = [...dueWhilePaused];
+    dueWhilePaused.clear();
+    for (const id of due) dispatch({ timer: id });
+    scheduleRelease();
+  }
+
+  // A timer event ({ timer }) or a page event for one attachment ({ index, event }), under the budget per second and
+  // the pause. One delivery per timer waits at a time.
+  function dispatch(item) {
+    if (!sandbox || sandbox.ended) return Promise.resolve();
+    if (paused) return Promise.resolve(keepWhilePaused(item));
+    if (held.length && !item.released) return Promise.resolve(hold(item));
+    if (item.timer !== undefined) {
+      if (queuedTimers.has(item.timer)) return Promise.resolve();
+      queuedTimers.add(item.timer);
+    }
+    return serial(async () => {
+      if (item.timer !== undefined) queuedTimers.delete(item.timer);
+      if (!sandbox || sandbox.ended) return;
+      if (paused) return keepWhilePaused(item);
+      if (usedMs() >= limits.secondMs) return hold(item);
+      if (item.timer === undefined) {
+        if (attachments.has(item.index)) await runNow("notify", { index: item.index, event: item.event }, "event");
+        return;
+      }
+      const id = item.timer;
+      const timer = timers.get(id);
+      if (!timer) return;
+      if (!timer.repeat) timers.delete(id);
+      // A due timer goes only to the attachment that set it.
+      const targets = [timer.attachment];
+      for (const index of targets) await runNow("notify", { index, timer: id }, "event");
+    });
+  }
+
+  // A host-side event for one attachment (a fetch result): to its Notify, while it is open. Never held.
   const deliver = (index, event) => serial(async () => {
     if (!sandbox || sandbox.ended || !attachments.has(index)) return;
-    await runNow("notify", { index, event }, limits.eventMs);
+    await runNow("notify", { index, event }, "event");
   });
 
   // A grant change for one open attachment, at once: the worker checks the next call against it, and the requests in
@@ -299,14 +431,7 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
     timers.set(id, { attachment: owner, repeat, handle });
   }
   function fire(id) {
-    serial(async () => {
-      const timer = timers.get(id);
-      if (!timer || !sandbox || sandbox.ended) return;
-      if (!timer.repeat) timers.delete(id);
-      // A due timer goes only to the attachment that set it.
-      const targets = [timer.attachment];
-      for (const index of targets) await runNow("notify", { index, timer: id }, limits.eventMs);
-    });
+    if (timers.has(id)) void dispatch({ timer: id });
   }
 
   async function openAttachment(next) {
@@ -317,7 +442,7 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
     const result = await run("open", {
       index, fabric: next.fabric || { Data: {} }, snapshot: snapshotFor(declaration, next),
       declaration, attachment: { index, pose: next.pose || null }, ...(services ? services.openArgs(index, next) : {}),
-    }, limits.eventMs);
+    }, "event");
     if (!result.ok) {
       if (services) services.closeAttachment(index);
       attachments.delete(index);
@@ -330,7 +455,7 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
     if (!sandbox || !attachments.has(index)) return { ok: false, error: `attachment ${index} is not open` };
     const result = await serial(async () => {
       if (services) services.closeAttachment(index);
-      const closed = await runNow("close", { index }, limits.eventMs);
+      const closed = await runNow("close", { index }, "event");
       clearTimers(index);
       return closed;
     });
@@ -338,7 +463,7 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
     grants.delete(index);
     releaseAttachment(index);
     if (attachments.size === 0 && !sandbox.ended) {
-      await run("shutdown", {}, limits.eventMs);
+      await run("shutdown", {}, "event");
       sandbox.terminate();
       clearTimers();
     }
@@ -374,7 +499,7 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
   }
 
   // 3. Imports: every one must be defined by the binding.
-  const binding = await import(bindingUrl);
+  const binding = await importBinding(bindingUrl);
   extension.binding = binding.NAME;
   const interfaces = binding.INTERFACES || [binding.INTERFACE];
   if (declaration.interface !== undefined && !interfaces.includes(declaration.interface)) {
@@ -414,7 +539,7 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
   extension.sandboxScope = started.scope || null;
 
   // 6. Init, then the first attachment.
-  const init = await run("init", {}, limits.initMs);
+  const init = await run("init", {}, "init");
   if (!init.ok) {
     sandbox.terminate();
     return fail("init", init.error);

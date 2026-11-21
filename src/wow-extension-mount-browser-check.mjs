@@ -14,10 +14,12 @@
 //
 // One case mounts a node that declares its extension through a signed carrier manifest
 // (`webofworlds_extension.universal_extension_manifests`); the check signs the carrier (fixtures/extension-host/carrier.mjs)
-// and serves it at /__ue-carrier/box-carrier.json.
+// and serves it at /__ue-carrier/box-carrier.json. Another (manifest-signed-by) requests a prompted token and reads the
+// "Signed by" line of its consent dialog.
 //
 // One case moves a node through the host's node list: no test module calls node-set-transform, so the check page
 // gives the mount the node fields a node-set-transform leaves (position, rotation, scale) for the Box node.
+import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { nodeChecks } from "../tools/behavior/node-checks.mjs";
@@ -240,6 +242,38 @@ await run("manifest-extension-runs", async () => {
   assert(same(at, node) && same(node, [2, 0, 1]), "the Box is at " + JSON.stringify(at) + ", the carried-box node at " + JSON.stringify(node));
 });
 
+
+// ---- The consent dialog of a carrier extension: its "Signed by" line (subject and key fingerprint, as text) ----
+await run("manifest-signed-by", async () => {
+  const expected = await (await fetch("/__ue-carrier/signed-by-expected.json", { cache: "no-store" })).json();
+  const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  const signedWorld = { spatialID: "ue-signed-by-check", root: 0, nodes: [
+    { id: 0, label: "root", children: [1], localTransform: I },
+    { id: 1, label: "signed-box", parent: 0, localTransform: I,
+      webofworlds_extension: { universal_extension_manifests: [{ url: "signed-by-carrier.json" }] } },
+  ] };
+  const signedWorldUrl = new URL("/__ue-carrier/signed-by-world.json", location.href).href;
+  const scene = buildWowScene(signedWorld, THREE, { source: "ue-mount-check-signed-by" });
+  const result = await mountWowExtensions(scene.extension_nodes, THREE, { loadExtension: wrapped, worldUrl: signedWorldUrl, pageOrigin: location.origin, loadGltf, fetch: countingFetch, document });
+  const found = result.records.find((item) => item.label === "signed-box");
+  const record = found ? { status: found.status, stage: found.stage, error: found.error } : null;
+  let dialog = null;
+  for (const end = performance.now() + 6000; !dialog && performance.now() < end;) {
+    dialog = document.querySelector('[data-testid="ue-consent-dialog"][data-ue-extension^="signed-box#"]');
+    if (!dialog) await sleep(50);
+  }
+  const line = dialog ? [...dialog.querySelectorAll("div")].find((div) => /^Signed by: /.test(div.textContent)) : null;
+  const seen = line ? { text: line.textContent, elements: line.querySelectorAll("*").length, markup: line.querySelectorAll("i, b, img, script").length } : null;
+  const deny = dialog && dialog.querySelector('[data-ue-action="deny"]');
+  if (deny) deny.click();
+  await result.unmount();
+  assert(record && record.status === "mounted", "the carrier's extension did not run: " + JSON.stringify(record || "no record"));
+  assert(dialog, "no consent dialog was shown for the carrier extension");
+  assert(seen, 'the dialog has no "Signed by" line: ' + JSON.stringify(dialog.textContent));
+  const want = "Signed by: " + expected.subject + " key " + expected.fingerprint;
+  assert(seen.text === want, 'the "Signed by" line is ' + JSON.stringify(seen.text) + ", not " + JSON.stringify(want));
+  assert(seen.elements === 2 && seen.markup === 0, 'the "Signed by" line holds ' + seen.elements + " element(s), " + seen.markup + " from the subject's markup");
+});
 
 // ---- Step 5a: the consent prompt, network fetch, storage and pointer input, with the 5a test world ----
 //
@@ -517,11 +551,26 @@ const BOX_CARRIER = carrierManifest({
   requests: [{ capability: "ue.console.log", purpose: "log what it draws" }, { capability: "ue.scene.nodes", purpose: "draw the box" }],
 });
 
+// The carrier of manifest-signed-by: it requests a prompted token, so the mount shows its consent dialog. The subject
+// holds markup, which the dialog must show as text. The fingerprint the dialog must show is computed here, apart from
+// the Lab code: SHA-256 of the key's SPKI DER bytes, the first 16 hexadecimal characters in groups of four.
+const SIGNED_BY_KEY = newCarrierKey();
+const SIGNED_BY_SUBJECT = "urn:osl:check:world-node:signed-by<i>x</i>";
+const SIGNED_BY_CARRIER = carrierManifest({
+  key: SIGNED_BY_KEY, subject: SIGNED_BY_SUBJECT,
+  module: { url: "/fixtures/extension-host/world/box-maker.wasm", integrity: "sha256-J+MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk=", binding: "ue-core/0" },
+  attach: { kind: "world-node", anchor: "1" },
+  requests: [{ capability: "ue.scene.nodes", purpose: "draw the box" }, { capability: "ue.ui.panel", purpose: "show a panel" }],
+});
+const SIGNED_BY_FINGERPRINT = createHash("sha256").update(SIGNED_BY_KEY.publicKey.export({ type: "spki", format: "der" })).digest("hex").slice(0, 16).match(/.{4}/g).join(" ");
+
 /** The static server (fixtures/extension-host/check-server.mjs), with this check's page. */
 const startCheckServers = (netOrigin) => startServers({ port: PORT, netOrigin, pages: {
   [PAGE]: { type: ".html", body: PAGE_HTML },
   "/__ue-mount-check.mjs": { type: ".mjs", body: PAGE_SCRIPT },
   "/__ue-carrier/box-carrier.json": { type: ".json", body: JSON.stringify(BOX_CARRIER) },
+  "/__ue-carrier/signed-by-carrier.json": { type: ".json", body: JSON.stringify(SIGNED_BY_CARRIER) },
+  "/__ue-carrier/signed-by-expected.json": { type: ".json", body: JSON.stringify({ subject: SIGNED_BY_SUBJECT, fingerprint: SIGNED_BY_FINGERPRINT }) },
 } });
 
 /** Runs the page once. Resolves { results: Map(id -> { id, ok, detail }), problem }, never rejects. */
@@ -584,6 +633,7 @@ const CASES = [
   ["ext-integrity-visible", "bad-hash starts no worker, and its marker is labeled integrity"],
   ["ext-cross-origin-refused", "The world loaded from a second origin refuses every extension at stage origin and fetches no module"],
   ["manifest-extension-runs", "A node that points to a valid signed carrier runs its extension, and ue-node:Box appears under the carrying node"],
+  ["manifest-signed-by", "A carrier extension that requests a prompted token shows a dialog whose \"Signed by\" line holds the carrier subject and the key fingerprint, as plain text"],
   ["ext-consent-pending", "wants-panel runs and makes its box, ue.ui.panel is not granted, and the summary lists it as needing consent"],
   ["ext-transform-follows", "A node-set-transform from an extension moves its object"],
   ["ext-world-survives", "runaway is ended by the watchdog and shown as failed at init; the other nodes render and the page draws frames"],
@@ -618,6 +668,8 @@ await finish({ checkFile: "src/wow-extension-mount-browser-check.mjs", faults: [
     edits: [{ file: MOUNT, find: "    if (worldOrigin !== pageOrigin) return refuse(record, \"origin\",", replace: "    if (false) return refuse(record, \"origin\"," }] },
   { statement: "manifest-extension-runs", name: "the mount ignores universal_extension_manifests", expect: /the carrier's extension did not run/,
     edits: [{ file: MOUNT, find: "const carrierRefs = (node) => (Array.isArray(node.manifest_refs) ? node.manifest_refs : []);", replace: "const carrierRefs = (node) => [];" }] },
+  { statement: "manifest-signed-by", name: "the dialog omits the \"Signed by\" line", expect: /the dialog has no "Signed by" line/,
+    edits: [{ file: CONSENT, find: "    carrier ? el(doc, \"div\", {}, [doc.createTextNode(\"Signed by: \"),", replace: "    false ? el(doc, \"div\", {}, [doc.createTextNode(\"Signed by: \")," }] },
   { statement: "ext-consent-pending", name: "grant every requested token", expect: /ue\.ui\.panel was granted/,
     edits: [{ file: MOUNT, find: "const grant = requested.filter((token) => granted.has(token));", replace: "const grant = requested;" }] },
   { statement: "ext-transform-follows", name: "ignore node updates", expect: /did not move/,

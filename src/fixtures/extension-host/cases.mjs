@@ -342,6 +342,14 @@ export const CASES = [
 
   // ---- ue-core/0: the binding of ue:host@0.1.0 ----
 
+  { id: "concurrent-loads", says: "Three ue-core/0 extensions loaded at once all load (the binding is imported once); it runs before any other case loads ue-core/0, so the page imports the binding here first", async run({ loadExtension }) {
+    const { ueLoad } = loaders(loadExtension);
+    const results = await Promise.all([1, 2, 3].map(() => ueLoad(UE.ueNodeMaker(), "node-maker.wasm")));
+    for (const result of results) if (result.ok) await result.shutdown();
+    const failed = results.filter((result) => !result.ok).map((result) => `${result.stage}: ${result.error}`);
+    assert.deepEqual(failed, [], "extensions loaded at once failed");
+  } },
+
   { id: "binding-select", says: "ue-core/0 loads the ue-core binding, rp1-sneeze-call the RP1 one, an unknown binding is refused before compiling", async run({ loadExtension, fixtures }) {
     const { load, ueLoad } = loaders(loadExtension);
     const ue = await ueLoad(UE.ueNodeMaker(), "node-maker.wasm");
@@ -471,6 +479,71 @@ export const CASES = [
     } finally {
       clearTimeout(guardTimer);
     }
+  } },
+
+  // ---- Time budgets: a soft limit per event, a hard limit, a row of overruns, a budget per second ----
+
+  { id: "event-soft-overrun", says: "A Notify of about 60 ms is counted as an overrun of the 20 ms event budget, and the extension keeps running", async run({ loadExtension }) {
+    const bytes = UE.ueBusyTimer({ delayMs: 50, busyMs: 60, busyCalls: 1 });
+    const result = await loadExtension({ bytes, declaration: await ueDeclare(bytes, "busy-once.wasm"), grant: UE_ALL });
+    assert.equal(result.ok, true, String(result.error));
+    try {
+      await until(() => !result.running || (result.overruns >= 1 && ticksOf(result).length >= 3), 3000);
+      assert(result.running, `the worker was ended at the soft limit: ${result.error}`);
+      assert(result.overruns >= 1, `the 60 ms call was not counted: overruns ${result.overruns}`);
+      assert(ticksOf(result).length >= 3, `the extension got ${ticksOf(result).length} timer events after its slow call`);
+      assert.equal(result.budgetExceeded, false, "a soft overrun set budgetExceeded");
+    } finally {
+      await result.shutdown();
+    }
+  } },
+
+  { id: "event-hard-limit", says: "A Notify that does not return is ended at the 250 ms hard limit", async run({ loadExtension }) {
+    const bytes = UE.ueBusyTimer({ delayMs: 30, busyMs: 4000, busyCalls: 1 });
+    const result = await loadExtension({ bytes, declaration: await ueDeclare(bytes, "busy-forever.wasm"), grant: UE_ALL });
+    assert.equal(result.ok, true, String(result.error));
+    try {
+      const ended = await until(() => !result.running, 3000);
+      assert(ended, "a Notify that does not return was not ended within 3 s");
+      assert.equal(result.budgetExceeded, true, "the result does not say the budget was exceeded");
+      assert(result.callMs >= 240 && result.callMs <= 250 + 250, `the Notify was ended after ${result.callMs} ms, not at the 250 ms hard limit`);
+      assert.match(String(result.error), /250 ms/, "the error does not name the 250 ms hard limit");
+    } finally {
+      await result.shutdown();
+    }
+  } },
+
+  { id: "event-overruns-in-a-row", says: "Ten soft overruns in a row end the worker", async run({ loadExtension }) {
+    const bytes = UE.ueBusyTimer({ delayMs: 10, busyMs: 30 });
+    const result = await loadExtension({ bytes, declaration: await ueDeclare(bytes, "busy-always.wasm"), grant: UE_ALL, budgets: { secondMs: 1000 } });
+    assert.equal(result.ok, true, String(result.error));
+    try {
+      const ended = await until(() => !result.running, 3000);
+      assert(ended, `ten overruns in a row did not end the worker: it runs after 3 s with ${result.overruns} overruns`);
+      assert(result.overruns >= 10, `the worker was ended after ${result.overruns} overruns`);
+      assert.match(String(result.error), /in a row/, "the error does not say the overruns came in a row");
+    } finally {
+      await result.shutdown();
+    }
+  } },
+
+  { id: "second-budget-holds", says: "An extension that asks for more than 250 ms of work per second has its timer events held and is not ended; another extension's events still arrive", async run({ loadExtension }) {
+    const { ueLoad } = loaders(loadExtension);
+    const bytes = UE.ueBusyTimer({ delayMs: 5, busyMs: 10 });
+    const busy = await loadExtension({ bytes, declaration: await ueDeclare(bytes, "busy-10ms.wasm"), grant: UE_ALL, budgets: { eventMs: 200 } });
+    assert.equal(busy.ok, true, String(busy.error));
+    const other = await ueLoad(UE.ueTimerUser(), "timer-user.wasm");
+    assert.equal(other.ok, true, String(other.error));
+    const started = Date.now();
+    await sleep(1600);
+    const elapsed = Date.now() - started;
+    const busyTicks = ticksOf(busy).length, otherTicks = ticksOf(other).length, held = busy.heldEvents, running = busy.running, error = busy.error;
+    await busy.shutdown();
+    await other.shutdown();
+    assert(running, `the busy extension was ended: ${error}`);
+    assert(held > 0, `no event of the busy extension was held (${busyTicks} calls of 10 ms in ${elapsed} ms)`);
+    assert(busyTicks <= 60, `the busy extension ran ${busyTicks} calls of 10 ms in ${elapsed} ms, over 250 ms per second`);
+    assert(otherTicks >= 10, `the other extension got ${otherTicks} timer events while the busy one was held`);
   } },
 
   // ---- ue:host@0.2.0: additive to 0.1.0 ----

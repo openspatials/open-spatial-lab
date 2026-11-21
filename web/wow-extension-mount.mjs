@@ -25,9 +25,15 @@
 // `ue-node:` object to the attachment that made it, only while that attachment holds ue.input.pointer: one enter or
 // leave per change of the node under the pointer, and at most 30 events per second per attachment.
 //
+// While the document is hidden (document.visibilityState "hidden"), no timer and no pointer event reaches an extension:
+// pointer() sends nothing and each extension is paused (extension.setPaused), so its host holds each timer that comes
+// due and fires it once when the page is visible again. The host's time budgets (a soft and a hard limit per call, a
+// budget per second) are its own; a record's extension.overruns counts its calls over the soft limit.
+//
 // A node may also point to signed carrier manifests (`universal_extension_manifests`). Before any module is fetched,
-// each carrier is fetched, its signature verified and its dates checked, and only then are its extension facets read
-// (web/wow-extension-manifest-adapter.mjs; stages `manifest-fetch`, `signature`, `validity`, `facet`). Its extensions
+// each carrier is fetched, its signature verified, its dates checked and each extension's signed entity.statusRef (if
+// any) resolved, and only then are its extension facets read (web/wow-extension-manifest-adapter.mjs; stages `manifest-fetch`, `signature`,
+// `validity`, `status`, `facet`). Its extensions
 // follow the node's own declarations, with the next indices, and run by the same steps 2 to 6. Their grants and storage
 // are keyed by the carrier subject, the key the signature verified under, module.integrity and attach, never by the
 // manifest or facet @id.
@@ -45,7 +51,7 @@ import { readCarrierManifest } from "./wow-extension-manifest-adapter.mjs";
 import { verifyManifestProfileA } from "./signing/um-signature-profile-a.mjs";
 
 /** Stages at which the Lab refuses a declaration before it runs; the others are failures. */
-const REFUSAL_STAGES = new Set(["declaration", "origin", "manifest-fetch", "signature", "validity", "facet", "integrity", "compile", "imports", "memory"]);
+const REFUSAL_STAGES = new Set(["declaration", "origin", "manifest-fetch", "signature", "validity", "status", "facet", "integrity", "compile", "imports", "memory"]);
 const UE_ROOT_BASE = 2 ** 40;
 /** Pointer events: at most this many per second per attachment. */
 export const POINTER_EVENTS_PER_SECOND = 30;
@@ -82,17 +88,19 @@ function disposeObject(root) {
  * @param {Array}  extensionNodes  buildWowScene's `extension_nodes`
  * @param {object} THREE           injected Three.js namespace
  * @param {object} opts            { loadExtension, worldUrl, pageOrigin, loadGltf?, fetch?, document?, shouldMount?,
- *                                   syncMs?, storage?, grantStore?, verifyManifest?, now? }
+ *                                   syncMs?, storage?, grantStore?, verifyManifest?, now?, statusTransport?, fetchLimitMs? }
  * `storage` (the page's localStorage) holds the remembered grants and the extensions' storage; `grantStore` (from
  * createGrantStore) keeps session grants across mount passes of one page. `verifyManifest` (default
- * verifyManifestProfileA) and `now` (default Date.now) go to the carrier manifest adapter.
+ * verifyManifestProfileA), `now` (default Date.now), `statusTransport` (default: a GET through `fetch`) and
+ * `fetchLimitMs` (default 10 s, the limit of the carrier fetch and of each status fetch) go to the carrier manifest
+ * adapter.
  * Never rejects. `unmount()` shuts every extension down and removes what the pass drew.
  */
 export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const nodes = Array.isArray(extensionNodes) ? extensionNodes : [];
   const loadExtension = typeof opts.loadExtension === "function" ? opts.loadExtension : null;
   const loadGltf = typeof opts.loadGltf === "function" ? opts.loadGltf : null;
-  const fetchModule = typeof opts.fetch === "function" ? opts.fetch : (url) => globalThis.fetch(url);
+  const fetchModule = typeof opts.fetch === "function" ? opts.fetch : (url, init) => globalThis.fetch(url, init);
   const shouldMount = typeof opts.shouldMount === "function" ? opts.shouldMount : () => true;
   const doc = opts.document || null;
   const worldUrl = opts.worldUrl;
@@ -113,7 +121,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     declaration, validation, carrier,
     status: "pending", stage: null, error: null,
     extension: null, attachment: null, module_url: null, grant: [], host_grant: [], needs_consent: [], placement_key: null,
-    pointer: { times: [] },
+    pointer: { times: [] }, overruns: 0,
     container: null, marker: null, objects: new Map(),
   });
   for (const node of nodes) node.validations.forEach((validation, index) => addRecord(node, index, node.declarations[index], validation));
@@ -122,7 +130,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const readCarrier = (node, ref) => {
     if (ref.error) return { ok: false, stage: "declaration", detail: ref.error };
     if (worldOrigin !== pageOrigin) return { ok: false, stage: "origin", detail: `the world file is served from ${worldOrigin}, not from this page's origin ${pageOrigin}` };
-    return readCarrierManifest({ manifestUrl: resolveAssetUri(ref.url, worldUrl), nodeId: node.node_id, fetch: fetchModule, now: opts.now, verify: opts.verifyManifest || verifyManifestProfileA })
+    return readCarrierManifest({ manifestUrl: resolveAssetUri(ref.url, worldUrl), nodeId: node.node_id, fetch: fetchModule, now: opts.now, verify: opts.verifyManifest || verifyManifestProfileA, statusTransport: opts.statusTransport, fetchLimitMs: opts.fetchLimitMs })
       .catch((error) => ({ ok: false, stage: "manifest-fetch", detail: oneLine(error) }));
   };
   const carried = await Promise.all(nodes.map((node) => Promise.all(carrierRefs(node).map((ref) => readCarrier(node, ref)))));
@@ -343,7 +351,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     const answer = await consent.ask({
       extension: `${record.label}#${record.index}`, label: record.label, moduleUrl: record.module_url, integrity: effective.module.integrity,
       tokens: asked, purposes: Object.fromEntries(asked.map((token) => [token, purposeOf(effective, token)])),
-      ...(record.carrier ? { carrier: { subject: record.carrier.subject, key: record.carrier.key } } : {}),
+      ...(record.carrier ? { carrier: { subject: record.carrier.subject, fingerprint: record.carrier.fingerprint } } : {}),
     });
     if (unmounted || record.status !== "mounted" || !answer.allowed.length) return;
     const allowed = asked.filter((token) => answer.allowed.includes(token));
@@ -366,6 +374,16 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     if (record.status === "pending") return "pending";
     return "ended";
   }
+
+  // A hidden page: no pointer event is sent, and every extension is paused until the page is visible.
+  const isHidden = () => !!doc && doc.visibilityState === "hidden";
+  const applyVisibility = () => {
+    const hidden = isHidden();
+    for (const record of records) if (record.extension && typeof record.extension.setPaused === "function") record.extension.setPaused(hidden);
+  };
+  const watchesVisibility = !!doc && typeof doc.addEventListener === "function";
+  if (watchesVisibility) doc.addEventListener("visibilitychange", applyVisibility);
+  if (isHidden()) applyVisibility();
 
   // Pointer input. `object` is the hit object (or one under it) or null for none; `point` is the world point.
   let hovered = null;
@@ -395,7 +413,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     return true;
   }
   function pointer({ object = null, type = "move", point = null } = {}) {
-    if (unmounted || !POINTER_TYPES.has(type)) return false;
+    if (unmounted || isHidden() || !POINTER_TYPES.has(type)) return false;
     const target = object ? recordOfObject(object) : null;
     if (type === "move") {
       const same = hovered && target && hovered.node === target.node;
@@ -416,7 +434,20 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     }
   }
   const live = () => records.filter((record) => record.status === "mounted");
-  if (live().length && !unmounted) timer = setInterval(() => { for (const record of live()) sync(record); }, syncMs);
+  // Each sync also tells the panel when an extension's count of overruns changed.
+  const syncAll = () => {
+    let slower = false;
+    for (const record of live()) {
+      sync(record);
+      const overruns = (record.extension && record.extension.overruns) || 0;
+      if (overruns !== record.overruns) {
+        record.overruns = overruns;
+        slower = true;
+      }
+    }
+    if (slower) notifyChange();
+  };
+  if (live().length && !unmounted) timer = setInterval(syncAll, syncMs);
 
   const result = {
     records,
@@ -440,6 +471,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
       if (unmounted) return;
       unmounted = true;
       if (timer) clearInterval(timer);
+      if (watchesVisibility && typeof doc.removeEventListener === "function") doc.removeEventListener("visibilitychange", applyVisibility);
       if (consent) consent.clear();
       for (const record of records) {
         if (record.extension && record.extension.ok) {

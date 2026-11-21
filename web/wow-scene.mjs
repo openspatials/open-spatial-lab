@@ -243,7 +243,12 @@ export function validateExtensionDeclaration(decl) {
   if (moduleUnknown.length) return refuseDeclaration(R.UNKNOWN_MEMBER, `unknown module member(s) [${moduleUnknown.join(", ")}]`);
   if (typeof module.url !== "string" || !module.url) return refuseDeclaration(R.BAD_MODULE, "module.url must be a non-empty string");
   if (module.integrity === undefined) return refuseDeclaration(R.MISSING_INTEGRITY, "module.integrity is required: the SHA-256 that binds the module to the world file");
-  if (typeof module.integrity !== "string" || !INTEGRITY.test(module.integrity)) return refuseDeclaration(R.BAD_INTEGRITY, "module.integrity must be sha256-<base64 of the 32-byte SHA-256>");
+  if (typeof module.integrity !== "string" || !INTEGRITY.test(module.integrity)) {
+    // An algorithm the host does not implement is refused by name (the Lab implements sha256 only).
+    const algorithm = typeof module.integrity === "string" ? /^([A-Za-z0-9]+)-/.exec(module.integrity) : null;
+    if (algorithm && algorithm[1] !== "sha256") return refuseDeclaration(R.BAD_INTEGRITY, `module.integrity uses ${algorithm[1]}, which this host does not implement; it implements sha256 only`);
+    return refuseDeclaration(R.BAD_INTEGRITY, "module.integrity must be sha256-<base64 of the 32-byte SHA-256>");
+  }
   if (!EXTENSION_BINDINGS.includes(module.binding)) return refuseDeclaration(R.UNKNOWN_BINDING, `module.binding must be one of [${EXTENSION_BINDINGS.join(", ")}]; got ${JSON.stringify(module.binding)}`);
   if (typeof iface !== "string" || !iface) return refuseDeclaration(R.BAD_INTERFACE, "interface must be a non-empty string");
   if (!isPlainObject(attach) || Object.keys(attach).some((key) => key !== "kind") || attach.kind !== "world-node") {

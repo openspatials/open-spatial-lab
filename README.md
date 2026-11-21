@@ -4,6 +4,38 @@ Open Spatial Lab is a local Web of Worlds and spatial-computing demo. From the p
 
 This repository is where Open Spatial Lab is developed. Issues and pull requests are welcome; see [Contributing](#contributing).
 
+## Design
+
+Open Spatial Lab is being built as a **spatial client**: a web app that opens 3D content it did not author, in open formats, and moves a visitor between worlds. It runs in a web browser, which is its platform. Its parts meet through contracts, so that one part can be replaced and the rest still work.
+
+```mermaid
+flowchart TB
+  content["<b>Content</b><br/>X3D, glTF and GLB, OpenUSD, fabric files, data layers"]
+  subgraph client["Spatial client"]
+    app["<b>Application</b><br/>worlds, access, portals, module settings"]
+    subgraph engine["Engine"]
+      direction LR
+      importers["<b>Importers</b><br/>one per format"] --> processors["<b>Processors</b><br/>fit, map, combine"] --> scene["<b>Scene</b><br/>entities, assets, layers"]
+      scene <--> systems["<b>Systems</b><br/>renderer, animator, more"]
+    end
+  end
+  services["<b>Services</b><br/>world servers, discovery, sign-on, manifest, presence"]
+  platform["<b>Web browser, the platform</b><br/>WebGL, WebGPU, network, sandbox"]
+  content --> client
+  client <--> services
+  client --> platform
+```
+
+- **Content** says what is in a world, never how to draw it. An avatar, a vehicle or a wearable is content inside these files, not a separate input.
+- **Importers** read one format each and write the Scene. Only importers know formats.
+- **Processors** change or combine imported content before it enters the Scene, for example fitting a garment to a body or mapping one skeleton onto another.
+- **The Scene** is the one model every system shares. It is a stack of layers that can be shown, hidden, added or removed.
+- **Systems** each do one job on the Scene. The renderer is one system.
+- **The application** decides which world loads and who may enter, and holds the settings that choose a module for each part.
+- **Services** are everything the client asks for and does not hold itself.
+
+This is the target design. The code is moving to it one working step at a time; the sections below describe what runs today.
+
 ## Included
 
 - Player lobby and mission launcher

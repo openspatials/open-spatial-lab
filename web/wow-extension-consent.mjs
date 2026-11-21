@@ -156,15 +156,12 @@ export function moduleFileName(url) {
   }
 }
 const hashPrefix = (integrity) => `${String(integrity || "").slice(0, 19)}…`;
-// An Ed25519 SPKI in base64 starts with the same 16 characters for every key (MCowBQYDK2VwAyEA); the 12 after them
-// name the key.
-const SPKI_ED25519_HEADER = "MCowBQYDK2VwAyEA";
-const keyPrefix = (spki) => String(spki || "").replace(SPKI_ED25519_HEADER, "").slice(0, 12);
 
 /**
  * buildConsentDialog(doc, request) -> { element, result } where request is { extension (label#index), label,
- * moduleUrl, integrity, tokens, purposes, carrier? } (carrier { subject, key } for an extension from a signed carrier
- * manifest) and result resolves { allowed: [...tokens], remember } when the user
+ * moduleUrl, integrity, tokens, purposes, carrier? } (carrier { subject, fingerprint } for an extension from a signed
+ * carrier manifest; the fingerprint is the adapter's keyFingerprint of the signer's key, the first 16 hexadecimal
+ * characters of the SHA-256 of its SPKI DER bytes in groups of four) and result resolves { allowed: [...tokens], remember } when the user
  * answers. Deny, the close button and Escape all answer with nothing allowed.
  */
 export function buildConsentDialog(doc, { extension, label, moduleUrl, integrity, tokens, purposes = {}, carrier = null }) {
@@ -181,7 +178,7 @@ export function buildConsentDialog(doc, { extension, label, moduleUrl, integrity
     el(doc, "div", {}, [doc.createTextNode("Module: "), el(doc, "span", { style: STYLE.mono, text: moduleFileName(moduleUrl), attrs: { "data-ue-field": "module" } }),
       doc.createTextNode(" "), el(doc, "span", { style: STYLE.mono, text: hashPrefix(integrity), attrs: { "data-ue-field": "hash" } })]),
     carrier ? el(doc, "div", {}, [doc.createTextNode("Signed by: "), el(doc, "span", { style: STYLE.mono, text: carrier.subject, attrs: { "data-ue-field": "carrier-subject" } }),
-      doc.createTextNode(" key "), el(doc, "span", { style: STYLE.mono, text: keyPrefix(carrier.key), attrs: { "data-ue-field": "carrier-key" } })]) : null,
+      doc.createTextNode(" key "), el(doc, "span", { style: STYLE.mono, text: carrier.fingerprint, attrs: { "data-ue-field": "carrier-key" } })]) : null,
   ]);
   const list = el(doc, "ul", { style: "list-style:none;margin:12px 0;padding:0;display:grid;gap:8px;" });
   for (const token of tokens) {
@@ -261,8 +258,9 @@ export function createConsentQueue(doc) {
 
 /**
  * renderExtensionsPanel({ document, mounted, onClose }) -> { element, refresh(), close() }: the Extensions panel of one
- * mount pass. Each extension is listed with its state (running, refused, failed, ended), its granted tokens and a
- * Withdraw button, which calls mounted.withdraw(record) and takes effect at once.
+ * mount pass. Each extension is listed with its state (running, refused, failed, ended), its granted tokens, a "slow"
+ * line with the count of its calls over the event budget (when it has any) and a Withdraw button, which calls
+ * mounted.withdraw(record) and takes effect at once.
  */
 export function renderExtensionsPanel({ document: doc, mounted, onClose = null }) {
   const element = el(doc, "section", {
@@ -291,6 +289,15 @@ export function renderExtensionsPanel({ document: doc, mounted, onClose = null }
         el(doc, "div", { style: `${STYLE.mono}${STYLE.dim}`, text: moduleFileName(record.module_url || (record.declaration && record.declaration.module && record.declaration.module.url)) }),
         el(doc, "div", { style: STYLE.mono, text: tokens.length ? tokens.join(", ") : "no tokens granted", attrs: { class: "ue-extension-tokens" } }),
       ]);
+      // A carrier whose status could not be read (or that has no statusRef) runs; the user is told, as plain text.
+      if (record.carrier && record.carrier.revocationStatus === "unchecked") {
+        row.append(el(doc, "div", { style: `${STYLE.mono}${STYLE.dim}`, text: "status not checked", attrs: { "data-ue-revocation": "unchecked" } }));
+      }
+      // An extension with calls over its event budget runs on; the user is told how many, as plain text.
+      if (record.extension && record.extension.overruns > 0) {
+        const overruns = record.extension.overruns;
+        row.append(el(doc, "div", { style: `${STYLE.mono}color:#ffb48a;`, text: `slow: ${overruns} ${overruns === 1 ? "call" : "calls"} over the time budget`, attrs: { "data-ue-slow": String(overruns) } }));
+      }
       const withdraw = el(doc, "button", { style: `${STYLE.button}margin-top:6px;`, text: "Withdraw", attrs: { type: "button", "data-ue-withdraw": `${record.label}#${record.index}` } });
       if (!prompted.length) {
         withdraw.disabled = true;

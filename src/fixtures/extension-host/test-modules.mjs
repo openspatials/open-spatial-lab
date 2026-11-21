@@ -117,8 +117,12 @@ export const TEST_MODULES = Object.freeze({
 //                      ("fetch <result>"); every other Notify logs "notified". The payload's length is kept at FETCH_LEN.
 //   uePointerListener  Open as ueNodeMaker (one node, Box, under the attachment root); Notify logs "notified". The
 //                      pointer events themselves reach the check through the host's record of Notify events.
+//   ueBusyTimer({ delayMs, busyMs, busyCalls })  Open (attachment 1) sets a repeating timer of delayMs; Notify spins on
+//                      clock.monotonic-ns for busyMs in its first busyCalls calls (every call when busyCalls is 0), then
+//                      logs "tick". Needs ue.clock.read and ue.clock.timer.
+//   ueTimerNode({ delayMs })  Open as ueNodeMaker, then a repeating timer of delayMs; Notify logs "tick" for any event.
 
-const UE = { BUF: 16384, BUF2: 20480, TMP_END: 24640, FETCH_LEN: 24648, HEAP: 32768, DATA: 1024 };
+const UE = { BUF: 16384, BUF2: 20480, TMP_END: 24640, FETCH_LEN: 24648, COUNT: 24656, HEAP: 32768, DATA: 1024 };
 
 const sleb = (input) => {
   let value = BigInt(input);
@@ -387,6 +391,38 @@ const STORAGE_USER_OPEN = (text) => {
   return [...locals(I64), ...getAndLog, ...fromData(setPath, 2, setTag), ...fromData(deletePath, 3, deleteTag), END];
 };
 
+// Notify of the busy timer: counts its calls in memory at UE.COUNT; the first `busyCalls` calls (every call when 0) spin
+// on clock.monotonic-ns until `busyMs` have passed; every call logs "tick".
+const BUSY_NOTIFY = (busyMs, busyCalls) => (text) => {
+  const empty = text.add("{}"), tick = text.add("tick");
+  const spin = [
+    ...send(4, 2, empty), ...op.set(2),
+    0x03, 0x40,
+    ...send(4, 2, empty), ...op.get(2), 0x7d, ...op.i64(Math.round(busyMs * 1e6)), 0x53, 0x0d, 0x00,
+    END,
+  ];
+  // locals: 2 start i64, 3 count i32
+  return [
+    ...locals(I64, I32),
+    ...op.i32(UE.COUNT), ...op.i32(UE.COUNT), 0x28, 0x02, 0x00, ...op.i32(1), 0x6a, ...op.tee(3), ...op.store32(0),
+    ...(busyCalls > 0 ? [...op.get(3), ...op.i32(busyCalls), 0x4d, 0x04, 0x40, ...spin, END] : spin),
+    ...op.i32(tick.ptr), ...op.i32(tick.len), ...op.call(F.logText),
+    ...op.i64(0),
+    END,
+  ];
+};
+// Open of the busy timer: attachment 1 sets one repeating timer of `delayMs`.
+const BUSY_TIMER_OPEN = (delayMs) => (text) => {
+  const every = text.add(`{"delay-ms":${delayMs},"repeat":true}`), tag = text.add("timer.set");
+  return [0x00, ...op.get(0), ...op.i64(1), 0x51, 0x04, 0x40, ...logNum(tag)(send(5, 1, every)), END, END];
+};
+// Open of the timer node: one node, Box, under the attachment root (as ueNodeMaker), then one repeating timer.
+const TIMER_NODE_OPEN = (delayMs) => (text) => {
+  const node = NODE_MAKER_OPEN("assets/Box.glb")(text);
+  const every = text.add(`{"delay-ms":${delayMs},"repeat":true}`), tag = text.add("timer.set");
+  return [...node.slice(0, -1), ...logNum(tag)(send(5, 1, every)), END];
+};
+
 export const UE_TEST_MODULES = Object.freeze({
   ueNodeMaker: ({ resource = "assets/Box.glb" } = {}) => ueModule({ open: NODE_MAKER_OPEN(resource) }),
   ueUnknownMethod: () => ueModule({ open: ONE_CALL_OPEN(1, 99, "{}", "unknown-method") }),
@@ -400,4 +436,6 @@ export const UE_TEST_MODULES = Object.freeze({
   ueFetcher: ({ times = 1, every = 0 } = {}) => ueModule({ open: FETCHER_OPEN(times, every), notify: every > 0 ? FETCH_AGAIN_NOTIFY : NOTIFIED }),
   uePointerListener: ({ resource = "assets/Box.glb" } = {}) => ueModule({ open: NODE_MAKER_OPEN(resource), notify: NOTIFIED }),
   ueStorageUser: () => ueModule({ pages: 8, open: STORAGE_USER_OPEN }),
+  ueBusyTimer: ({ delayMs = 20, busyMs = 0, busyCalls = 0 } = {}) => ueModule({ open: BUSY_TIMER_OPEN(delayMs), notify: BUSY_NOTIFY(busyMs, busyCalls) }),
+  ueTimerNode: ({ delayMs = 100 } = {}) => ueModule({ open: TIMER_NODE_OPEN(delayMs), notify: TICK_NOTIFY }),
 });

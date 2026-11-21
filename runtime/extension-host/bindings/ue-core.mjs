@@ -23,7 +23,9 @@
 // with the fetch it is given, writes storage to the backend it is given (an object with the localStorage interface),
 // and hands each fetch result to the attachment that made the request. Both are injected, so Node runs these without a
 // browser; in the browser the request comes from the page, and the remote server's CORS rules apply.
-import METHOD_TABLE from "../wit/method-numbers.json" with { type: "json" };
+// A dynamic import: Firefox does not load a static JSON module import inside a module worker; a dynamic one loads
+// everywhere (Chrome, WebKit, Firefox, Node). The JSON file stays the source of truth.
+const { default: METHOD_TABLE } = await import("../wit/method-numbers.json", { with: { type: "json" } });
 import { fetchToken, placementKey } from "../capabilities.mjs";
 import { readPath, splitPath } from "./rp1-sneeze-call.mjs";
 

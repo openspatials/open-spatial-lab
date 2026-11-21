@@ -8,12 +8,15 @@ import { jcsCanonicalizeToBytes } from "../../../web/signing/jcs-rfc8785.mjs";
 export const newCarrierKey = () => generateKeyPairSync("ed25519");
 
 /**
- * carrierManifest({ key, id, facetId, subject, module, attach, requests, issuedAt, expiresAt }) -> the signed manifest
- * object. `key` is a node:crypto Ed25519 key pair; null leaves the manifest without a signature member.
+ * carrierManifest({ key, id, facetId, subject, module, attach, requests, issuedAt, expiresAt, statusRef, signatureStatusRef })
+ * -> the signed manifest object. `key` is a node:crypto Ed25519 key pair; null leaves the manifest without a signature
+ * member. `statusRef`, when given, goes in the extension entity, which the signature covers. `signatureStatusRef`, when
+ * given, goes in signature.statusRef, which the signing input leaves out (so a check can plant an unsigned address).
  */
 export function carrierManifest({
   key, id = "urn:uuid:check-carrier-1", facetId = "urn:osl:check:facet:1", subject = "urn:osl:check:world-node:carried",
   module, attach = { kind: "world-node" }, requests = [], issuedAt = "2026-11-16T00:00:00.000Z", expiresAt = "2030-11-16T00:00:00.000Z",
+  statusRef, signatureStatusRef,
 }) {
   const manifest = {
     "@context": "https://universalmanifest.net/ns/v0.6",
@@ -34,11 +37,12 @@ export function carrierManifest({
         interface: "ue:host@0.1.0",
         attach,
         requests,
+        ...(statusRef ? { statusRef } : {}),
       },
     }],
   };
   if (!key) return manifest;
   const spki = key.publicKey.export({ type: "spki", format: "der" }).toString("base64");
   const value = sign(null, Buffer.from(jcsCanonicalizeToBytes(manifest)), key.privateKey).toString("base64url");
-  return { ...manifest, signature: { algorithm: "Ed25519", canonicalization: "JCS-RFC8785", keyRef: "did:example:check-carrier#key-1", created: issuedAt, publicKeySpkiB64: spki, value } };
+  return { ...manifest, signature: { algorithm: "Ed25519", canonicalization: "JCS-RFC8785", keyRef: "did:example:check-carrier#key-1", created: issuedAt, publicKeySpkiB64: spki, value, ...(signatureStatusRef ? { statusRef: signatureStatusRef } : {}) } };
 }
