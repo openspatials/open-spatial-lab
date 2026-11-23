@@ -442,6 +442,49 @@ Checks:
   controller's document-route block calls `bindSkin`, `setSkinPose` or
   `disposeSkin`. Rule 6 now reads all of `scene/manager.mjs`.
 
+## One copy of the rig code (milestone "avatar parts get engine folders", step 1)
+
+The rig code says which bone does which job and sets the avatar frame. It now
+lives once, in the engine's processor folder `process/rig/`
+(Processor contract, `docs/engine/PROCESSOR-CONTRACT-V0.md`, sections 1 and 2,
+in the container repository). Moved, not redesigned.
+
+- `process/rig/roles.mjs`: the roles, the role tables and rig recognition
+  (`detectRig`). Byte copy of `web/avatar/runtime/fitting/roles.mjs` (the same
+  in the avatars build).
+- `process/rig/rig.mjs`: the avatar frame (`wrapFit`), one rest pose
+  (`settleToBindPose`), `describeRig`, `rigFromBody`. Byte copy of the
+  avatars build's `fitting/rig.mjs`, which differs from the old runtime copy
+  in `strongestBoneVertices` only: an `includeShared` option, and a vertex
+  whose two strongest skin weights are equal now counts for both bones.
+- Both import only `three` (maths and scene-graph classes). Nothing in
+  `process/` imports a renderer file, the Scene Manager, an importer or
+  anything outside the engine.
+- `web/avatar/runtime/fitting/roles.mjs` and `rig.mjs` are one-line forwards.
+  A plain relative path cannot serve both Node (the files on disk) and the
+  browser (`/vendor/scene-core/`), so each forward finds the engine folder
+  beside the Scene Manager through `import.meta.resolve("#scene-manager")`,
+  as `web/own-x3d-document.mjs` finds the importers: `index.html`'s import map
+  in the browser, `package.json`'s `"imports"` in Node. A page that loads the
+  avatar runtime needs `#scene-manager` in its import map.
+- Not moved in this step: `holds.mjs`, `solvers.mjs`, `map-clips.mjs` (item
+  placement, motion, clip mapping: later steps), and the avatars build's
+  `body-details.mjs`, `measures.mjs` and `tools/measure-body.mjs`, which
+  import `holds.mjs` and `map-clips.mjs` and so cannot sit in `process/`
+  until those move.
+- The runtime's `RELEASE.json` still pins the old bytes of the two forwarded
+  files; the route check's `avatar-runtime` statement reports them until the
+  release record is updated.
+
+Checks: `node src/engine-boundary-check.mjs` rules 10 and 11. Rule 10: nothing
+under `process/` imports a renderer file, the Scene Manager, an importer or a
+file outside the engine. Rule 11: `process/rig/roles.mjs` and `rig.mjs` exist,
+and no other `.mjs` or `.js` file in this code folder exports half or more of
+either file's names unless it is a one-line forward to it. The frozen vendor
+copy `web/vendor/avatar-evaluator-v1/fitting/` is allowed while nothing outside
+`web/vendor/avatar-evaluator-v1/` imports it; the summary lists it as
+`frozenCopies`.
+
 ## Evaluator distribution and verification
 
 `web/vendor/avatar-evaluator-v1` is the active versioned evaluator distribution.

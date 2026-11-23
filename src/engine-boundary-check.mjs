@@ -5,8 +5,13 @@
 // milestone "skins in the Scene" (rule 6 lost its forwards exception there). Rule 8 also reads the document route's
 // application files under web/ (from this code folder, also with --root). Rule 9 is the milestone "the first dressed
 // avatar": a processor's output reaches the engine only as a file (docs/engine/PROCESSOR-CONTRACT-V0.md), so no engine
-// file imports the garment processor (fitting/garments/ in the avatars build), by path or by name. Prints one JSON
-// summary; exits 1 when a rule is broken or a planted fault is missed.
+// file imports the garment processor (fitting/garments/ in the avatars build), by path or by name. Rules 10 and 11 are the
+// milestone "avatar parts get engine folders", step 1 (one copy of the rig code): nothing under process/ imports a renderer
+// file, the Scene Manager, an importer or a file outside the engine (web/, the avatars build); and the rig code
+// (process/rig/roles.mjs, process/rig/rig.mjs) exists once in this code folder: any other .mjs or .js file that exports at
+// least half of a rig file's names, and is not a one-line forward to it, is a second copy. Rule 11 also reads every code
+// file outside the engine folder (from this code folder, also with --root). Prints one JSON summary; exits 1 when a rule
+// is broken or a planted fault is missed.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,8 +29,18 @@ const filesIn = (dir) => {
         return statSync(path).isDirectory() ? filesIn(join(dir, name)) : name.endsWith(".mjs") || name.endsWith(".js") ? [join(dir, name)] : [];
     });
 };
-/** Engine files are read under the engine folder; files named "web/..." under this code folder. */
-const reader = (overrides) => (file) => overrides[file] ?? readFileSync(file.startsWith("web/") ? join(CODE, file) : join(ENGINE, file), "utf8");
+// This code folder's .mjs and .js files outside the engine folder, named relative to it (rule 11).
+const CODE_SKIP = new Set(["node_modules", ".git", ".dev", ".runtime", "diagnostics", "evidence", "coverage"]);
+const codeFilesIn = (dir) => readdirSync(join(CODE, dir)).flatMap((name) => {
+    const rel = dir ? `${dir}/${name}` : name, path = join(CODE, rel);
+    if (CODE_SKIP.has(name) || rel === "runtime/scene-core") return [];
+    return statSync(path).isDirectory() ? codeFilesIn(rel) : /\.m?js$/.test(name) ? [rel] : [];
+});
+let codeFileSet = null;
+const codeFiles = () => [...(codeFileSet ??= new Set(codeFilesIn("")))];
+/** Engine files are read under the engine folder; files named "web/..." and the code files of rule 11 under this code folder. */
+const disk = new Map();
+const reader = (overrides) => (file) => overrides[file] ?? disk.get(file) ?? disk.set(file, readFileSync(file.startsWith("web/") || codeFileSet?.has(file) ? join(CODE, file) : join(ENGINE, file), "utf8")).get(file);
 const lines = (text) => text.split("\n").map((line, i) => ({ n: i + 1, line }));
 const importsOf = (text) => [...text.matchAll(/\b(?:import|export)\s+(?:[^"';]*?\s+from\s*)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)].map((m) => m[1] ?? m[2]);
 /** An import of `file`, as a path inside the engine folder (or the bare specifier). */
@@ -49,6 +64,22 @@ const engineFiles = () => ["", ...readdirSync(ENGINE).filter((name) => statSync(
 // The garment processor, in the avatars build: its folder (fitting/garments/), or any module named for garments.
 const GARMENT_PROCESSOR = /(^|[\/])fitting[\/]garments([\/]|$)|garment/i;
 const requiresOf = (text) => [...text.matchAll(/\brequire\s*\(\s*["']([^"']+)["']\s*\)/g)].map((m) => m[1]);
+// The avatar parts' folder (milestone "avatar parts get engine folders"). A processor needs no engine system (Processor
+// contract rule 1); three.js maths is allowed.
+const PROCESS = "process";
+const resolvesOf = (text) => [...text.matchAll(/\bimport\.meta\.resolve\s*\(\s*["']([^"']+)["']/g)].map((m) => m[1]);
+const RIG_FILES = ["process/rig/roles.mjs", "process/rig/rig.mjs"];
+// The names a file exports: declarations, export lists (by their outside name) and destructured forwards.
+const exportsOf = (text) => new Set([
+    ...[...text.matchAll(/\bexport\s+(?:async\s+)?(?:function\s*\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]),
+    ...[...text.matchAll(/\bexport\s*\{([^}]*)\}/g)].flatMap((m) => m[1].split(",").map((p) => p.trim().split(/\s+as\s+/).pop())),
+    ...[...text.matchAll(/\bexport\s+(?:const|let|var)\s*\{([^}]*)\}\s*=/g)].flatMap((m) => m[1].split(",").map((p) => p.split(":").pop().trim())),
+].filter(Boolean));
+// A forward: one line of code (comments aside) that names the rig file it forwards to.
+const forwardsTo = (text, rigFile) => { const code = text.split("\n").filter((l) => l.trim() && !l.trim().startsWith("//")); return code.length === 1 && code[0].includes(rigFile); };
+// A frozen copy is allowed while nothing outside its own tree imports it. web/vendor/avatar-evaluator-v1/ is the avatar
+// runtime 1.0.0's vendor source (web/avatar/runtime/RELEASE.json: "the vendor folder stays in place"); deleting it is the Lab's.
+const FROZEN = [{ copy: "web/vendor/avatar-evaluator-v1/fitting/", tree: "web/vendor/avatar-evaluator-v1/" }];
 const skinCalls = (file, text, offset = 0) => lines(text).filter(({ line }) => SKIN_CALL.test(line)).map(({ n, line }) => `${file}:${n + offset}: ${line.trim().slice(0, 100)}`);
 
 /** Each rule returns its crossings, as "file:line: what". */
@@ -84,8 +115,36 @@ const RULES = {
         return [...importsOf(text), ...requiresOf(text)].filter((s) => GARMENT_PROCESSOR.test(s) || GARMENT_PROCESSOR.test(target(f, s)))
             .map((s) => `${f}: imports ${s}`);
     }),
+    // Avatar parts get engine folders, step 1: one copy of the rig code
+    "10 nothing under process/ imports a renderer file, the Scene Manager, an importer or a file outside the engine": (read) => filesIn(PROCESS).flatMap((f) => {
+        const text = read(f);
+        return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].map((s) => [s, target(f, s)])
+            .filter(([s, t]) => /^(render|render-adapter)\//.test(t) || RENDERER.files.includes(t) || t === MANAGER || t.startsWith("import/") || READER_FORWARDS.test(t)
+                || t.startsWith("..") || s.startsWith("/") || s.startsWith("#") || /(^|\/)web\//.test(s))
+            .map(([s]) => `${f}: imports ${s}`);
+    }),
+    "11 the rig code exists once: no second file exports a rig file's names": (read) => {
+        const rig = RIG_FILES.filter((r) => existsSync(join(ENGINE, r)));
+        if (rig.length < RIG_FILES.length) return RIG_FILES.filter((r) => !rig.includes(r)).map((r) => `${r}: missing`);
+        const names = Object.fromEntries(rig.map((r) => [r, exportsOf(read(r))]));
+        const others = [...engineFiles().filter((f) => !RIG_FILES.includes(f)), ...codeFiles()];
+        const frozen = (f) => FROZEN.some(({ copy }) => f.startsWith(copy));
+        const copies = others.filter((f) => !frozen(f)).flatMap((f) => {
+            const text = read(f), mine = exportsOf(text);
+            return rig.flatMap((r) => {
+                const shared = [...names[r]].filter((n) => mine.has(n));
+                return shared.length >= Math.max(2, Math.ceil(names[r].size / 2)) && !forwardsTo(text, r)
+                    ? [`${f}: a second copy of ${r} (${shared.length} of its ${names[r].size} exports)`] : [];
+            });
+        });
+        const frozenUsed = codeFiles().filter((f) => !FROZEN.some(({ tree }) => f.startsWith(tree))).flatMap((f) => [...importsOf(read(f)), ...requiresOf(read(f))]
+            .filter((s) => s.startsWith(".")).map((s) => relative(CODE, resolve(CODE, dirname(f), s)).split("\\").join("/"))
+            .filter((t) => frozen(t)).map((t) => `${f}: imports the frozen copy ${t}`));
+        return [...copies, ...frozenUsed];
+    },
 };
 
+const RULE_10 = Object.keys(RULES).find((r) => r.startsWith("10 ")), RULE_11 = Object.keys(RULES).find((r) => r.startsWith("11 "));
 const run = (overrides = {}) => Object.entries(RULES).map(([rule, check]) => ({ rule, crossings: check(reader(overrides)) }));
 const results = run();
 const broken = results.filter((r) => r.crossings.length);
@@ -103,12 +162,20 @@ const FAULTS = rootAt > 0 ? [] : [
     { rule: "8 on the document route only the Renderer calls bindSkin, setSkinPose or disposeSkin", edit: { [CONTROLLER]: readFileSync(join(CODE, CONTROLLER), "utf8")
         .replace(ROUTE_BLOCK[1], `adapter.setSkinPose(binding, pose);\n  ${ROUTE_BLOCK[1]}`) } },
     { rule: "9 no engine file imports the garment processor", edit: append("scene/scene.mjs", 'import { loadSkinned } from "../../../../fitting/garments/skinned.mjs";') },
+    { rule: RULE_10, edit: append("process/rig/rig.mjs", 'import { createSceneView } from "../../render/three/scene-view.mjs";') },
+    { rule: RULE_10, edit: append("process/rig/roles.mjs", 'const manager = await import("../../scene/manager.mjs");') },
+    { rule: RULE_10, edit: append("process/rig/rig.mjs", 'import { gltfImporter } from "../../import/gltf/to-scene.mjs";') },
+    { rule: RULE_10, edit: append("process/rig/rig.mjs", 'import { fitHold } from "../../../../../web/avatar/runtime/fitting/holds.mjs";') },
+    { rule: RULE_11, edit: { "web/avatar/runtime/fitting/rig.mjs": readFileSync(join(ENGINE, "process/rig/rig.mjs"), "utf8") } },
+    { rule: RULE_11, edit: { "scene/check.mjs": `${readFileSync(join(ENGINE, "scene/check.mjs"), "utf8")}\n${readFileSync(join(ENGINE, "process/rig/roles.mjs"), "utf8")}` } },
+    { rule: RULE_11, edit: { "web/avatar/actionforge-avatar.mjs": `${readFileSync(join(CODE, "web/avatar/actionforge-avatar.mjs"), "utf8")}\nimport { detectRig } from "../vendor/avatar-evaluator-v1/fitting/roles.mjs";` } },
 ];
 const faults = FAULTS.map(({ rule, edit }) => {
     const found = run(edit).find((r) => r.rule === rule).crossings;
     return { rule, file: Object.keys(edit)[0], caught: found.length > 0, by: found[0] ?? null };
 });
 const missed = faults.filter((f) => !f.caught).length;
-console.log(JSON.stringify({ engine: relative(CODE, ENGINE) || ENGINE, rules: results.length, broken: broken.length, results, faultsPlanted: faults.length, faultsCaught: faults.length - missed, faults }, null, 2));
+console.log(JSON.stringify({ engine: relative(CODE, ENGINE) || ENGINE, rules: results.length, broken: broken.length, results,
+    frozenCopies: codeFiles().filter((f) => FROZEN.some(({ copy }) => f.startsWith(copy))), faultsPlanted: faults.length, faultsCaught: faults.length - missed, faults }, null, 2));
 console.log(`engine boundary: ${results.length - broken.length}/${results.length} rules hold${broken.length ? ` (broken: ${broken.map((b) => b.rule.split(" ")[0]).join(", ")})` : ""}; ${faults.length - missed} of ${faults.length} planted faults caught`);
 process.exitCode = broken.length || missed ? 1 : 0;

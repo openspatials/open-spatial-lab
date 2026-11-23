@@ -1,7 +1,7 @@
 {
   "name": "open-spatial-lab-avatar-runtime",
-  "version": "1.0.1",
-  "status": "released-pending-commit",
+  "version": "1.1.0-spatial-client",
+  "status": "branch-release, not on main",
   "commit": "<filled by Lab at commit time>",
   "source": "vendor/avatar-evaluator-v1 copy (web/vendor/avatar-evaluator-v1/mannequin/web/avatar/*.mjs and the fitting/*.mjs they import), the runtime the Lab page ran before 1.0.0. Code is unchanged except import specifiers; the vendor folder stays in place.",
   "entry": "index.mjs",
@@ -20,7 +20,8 @@
   },
   "surface_differences": [
     "RemoteAvatar is not exported: the vendor copy has no remote-avatar module. The agreed surface named it; 1.0.0 leaves it out.",
-    "SolverStack (fitting/solvers.mjs) is not in index.mjs but web/avatar/actionforge-avatar.mjs imports it by module path, as it did from the vendor copy."
+    "SolverStack (fitting/solvers.mjs) is not in index.mjs but web/avatar/actionforge-avatar.mjs imports it by module path, as it did from the vendor copy.",
+    "fitting/rig.mjs and fitting/roles.mjs are one-line forwards to runtime/scene-core/public/process/rig/, found through import.meta.resolve(\"#scene-manager\") (WO-566)."
   ],
   "imports": {
     "bare": [
@@ -83,17 +84,17 @@
     },
     {
       "path": "fitting/rig.mjs",
-      "sha256": "fc566ad98375733b6d554083505f1be24069c99ce04208cd9f3419fb120da0cc",
+      "sha256": "712f226bdb39ad5dd4d9a18f6d0c217c30e4745d0713caa4cf45437c00ec5b89",
       "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/rig.mjs",
       "vendor_sha256": "fc566ad98375733b6d554083505f1be24069c99ce04208cd9f3419fb120da0cc",
-      "change": "identical"
+      "change": "forward to runtime/scene-core/public/process/rig/rig.mjs, behaviour unchanged (WO-566)"
     },
     {
       "path": "fitting/roles.mjs",
-      "sha256": "0bed2157d293c24d4f5ebe61e59a7745019725f2b0317caee9cd796abb34eabe",
+      "sha256": "ee7858ffd86eaacd20d3d48d70de7fe680a529ec5894c3f23b223ed894ae08fa",
       "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/roles.mjs",
       "vendor_sha256": "0bed2157d293c24d4f5ebe61e59a7745019725f2b0317caee9cd796abb34eabe",
-      "change": "identical"
+      "change": "forward to runtime/scene-core/public/process/rig/roles.mjs, behaviour unchanged (WO-566)"
     },
     {
       "path": "fitting/solvers.mjs",
