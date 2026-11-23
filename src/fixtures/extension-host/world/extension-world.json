@@ -1,7 +1,7 @@
 {
   "spatialID": "extension-test-world",
   "title": "Extension test world",
-  "_note": "A test world for the extension mount. Five nodes carry webofworlds_extension.universal_extensions. Opened only by URL; it is not in the worlds list.",
+  "_note": "A test world for the extension mount. Five nodes carry webofworlds_extension.universal_extensions; two of them carry a glance, the other three get the host's. Opened only by URL; it is not in the worlds list.",
   "units": "metres; y-up",
   "root": 0,
   "nodes": [
@@ -73,7 +73,13 @@
               "ue.console.log",
               "ue.scene.nodes"
             ],
-            "limits": {}
+            "limits": {},
+            "glance": {
+              "line1": "Stool",
+              "line2": "A sample object",
+              "icon": "info",
+              "action": "View"
+            }
           }
         ]
       }
@@ -143,7 +149,17 @@
               "ue.console.log",
               "ue.scene.nodes"
             ],
-            "limits": {}
+            "limits": {},
+            "glance": {
+              "line1": "Box maker",
+              "line2": "Makes one box",
+              "icon": "shop",
+              "action": "Open",
+              "hours": {
+                "opens": "00:00",
+                "closes": "23:59"
+              }
+            }
           }
         ]
       }

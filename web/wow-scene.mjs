@@ -186,8 +186,15 @@ export function validateFabricSubtreeContract(subtree, opts = {}) {
 
 /** The members the strict `UniversalExtensionDeclaration` schema declares, the ones loadExtension takes. */
 export const EXTENSION_DECLARATION_MEMBERS = Object.freeze([
-  "module", "interface", "attach", "requests", "limits", "data", "purposes",
+  "module", "interface", "attach", "requests", "limits", "data", "purposes", "glance",
 ]);
+/**
+ * The members a glance may carry: two short lines, an icon name, an action word, and opening hours the host words
+ * itself. A glance has no rank, priority, bid or order member; the host orders glances, nearest first.
+ */
+export const EXTENSION_GLANCE_MEMBERS = Object.freeze(["line1", "line2", "icon", "action", "hours"]);
+/** The longest each glance text may be, in characters. */
+export const EXTENSION_GLANCE_LIMITS = Object.freeze({ line1: 40, line2: 40, action: 16 });
 /** The bindings a declaration may name (module.binding). */
 export const EXTENSION_BINDINGS = Object.freeze(["rp1-sneeze-call", "ue-core/0"]);
 /** The budgets a declaration may lower (limits). */
@@ -216,17 +223,50 @@ export const EXTENSION_DECLARATION_REFUSAL = Object.freeze({
   BAD_LIMITS: "BAD_LIMITS",
   BAD_DATA: "BAD_DATA",
   BAD_PURPOSES: "BAD_PURPOSES",       // not { requested token: string }
+  BAD_GLANCE: "BAD_GLANCE",           // glance is not { line1, line2, icon, action, hours? }
 });
 const refuseDeclaration = (reason, detail) => ({ ok: false, stage: "declaration", reason, detail });
 const isPlainObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 const INTEGRITY = /^sha256-[A-Za-z0-9+/]{43}=$/;
+const GLANCE_ICON = /^[a-z][a-z0-9-]{0,31}$/;
+const CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * checkGlance(glance) -> { ok: true, glance } | { ok: false, reason, detail }: the optional glance of a declaration.
+ * Every text is plain text, at most EXTENSION_GLANCE_LIMITS characters; the icon is a name (an unknown one shows the
+ * host's default); hours, when present, is { opens, closes } in 24-hour "HH:MM". Any other member is refused.
+ */
+export function checkGlance(glance) {
+  const R = EXTENSION_DECLARATION_REFUSAL;
+  const bad = (detail) => ({ ok: false, reason: R.BAD_GLANCE, detail });
+  if (!isPlainObject(glance)) return bad("glance must be an object { line1, line2, icon, action, hours? }");
+  const unknown = Object.keys(glance).filter((key) => !EXTENSION_GLANCE_MEMBERS.includes(key));
+  if (unknown.length) return { ok: false, reason: R.UNKNOWN_MEMBER, detail: `unknown glance member(s) [${unknown.join(", ")}]; a glance has no rank, priority or order, the host orders glances itself` };
+  for (const name of ["line1", "line2", "action"]) {
+    const text = glance[name];
+    if (typeof text !== "string" || !text.trim()) return bad(`glance.${name} must be a non-empty string`);
+    if ([...text].length > EXTENSION_GLANCE_LIMITS[name]) return bad(`glance.${name} is longer than ${EXTENSION_GLANCE_LIMITS[name]} characters`);
+  }
+  if (typeof glance.icon !== "string" || !GLANCE_ICON.test(glance.icon)) return bad("glance.icon must be an icon name (lower-case letters, digits and hyphens)");
+  const { hours } = glance;
+  if (hours !== undefined) {
+    if (!isPlainObject(hours) || Object.keys(hours).some((key) => key !== "opens" && key !== "closes")
+      || !CLOCK_TIME.test(String(hours.opens)) || !CLOCK_TIME.test(String(hours.closes))) {
+      return bad("glance.hours must be { opens, closes }, each a 24-hour time \"HH:MM\"");
+    }
+  }
+  return {
+    ok: true,
+    glance: { line1: glance.line1, line2: glance.line2, icon: glance.icon, action: glance.action, ...(hours === undefined ? {} : { hours: { opens: hours.opens, closes: hours.closes } }) },
+  };
+}
 
 /**
  * validateExtensionDeclaration(decl) -> { ok: true, effective } | { ok: false, stage: "declaration", reason, detail }
  *
  * The PURE mirror of the strict `UniversalExtensionDeclaration` schema, so the client refuses what the schema
- * refuses. `effective` is a copy with `data` resolved to {} when absent (and `purposes` when present); it is what the
- * mount pass hands loadExtension. A purpose for a token that `requests` does not name is refused here, which the schema
+ * refuses. `effective` is a copy with `data` resolved to {} when absent (and `purposes` and `glance` when present); it is
+ * what the mount pass hands loadExtension. A purpose for a token that `requests` does not name is refused here, which the schema
  * cannot say.
  */
 export function validateExtensionDeclaration(decl) {
@@ -237,7 +277,7 @@ export function validateExtensionDeclaration(decl) {
   for (const name of ["module", "interface", "attach", "requests", "limits"]) {
     if (decl[name] === undefined) return refuseDeclaration(R.MISSING_MEMBER, `${name} is required`);
   }
-  const { module, interface: iface, attach, requests, limits, data, purposes } = decl;
+  const { module, interface: iface, attach, requests, limits, data, purposes, glance } = decl;
   if (!isPlainObject(module)) return refuseDeclaration(R.BAD_MODULE, "module must be an object { url, integrity, binding }");
   const moduleUnknown = Object.keys(module).filter((key) => !["url", "integrity", "binding"].includes(key));
   if (moduleUnknown.length) return refuseDeclaration(R.UNKNOWN_MEMBER, `unknown module member(s) [${moduleUnknown.join(", ")}]`);
@@ -270,6 +310,8 @@ export function validateExtensionDeclaration(decl) {
       if (!requests.includes(token)) return refuseDeclaration(R.BAD_PURPOSES, `purposes names ${JSON.stringify(token)}, which requests does not`);
     }
   }
+  const glanced = glance === undefined ? null : checkGlance(glance);
+  if (glanced && !glanced.ok) return refuseDeclaration(glanced.reason, glanced.detail);
   return {
     ok: true,
     effective: {
@@ -280,6 +322,7 @@ export function validateExtensionDeclaration(decl) {
       limits: { ...limits },
       data: data === undefined ? {} : data,
       ...(purposes === undefined ? {} : { purposes: { ...purposes } }),
+      ...(glanced ? { glance: glanced.glance } : {}),
     },
   };
 }
@@ -1232,4 +1275,6 @@ export default {
   FABRIC_SUBTREE_MEMBERS,
   validateExtensionDeclaration,
   EXTENSION_DECLARATION_MEMBERS,
+  EXTENSION_GLANCE_MEMBERS,
+  checkGlance,
 };

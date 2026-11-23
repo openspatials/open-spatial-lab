@@ -1,14 +1,21 @@
 // web/wow-extension-mount.mjs
 //
 // The async mount pass for the extensions a world's nodes carry. buildWowScene (web/wow-scene.mjs) finds and checks
-// the declarations (`extension_nodes`); this pass fetches each module, loads it with the extension host's
-// loadExtension (one Web Worker per extension), and draws the scene nodes it makes under the node that carries it, in
-// that node's frame.
+// the declarations (`extension_nodes`); this pass settles what needs no request at world load, and starts an extension
+// only when the visitor selects its glance (web/wow-extension-glance.mjs): then it fetches the module, loads it with
+// the extension host's loadExtension (one Web Worker per extension), and draws the scene nodes it makes under the node
+// that carries it, in that node's frame.
+//
+// Lazy start (quiet discovery): at world load nothing is fetched for an extension, no module and no status, so no
+// maker's server learns of a visitor before the visitor engages. Each declaration that passes steps 1 and 2 waits with
+// status "not-started" until select(record) is called (a click, a tap or a keyboard activation on its glance; hover,
+// pointer movement and time in view call nothing). select(record) starts that one extension only.
 //
 // The order, per declaration:
-//   1. A declaration buildWowScene refused stays refused (stage `declaration`).
-//   2. The world file must be served from this page's origin (stage `origin`). Nothing is fetched otherwise.
-//   3. module.url is resolved against the world file URL and fetched (stage `fetch`).
+//   1. A declaration buildWowScene refused stays refused (stage `declaration`). At world load.
+//   2. The world file must be served from this page's origin (stage `origin`). Nothing is fetched otherwise. At world
+//      load.
+//   3. At selection: module.url is resolved against the world file URL and fetched (stage `fetch`).
 //   4. The attachment-confined tokens the declaration requests are granted by host policy, with the prompted tokens a
 //      current grant record already holds for this placement (web/wow-extension-consent.mjs). Any other requested
 //      token is listed as needing consent. With a document, the pass then shows one consent dialog per extension (one
@@ -30,13 +37,14 @@
 // due and fires it once when the page is visible again. The host's time budgets (a soft and a hard limit per call, a
 // budget per second) are its own; a record's extension.overruns counts its calls over the soft limit.
 //
-// A node may also point to signed carrier manifests (`universal_extension_manifests`). Before any module is fetched,
-// each carrier is fetched, its signature verified, its dates checked and each extension's signed entity.statusRef (if
-// any) resolved, and only then are its extension facets read (web/wow-extension-manifest-adapter.mjs; stages `manifest-fetch`, `signature`,
-// `validity`, `status`, `facet`). Its extensions
-// follow the node's own declarations, with the next indices, and run by the same steps 2 to 6. Their grants and storage
-// are keyed by the carrier subject, the key the signature verified under, module.integrity and attach, never by the
-// manifest or facet @id.
+// A node may also point to signed carrier manifests (`universal_extension_manifests`). At world load each carrier on
+// this page's origin is fetched (a request to the place, not to a maker; a carrier on another origin is refused at
+// stage `origin` with no request), its signature verified, its dates checked and its extension facets read, with their
+// glances (web/wow-extension-manifest-adapter.mjs; stages `manifest-fetch`, `signature`, `validity`, `facet`). Each
+// extension's signed entity.statusRef (if any) is resolved at selection, before its module is fetched (stage
+// `status`). Its extensions follow the node's own declarations, with the next indices, and run by the same steps 2 to
+// 6. Their grants and storage are keyed by the carrier subject, the key the signature verified under, module.integrity
+// and attach, never by the manifest or facet @id.
 //
 // Every refusal or failure leaves a warn-tinted marker named `ue-refused:<stage>:<label>#<index>` or
 // `ue-failed:<stage>:<label>#<index>`, with the stage in userData.ueStage. Nothing throws out of the pass.
@@ -82,8 +90,8 @@ function disposeObject(root) {
 }
 
 /**
- * mountWowExtensions(extensionNodes, THREE, opts) -> Promise<{ records, mounted, refused, failed, needs_consent,
- * summary, sync(), unmount() }>
+ * mountWowExtensions(extensionNodes, THREE, opts) -> Promise<{ records, mounted, refused, failed, not_started,
+ * needs_consent, summary, select(record), sync(), unmount() }>
  *
  * @param {Array}  extensionNodes  buildWowScene's `extension_nodes`
  * @param {object} THREE           injected Three.js namespace
@@ -94,7 +102,10 @@ function disposeObject(root) {
  * verifyManifestProfileA), `now` (default Date.now), `statusTransport` (default: a GET through `fetch`) and
  * `fetchLimitMs` (default 10 s, the limit of the carrier fetch and of each status fetch) go to the carrier manifest
  * adapter.
- * Never rejects. `unmount()` shuts every extension down and removes what the pass drew.
+ * Resolves once what needs no module is settled; no extension is started. `mounted`, `refused`, `failed`,
+ * `not_started` and `summary` are read live. `select(record)` -> Promise<record> starts one not-started extension and
+ * resolves when it is mounted, refused or failed; it never rejects. Never rejects. `unmount()` shuts every extension
+ * down and removes what the pass drew.
  */
 export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const nodes = Array.isArray(extensionNodes) ? extensionNodes : [];
@@ -112,14 +123,14 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const consent = doc ? createConsentQueue(doc) : null;
   const listeners = new Set();
   const notifyChange = () => { for (const listener of [...listeners]) { try { listener(); } catch {} } };
-  let worldOrigin = null;
-  try { worldOrigin = new URL(worldUrl).origin; } catch { worldOrigin = null; }
+  const originOf = (url) => { try { return new URL(url).origin; } catch { return null; } };
+  const worldOrigin = originOf(worldUrl);
 
   const records = [];
   const addRecord = (node, index, declaration, validation, carrier = null) => records.push({
     node_id: node.node_id, label: node.label, index, node, group: node.group,
     declaration, validation, carrier,
-    status: "pending", stage: null, error: null,
+    status: "pending", stage: null, error: null, selectable: false, check_status: null, starting: null,
     extension: null, attachment: null, module_url: null, grant: [], host_grant: [], needs_consent: [], placement_key: null,
     pointer: { times: [] }, overruns: 0,
     container: null, marker: null, objects: new Map(),
@@ -130,7 +141,10 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const readCarrier = (node, ref) => {
     if (ref.error) return { ok: false, stage: "declaration", detail: ref.error };
     if (worldOrigin !== pageOrigin) return { ok: false, stage: "origin", detail: `the world file is served from ${worldOrigin}, not from this page's origin ${pageOrigin}` };
-    return readCarrierManifest({ manifestUrl: resolveAssetUri(ref.url, worldUrl), nodeId: node.node_id, fetch: fetchModule, now: opts.now, verify: opts.verifyManifest || verifyManifestProfileA, statusTransport: opts.statusTransport, fetchLimitMs: opts.fetchLimitMs })
+    const manifestUrl = resolveAssetUri(ref.url, worldUrl);
+    // A carrier is read at world load, so only from this page's origin: the request goes to the place, never a maker.
+    if (originOf(manifestUrl) !== pageOrigin) return { ok: false, stage: "origin", detail: `the carrier manifest ${manifestUrl} is not on this page's origin ${pageOrigin}; carriers are read at world load only from it` };
+    return readCarrierManifest({ manifestUrl, nodeId: node.node_id, fetch: fetchModule, now: opts.now, verify: opts.verifyManifest || verifyManifestProfileA, statusTransport: opts.statusTransport, fetchLimitMs: opts.fetchLimitMs })
       .catch((error) => ({ ok: false, stage: "manifest-fetch", detail: oneLine(error) }));
   };
   const carried = await Promise.all(nodes.map((node) => Promise.all(carrierRefs(node).map((ref) => readCarrier(node, ref)))));
@@ -140,6 +154,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
       if (!read.ok) { addRecord(node, index++, null, { ok: false, stage: read.stage, detail: read.detail }); continue; }
       for (const item of read.extensions) {
         addRecord(node, index++, null, item.ok ? { ok: true, effective: item.effective } : { ok: false, stage: item.stage, detail: item.detail }, item.ok ? item.carrier : null);
+        if (item.ok && typeof item.checkStatus === "function") records[records.length - 1].check_status = item.checkStatus;
       }
     }
   });
@@ -278,12 +293,27 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const fail = (record, stage, detail) => settle(record, REFUSAL_STAGES.has(stage) ? "refused" : "failed", stage, detail);
   const failure = (record, extension) => fail(record, (extension && extension.stage) || "worker", (extension && extension.error) || "loadExtension gave no extension");
 
-  async function mountOne(record) {
+  // At world load: the refusals that need no request. A declaration that passes waits for selection.
+  function settleAtLoad(record) {
     if (!record.validation.ok) return refuse(record, record.validation.stage || "declaration", record.validation.detail);
     const effective = record.validation.effective;
     if (!NODE_ADAPTERS[effective.module.binding]) return refuse(record, "declaration", `the mount has no node adapter for binding ${effective.module.binding}`);
     if (worldOrigin !== pageOrigin) return refuse(record, "origin", `the world file is served from ${worldOrigin}, not from this page's origin ${pageOrigin}; the Lab runs extensions only from world files served from its own origin`);
+    record.status = "not-started";
+    record.selectable = true;
+    return record;
+  }
+
+  // At selection: the status (a carrier's), the module, the host and the worker.
+  async function startOne(record) {
+    const effective = record.validation.effective;
     if (!loadExtension) return fail(record, "worker", "no extension host injected");
+    if (record.check_status) {
+      const status = await record.check_status();
+      if (!status || !status.ok) return refuse(record, "status", (status && status.detail) || "the status could not be read");
+      record.carrier.revocationStatus = status.revocationStatus;
+      record.carrier.revocationReason = status.revocationReason;
+    }
 
     // A carrier's module.url resolves against the carrier manifest's URL.
     const moduleUrl = resolveAssetUri(effective.module.url, record.carrier ? record.carrier.manifest_url : worldUrl);
@@ -330,7 +360,38 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     return record;
   }
 
-  await Promise.all(records.map((record) => mountOne(record).catch((error) => fail(record, "worker", oneLine(error)))));
+  for (const record of records) settleAtLoad(record);
+
+  // A node's "not mounted yet" placeholder goes once none of its declarations waits for selection or is starting.
+  function clearPlaceholders() {
+    for (const node of nodes) {
+      if (!node.placeholder || !node.placeholder.parent) continue;
+      if (records.some((record) => record.node === node && (record.status === "not-started" || record.status === "starting"))) continue;
+      node.placeholder.parent.remove(node.placeholder);
+      disposeObject(node.placeholder);
+    }
+  }
+
+  /** Starts one not-started extension; the same promise for one already starting; the record for any other. */
+  function select(record) {
+    if (!record || !records.includes(record)) return Promise.resolve(record || null);
+    if (record.starting) return record.starting;
+    if (unmounted || record.status !== "not-started") return Promise.resolve(record);
+    record.status = "starting";
+    notifyChange();
+    record.starting = startOne(record).catch((error) => fail(record, "worker", oneLine(error))).then(() => {
+      if (record.status === "starting") record.status = "cancelled";
+      clearPlaceholders();
+      if (record.status === "mounted" && !unmounted) {
+        ensureTimer();
+        if (isHidden() && record.extension && typeof record.extension.setPaused === "function") record.extension.setPaused(true);
+        if (consent) consentDone = consentDone.then(() => askConsent(record)).catch(() => {});
+      }
+      notifyChange();
+      return record;
+    });
+    return record.starting;
+  }
 
   // ---- Consent, withdrawal and pointer input ----
 
@@ -358,9 +419,8 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     grantStore.grant(record.placement_key, effective, allowed, { remember: answer.remember });
     await applyGrant(record, [...new Set([...record.grant, ...allowed])]);
   }
-  const consentDone = consent
-    ? (async () => { for (const record of records) if (record.status === "mounted" && !unmounted) await askConsent(record); })().catch(() => {})
-    : Promise.resolve();
+  // Consent comes after start, one dialog at a time, in the order the extensions were selected.
+  let consentDone = Promise.resolve();
 
   function withdraw(record) {
     if (!record || !record.placement_key) return false;
@@ -371,6 +431,8 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   function stateOf(record) {
     if (record.status === "refused" || record.status === "failed") return record.status;
     if (record.status === "mounted" && record.extension && record.extension.running !== false) return "running";
+    if (record.status === "not-started") return "not started";
+    if (record.status === "starting") return "starting";
     if (record.status === "pending") return "pending";
     return "ended";
   }
@@ -426,13 +488,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     return target ? sendPointer(target, type, point) : false;
   }
 
-  // Every node's declarations are settled: its "not mounted yet" placeholder goes.
-  for (const node of nodes) {
-    if (node.placeholder && node.placeholder.parent) {
-      node.placeholder.parent.remove(node.placeholder);
-      disposeObject(node.placeholder);
-    }
-  }
+  clearPlaceholders();
   const live = () => records.filter((record) => record.status === "mounted");
   // Each sync also tells the panel when an extension's count of overruns changed.
   const syncAll = () => {
@@ -447,17 +503,33 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     }
     if (slower) notifyChange();
   };
-  if (live().length && !unmounted) timer = setInterval(syncAll, syncMs);
+  // The sync timer runs once an extension is mounted.
+  function ensureTimer() {
+    if (!timer && !unmounted && live().length) timer = setInterval(syncAll, syncMs);
+  }
+  const withStatus = (status) => records.filter((record) => record.status === status);
+  const summaryOf = () => ({
+    declarations: records.length,
+    mounted: withStatus("mounted").length,
+    refused: withStatus("refused").length,
+    failed: withStatus("failed").length,
+    not_started: withStatus("not-started").length,
+    by_stage: Object.fromEntries([...new Set(records.map((record) => record.stage).filter(Boolean))].map((stage) => [stage, records.filter((record) => record.stage === stage).length])),
+    needs_consent: needsConsent,
+    rule: "extensions start only when the visitor selects their glance, nothing is fetched for them before; they run only from world files served from this page's origin, only when the module's SHA-256 matches module.integrity (and, for a carrier manifest, only when its signature verifies and it is within its dates), and with the attachment-confined tokens they request plus the prompted tokens the user allowed",
+  });
 
   const result = {
     records,
-    mounted: records.filter((record) => record.status === "mounted"),
-    refused: records.filter((record) => record.status === "refused"),
-    failed: records.filter((record) => record.status === "failed"),
+    get mounted() { return withStatus("mounted"); },
+    get refused() { return withStatus("refused"); },
+    get failed() { return withStatus("failed"); },
+    get not_started() { return withStatus("not-started"); },
     needs_consent: needsConsent,
-    summary: null,
+    get summary() { return summaryOf(); },
     grantStore,
-    consentDone,
+    get consentDone() { return consentDone; },
+    select,
     withdraw,
     stateOf,
     promptedGrant: promptedOf,
@@ -493,15 +565,6 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
       notifyChange();
       listeners.clear();
     },
-  };
-  result.summary = {
-    declarations: records.length,
-    mounted: result.mounted.length,
-    refused: result.refused.length,
-    failed: result.failed.length,
-    by_stage: Object.fromEntries([...new Set(records.map((record) => record.stage).filter(Boolean))].map((stage) => [stage, records.filter((record) => record.stage === stage).length])),
-    needs_consent: needsConsent,
-    rule: "extensions run only from world files served from this page's origin, only when the module's SHA-256 matches module.integrity (and, for a carrier manifest, only when its signature verifies and it is within its dates), and with the attachment-confined tokens they request plus the prompted tokens the user allowed",
   };
   return result;
 }

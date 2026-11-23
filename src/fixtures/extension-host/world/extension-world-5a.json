@@ -84,6 +84,12 @@
                 "headers": [],
                 "body": null
               }
+            },
+            "glance": {
+              "line1": "Fetcher",
+              "line2": "Reads one page from its server",
+              "icon": "map",
+              "action": "Open"
             }
           }
         ]
@@ -186,7 +192,13 @@
             "purposes": {
               "ue.input.pointer": "Reacts when you point at or click its box."
             },
-            "limits": {}
+            "limits": {},
+            "glance": {
+              "line1": "Pointer listener",
+              "line2": "Answers a click on its box",
+              "icon": "music",
+              "action": "Try it"
+            }
           }
         ]
       }

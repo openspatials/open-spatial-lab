@@ -17,6 +17,9 @@
 // and serves it at /__ue-carrier/box-carrier.json. Another (manifest-signed-by) requests a prompted token and reads the
 // "Signed by" line of its consent dialog.
 //
+// Lazy start (quiet discovery, Lab packet QD-1): a mount pass starts nothing at world load; every case that runs an
+// extension selects it first (selectAll, as a visitor's click on each glance would).
+//
 // One case moves a node through the host's node list: no test module calls node-set-transform, so the check page
 // gives the mount the node fields a node-set-transform leaves (position, rotation, scale) for the Box node.
 import { createHash } from "node:crypto";
@@ -122,12 +125,15 @@ const countUnder = (root, test) => { let n = 0; root.traverse((object) => { if (
 const round = (values) => values.map((v) => Math.round(v * 1e4) / 1e4);
 const worldPos = (object) => { object.updateWorldMatrix(true, false); return round(object.getWorldPosition(new THREE.Vector3()).toArray()); };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Selects every extension of a mount pass that waits for selection, as clicks on their glances would.
+const selectAll = (result) => Promise.all(result.records.map((record) => result.select(record)));
 
 let mounted = null, mountError = null;
 try {
   mounted = await mountWowExtensions(built.extension_nodes, THREE, { loadExtension: wrapped, worldUrl, pageOrigin: location.origin, loadGltf, fetch: countingFetch });
+  await selectAll(mounted);
 } catch (error) { mountError = oneLine(error); }
-const mustMount = () => assert(mounted, "the mount pass threw: " + mountError);
+const mustMount = () => assert(mounted && !mountError, "the mount pass threw: " + mountError);
 const recordOf = (label) => mounted.records.find((record) => record.label === label);
 
 await run("ext-mount-rp1", async () => {
@@ -231,6 +237,7 @@ await run("manifest-extension-runs", async () => {
   const carrierWorldUrl = new URL("/__ue-carrier/world.json", location.href).href;
   const scene = buildWowScene(carrierWorld, THREE, { source: "ue-mount-check-carrier" });
   const result = await mountWowExtensions(scene.extension_nodes, THREE, { loadExtension: wrapped, worldUrl: carrierWorldUrl, pageOrigin: location.origin, loadGltf, fetch: countingFetch });
+  await selectAll(result);
   const found = result.records.find((item) => item.label === "carried-box");
   const record = found ? { status: found.status, stage: found.stage, error: found.error } : null;
   const group = groupOf(scene, "carried-box");
@@ -255,6 +262,7 @@ await run("manifest-signed-by", async () => {
   const signedWorldUrl = new URL("/__ue-carrier/signed-by-world.json", location.href).href;
   const scene = buildWowScene(signedWorld, THREE, { source: "ue-mount-check-signed-by" });
   const result = await mountWowExtensions(scene.extension_nodes, THREE, { loadExtension: wrapped, worldUrl: signedWorldUrl, pageOrigin: location.origin, loadGltf, fetch: countingFetch, document });
+  await selectAll(result);
   const found = result.records.find((item) => item.label === "signed-box");
   const record = found ? { status: found.status, stage: found.stage, error: found.error } : null;
   let dialog = null;
@@ -308,6 +316,7 @@ async function mountPass(world) {
   learn(scene);
   view = scene;
   const result = await mountWowExtensions(scene.extension_nodes, THREE, { loadExtension: wrapped, worldUrl: world5aUrl, pageOrigin: location.origin, loadGltf, fetch: countingFetch, document, storage: localStorage });
+  await selectAll(result);
   const pointer = renderer ? attachExtensionPointer({ THREE, camera: scene.camera, scene: scene.scene, canvas: renderer.domElement, mounted: result }) : null;
   return {
     scene, mounted: result, pointer,
@@ -674,11 +683,11 @@ await finish({ checkFile: "src/wow-extension-mount-browser-check.mjs", faults: [
     edits: [{ file: MOUNT, find: "const grant = requested.filter((token) => granted.has(token));", replace: "const grant = requested;" }] },
   { statement: "ext-transform-follows", name: "ignore node updates", expect: /did not move/,
     edits: [{ file: MOUNT, find: "      else if (changed(object, node)) placeNode(object, node);", replace: "      else if (false) placeNode(object, node);" }] },
-  { statement: "ext-world-survives", name: "let a failure throw out of the mount pass", expect: /the mount pass threw/,
+  { statement: "ext-world-survives", name: "let a failure throw out of the mount pass (out of select)", expect: /the mount pass threw/,
     edits: [
       { file: MOUNT, find: "    if (!extension || !extension.ok) return failure(record, extension);", replace: "    if (!extension || !extension.ok) throw new Error(`${record.label}: ${extension && extension.error}`);" },
-      { file: MOUNT, find: "  await Promise.all(records.map((record) => mountOne(record).catch((error) => fail(record, \"worker\", oneLine(error)))));",
-        replace: "  await Promise.all(records.map((record) => mountOne(record)));" },
+      { file: MOUNT, find: "    record.starting = startOne(record).catch((error) => fail(record, \"worker\", oneLine(error))).then(() => {",
+        replace: "    record.starting = startOne(record).then(() => {" },
     ] },
   { statement: "ext-unmount-clean", name: "skip shutdown() in unmount()", expect: /still alive after unmount/,
     edits: [{ file: MOUNT, find: "      try { await record.extension.shutdown(); } catch {}", replace: "" }] },

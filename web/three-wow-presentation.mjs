@@ -7,6 +7,7 @@ import { mountViewerPortals } from "./main-demo-viewer-portals.mjs";
 import { mountWowExtensions } from "./wow-extension-mount.mjs";
 import { createGrantStore, renderExtensionsPanel } from "./wow-extension-consent.mjs";
 import { attachExtensionPointer } from "./wow-extension-pointer.mjs";
+import { renderGlanceList } from "./wow-extension-glance.mjs";
 
 // The extension host, loaded only when a world carries extensions. The Lab frontend serves runtime/extension-host/ at
 // /vendor/extension-host/, beside /vendor/scene-core/.
@@ -232,7 +233,8 @@ export function createWowScenePresentation({
     }
   }
   // The extensions the world's nodes carry (`webofworlds_extension.universal_extensions`), after the models. A world
-  // with none does nothing here. Refusals and failures are drawn as labeled markers and never break the world.
+  // with none does nothing here. Refusals and failures are drawn as labeled markers and never break the world. Nothing
+  // is fetched for an extension until the visitor selects its glance (web/wow-extension-glance.mjs).
   async function loadExtensions() {
     const nodes = built?.extension_nodes || [];
     if (!active() || !nodes.length) return;
@@ -264,20 +266,26 @@ export function createWowScenePresentation({
     extensions = mounted;
     extensionUi = mountExtensionUi(mounted);
     view.__wowExtensions = {
-      summary: mounted.summary,
+      get summary() { return mounted.summary; },
       discovery: built.render_summary.extensions,
       unmount: () => mounted.unmount(),
     };
-    document.body.setAttribute(
-      "data-wow-extensions",
-      JSON.stringify({
-        mounted: mounted.mounted.length,
-        refused: mounted.refused.length,
-        failed: mounted.failed.length,
-      })
-    );
+    const publishCounts = () => {
+      if (!active()) return;
+      document.body.setAttribute(
+        "data-wow-extensions",
+        JSON.stringify({
+          mounted: mounted.mounted.length,
+          refused: mounted.refused.length,
+          failed: mounted.failed.length,
+          not_started: mounted.not_started.length,
+        })
+      );
+    };
+    publishCounts();
+    mounted.subscribe(publishCounts);
     logLine(
-      `wow extensions: ${mounted.mounted.length} running, ${mounted.refused.length} refused, ${mounted.failed.length} failed`
+      `wow extensions: ${mounted.not_started.length} not started, ${mounted.refused.length} refused, ${mounted.failed.length} failed`
     );
     for (const record of [...mounted.refused, ...mounted.failed])
       logLine(
@@ -288,9 +296,22 @@ export function createWowScenePresentation({
         `wow extension ${pending.label}#${pending.index}: ${pending.tokens.join(", ")} ${pending.note}`
       );
   }
-  // The Extensions panel, opened from a button in the world header, and pointer input on the scene's canvas.
+  // The glances, the Extensions panel (opened from a button in the world header) and pointer input on the scene's canvas.
   function mountExtensionUi(mounted) {
     const undo = [];
+    if (document?.body && mounted.records.some((record) => record.selectable)) {
+      const camera = built?.camera || null;
+      const viewer = camera
+        ? () => {
+            camera.updateMatrixWorld();
+            const at = camera.matrixWorld.elements;
+            return [at[12], at[13], at[14]];
+          }
+        : null;
+      const glances = renderGlanceList({ document, mounted, viewer });
+      document.body.append(glances.element);
+      undo.push(() => glances.dispose());
+    }
     const canvas = runtime?._impl?.renderer?.domElement;
     if (canvas && built?.camera) {
       const pointer = attachExtensionPointer({ THREE, camera: built.camera, scene: built.scene, canvas, mounted });

@@ -412,6 +412,19 @@ export interface components {
             data?: {
                 [key: string]: unknown;
             };
+            /** @description What the visitor sees before choosing to engage: two short lines, an icon and an action word. The host shows it as plain text, never as markup, and fetches and starts nothing for the extension until the visitor selects the glance (a click, a tap or a keyboard activation; hover, gaze and time in view start nothing). A glance has no rank, priority, bid or order member: the host orders glances itself, nearest first. A declaration without a glance gets one from the host (the node label, then "Extension"). */
+            glance?: {
+                line1: string;
+                line2: string;
+                /** @description An icon name from the host list; a name the host does not know shows its default icon. */
+                icon: string;
+                action: string;
+                /** @description Opening hours, as data; the host words them itself (for example "until 21:00"). */
+                hours?: {
+                    opens: string;
+                    closes: string;
+                };
+            };
         };
         Zone: {
             /** @description e.g. prefetch | trigger */

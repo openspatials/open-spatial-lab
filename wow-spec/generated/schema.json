@@ -1825,6 +1825,58 @@
             "type": "object",
             "additionalProperties": true,
             "description": "The data the attachment reads (its `Data`). Absent means an empty object."
+          },
+          "glance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "line1",
+              "line2",
+              "icon",
+              "action"
+            ],
+            "description": "What the visitor sees before choosing to engage: two short lines, an icon and an action word. The host shows it as plain text, never as markup, and fetches and starts nothing for the extension until the visitor selects the glance (a click, a tap or a keyboard activation; hover, gaze and time in view start nothing). A glance has no rank, priority, bid or order member: the host orders glances itself, nearest first. A declaration without a glance gets one from the host (the node label, then \"Extension\").",
+            "properties": {
+              "line1": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "line2": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "icon": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,31}$",
+                "description": "An icon name from the host list; a name the host does not know shows its default icon."
+              },
+              "action": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16
+              },
+              "hours": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "opens",
+                  "closes"
+                ],
+                "description": "Opening hours, as data; the host words them itself (for example \"until 21:00\").",
+                "properties": {
+                  "opens": {
+                    "type": "string",
+                    "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+                  },
+                  "closes": {
+                    "type": "string",
+                    "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+                  }
+                }
+              }
+            }
           }
         }
       },

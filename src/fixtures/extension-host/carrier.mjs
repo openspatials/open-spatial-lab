@@ -8,15 +8,16 @@ import { jcsCanonicalizeToBytes } from "../../../web/signing/jcs-rfc8785.mjs";
 export const newCarrierKey = () => generateKeyPairSync("ed25519");
 
 /**
- * carrierManifest({ key, id, facetId, subject, module, attach, requests, issuedAt, expiresAt, statusRef, signatureStatusRef })
- * -> the signed manifest object. `key` is a node:crypto Ed25519 key pair; null leaves the manifest without a signature
+ * carrierManifest({ key, id, facetId, subject, module, attach, requests, issuedAt, expiresAt, statusRef, signatureStatusRef,
+ * glance }) -> the signed manifest object. `key` is a node:crypto Ed25519 key pair; null leaves the manifest without a signature
  * member. `statusRef`, when given, goes in the extension entity, which the signature covers. `signatureStatusRef`, when
  * given, goes in signature.statusRef, which the signing input leaves out (so a check can plant an unsigned address).
+ * `glance`, when given, goes in the extension entity, so the signature covers it too.
  */
 export function carrierManifest({
   key, id = "urn:uuid:check-carrier-1", facetId = "urn:osl:check:facet:1", subject = "urn:osl:check:world-node:carried",
   module, attach = { kind: "world-node" }, requests = [], issuedAt = "2026-11-16T00:00:00.000Z", expiresAt = "2030-11-16T00:00:00.000Z",
-  statusRef, signatureStatusRef,
+  statusRef, signatureStatusRef, glance,
 }) {
   const manifest = {
     "@context": "https://universalmanifest.net/ns/v0.6",
@@ -38,6 +39,7 @@ export function carrierManifest({
         attach,
         requests,
         ...(statusRef ? { statusRef } : {}),
+        ...(glance ? { glance } : {}),
       },
     }],
   };

@@ -7,6 +7,10 @@
 // (`webofworlds_extension.universal_extension_manifests`), with a recording fetch in place of a test server (every
 // request the pass makes goes through it) and a loadExtension that only records what it is given. hidden-page-pauses
 // runs the mount pass with the real extension host (worker_threads) and a document stand-in whose visibility it sets.
+//
+// Lazy start (quiet discovery, Lab packet QD-1): the mount pass starts nothing at world load; an extension starts when
+// the visitor selects its glance (mounted.select). The cases that run an extension select it first. The lazy-*,
+// select-* and no-rank cases check the rule itself.
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -154,6 +158,8 @@ async function mountCarrier(text, { grantStore, answers = {}, fetchLimitMs, exte
   const built = buildWowScene(world([{ label: "carried", webofworlds_extension: { universal_extension_manifests: [{ url: "carriers/carrier.json" }] } }]), THREE, { source: "check" });
   const mounted = await mountWowExtensions(built.extension_nodes, THREE, { loadExtension, worldUrl: CARRIER_WORLD, pageOrigin: LAB, fetch: recordingFetch, ...(grantStore ? { grantStore } : {}), ...(fetchLimitMs ? { fetchLimitMs } : {}) });
   const record = mounted.records.find((item) => item.label === "carried") || null;
+  // The visitor selects the extension's glance: only then are its status and its module fetched.
+  if (record && record.status === "not-started" && typeof mounted.select === "function") await mounted.select(record);
   const status = record ? record.status : null;
   const marker = record && record.marker ? { name: record.marker.name, stage: record.marker.userData.ueStage, under: objectsUnder(built.extension_nodes[0].group).includes(record.marker) } : null;
   await mounted.unmount();
@@ -400,6 +406,7 @@ await check("hidden-page-pauses", "While the page is hidden no timer or pointer 
   const fetch = async (url) => (String(url) === `${LAB}/worlds/timer-node.wasm` ? new Response(bytes) : new Response("not found", { status: 404 }));
   const mounted = await mountWowExtensions(built.extension_nodes, THREE, { loadExtension: hostLoadExtension, worldUrl, pageOrigin: LAB, fetch, document: doc, grantStore });
   const record = mounted.records[0];
+  if (record.status === "not-started" && typeof mounted.select === "function") await mounted.select(record);
   try {
     assert(record.status === "mounted", `the timer node: status ${record.status} at ${record.stage}: ${record.error}`);
     const extension = record.extension;
@@ -428,7 +435,103 @@ await check("hidden-page-pauses", "While the page is hidden no timer or pointer 
   }
 });
 
+// ---- Quiet discovery: glances first, nothing fetched for an extension until the visitor selects it ----
+const LAZY_WAIT_MS = 5000;
+const isModuleRequest = (url) => /\.wasm$/.test(url) || url.startsWith("data:");
+/** The test world (five declared extensions) with one more node that points to a carrier whose status is on a maker. */
+function lazyWorld() {
+  const test = JSON.parse(JSON.stringify(WORLD));
+  const id = Math.max(...test.nodes.map((node) => node.id)) + 1;
+  test.nodes.find((node) => node.id === test.root).children.push(id);
+  test.nodes.push({ id, parent: test.root, label: "carried", localTransform: IDENTITY, webofworlds_extension: { universal_extension_manifests: [{ url: "carriers/carrier.json" }] } });
+  return { world: test, carrier: JSON.stringify(carrierOf({ attach: { kind: "world-node", anchor: String(id) }, statusRef: STATUS_URL })) };
+}
+/** Mounts `scene` on CARRIER_WORLD with a recording fetch and a stand-in loadExtension. */
+async function mountRecorded(scene, files = {}) {
+  const seen = [], loads = [];
+  const fetch = async (url) => {
+    seen.push(String(url));
+    if (Object.hasOwn(files, String(url))) return new Response(files[String(url)]);
+    if (String(url) === STATUS_URL) return new Response(JSON.stringify(statusAnswer("active")[STATUS_URL].body));
+    return new Response("not found", { status: 404 });
+  };
+  const loadExtension = async (args) => {
+    loads.push(args);
+    return { ok: true, running: true, nodes: [], shutdown: async () => {}, setGrant: async () => {} };
+  };
+  const built = buildWowScene(scene, THREE, { source: "check" });
+  const mounted = await mountWowExtensions(built.extension_nodes, THREE, { loadExtension, worldUrl: CARRIER_WORLD, pageOrigin: LAB, fetch });
+  return { built, mounted, seen, loads, labelOf: (args) => (mounted.records.find((record) => record.validation.ok && record.validation.effective === args.declaration) || {}).label };
+}
+
+await check("lazy-no-fetch-at-load", "After world load and five seconds, the mount pass has fetched no module and no status: only the carrier, from the place", async () => {
+  const { world: scene, carrier } = lazyWorld();
+  const run = await mountRecorded(scene, { [CARRIER_URL]: carrier, [MODULE_URL]: BOX });
+  try {
+    await sleep(LAZY_WAIT_MS);
+    const leaked = run.seen.filter((url) => url !== CARRIER_URL);
+    assert(leaked.length === 0, `after load and ${LAZY_WAIT_MS / 1000} s the fetch saw module or status requests: ${JSON.stringify(leaked.map((url) => url.slice(0, 80)))}`);
+    assert(run.loads.length === 0, `after load ${run.loads.length} extension(s) were started`);
+    const waiting = run.mounted.records.filter((record) => record.status === "not-started").map((record) => record.label);
+    assert(waiting.length === 6, `${waiting.length} of 6 extensions wait for selection: ${JSON.stringify(run.mounted.records.map((record) => [record.label, record.status]))}`);
+    assert(run.seen.includes(CARRIER_URL), "the carrier on the page's origin was not read at load");
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
+await check("select-starts-one", "Selecting one glance fetches and starts that extension only; the others stay unfetched and not started", async () => {
+  const { world: scene, carrier } = lazyWorld();
+  const run = await mountRecorded(scene, { [CARRIER_URL]: carrier, [MODULE_URL]: BOX });
+  try {
+    const box = run.mounted.records.find((record) => record.label === "ue-box");
+    assert(box && box.status === "not-started", `ue-box at load: ${box && box.status}`);
+    const atLoad = run.seen.length;
+    await run.mounted.select(box);
+    await sleep(200);
+    const asked = run.seen.slice(atLoad);
+    const started = run.loads.map(run.labelOf);
+    assert(box.status === "mounted", `ue-box after selection: status ${box.status} at ${box.stage}: ${box.error}`);
+    assert(started.length === 1 && started[0] === "ue-box", `selecting ue-box started ${JSON.stringify(started)}`);
+    assert(asked.length === 1 && asked[0] === MODULE_URL, `selecting ue-box fetched ${JSON.stringify(asked.map((url) => url.slice(0, 80)))}`);
+    const others = run.mounted.records.filter((record) => record !== box && record.status !== "not-started").map((record) => `${record.label} ${record.status}`);
+    assert(others.length === 0, `other extensions left not-started: ${JSON.stringify(others)}`);
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
+await check("no-rank", "A glance with a rank or priority member is refused at stage declaration; two valid glances are ordered by distance, not by file order", async () => {
+  const { glancesOf } = await import("../web/wow-extension-glance.mjs");
+  for (const member of ["rank", "priority"]) {
+    const declaration = goodDeclaration();
+    declaration.glance = { line1: "Box maker", line2: "Makes one box", icon: "shop", action: "Open", [member]: 1 };
+    const refused = validateExtensionDeclaration(declaration);
+    assert(refused.ok === false && refused.stage === "declaration", `a glance with ${member} gives ${JSON.stringify(refused)}`);
+    const built = buildWowScene(world([{ label: `with-${member}`, webofworlds_extension: { universal_extensions: [declaration] } }]), THREE, { source: "check" });
+    const [validation] = built.extension_nodes[0].validations;
+    assert(validation.ok === false && validation.stage === "declaration", `the world's declaration with ${member} is ${JSON.stringify(validation)}`);
+  }
+  const at = (x) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, 0, 0, 1];
+  const glanced = (line1) => ({ ...goodDeclaration(), glance: { line1, line2: "Makes one box", icon: "shop", action: "Open" } });
+  const scene = world([
+    { label: "far", localTransform: at(10), webofworlds_extension: { universal_extensions: [glanced("Far box")] } },
+    { label: "near", localTransform: at(1), webofworlds_extension: { universal_extensions: [glanced("Near box")] } },
+  ]);
+  const run = await mountRecorded(scene);
+  try {
+    const order = glancesOf(run.mounted, [0, 0, 0]).map((item) => item.glance.line1);
+    assert(same(order, ["Near box", "Far box"]), `seen from the origin, the glances are ordered ${JSON.stringify(order)}; file order is far first`);
+    const fromFar = glancesOf(run.mounted, [11, 0, 0]).map((item) => item.glance.line1);
+    assert(same(fromFar, ["Far box", "Near box"]), `seen from x = 11, the glances are ordered ${JSON.stringify(fromFar)}`);
+    assert(run.seen.length === 0, `ordering the glances fetched ${JSON.stringify(run.seen)}`);
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
 const SCENE = "web/wow-scene.mjs";
+const GLANCE = "web/wow-extension-glance.mjs";
 const ADAPTER = "web/wow-extension-manifest-adapter.mjs";
 const SIGNING = "web/signing/um-signature-profile-a.mjs";
 const CONSENT = "web/wow-extension-consent.mjs";
@@ -459,8 +562,8 @@ await finish({ checkFile: "src/wow-extension-discovery-check.mjs", faults: [
   { statement: "manifest-sha384-refused", name: "accept a sha384- integrity", expect: /the sha384 carrier: status mounted/,
     edits: [{ file: SCENE, find: "const INTEGRITY = /^sha256-[A-Za-z0-9+/]{43}=$/;", replace: "const INTEGRITY = /^(sha256-[A-Za-z0-9+/]{43}=|sha384-[A-Za-z0-9+/]{64})$/;" }] },
   { statement: "manifest-revoked-refused", name: "skip the status call", expect: /the revoked carrier: status mounted/,
-    edits: [{ file: ADAPTER, find: "  const statuses = await Promise.all(facets.map((facet) => extensionStatus(manifest, facet, { fetch, statusTransport, limitMs, answers })));",
-      replace: "  const statuses = facets.map(() => ({ revocationStatus: \"unchecked\", reason: null }));" }] },
+    edits: [{ file: ADAPTER, find: "checkStatus: () => statusAtSelection(manifest, facet, address.statusRef, { fetch, statusTransport, limitMs, answers })",
+      replace: "checkStatus: async () => ({ ok: true, revocationStatus: \"unchecked\", revocationReason: null })" }] },
   { statement: "manifest-suspended-refused", name: "treat suspended as active", expect: /the suspended carrier: status mounted/,
     edits: [{ file: ADAPTER, find: "const REFUSED_STATUSES = new Set([\"revoked\", \"suspended\"]);", replace: "const REFUSED_STATUSES = new Set([\"revoked\"]);" }] },
   { statement: "manifest-status-unchecked-runs", name: "record active when the endpoint did not answer", expect: /the carrier with no status answer: the record says "active"/,
@@ -488,6 +591,14 @@ await finish({ checkFile: "src/wow-extension-discovery-check.mjs", faults: [
   { statement: "ext-declaration-refused", name: "skip validateExtensionDeclaration", expect: /without module\.integrity is accepted/,
     edits: [{ file: SCENE, find: "const validations = declarations.map((declaration) => validateExtensionDeclaration(declaration));",
       replace: "const validations = declarations.map((declaration) => ({ ok: true, effective: declaration }));" }] },
+  { statement: "lazy-no-fetch-at-load", name: "the mount fetches modules at load", expect: /the fetch saw module or status requests: \[".*wasm/,
+    edits: [{ file: MOUNT, find: "    record.status = \"not-started\";\n    record.selectable = true;\n",
+      replace: "    void fetchModule(resolveAssetUri(effective.module.url, record.carrier ? record.carrier.manifest_url : worldUrl)).catch(() => {});\n    record.status = \"not-started\";\n    record.selectable = true;\n" }] },
+  { statement: "select-starts-one", name: "selection starts every extension", expect: /selecting ue-box started \["[^"]+",/,
+    edits: [{ file: MOUNT, find: "    record.status = \"starting\";\n    notifyChange();\n",
+      replace: "    record.status = \"starting\";\n    notifyChange();\n    for (const other of records) if (other !== record && other.status === \"not-started\") void select(other);\n" }] },
+  { statement: "no-rank", name: "the host honours file order", expect: /the glances are ordered \["Far box","Near box"\]; file order is far first/,
+    edits: [{ file: GLANCE, find: ".sort((a, b) => a.distance - b.distance || a.at - b.at)", replace: ".sort((a, b) => a.at - b.at)" }] },
   { statement: "ext-schema-strict", name: "add a member to the list only", expect: /is not the schema's/,
     edits: [{ file: SCENE, find: "\"module\", \"interface\", \"attach\", \"requests\", \"limits\", \"data\",", replace: "\"module\", \"interface\", \"attach\", \"requests\", \"limits\", \"data\", \"extra\"," }] },
 ] });

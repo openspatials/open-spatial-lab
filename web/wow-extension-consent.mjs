@@ -156,6 +156,8 @@ export function moduleFileName(url) {
   }
 }
 const hashPrefix = (integrity) => `${String(integrity || "").slice(0, 19)}…`;
+// The glance list (web/wow-extension-glance.mjs) is drawn with the same look and the same text-only element builder.
+export { STYLE as PANEL_STYLE, el as panelElement };
 
 /**
  * buildConsentDialog(doc, request) -> { element, result } where request is { extension (label#index), label,
@@ -258,7 +260,8 @@ export function createConsentQueue(doc) {
 
 /**
  * renderExtensionsPanel({ document, mounted, onClose }) -> { element, refresh(), close() }: the Extensions panel of one
- * mount pass. Each extension is listed with its state (running, refused, failed, ended), its granted tokens, a "slow"
+ * mount pass. Each extension is listed with its state (not started, starting, running, refused, failed, ended), its
+ * granted tokens, a "slow"
  * line with the count of its calls over the event budget (when it has any) and a Withdraw button, which calls
  * mounted.withdraw(record) and takes effect at once.
  */

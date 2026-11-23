@@ -155,6 +155,7 @@ export const STEPS = [
   { file: "src/extension-host-browser-check.mjs", groups: ["browser"], browser: true, ports: one("OSL_EXTENSION_HOST_BROWSER_PORT"), timeoutS: 900, faultsFlag: WITH_FAULTS.has("src/extension-host-browser-check.mjs") },
   { file: "src/wow-extension-mount-browser-check.mjs", groups: ["browser"], browser: true, ports: one("OSL_UE_MOUNT_BROWSER_PORT"), timeoutS: 2700, faultsFlag: WITH_FAULTS.has("src/wow-extension-mount-browser-check.mjs") },
   { file: "src/wow-extension-page-browser-check.mjs", groups: ["browser"], browser: true, ports: one("OSL_UE_PAGE_BROWSER_PORT"), timeoutS: 1200, faultsFlag: WITH_FAULTS.has("src/wow-extension-page-browser-check.mjs") },
+  { file: "tools/extension-leak-check.mjs", groups: ["browser"], browser: true, ports: one("OSL_UE_LEAK_BROWSER_PORT"), timeoutS: 600, faultsFlag: true },
   ...MORE,
 ];
 
