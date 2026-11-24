@@ -10,8 +10,14 @@
 // file, the Scene Manager, an importer or a file outside the engine (web/, the avatars build); and the rig code
 // (process/rig/roles.mjs, process/rig/rig.mjs) exists once in this code folder: any other .mjs or .js file that exports at
 // least half of a rig file's names, and is not a one-line forward to it, is a second copy. Rule 11 also reads every code
-// file outside the engine folder (from this code folder, also with --root). Prints one JSON summary; exits 1 when a rule
-// is broken or a planted fault is missed.
+// file outside the engine folder (from this code folder, also with --root). Step 2 (clip mapping) adds
+// process/clips/map-clips.mjs to rule 11's one-copy files and rule 12: process/clips/ imports only process/rig/ and
+// three.js (three.js is a named exception until the Scene's animation tracks are designed), and process/rig/ imports
+// nothing of process/clips/. Step 3 (item placement and equipment) adds rules 13 to 16: nothing under process/items/
+// imports a loader; item placement exists once (no file but process/items/holds.mjs and process/items/placement.mjs defines
+// fitHold, fitWorn, fitFace, fitBack, heldPlacement or itemRecord; the frozen vendor copy is allowed by name only);
+// process/items/ does not import the solvers; and process/rig/ never imports process/items/. Prints one JSON summary; exits
+// 1 when a rule is broken or a planted fault is missed.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,7 +74,21 @@ const requiresOf = (text) => [...text.matchAll(/\brequire\s*\(\s*["']([^"']+)["'
 // contract rule 1); three.js maths is allowed.
 const PROCESS = "process";
 const resolvesOf = (text) => [...text.matchAll(/\bimport\.meta\.resolve\s*\(\s*["']([^"']+)["']/g)].map((m) => m[1]);
-const RIG_FILES = ["process/rig/roles.mjs", "process/rig/rig.mjs"];
+const RIG_FILES = ["process/rig/roles.mjs", "process/rig/rig.mjs", "process/clips/map-clips.mjs"];
+const CLIPS = "process/clips";
+// Item placement (milestone "avatar parts get engine folders", step 3). The frozen vendor tree holds the old copy of both
+// files (fitting/holds.mjs and mannequin/web/avatar/equipment.mjs); it is allowed by name only, as in rule 11.
+const ITEMS = "process/items";
+const ITEM_FILES = ["process/items/holds.mjs", "process/items/placement.mjs"];
+const ITEM_NAMES = ["fitHold", "fitWorn", "fitFace", "fitBack", "heldPlacement", "itemRecord"];
+const ITEM_FROZEN = ["web/vendor/avatar-evaluator-v1/fitting/holds.mjs", "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/equipment.mjs"];
+// A definition: a function declaration, or a const/let/var bound to that one name (not a destructured forward or re-export).
+const definesOf = (text) => new Set([
+    ...[...text.matchAll(/\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]),
+    ...[...text.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g)].map((m) => m[1]),
+]);
+const LOADER = /(^|\/)(loaders\/|[A-Za-z]*Loader\.js$)/;
+const SOLVERS = /(^|\/)solvers\.mjs$/;
 // The names a file exports: declarations, export lists (by their outside name) and destructured forwards.
 const exportsOf = (text) => new Set([
     ...[...text.matchAll(/\bexport\s+(?:async\s+)?(?:function\s*\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]),
@@ -123,7 +143,7 @@ const RULES = {
                 || t.startsWith("..") || s.startsWith("/") || s.startsWith("#") || /(^|\/)web\//.test(s))
             .map(([s]) => `${f}: imports ${s}`);
     }),
-    "11 the rig code exists once: no second file exports a rig file's names": (read) => {
+    "11 the rig code and the clip mapping exist once: no second file exports a rig or clip-mapping file's names": (read) => {
         const rig = RIG_FILES.filter((r) => existsSync(join(ENGINE, r)));
         if (rig.length < RIG_FILES.length) return RIG_FILES.filter((r) => !rig.includes(r)).map((r) => `${r}: missing`);
         const names = Object.fromEntries(rig.map((r) => [r, exportsOf(read(r))]));
@@ -142,9 +162,48 @@ const RULES = {
             .filter((t) => frozen(t)).map((t) => `${f}: imports the frozen copy ${t}`));
         return [...copies, ...frozenUsed];
     },
+    // Avatar parts get engine folders, step 2: clip mapping
+    "12 process/clips/ imports only process/rig/ and three.js; process/rig/ imports nothing of process/clips/": (read) => [
+        ...filesIn(CLIPS).flatMap((f) => {
+            const text = read(f);
+            return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].map((s) => [s, target(f, s)])
+                .filter(([s, t]) => !(s === "three" || t.startsWith("process/rig/") || t.startsWith(`${CLIPS}/`))).map(([s]) => `${f}: imports ${s}`);
+        }),
+        ...filesIn("process/rig").flatMap((f) => {
+            const text = read(f);
+            return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].filter((s) => target(f, s).startsWith(`${CLIPS}/`) || /(^|\/)process\/clips\//.test(s))
+                .map((s) => `${f}: imports ${s}`);
+        }),
+    ],
+    // Avatar parts get engine folders, step 3: item placement and equipment
+    "13 nothing under process/items/ imports a loader": (read) => filesIn(ITEMS).flatMap((f) => {
+        const text = read(f);
+        return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].filter((s) => LOADER.test(s) || LOADER.test(target(f, s)))
+            .map((s) => `${f}: imports ${s}`);
+    }),
+    "14 item placement exists once: no other file defines fitHold, fitWorn, fitFace, fitBack, heldPlacement or itemRecord": (read) => {
+        const present = ITEM_FILES.filter((f) => existsSync(join(ENGINE, f)));
+        if (present.length < ITEM_FILES.length) return ITEM_FILES.filter((f) => !present.includes(f)).map((f) => `${f}: missing`);
+        const others = [...engineFiles().filter((f) => !ITEM_FILES.includes(f)), ...codeFiles().filter((f) => !ITEM_FROZEN.includes(f) && f !== "src/engine-boundary-check.mjs")];
+        return others.flatMap((f) => {
+            const defined = ITEM_NAMES.filter((n) => definesOf(read(f)).has(n));
+            return defined.length ? [`${f}: defines ${defined.join(", ")}`] : [];
+        });
+    },
+    "15 process/items/ does not import the solvers": (read) => filesIn(ITEMS).flatMap((f) => {
+        const text = read(f);
+        return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].filter((s) => SOLVERS.test(s) || SOLVERS.test(target(f, s)))
+            .map((s) => `${f}: imports ${s}`);
+    }),
+    "16 process/rig/ never imports process/items/": (read) => filesIn(`${PROCESS}/rig`).flatMap((f) => {
+        const text = read(f);
+        return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].filter((s) => target(f, s).startsWith(`${ITEMS}/`) || /(^|\/)items\//.test(s))
+            .map((s) => `${f}: imports ${s}`);
+    }),
 };
 
-const RULE_10 = Object.keys(RULES).find((r) => r.startsWith("10 ")), RULE_11 = Object.keys(RULES).find((r) => r.startsWith("11 "));
+const RULE_10 = Object.keys(RULES).find((r) => r.startsWith("10 ")), RULE_11 = Object.keys(RULES).find((r) => r.startsWith("11 ")), RULE_12 = Object.keys(RULES).find((r) => r.startsWith("12 "));
+const [RULE_13, RULE_14, RULE_15, RULE_16] = ["13 ", "14 ", "15 ", "16 "].map((n) => Object.keys(RULES).find((r) => r.startsWith(n)));
 const run = (overrides = {}) => Object.entries(RULES).map(([rule, check]) => ({ rule, crossings: check(reader(overrides)) }));
 const results = run();
 const broken = results.filter((r) => r.crossings.length);
@@ -169,6 +228,23 @@ const FAULTS = rootAt > 0 ? [] : [
     { rule: RULE_11, edit: { "web/avatar/runtime/fitting/rig.mjs": readFileSync(join(ENGINE, "process/rig/rig.mjs"), "utf8") } },
     { rule: RULE_11, edit: { "scene/check.mjs": `${readFileSync(join(ENGINE, "scene/check.mjs"), "utf8")}\n${readFileSync(join(ENGINE, "process/rig/roles.mjs"), "utf8")}` } },
     { rule: RULE_11, edit: { "web/avatar/actionforge-avatar.mjs": `${readFileSync(join(CODE, "web/avatar/actionforge-avatar.mjs"), "utf8")}\nimport { detectRig } from "../vendor/avatar-evaluator-v1/fitting/roles.mjs";` } },
+    { rule: RULE_10, edit: append("process/clips/map-clips.mjs", 'import { createSceneView } from "../../render/three/scene-view.mjs";') },
+    { rule: RULE_10, edit: append("process/clips/map-clips.mjs", 'const manager = await import("../../scene/manager.mjs");') },
+    { rule: RULE_10, edit: append("process/clips/map-clips.mjs", 'import { fitHold } from "../../../../../web/avatar/runtime/fitting/holds.mjs";') },
+    { rule: RULE_11, edit: { "web/avatar/runtime/fitting/map-clips.mjs": readFileSync(join(ENGINE, "process/clips/map-clips.mjs"), "utf8") } },
+    { rule: RULE_11, edit: { "web/avatar/runtime/clip-library.mjs": `${readFileSync(join(CODE, "web/avatar/runtime/clip-library.mjs"), "utf8")}\nimport { mapPoseAt } from "../../vendor/avatar-evaluator-v1/fitting/map-clips.mjs";` } },
+    { rule: RULE_12, edit: append("process/clips/map-clips.mjs", 'import { check } from "../../scene/check.mjs";') },
+    { rule: RULE_12, edit: append("process/clips/map-clips.mjs", 'import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";') },
+    { rule: RULE_12, edit: append("process/rig/rig.mjs", 'import { mapClip } from "../clips/map-clips.mjs";') },
+    { rule: RULE_10, edit: append("process/items/placement.mjs", 'import { createSceneView } from "../../render/three/scene-view.mjs";') },
+    { rule: RULE_10, edit: append("process/items/holds.mjs", 'const manager = await import("../../scene/manager.mjs");') },
+    { rule: RULE_10, edit: append("process/items/placement.mjs", 'import { Equipment } from "../../../../../web/avatar/runtime/equipment.mjs";') },
+    { rule: RULE_13, edit: append("process/items/placement.mjs", "import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';") },
+    { rule: RULE_14, edit: { "web/avatar/runtime/fitting/holds.mjs": readFileSync(join(ENGINE, "process/items/holds.mjs"), "utf8") } },
+    { rule: RULE_14, edit: { "web/avatar/runtime/equipment.mjs": `${readFileSync(join(CODE, "web/avatar/runtime/equipment.mjs"), "utf8")}\nfunction itemRecord() {}` } },
+    { rule: RULE_14, edit: { "scene/check.mjs": `${readFileSync(join(ENGINE, "scene/check.mjs"), "utf8")}\nexport const fitFace = () => null;` } },
+    { rule: RULE_15, edit: append("process/items/placement.mjs", "import { SolverStack } from '../../../../../web/avatar/runtime/fitting/solvers.mjs';") },
+    { rule: RULE_16, edit: append("process/rig/rig.mjs", "import { backAnchor } from '../items/holds.mjs';") },
 ];
 const faults = FAULTS.map(({ rule, edit }) => {
     const found = run(edit).find((r) => r.rule === rule).crossings;

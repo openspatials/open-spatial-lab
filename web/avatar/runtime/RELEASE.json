@@ -1,6 +1,6 @@
 {
   "name": "open-spatial-lab-avatar-runtime",
-  "version": "1.1.0-spatial-client",
+  "version": "1.2.0-spatial-client",
   "status": "branch-release, not on main",
   "commit": "<filled by Lab at commit time>",
   "source": "vendor/avatar-evaluator-v1 copy (web/vendor/avatar-evaluator-v1/mannequin/web/avatar/*.mjs and the fitting/*.mjs they import), the runtime the Lab page ran before 1.0.0. Code is unchanged except import specifiers; the vendor folder stays in place.",
@@ -21,7 +21,8 @@
   "surface_differences": [
     "RemoteAvatar is not exported: the vendor copy has no remote-avatar module. The agreed surface named it; 1.0.0 leaves it out.",
     "SolverStack (fitting/solvers.mjs) is not in index.mjs but web/avatar/actionforge-avatar.mjs imports it by module path, as it did from the vendor copy.",
-    "fitting/rig.mjs and fitting/roles.mjs are one-line forwards to runtime/scene-core/public/process/rig/, found through import.meta.resolve(\"#scene-manager\") (WO-566)."
+    "fitting/rig.mjs and fitting/roles.mjs are one-line forwards to runtime/scene-core/public/process/rig/, found through import.meta.resolve(\"#scene-manager\").",
+    "fitting/map-clips.mjs is a one-line forward to runtime/scene-core/public/process/clips/map-clips.mjs; fitting/holds.mjs is a one-line forward to runtime/scene-core/public/process/items/holds.mjs, and equipment.mjs imports runtime/scene-core/public/process/items/placement.mjs, all found through import.meta.resolve(\"#scene-manager\"); the body records of adam, megan, elizabeth and sophie carry face.eye_y_m and measures.back_surface_z_m."
   ],
   "imports": {
     "bare": [
@@ -29,7 +30,7 @@
       "three/addons/loaders/GLTFLoader.js",
       "three/addons/utils/SkeletonUtils.js"
     ],
-    "note": "The host maps three and three/addons/ (browser import map or Node resolution). All other imports are relative inside this folder."
+    "note": "The host maps three and three/addons/ (browser import map or Node resolution). All other imports are relative inside this folder, except the forwards and equipment.mjs, which reach the engine's process/ folders (rig, clips, items, and through them mesh) through import.meta.resolve(\"#scene-manager\")."
   },
   "consumers": [
     "web/avatar/actionforge-avatar.mjs",
@@ -52,10 +53,10 @@
     },
     {
       "path": "equipment.mjs",
-      "sha256": "dff040bbe9014f78cc8a2ec8ad832b8cf28d1faa98e825d999a12bd29b3d7608",
+      "sha256": "b040798ee9f30f149df9754589436a76837ed287dfaaea0340bd3744b6e66c6c",
       "vendor_source": "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/equipment.mjs",
       "vendor_sha256": "b60a6e338455614a64fe341daba6caf5c21e7141f2b4a28c932b79af5216ae03",
-      "change": "import specifiers only ('../../../fitting/' -> './fitting/')"
+      "change": "item placement moved to runtime/scene-core/public/process/items/placement.mjs and re-exported; face and back slots (Equipment.face, Equipment.back, wearing, resolveItem, faceFit, SLOTS, slotOf); loading, overlays and the Equipment class stay here"
     },
     {
       "path": "index.mjs",
@@ -70,31 +71,31 @@
     },
     {
       "path": "fitting/holds.mjs",
-      "sha256": "fa412e9c988285fdc8c1b7669f51c9ac5d0da940a4b396f9c11adc4013c18626",
+      "sha256": "c85ff321e50b662d11438599fd434b05dfca5f28bbe0a4e2668f0443f6c1bfee",
       "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/holds.mjs",
       "vendor_sha256": "fa412e9c988285fdc8c1b7669f51c9ac5d0da940a4b396f9c11adc4013c18626",
-      "change": "identical"
+      "change": "forward to runtime/scene-core/public/process/items/holds.mjs; adds the face and back slots (WORN_SLOTS, wornSlot, backAnchor, backPlane, fitBack, fitFace); held, carried and head items unchanged"
     },
     {
       "path": "fitting/map-clips.mjs",
-      "sha256": "07789dc95c018d27d911591d50c0e71c38b4a07b4cda724c3a3984be2d0332db",
+      "sha256": "8ce59d785f85df690e300edffd50bad066edfeb4432ffb1ae9ec1bfdc05decd0",
       "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/map-clips.mjs",
       "vendor_sha256": "07789dc95c018d27d911591d50c0e71c38b4a07b4cda724c3a3984be2d0332db",
-      "change": "identical"
+      "change": "forward to runtime/scene-core/public/process/clips/map-clips.mjs, behaviour unchanged"
     },
     {
       "path": "fitting/rig.mjs",
       "sha256": "712f226bdb39ad5dd4d9a18f6d0c217c30e4745d0713caa4cf45437c00ec5b89",
       "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/rig.mjs",
       "vendor_sha256": "fc566ad98375733b6d554083505f1be24069c99ce04208cd9f3419fb120da0cc",
-      "change": "forward to runtime/scene-core/public/process/rig/rig.mjs, behaviour unchanged (WO-566)"
+      "change": "forward to runtime/scene-core/public/process/rig/rig.mjs, behaviour unchanged"
     },
     {
       "path": "fitting/roles.mjs",
       "sha256": "ee7858ffd86eaacd20d3d48d70de7fe680a529ec5894c3f23b223ed894ae08fa",
       "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/roles.mjs",
       "vendor_sha256": "0bed2157d293c24d4f5ebe61e59a7745019725f2b0317caee9cd796abb34eabe",
-      "change": "forward to runtime/scene-core/public/process/rig/roles.mjs, behaviour unchanged (WO-566)"
+      "change": "forward to runtime/scene-core/public/process/rig/roles.mjs, behaviour unchanged"
     },
     {
       "path": "fitting/solvers.mjs",
@@ -120,7 +121,7 @@
       },
       {
         "url": "/assets/actionforge/characters/adam/adam.body.json",
-        "sha256": "966e3579c1fa47c6b5fb258565ea4a7123bae49b87db5d62bff27619910b194e"
+        "sha256": "f2c1715a76991b4a5c7a455bef84c8055c95b7b891607941b2c8b30fdb556808"
       },
       {
         "url": "/assets/actionforge/characters/adam/adam.glb",
@@ -132,7 +133,7 @@
       },
       {
         "url": "/assets/actionforge/characters/megan/megan.body.json",
-        "sha256": "d59fb2378bab2477a1511491554e517a256edd391e27022c47a6af49e05a3d2e"
+        "sha256": "d3b7a62a5b991f23b974af3146bfab7c2c0d2c2e1ad7432b64b1858b4e830a5c"
       },
       {
         "url": "/assets/actionforge/characters/megan/megan.glb",
@@ -144,7 +145,7 @@
       },
       {
         "url": "/assets/actionforge/characters/elizabeth/elizabeth.body.json",
-        "sha256": "ad24d75132725b37ccc24d0921348c72e3ec591b3f86c4c90fbbeb8bef0a9e65"
+        "sha256": "d0f985e0ea83800839852cc4f1b5245da60b48f2ec5ee497fbfd985c399a511e"
       },
       {
         "url": "/assets/actionforge/characters/elizabeth/elizabeth.glb",
@@ -156,7 +157,7 @@
       },
       {
         "url": "/assets/actionforge/characters/sophie/sophie.body.json",
-        "sha256": "62a5557529b8808a5adde90de52f90d6c9715f7e7658e0bd7c19ed7374ac00a9"
+        "sha256": "7f1bd1eef8fccbf60b42ba2f97e9bd612f43776e3f1020cb0db8a38047b746c2"
       },
       {
         "url": "/assets/actionforge/characters/sophie/sophie.glb",

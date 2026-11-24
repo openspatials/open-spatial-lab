@@ -485,6 +485,59 @@ copy `web/vendor/avatar-evaluator-v1/fitting/` is allowed while nothing outside
 `web/vendor/avatar-evaluator-v1/` imports it; the summary lists it as
 `frozenCopies`.
 
+## Clip mapping in the engine (milestone "avatar parts get engine folders", step 2)
+
+Clip mapping plays a clip made for one rig on another rig, from the two rigs'
+roles and rest poses. It now lives once, in `process/clips/map-clips.mjs`.
+Moved, not redesigned: the file is the old runtime copy (the same as the
+avatars build's) with one import path changed, `./roles.mjs` to
+`../rig/roles.mjs`.
+
+- It imports only `process/rig/roles.mjs` and `three`. Nothing in
+  `process/rig/` imports `process/clips/`.
+- Named exception to the Processor contract: `mapClip` takes and returns a
+  three.js `AnimationClip` and `mapPoseAt` returns three.js `Quaternion`s, so
+  three.js types still cross the call (lines 41, 208, 316, 334, 338, 347).
+  The boundary check allows the `three` import here until the Scene's
+  animation tracks are designed (Scene contract, section 8).
+- `web/avatar/runtime/fitting/map-clips.mjs` is a one-line forward, found
+  through `import.meta.resolve("#scene-manager")` as the rig forwards are.
+  Its caller: `web/avatar/runtime/clip-library.mjs` line 30.
+- The frozen copy `web/vendor/avatar-evaluator-v1/fitting/map-clips.mjs`
+  stays, allowed by name while nothing outside its tree imports it.
+
+## Item placement in the engine (milestone "avatar parts get engine folders", step 3)
+
+Item placement says where a held, carried or worn item sits on a body. It now lives once, in
+the engine's processor folder `process/items/` (Processor contract, section 3, "Item
+placement"). Moved, with the face and back slots added; nothing redesigned.
+
+- `process/items/holds.mjs`: the matrices: hold, carry, head, and now face (glasses, at the
+  eye height in front of the face, scaled across so the arms clear the head) and back
+  (backpack, behind the back's measured skin). The runtime copy plus the avatars build's
+  face and back slots; its hand and hang scaling and depth share are later work.
+- `process/items/placement.mjs`: refusals ("no eye height", "face too wide" added), records,
+  grip pose, track groups (`GROUPS`, `groupOf`, `splitClip`), `canEquip`, the face fit
+  (rays on the rest mesh) and the slots (`SLOTS`, `slotOf`).
+- `process/items/head-seat.mjs`: the Lab layer's head-item seat rule as plain numbers;
+  `web/avatar-equipment-layer.js` `seatHeadItem` measures the item and calls it.
+- `process/mesh/mesh-math.mjs`: triangles of a skinned mesh and rays and distances
+  against them (the avatars build's body-details mesh maths, byte for byte).
+- None imports a renderer, the Scene Manager, an importer, a loader, the solvers or
+  anything under `web/`. Loading items (`loadItemLibrary`), the stance and grip overlays
+  and the `Equipment` class stay in the avatar runtime, whose `equipment.mjs` re-exports
+  every moved name; `fitting/holds.mjs` is a one-line forward.
+- The airport items (glasses, backpack) are in `web/assets/actionforge/items/airport/`
+  with an empty `catalog-attachments.json`: not in the Lab's item menu yet. The engine
+  route draws only items in the avatar binding's resources (the catalog's production
+  items), so the menu step must add them there too.
+
+Checks: `node src/engine-boundary-check.mjs` rules 13 to 16: no loader under
+`process/items/`; no file but `process/items/holds.mjs` and `placement.mjs` defines
+`fitHold`, `fitWorn`, `fitFace`, `fitBack`, `heldPlacement` or `itemRecord` (the frozen
+vendor copy allowed by name); `process/items/` imports no solvers; `process/rig/`
+imports nothing from `process/items/`.
+
 ## Evaluator distribution and verification
 
 `web/vendor/avatar-evaluator-v1` is the active versioned evaluator distribution.

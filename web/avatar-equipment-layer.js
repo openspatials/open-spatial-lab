@@ -1187,25 +1187,12 @@ export const DEFAULT_AVATAR_VARIANT = "collection-adam";
 export const PREFERRED_HEIGHT_BOUNDS_M = Object.freeze({ min: 0.6, max: 2.6 });
 
 /**
- * how deep a worn head item settles onto the skull, as a fraction of the ITEM's
- * own height. 0 would rest the item's underside exactly on the crown of the head; a crown
- * or a hat wants to sit down into the hair rather than balance on it.
- *
- * Expressed as a fraction of the item, and applied against the rig's MEASURED head top, so
- * it is free of both avatar scale and item scale: the same numbers seat the same hat
- * correctly on a 1.1 m dwarf and a 2 m Ready Player Me avatar.
- *
- * This REPLACES the equipment catalog's authored absolute y-offsets for head items. Those
- * offsets were authored against one VRoid skull and they were simply wrong — the crown
- * floated above the head on the reference VRM too, not just on the Ready Player Me avatar.
- * Scaling a wrong offset proportionally would only have preserved the bug on every body.
+ * The head-item seat rule (how deep a worn head item settles onto the measured skull, as a
+ * fraction of the item's own height) is the engine's item placement:
+ * runtime/scene-core/public/process/items/head-seat.mjs, found beside the Scene Manager.
  */
-const HEAD_ITEM_SINK_FRACTION = Object.freeze({
-  "equip-crown": 0.34,
-  "equip-hat": 0.42,
-  "equip-helmet": 0.55,
-  _default: 0.35,
-});
+const headSeatFile = "../process/items/head-seat.mjs";
+const { headSeat } = await import(new URL(headSeatFile, import.meta.resolve("#scene-manager")).href);
 function countMeshes(root) {
   let count = 0;
   root.traverse((node) => {
@@ -1426,11 +1413,8 @@ export function seatHeadItem(object, item, headTop) {
     return null;
   }
   const itemHeight = box.max.y - box.min.y;
-  const sink =
-    HEAD_ITEM_SINK_FRACTION[item.itemId] !== undefined
-      ? HEAD_ITEM_SINK_FRACTION[item.itemId]
-      : HEAD_ITEM_SINK_FRACTION._default;
-  object.position.y = headTop - box.min.y - itemHeight * sink;
+  const { sink, y } = headSeat({ itemId: item.itemId, headTop, underside: box.min.y, height: itemHeight });
+  object.position.y = y;
   return {
     head_top_offset_m: Number(headTop.toFixed(4)),
     item_height_m: Number(itemHeight.toFixed(4)),

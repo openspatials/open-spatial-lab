@@ -1,0 +1,190 @@
+{
+ "schema": "osl-avatars-items/1",
+ "note": "Airport items: glasses on the face slot (placement.rule face; frame: the GLB's rear surface in 5 mm bands across half its width, [x_from, x_to, y_low, y_high, rear_z]; arm: the temple arms' inner face, height band and length) and a backpack on the back slot (placement.anchor back). Not in the Lab's item menu yet: catalog-attachments.json has no entries, so there are no production keys.",
+ "keys": [],
+ "items": [
+  {
+   "id": "glasses",
+   "kind": "glasses",
+   "label": "Glasses",
+   "file": "glasses.glb",
+   "mode": "worn",
+   "bone": "Head",
+   "hands": 0,
+   "scale": 1,
+   "scale_m_per_unit": 1,
+   "size_m": [
+    0.14,
+    0.0464,
+    0.155
+   ],
+   "placement": {
+    "anchor": "head",
+    "rule": "face",
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "attach_point": [
+     0,
+     0,
+     0
+    ],
+    "face": {
+     "clearance_m": 0.003,
+     "max_scale_x": 2,
+     "frame": [
+      [
+       0,
+       0.005,
+       0.005,
+       0.0156,
+       0.0025
+      ],
+      [
+       0.005,
+       0.01,
+       -0.0059,
+       0.0175,
+       0.0009
+      ],
+      [
+       0.01,
+       0.015,
+       -0.0159,
+       0.0209,
+       0.0001
+      ],
+      [
+       0.015,
+       0.02,
+       -0.0206,
+       0.0219,
+       -0.0003
+      ],
+      [
+       0.02,
+       0.025,
+       -0.0219,
+       0.0226,
+       -0.0005
+      ],
+      [
+       0.025,
+       0.03,
+       -0.0227,
+       0.0231,
+       -0.0007
+      ],
+      [
+       0.03,
+       0.035,
+       -0.0231,
+       0.0232,
+       -0.0009
+      ],
+      [
+       0.035,
+       0.04,
+       -0.023,
+       0.0231,
+       -0.0012
+      ],
+      [
+       0.04,
+       0.045,
+       -0.0232,
+       0.0231,
+       -0.0008
+      ],
+      [
+       0.045,
+       0.05,
+       -0.023,
+       0.0228,
+       -0.0016
+      ],
+      [
+       0.05,
+       0.055,
+       -0.0223,
+       0.0222,
+       -0.0023
+      ],
+      [
+       0.055,
+       0.06,
+       -0.0214,
+       0.0216,
+       -0.0037
+      ],
+      [
+       0.06,
+       0.065,
+       -0.0169,
+       0.0209,
+       -0.0061
+      ],
+      [
+       0.065,
+       0.07,
+       -0.0036,
+       0.0198,
+       -0.0056
+      ]
+     ],
+     "arm": {
+      "inner_half_m": 0.0608,
+      "y": [
+       0.006,
+       0.017
+      ],
+      "z": [
+       -0.0216,
+       -0.145
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "backpack",
+   "kind": "backpack",
+   "label": "Backpack",
+   "file": "backpack.glb",
+   "mode": "worn",
+   "bone": "spine_03",
+   "hands": 0,
+   "scale": 1,
+   "scale_m_per_unit": 1,
+   "size_m": [
+    0.308,
+    0.45,
+    0.177
+   ],
+   "placement": {
+    "anchor": "back",
+    "rotation": [
+     0,
+     1,
+     0,
+     0
+    ],
+    "attach_point": [
+     0,
+     0,
+     0
+    ],
+    "back": {
+     "parts": [
+      "upperChest",
+      "chest"
+     ],
+     "clearance_m": 0.01
+    }
+   }
+  }
+ ]
+}

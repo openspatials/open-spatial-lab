@@ -1,94 +1,44 @@
-// equipment.mjs: items in the hands and on the head, with the item's stance on the upper body and its grip on the
-// holding hand. The item is a child of a bone; the stance and the grip are AnimationActions in the avatar's one
+// equipment.mjs: items in the hands, on the head, the face and the back, with the item's stance on the upper body and its
+// grip on the holding hand. The item is a child of a bone; the stance and the grip are AnimationActions in the avatar's one
 // AnimationMixer (web/avatar/avatar-motion.mjs blends them). Nothing here writes a bone; a two-handed item hands its
 // contact points to the solver reach-hands (fitting/solvers.mjs). Every bone is reached through the body's roles, so
-// any rig structure works. Item places come from the body's and the item's details (fitting/holds.mjs).
+// any rig structure works. Where an item sits comes from the engine's item placement processor
+// (runtime/scene-core/public/process/items/placement.mjs and holds.mjs), found beside the Scene Manager through
+// import.meta.resolve("#scene-manager"); this file loads the items and drives the motion, and re-exports every placement name.
 //
 // Public API
-//   GROUPS, groupOf(trackName, roles) track groups: lower (legs, hips, spine, chest, root), upper (upperChest, neck,
-//                                     head, shoulders, upper and lower arms, hands), fingers_l, fingers_r. roles: the
-//                                     body's role map (ActionForge's names when left out)
-//   subClip(clip, groups, name, roles) the clip's tracks in those groups
-//   splitClip(clip, roles)            { lower, upper, fingers_l, fingers_r } sub-clips
-//   canEquip(library)                 true for an avatar with body details, prepared with the clip pack
-//   canHold(library, itemId)          false for an item kind the avatar's prepared file lists under equipment.cannot_hold;
-//                                     take() refuses it
-//   refusalOf(library, item)          why this body cannot hold this item, or null (contract RB.10). take() and applyRecords()
-//                                     refuse that one item, keep what is already held and worn, and set equipment.refusal
-//                                     { item, reason } for the page; the next item taken clears it
+//   GROUPS, groupOf, subClip, splitClip, canEquip, canHold, refusalOf, attachmentDefinition, gripPose, resolveItem, faceFit,
+//   heldPlacement, SLOTS, slotOf, itemRecord, headVolume
+//                                     item placement, re-exported from process/items/placement.mjs (its header says what
+//                                     each does)
+//   STANCE_FADE_S                     re-exported from fitting/solvers.mjs
 //   loadItemLibrary({ readBytes, readJson, url, assetBase })
 //                                     the catalog (assets/items/items.json) and every item's GLB, loaded once
 //   holdingHandOf(library, clipName)  which hand a stance clip holds with, measured from the clip (see below)
-//   gripPose(library, grip)           { bone: Quaternion } of the holding hand's finger keys at grip.time in grip.clip
-//   heldPlacement(library, item)      { matrix (item root local to the hand bone, or to the anchor bone for a carried
-//                                     item), centre (the hollow in the hand bone's units; null when carried), axes, pose }
-//   itemRecord(library, items, item)  the portal record: { itemId, assetUri, mode, attachmentPoint, localTransform }
-//   headVolume(library)               box around the head's mesh vertices, in the head bone's frame (proof check E5)
+//   overlaysFor(library, item)        the stance and grip overlay clips of a held item
 //   class Equipment(instance, library, items, motion)
-//     take(itemId), drop(itemId?)     local visitor; a held item replaces the held one, a worn item the worn one
+//     take(itemId), drop(itemId?)     local visitor; an item replaces the one in its own slot only, so a head item, glasses
+//                                     and a backpack are worn together with a held item. take() and applyRecords() refuse
+//                                     an item refusalOf() names a reason for, keep what is already held and worn, and set
+//                                     equipment.refusal { item, reason } for the page; the next item taken clears it
 //     applyRecords(records)           another visitor: make the equipped items match a snapshot's records
 //     records()                       the portal records of what is equipped (sent in every snapshot)
-//     held, worn                      { item, node, record } or null
-//
-// Placement of a held item: its contact point goes to the hollow of the closed hand, measured from the hand's mesh in that
-// item's grip pose (body.hands[side].hollows); its grip axis along the knuckle line (little finger to index) and its
-// forward axis along the hand. A carried item (two hands) sits on its anchor bone, placed by body measures, and both
-// hands are driven onto its contact points. A worn item is placed on its anchor by the body's measures and scales
-// with the head (fitting/holds.mjs).
+//     held, worn, face, back          { item, node, record } or null (worn: the head slot)
+//     wearing                         the worn slots' entries in use, head first
 //
 // Holding hand from the clip: the hand whose arm moves most from idle_loop (hand and elbow, in the pelvis frame), among
 // the hands that stay closed (finger turn from rest at least half of idle_loop's fist). Both hands open: two-handed.
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { fitHold, fitWorn, fitCarried, fitContacts, carryFrame, carryAnchor, bodyOffset, hollowInBone, gripKey, reachRefusal } from './fitting/holds.mjs';
-import { ROLE_TABLES, SIDES, sideName, fingerRoles, EQUIPMENT_SITES } from './fitting/roles.mjs';
+import { sideName, fingerRoles, EQUIPMENT_SITES } from './fitting/roles.mjs';
 import { STANCE_FADE_S } from './fitting/solvers.mjs';
 
+const placementFile = "../process/items/placement.mjs";
+export const { GROUPS, groupOf, subClip, splitClip, canEquip, canHold, refusalOf, attachmentDefinition, gripPose, resolveItem, faceFit, heldPlacement, SLOTS, slotOf, itemRecord, headVolume } = await import(new URL(placementFile, import.meta.resolve("#scene-manager")).href);
+const WORN_KEYS = SLOTS.slice(1);
+
 export { STANCE_FADE_S };
-export const GROUPS = ['lower', 'upper', 'fingers_l', 'fingers_r'];
-const UPPER_ROLES = ['upperChest', 'neck', 'head', ...SIDES.flatMap((s) => ['Shoulder', 'UpperArm', 'LowerArm', 'Hand'].map((j) => sideName(s) + j))];
-
-// Bone name -> group, once per role map.
-const groupMaps = new WeakMap();
-function groupMap(roles) {
-  if (!groupMaps.has(roles)) {
-    const m = new Map();
-    for (const r of UPPER_ROLES) if (roles[r]) m.set(roles[r], 'upper');
-    for (const s of SIDES) for (const r of fingerRoles(s)) if (roles[r]) m.set(roles[r], `fingers_${s}`);
-    groupMaps.set(roles, m);
-  }
-  return groupMaps.get(roles);
-}
-
-export function groupOf(trackName, roles = ROLE_TABLES.actionforge) {
-  return groupMap(roles).get(trackName.slice(0, trackName.lastIndexOf('.'))) || 'lower';
-}
-
-export function subClip(clip, groups, name = clip.name, roles = ROLE_TABLES.actionforge) {
-  const keep = new Set(groups);
-  return new THREE.AnimationClip(name, clip.duration, clip.tracks.filter((t) => keep.has(groupOf(t.name, roles))).map((t) => t.clone()));
-}
-
-export function splitClip(clip, roles = ROLE_TABLES.actionforge) {
-  return Object.fromEntries(GROUPS.map((g) => [g, subClip(clip, [g], g === 'lower' ? clip.name : `${g}:${clip.name}`, roles)]));
-}
-
-export function canEquip(library) {
-  return !!(library?.data?.clip_pack && library.body && typeof library.packClip === 'function');
-}
-
-export function canHold(library, itemId) {
-  const no = library?.data?.equipment?.cannot_hold;
-  return !(Array.isArray(no) && no.includes(itemId));
-}
-
-export function refusalOf(library, item) {
-  if (!canHold(library, item.id)) return 'not for this avatar';
-  if (item.hands === 2 && (!item.contacts || !item.placement)) return 'no placement';
-  if (!library.body.roles[attachRole(library, item)]) return 'no anchor bone';
-  return item.hands === 2 ? reachRefusal(heldPlacement(library, item)) : null;
-}
 
 function near(base, file) {
   return decodeURIComponent(new URL(file, new URL(base, 'file:///')).pathname);
@@ -119,152 +69,6 @@ export async function loadItemLibrary({ readBytes, readJson, url, assetBase }) {
   const keys = production.map((id, i) => ({ key: String(i + 1), items: [id] }));
   keys.push({ key: '0', items: [], note: 'drops everything' });
   return { catalog, production, source: derived.source, items: new Map(catalog.items.map((i) => [i.id, i])), keys, templates, url, assetUri: (it) => new URL(it.file, base).href };
-}
-
-// One attachment definition, derived from the existing measured fit. The catalog merge tool and loader use this
-// same function; generated catalog data cannot silently replace the evaluator's grip or body-relative placement.
-export function attachmentDefinition(item) {
-  const role = item.mode === 'worn' ? item.placement?.anchor : `${sideName(item.hand)}Hand`;
-  const site = EQUIPMENT_SITES[role];
-  if (!site || !item.placement || (item.mode === 'held' &&
-    (!['l', 'r'].includes(item.hand) || item.hands !== 1 || !item.contacts?.[item.hand] || !item.grip?.clip || !item.stance))) {
-    throw new Error(`item ${item.id}: missing or incompatible attachment`);
-  }
-  const fields = ['mode', 'hands', 'hand', 'stance', 'grip', 'contacts', 'placement', 'scale', 'scale_m_per_unit'];
-  return {
-    schema: 'osl-equipment-attachment/1',
-    glb: { role, bone_lookup: 'body.roles', reference_rig: 'actionforge', reference_bone: ROLE_TABLES.actionforge[role] },
-    vrm: { humanoid_bone: role },
-    hanim: { ...site, standard: 'ISO/IEC 19774-1:2019', project_defined_site: true,
-      transform: 'inverse(parent_segment_in_avatar) * item_in_avatar', child_transform: 'identity' },
-    fit: Object.fromEntries(fields.filter(k => item[k] !== undefined).map(k => [k, item[k]])),
-    evaluated_pose: { frame: 'avatar-holder', units: 'metres', matrix: 'column-major-4x4', update: 'after existing avatar step' },
-  };
-}
-
-// ---------- Measurements on the avatar's own rest skeleton (library.template is never animated) ----------
-function templateBones(library) {
-  if (!library._bones) {
-    const b = {};
-    library.template.traverse((o) => { if (o.name && (!b[o.name] || (o.isBone && !b[o.name].isBone))) b[o.name] = o; });
-    library.template.updateMatrixWorld(true);
-    library._bones = b;
-  }
-  return library._bones;
-}
-
-export function gripPose(library, grip) {
-  const clip = library.packClip(grip.clip);
-  if (!clip) throw new Error(`grip clip ${grip.clip} not in the clip pack`);
-  const out = {};
-  for (const tr of clip.tracks) {
-    const bone = tr.name.slice(0, tr.name.lastIndexOf('.'));
-    if (groupOf(tr.name, library.body.roles) !== `fingers_${grip.hand}` || !tr.name.endsWith('.quaternion')) continue;
-    const v = tr.createInterpolant().evaluate(grip.time);
-    out[bone] = new THREE.Quaternion(v[0], v[1], v[2], v[3]).normalize();
-  }
-  return out;
-}
-
-const placements = new WeakMap();
-export function heldPlacement(library, item) {
-  if (!placements.has(library)) placements.set(library, new Map());
-  const cache = placements.get(library);
-  if (cache.has(item.id)) return cache.get(item.id);
-  const { body } = library;
-  const side = item.hand;
-  const pose = gripPose(library, { ...item.grip, hand: side });
-  let out;
-  if (item.hands === 2) {
-    // The upper body follows the stance alone; the lower body follows locomotion, standing as the idle clip does. The item's
-    // place and the contact points this body's arms can reach come from those poses.
-    const stance = library.packClip(item.stance);
-    const sampler = (clip) => new Map(clip.tracks.filter((t) => !t.name.endsWith('.scale')).map((t) => [t.name, t.createInterpolant()]));
-    const upper = sampler(subClip(stance, ['upper'], 'upper', body.roles));
-    const lower = sampler(library.clips.idle);
-    const read = (map, name, t) => { const f = map.get(name); return f ? Array.from(f.evaluate(t)) : null; };
-    const localAt = (bone, t, lowerPose = lower, lowerTime = 0) => {
-      const q = read(upper, `${bone}.quaternion`, t) || read(lowerPose, `${bone}.quaternion`, lowerTime);
-      const p = read(lowerPose, `${bone}.position`, lowerTime);
-      return { q: q && new THREE.Quaternion().fromArray(q).normalize(), p: p && new THREE.Vector3().fromArray(p) };
-    };
-    const times = Array.from({ length: 24 }, (_, i) => (i / 24) * stance.duration);
-    let frame = carryFrame(body, item, times.map((t) => (bone) => localAt(bone, t)));
-    // The lower spine keeps locomotion, including jump bends. Check contact clearance across those poses as well as
-    // the item's stance; an idle-only fit can put a wrist through the hips-aligned torso union in the air.
-    const clearancePoses = Object.values(library.clips).flatMap((clip) => {
-      const lowerPose = sampler(clip);
-      return times.flatMap((t) => Array.from({ length: 24 }, (_, i) => (bone) => localAt(bone, t, lowerPose, i * clip.duration / 24)));
-    });
-    let fit = fitContacts(body, item, (bone, t) => localAt(bone, t).q, times, frame, clearancePoses);
-    // A low carrying height can make a wide torso unreachable even when the same box fits higher. Before refusing,
-    // try heights up to the named anchor, keeping the box's size, forward clearance, contact and reach constraints.
-    if (fit.reach_beyond_m > 0) {
-      const maxRise = Math.max(0, -bodyOffset(body, item.placement.offset).y);
-      for (let i = 1; i <= 12 && maxRise > 0; i++) {
-        const raised = { ...frame, rise_m: maxRise * i / 12 };
-        const candidate = fitContacts(body, item, (bone, t) => localAt(bone, t).q, times, raised, clearancePoses);
-        if (candidate.reach_beyond_m <= 0 && candidate.wrists_clear) { frame = raised; fit = candidate; break; }
-      }
-    }
-    out = { matrix: fitCarried(body, item, frame), centre: null, axes: null, pose, rise_m: frame.rise_m ?? 0, ...fit };
-  } else {
-    // An item whose grip pose has no measured hollow (a new item, before the bodies are measured again) sits in the hand's
-    // default fist; the proof's hollow check refuses it.
-    const known = !!body.hands[side].hollows[gripKey(item.grip)];
-    const grip = known ? item.grip : { clip: body.hands[side].hollow.grip.split('@')[0], time: Number(body.hands[side].hollow.grip.split('@')[1]) };
-    const held = { ...item, grip };
-    const hand = body.hands[side].grip_frame;
-    out = {
-      matrix: fitHold(body, held, side),
-      centre: hollowInBone(body, side, grip),
-      axes: { a: new THREE.Vector3().fromArray(hand.knuckle_axis), f: new THREE.Vector3().fromArray(hand.forward_axis) },
-      pose,
-    };
-  }
-  cache.set(item.id, out);
-  return out;
-}
-
-const decompose = (m) => {
-  const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
-  m.decompose(p, q, s);
-  const r = (x) => Math.round(x * 1e6) / 1e6;
-  return { position: p.toArray().map(r), quaternion: q.toArray().map(r), scale: s.toArray().map(r) };
-};
-
-// The role an item hangs from: the lab's attachment point names are the same VRM names.
-const attachRole = (library, item) => (item.mode === 'worn' ? item.placement.anchor : item.hands === 2 ? carryAnchor(library.body, item) : `${sideName(item.hand)}Hand`);
-
-export function itemRecord(library, items, item) {
-  const m = item.mode === 'worn' ? fitWorn(library.body, library.sourceBody || library.body, item) : heldPlacement(library, item).matrix;
-  return { itemId: item.id, assetUri: items.assetUri(item), mode: item.mode, attachmentPoint: attachRole(library, item), localTransform: decompose(m),
-    ...(item.catalog ? { catalogKey: item.catalog.key } : {}) };
-}
-
-// Box around the vertices whose strongest skin weight is on the head bone, in that bone's rest frame.
-export function headVolume(library) {
-  const B = templateBones(library);
-  const headName = library.body.roles.head;
-  const head = B[headName];
-  const inv = new THREE.Matrix4().copy(head.matrixWorld).invert();
-  const box = new THREE.Box3();
-  const v = new THREE.Vector3();
-  let n = 0;
-  library.template.traverse((o) => {
-    if (!o.isSkinnedMesh) return;
-    const idx = o.geometry.attributes.skinIndex, wt = o.geometry.attributes.skinWeight;
-    const names = o.skeleton.bones.map((b) => b.name);
-    for (let i = 0; i < idx.count; i++) {
-      let best = 0, bone = -1;
-      for (let k = 0; k < 4; k++) { const w = wt.getComponent(i, k); if (w > best) { best = w; bone = idx.getComponent(i, k); } }
-      if (names[bone] !== headName) continue;
-      o.getVertexPosition(i, v);
-      box.expandByPoint(v.applyMatrix4(o.matrixWorld).applyMatrix4(inv));
-      n++;
-    }
-  });
-  return { box, vertices: n };
 }
 
 // ---------- Holding hand, measured from the clip ----------
@@ -340,7 +144,7 @@ export class Equipment {
     this.solvers = solvers;
     this.enabled = !!items && canEquip(library);
     this.held = null;
-    this.worn = null;
+    for (const slot of WORN_KEYS) this[slot] = null; // worn (the head), face, back
     this.refusal = null;
   }
 
@@ -376,8 +180,13 @@ export class Equipment {
     this.solvers?.setCarry(h && h.item.hands === 2 ? { item: h.item, node: h.node, contacts: heldPlacement(this.library, h.item).contacts, anchor: h.bone, local: h.node.matrix.clone() } : null);
   }
 
+  // The worn slots' entries in use, head first.
+  get wearing() {
+    return WORN_KEYS.map((slot) => this[slot]).filter(Boolean);
+  }
+
   _put(item, record) {
-    const slot = item.mode === 'worn' ? 'worn' : 'held';
+    const slot = slotOf(item);
     if (this[slot]?.item.id === item.id) return;
     this._detach(slot);
     this[slot] = this._attach(item, record);
@@ -386,14 +195,14 @@ export class Equipment {
 
   take(itemId) {
     if (!this.enabled) return false;
-    const item = this.items.items.get(itemId);
+    const item = resolveItem(this.library, this.items.items.get(itemId));
     if (!item || this._refused(item)) return false;
     this._put(item, itemRecord(this.library, this.items, item));
     return true;
   }
 
   drop(itemId = null) {
-    for (const slot of ['held', 'worn']) {
+    for (const slot of SLOTS) {
       if (this[slot] && (!itemId || this[slot].item.id === itemId)) {
         this._detach(slot);
         if (slot === 'held') this._setOverlays();
@@ -402,14 +211,14 @@ export class Equipment {
   }
 
   records() {
-    return [this.held, this.worn].filter(Boolean).map((x) => x.record);
+    return SLOTS.map((slot) => this[slot]).filter(Boolean).map((x) => x.record);
   }
 
   // Read only after VisitorAvatar.step/RemoteVisitor.step. Plain evaluated data for the Lab-owned pose bridge;
   // no animation advance, renderer object, rest-pose offset, or format-specific second fit escapes this boundary.
   attachmentPoses() {
     const inverse = this.instance.holder.matrixWorld.clone().invert();
-    return [this.held, this.worn].filter(Boolean).map(({ item, node, bone, record }) => ({
+    return SLOTS.map((slot) => this[slot]).filter(Boolean).map(({ item, node, bone, record }) => ({
       itemId: item.id, catalogKey: item.catalog?.key ?? null, assetUri: record.assetUri,
       role: record.attachmentPoint, bone: bone.name,
       frame: 'avatar-holder', units: 'metres', matrixOrder: 'column-major',
@@ -423,10 +232,13 @@ export class Equipment {
   // change until the next one arrives. A snapshot without the field (an older sender) changes nothing.
   applyRecords(records) {
     if (!this.enabled || !Array.isArray(records)) return;
-    for (const slot of ['held', 'worn']) {
-      const want = records.find((r) => r.mode === slot);
+    // A record's slot comes from its item; a worn record of an item this catalog does not have counts as the head slot's
+    // (kept as it was, as before the face and back slots).
+    const slotOfRecord = (r) => { const it = this.items.items.get(r.itemId); return it ? slotOf(it) : r.mode === 'worn' ? 'worn' : 'held'; };
+    for (const slot of SLOTS) {
+      const want = records.find((r) => slotOfRecord(r) === slot);
       if (!want) { if (this[slot]) { this._detach(slot); if (slot === 'held') this._setOverlays(); } continue; }
-      const item = this.items.items.get(want.itemId);
+      const item = resolveItem(this.library, this.items.items.get(want.itemId));
       if (!item || this._refused(item)) continue; // an item this page does not know, or this body cannot hold, is skipped
       if (this[slot]?.item.id === item.id) continue;
       this._put(item, want);
