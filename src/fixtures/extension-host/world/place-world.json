@@ -1,0 +1,272 @@
+{
+  "spatialID": "extension-place-world",
+  "title": "Extension place world",
+  "_note": "A test world for the place store and the withdrawn list. At world level it names a store of module copies (place-store/, copies named after module.integrity) and a withdrawn list (place-withdrawn.json), both on its own origin. The modules' own addresses are on the maker origin http://maker.test. Two nodes point to carrier manifests the checks sign per run. Opened only by URL; it is not in the worlds list.",
+  "units": "metres; y-up",
+  "root": 0,
+  "webofworlds_extension": {
+    "extension_store": {
+      "url": "place-store/"
+    },
+    "extension_status_list": {
+      "url": "place-withdrawn.json"
+    }
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "label": "extension-place-world",
+      "children": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "id": 1,
+      "label": "place-box",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        -3,
+        0,
+        -2,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "http://maker.test/box-maker.wasm",
+              "integrity": "sha256-J+MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.1.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.scene.nodes"
+            ],
+            "limits": {},
+            "glance": {
+              "line1": "Box maker",
+              "line2": "Copy in the store",
+              "icon": "shop",
+              "action": "Open"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "label": "listener",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        -1.5,
+        0,
+        -2,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "http://maker.test/pointer-listener.wasm",
+              "integrity": "sha256-cCeNnxXtpBZWwdf9OR9kJQ73A53STaXXV2J/XXVKsJE=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.2.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.scene.nodes",
+              "ue.input.pointer"
+            ],
+            "purposes": {
+              "ue.input.pointer": "Reacts when you point at or click its box."
+            },
+            "limits": {},
+            "glance": {
+              "line1": "Pointer listener",
+              "line2": "Copy in the store",
+              "icon": "info",
+              "action": "Open"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "label": "maker-only",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        -2,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "http://maker.test/storage-user.wasm",
+              "integrity": "sha256-TX9uK+tiLOEoCoJMP+b1qDjK7TmKBg5iYe4FhhJQ+bI=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.2.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.data.read",
+              "ue.storage.local"
+            ],
+            "purposes": {
+              "ue.storage.local": "Keeps one note for this world <img src=x onerror=\"globalThis.__ueConsentScriptRan=1\">"
+            },
+            "limits": {},
+            "data": {
+              "set": {
+                "key": "note",
+                "value": "kept by the 5a world"
+              }
+            },
+            "glance": {
+              "line1": "Note keeper",
+              "line2": "No copy in the store",
+              "icon": "info",
+              "action": "Open"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "label": "carried-unlisted",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1.5,
+        0,
+        -2,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extension_manifests": [
+          {
+            "url": "carriers/unlisted.json"
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "label": "carried-withdrawn",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        3,
+        0,
+        -2,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extension_manifests": [
+          {
+            "url": "carriers/withdrawn.json"
+          }
+        ]
+      }
+    }
+  ]
+}

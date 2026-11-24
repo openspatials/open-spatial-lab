@@ -499,6 +499,10 @@ export function buildWowScene(graph, THREE, opts = {}) {
   const fabricNodes = []; // { node_id, uri, subtree, placeholder, world_matrix, contract } for the async fabric mount pass
   const unspecifiedContractWarnings = []; // .msf address with NO declared subtree contract
   const extensionNodes = []; // { node_id, label, declarations, validations, group, placeholder } for the async extension mount pass
+  // The place's world-level members for its extensions: a store of module copies and a withdrawn list. Recorded as
+  // given; the mount pass checks them (web/wow-extension-place-store.mjs). Every extension node carries the same object.
+  const worldExtension = graph && typeof graph === "object" && graph.webofworlds_extension && typeof graph.webofworlds_extension === "object" ? graph.webofworlds_extension : {};
+  const extensionPlace = Object.freeze({ extension_store: worldExtension.extension_store, extension_status_list: worldExtension.extension_status_list });
 
   function makeAssetPlaceholder(node, isRoot) {
     const group = createAssetPlaceholder(THREE, node.label || node.id, isRoot);
@@ -718,7 +722,7 @@ export function buildWowScene(graph, THREE, opts = {}) {
         obj.add(marker);
         counts.meshes += 1;
       });
-      const record = { node_id: Number(nodeId), label, declarations, validations, manifest_refs: isCarrier ? carrierReferencesOf(carriers) : [], group: obj, placeholder, is_root: isRoot };
+      const record = { node_id: Number(nodeId), label, declarations, validations, manifest_refs: isCarrier ? carrierReferencesOf(carriers) : [], place: extensionPlace, group: obj, placeholder, is_root: isRoot };
       extensionNodes.push(record);
     }
 

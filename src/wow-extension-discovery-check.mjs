@@ -11,6 +11,12 @@
 // Lazy start (quiet discovery, Lab packet QD-1): the mount pass starts nothing at world load; an extension starts when
 // the visitor selects its glance (mounted.select). The cases that run an extension select it first. The lazy-*,
 // select-* and no-rank cases check the rule itself.
+//
+// The place (web/wow-extension-place-store.mjs): a world names a store of module copies and a withdrawn list on its own
+// origin. The place-*, no-copy-*, advance-fetch-* and status-list-* cases mount the place world
+// (src/fixtures/extension-host/world/place-world.json) with a recording fetch; the maker and the issuer are origins the
+// recording fetch sees, so a request to either is caught. A carrier's status comes from the withdrawn list only: the
+// manifest-*-refused and manifest-status-* cases read it there, and check that no status address is ever asked.
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -127,6 +133,7 @@ const LAB = "http://lab.test";
 const CARRIER_WORLD = `${LAB}/worlds/carrier-world.json`;
 const CARRIER_URL = `${LAB}/worlds/carriers/carrier.json`;
 const MODULE_URL = `${LAB}/worlds/box-maker.wasm`;
+const LIST_URL = `${LAB}/worlds/withdrawn.json`;
 const KEY_A = newCarrierKey(), KEY_B = newCarrierKey();
 const STORAGE_REQUEST = { capability: "ue.storage.local", purpose: "keep the box's notes" };
 const carrierOf = (extra = {}) => carrierManifest({ key: KEY_A, module: BOX_MODULE, attach: { kind: "world-node", anchor: "1" },
@@ -139,8 +146,10 @@ const carrierOf = (extra = {}) => carrierManifest({ key: KEY_A, module: BOX_MODU
  * `fetchLimitMs` is the adapter's time limit for one fetch. `extension` adds members to the extension the stand-in
  * loadExtension gives. `signals` maps each requested URL to the abort signal its fetch was given.
  */
-async function mountCarrier(text, { grantStore, answers = {}, fetchLimitMs, extension = {} } = {}) {
+async function mountCarrier(text, { grantStore, answers = {}, fetchLimitMs, extension = {}, list } = {}) {
   const seen = [], loads = [], signals = new Map();
+  // `list`: the place's withdrawn list, as an answer ({ status, body } or { never: true }); undefined for none.
+  if (list !== undefined) answers = { ...answers, [LIST_URL]: list };
   const files = { ...(text === null ? {} : { [CARRIER_URL]: text }), [MODULE_URL]: BOX };
   const recordingFetch = async (url, init = {}) => {
     seen.push(String(url));
@@ -155,10 +164,12 @@ async function mountCarrier(text, { grantStore, answers = {}, fetchLimitMs, exte
     loads.push(args);
     return { ok: true, running: true, nodes: [], shutdown: async () => {}, setGrant: async () => {}, ...extension };
   };
-  const built = buildWowScene(world([{ label: "carried", webofworlds_extension: { universal_extension_manifests: [{ url: "carriers/carrier.json" }] } }]), THREE, { source: "check" });
+  const scene = world([{ label: "carried", webofworlds_extension: { universal_extension_manifests: [{ url: "carriers/carrier.json" }] } }]);
+  if (list !== undefined) scene.webofworlds_extension = { extension_status_list: { url: "withdrawn.json" } };
+  const built = buildWowScene(scene, THREE, { source: "check" });
   const mounted = await mountWowExtensions(built.extension_nodes, THREE, { loadExtension, worldUrl: CARRIER_WORLD, pageOrigin: LAB, fetch: recordingFetch, ...(grantStore ? { grantStore } : {}), ...(fetchLimitMs ? { fetchLimitMs } : {}) });
   const record = mounted.records.find((item) => item.label === "carried") || null;
-  // The visitor selects the extension's glance: only then are its status and its module fetched.
+  // The visitor selects the extension's glance: only then is its module fetched.
   if (record && record.status === "not-started" && typeof mounted.select === "function") await mounted.select(record);
   const status = record ? record.status : null;
   const marker = record && record.marker ? { name: record.marker.name, stage: record.marker.userData.ueStage, under: objectsUnder(built.extension_nodes[0].group).includes(record.marker) } : null;
@@ -250,45 +261,53 @@ await check("manifest-sha384-refused", "A carrier whose module.integrity is sha3
   assert(/sha384/.test(detailOf(run)), `the refusal does not name the algorithm: ${JSON.stringify(detailOf(run))}`);
 });
 
-// ---- The extension's status (the signed entity.statusRef, resolved before any module is fetched) ----
+// ---- The extension's status: from the place's withdrawn list only; its signed entity.statusRef is never fetched ----
 const STATUS_URL = "https://status.test/manifests/check-carrier-1";
 const statusAnswer = (status) => ({ [STATUS_URL]: { status: 200, body: { manifestId: "urn:uuid:check-carrier-1", status, updatedAt: "2026-11-17T00:00:00.000Z" } } });
 const withStatus = () => JSON.stringify(carrierOf({ statusRef: STATUS_URL }));
 const askedStatus = (run) => run.seen.includes(STATUS_URL);
+/** The place's withdrawn list as an answer: `status` for check-carrier-1, or no entry for it. */
+const listed = (status, id = "urn:uuid:check-carrier-1") => ({ status: 200, body: { checkedAt: "2026-11-23T00:00:00Z", entries: status ? [{ "@id": id, status }] : [{ "@id": "urn:uuid:another-carrier", status: "revoked" }] } });
 
-await check("manifest-revoked-refused", "A correctly signed carrier whose status is revoked is refused at status, and no module is requested", async () => {
-  const run = await mountCarrier(withStatus(), { answers: statusAnswer("revoked") });
+await check("manifest-revoked-refused", "A carrier the place's withdrawn list names as revoked is refused at status, with no module and no request to its status address", async () => {
+  const run = await mountCarrier(withStatus(), { list: listed("revoked"), answers: statusAnswer("active") });
   assert(refusedAt(run, "status"), `the revoked carrier: ${run.says}`);
   assert(/revoked/.test(detailOf(run)), `the refusal does not say revoked: ${JSON.stringify(detailOf(run))}`);
   assert(run.marker && run.marker.under && run.marker.stage === "status", `no status marker under the node: ${JSON.stringify(run.marker)}`);
-  const active = await mountCarrier(withStatus(), { answers: statusAnswer("active") });
-  assert(active.status === "mounted" && askedStatus(active), `the active carrier: ${active.says}; status asked ${askedStatus(active)} (${active.record && active.record.error})`);
+  assert(!askedStatus(run), "the revoked carrier's status address was asked");
+  const active = await mountCarrier(withStatus(), { list: listed(null), answers: statusAnswer("revoked") });
+  assert(active.status === "mounted" && !askedStatus(active), `the carrier the list does not name: ${active.says}; status asked ${askedStatus(active)} (${active.record && active.record.error})`);
 });
 
-await check("manifest-suspended-refused", "A correctly signed carrier whose status is suspended is refused at status, and no module is requested", async () => {
-  const run = await mountCarrier(withStatus(), { answers: statusAnswer("suspended") });
+await check("manifest-suspended-refused", "A carrier the place's withdrawn list names as suspended is refused at status, and no module is requested", async () => {
+  const run = await mountCarrier(withStatus(), { list: listed("suspended") });
   assert(refusedAt(run, "status"), `the suspended carrier: ${run.says}`);
   assert(/suspended/.test(detailOf(run)), `the refusal does not say suspended: ${JSON.stringify(detailOf(run))}`);
+  assert(!askedStatus(run), "the suspended carrier's status address was asked");
 });
 
-await check("manifest-status-unchecked-runs", "A carrier whose status endpoint is unavailable runs, and its record says unchecked with the reason", async () => {
-  const run = await mountCarrier(withStatus(), { answers: { [STATUS_URL]: { status: 503 } } });
+await check("manifest-status-unchecked-runs", "A carrier runs as unchecked, with the reason, when the withdrawn list does not load and when the world has none; its status address is not asked", async () => {
+  const run = await mountCarrier(withStatus(), { list: { status: 503 } });
   const carrier = (run.record && run.record.carrier) || {};
-  assert(run.status === "mounted" && askedStatus(run), `the carrier with no status answer: ${run.says}; status asked ${askedStatus(run)} (${run.record && run.record.error})`);
-  assert(carrier.revocationStatus === "unchecked", `the carrier with no status answer: the record says ${JSON.stringify(carrier.revocationStatus)}, not unchecked`);
-  assert(/endpoint-unavailable/.test(carrier.revocationReason || ""), `the unchecked record gives no reason: ${JSON.stringify(carrier.revocationReason)}`);
-  const plain = await mountCarrier(JSON.stringify(carrierOf()));
+  assert(run.status === "mounted" && !askedStatus(run), `the carrier whose list did not load: ${run.says}; status asked ${askedStatus(run)} (${run.record && run.record.error})`);
+  assert(carrier.revocationStatus === "unchecked", `the carrier whose list did not load: the record says ${JSON.stringify(carrier.revocationStatus)}, not unchecked`);
+  assert(/did not load/.test(carrier.revocationReason || ""), `the unchecked record gives no reason: ${JSON.stringify(carrier.revocationReason)}`);
+  const plain = await mountCarrier(withStatus());
   const plainCarrier = (plain.record && plain.record.carrier) || {};
-  assert(plain.status === "mounted" && plainCarrier.revocationStatus === "unchecked", `the carrier without statusRef: ${plain.says}, revocationStatus ${JSON.stringify(plainCarrier.revocationStatus)}`);
+  assert(plain.status === "mounted" && plainCarrier.revocationStatus === "unchecked" && !askedStatus(plain), `the carrier in a world with no list: ${plain.says}, revocationStatus ${JSON.stringify(plainCarrier.revocationStatus)}, status asked ${askedStatus(plain)}`);
+  assert(/no withdrawn list/.test(plainCarrier.revocationReason || ""), `the record of a world with no list gives no reason: ${JSON.stringify(plainCarrier.revocationReason)}`);
 });
 
 
 // ---- The status address is signed (entity.statusRef); an unsigned one is never used; fetches have a time limit ----
-await check("manifest-status-signed", "An extension whose signed entity.statusRef says revoked is refused at status, with or without a matching signature.statusRef", async () => {
-  const signedOnly = await mountCarrier(JSON.stringify(carrierOf({ statusRef: STATUS_URL })), { answers: statusAnswer("revoked") });
-  assert(refusedAt(signedOnly, "status") && askedStatus(signedOnly), `the revoked extension with only entity.statusRef: ${signedOnly.says}; status asked ${askedStatus(signedOnly)}`);
-  const both = await mountCarrier(JSON.stringify(carrierOf({ statusRef: STATUS_URL, signatureStatusRef: STATUS_URL })), { answers: statusAnswer("revoked") });
-  assert(refusedAt(both, "status") && /revoked/.test(detailOf(both)), `the revoked extension with a matching signature.statusRef: ${both.says} (${detailOf(both)})`);
+await check("manifest-status-signed", "A carrier with a signed entity.statusRef, with or without a matching signature.statusRef, runs and its address is never asked; listed revoked, it is refused at status", async () => {
+  const signedOnly = await mountCarrier(JSON.stringify(carrierOf({ statusRef: STATUS_URL })), { list: listed(null), answers: statusAnswer("revoked") });
+  assert(signedOnly.status === "mounted" && !askedStatus(signedOnly), `the carrier with only entity.statusRef: ${signedOnly.says}; status asked ${askedStatus(signedOnly)} (${detailOf(signedOnly)})`);
+  assert(signedOnly.record.carrier.status_ref === STATUS_URL, `the record does not keep the signed address: ${JSON.stringify(signedOnly.record.carrier.status_ref)}`);
+  const both = await mountCarrier(JSON.stringify(carrierOf({ statusRef: STATUS_URL, signatureStatusRef: STATUS_URL })), { list: listed(null), answers: statusAnswer("revoked") });
+  assert(both.status === "mounted" && !askedStatus(both), `the carrier with a matching signature.statusRef: ${both.says}; status asked ${askedStatus(both)} (${detailOf(both)})`);
+  const bothListed = await mountCarrier(JSON.stringify(carrierOf({ statusRef: STATUS_URL, signatureStatusRef: STATUS_URL })), { list: listed("revoked") });
+  assert(refusedAt(bothListed, "status") && /revoked/.test(detailOf(bothListed)) && !askedStatus(bothListed), `the listed carrier with a matching signature.statusRef: ${bothListed.says} (${detailOf(bothListed)})`);
 });
 
 const OTHER_STATUS_URL = "https://elsewhere.test/manifests/check-carrier-1";
@@ -312,12 +331,12 @@ async function guarded(what, run) {
   assert(value, `${what}: no answer after ${GUARD_MS} ms`);
   return value;
 }
-await check("manifest-status-timeout", "A status endpoint that never answers gives unchecked within the time limit, and the extension runs; a carrier that never answers is refused at manifest-fetch", async () => {
+await check("manifest-status-timeout", "A withdrawn list that never answers gives unchecked within the time limit, and the extension runs; a carrier that never answers is refused at manifest-fetch", async () => {
   const started = Date.now();
-  const run = await guarded("the carrier whose status endpoint never answers", () => mountCarrier(withStatus(), { answers: { [STATUS_URL]: { never: true } }, fetchLimitMs: LIMIT_MS }));
+  const run = await guarded("the carrier whose withdrawn list never answers", () => mountCarrier(withStatus(), { list: { never: true }, fetchLimitMs: LIMIT_MS }));
   const carrier = (run.record && run.record.carrier) || {};
-  assert(run.status === "mounted" && askedStatus(run) && carrier.revocationStatus === "unchecked",
-    `the carrier whose status endpoint never answers: ${run.says}; status asked ${askedStatus(run)}; revocationStatus ${JSON.stringify(carrier.revocationStatus)}`);
+  assert(run.status === "mounted" && run.seen.includes(LIST_URL) && !askedStatus(run) && carrier.revocationStatus === "unchecked",
+    `the carrier whose withdrawn list never answers: ${run.says}; list asked ${run.seen.includes(LIST_URL)}; status asked ${askedStatus(run)}; revocationStatus ${JSON.stringify(carrier.revocationStatus)}`);
   assert(Date.now() - started < GUARD_MS, `the mount took ${Date.now() - started} ms`);
   const hung = await guarded("the carrier that never answers", () => mountCarrier(null, { answers: { [CARRIER_URL]: { never: true } }, fetchLimitMs: LIMIT_MS }));
   assert(refusedAt(hung, "manifest-fetch") && /within/.test(detailOf(hung)), `the carrier that never answers: ${hung.says} (${detailOf(hung)})`);
@@ -347,11 +366,11 @@ await check("status-not-checked-line", "The Extensions panel shows \"status not 
 });
 
 // ---- Time budgets on the page: a hidden page delivers nothing, cancelled fetches, the "slow" line ----
-await check("fetch-aborted", "A carrier fetch and a status fetch that never answer are aborted at the time limit: each fetch sees its signal aborted", async () => {
-  const status = await guarded("the carrier whose status endpoint never answers", () => mountCarrier(withStatus(), { answers: { [STATUS_URL]: { never: true } }, fetchLimitMs: LIMIT_MS }));
-  const statusSignal = status.signals.get(STATUS_URL);
-  assert(statusSignal, "the status fetch was given no abort signal");
-  assert(statusSignal.aborted, "the status fetch's signal was not aborted at the time limit");
+await check("fetch-aborted", "A carrier fetch and a withdrawn-list fetch that never answer are aborted at the time limit: each fetch sees its signal aborted", async () => {
+  const list = await guarded("the carrier whose withdrawn list never answers", () => mountCarrier(withStatus(), { list: { never: true }, fetchLimitMs: LIMIT_MS }));
+  const listSignal = list.signals.get(LIST_URL);
+  assert(listSignal, "the withdrawn-list fetch was given no abort signal");
+  assert(listSignal.aborted, "the withdrawn-list fetch's signal was not aborted at the time limit");
   const carrier = await guarded("the carrier that never answers", () => mountCarrier(null, { answers: { [CARRIER_URL]: { never: true } }, fetchLimitMs: LIMIT_MS }));
   const carrierSignal = carrier.signals.get(CARRIER_URL);
   assert(carrierSignal, "the carrier fetch was given no abort signal");
@@ -530,12 +549,189 @@ await check("no-rank", "A glance with a rank or priority member is refused at st
   }
 });
 
+// ---- The place: a store of module copies and a withdrawn list, on the world file's own origin ----
+const PLACE_SCENE = JSON.parse(await readFile(code("src/fixtures/extension-host/world/place-world.json"), "utf8"));
+const PLACE_BASE = `${LAB}/place/`;
+const PLACE_WORLD = `${PLACE_BASE}place-world.json`;
+const MAKER = "http://maker.test";
+const ISSUER = "https://issuer.test";
+const fixtureBytes = (name) => readFile(code(`src/fixtures/extension-host/world/${name}`));
+const STORE = {
+  box: `${PLACE_BASE}place-store/sha256-J-MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk.wasm`,
+  listener: `${PLACE_BASE}place-store/sha256-cCeNnxXtpBZWwdf9OR9kJQ73A53STaXXV2J_XXVKsJE.wasm`,
+  storage: `${PLACE_BASE}place-store/sha256-TX9uK-tiLOEoCoJMP-b1qDjK7TmKBg5iYe4FhhJQ-bI.wasm`,
+};
+const MAKER_FILES = {
+  [`${MAKER}/box-maker.wasm`]: BOX,
+  [`${MAKER}/pointer-listener.wasm`]: await fixtureBytes("pointer-listener.wasm"),
+  [`${MAKER}/storage-user.wasm`]: await fixtureBytes("storage-user.wasm"),
+};
+const placeCarrier = (name, anchor) => JSON.stringify(carrierManifest({
+  key: KEY_A, id: `urn:uuid:place-carrier-${name}`, facetId: `urn:osl:check:facet:${name}`, subject: `urn:osl:check:world-node:carried-${name}`,
+  module: { url: `${MAKER}/box-maker.wasm`, integrity: BOX_MODULE.integrity, binding: BOX_MODULE.binding }, attach: { kind: "world-node", anchor },
+  requests: [{ capability: "ue.scene.nodes", purpose: "draw the box" }], statusRef: `${ISSUER}/status/${name}`,
+  glance: { line1: `Carried ${name}`, line2: "Signed by its maker", icon: "info", action: "Open" },
+}));
+const PLACE_FILES = {
+  [STORE.box]: await fixtureBytes("place-store/sha256-J-MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk.wasm"),
+  [STORE.listener]: await fixtureBytes("place-store/sha256-cCeNnxXtpBZWwdf9OR9kJQ73A53STaXXV2J_XXVKsJE.wasm"),
+  [`${PLACE_BASE}place-withdrawn.json`]: await fixtureBytes("place-withdrawn.json"),
+  [`${PLACE_BASE}carriers/unlisted.json`]: placeCarrier("unlisted", "4"),
+  [`${PLACE_BASE}carriers/withdrawn.json`]: placeCarrier("withdrawn", "5"),
+};
+const toMaker = (urls) => urls.filter((url) => url.startsWith(`${MAKER}/`));
+const toIssuer = (urls) => urls.filter((url) => url.startsWith(`${ISSUER}/`));
+const short = (urls) => JSON.stringify(urls.map((url) => url.slice(0, 96)));
+
+/**
+ * Mounts the place world on PLACE_WORLD with a recording fetch: the place's files (with `files` over them; null removes
+ * one), the maker's modules, and nothing for the issuer. `host` uses the real extension host (worker_threads) in place
+ * of the stand-in. Returns { mounted, seen, record(label), select(label) -> the requests the selection made }.
+ */
+async function mountPlace({ files = {}, host = false, ...options } = {}) {
+  const served = { ...PLACE_FILES, ...MAKER_FILES, ...files };
+  const seen = [];
+  const fetch = async (url) => {
+    seen.push(String(url));
+    return served[String(url)] ? new Response(served[String(url)]) : new Response("not found", { status: 404 });
+  };
+  const loadExtension = host ? hostLoadExtension : async () => ({ ok: true, running: true, nodes: [], shutdown: async () => {}, setGrant: async () => {} });
+  const built = buildWowScene(JSON.parse(JSON.stringify(PLACE_SCENE)), THREE, { source: "check" });
+  const mounted = await mountWowExtensions(built.extension_nodes, THREE, { loadExtension, worldUrl: PLACE_WORLD, pageOrigin: LAB, fetch, placeCopies: new Map(), ...options });
+  const record = (label) => mounted.records.find((item) => item.label === label) || null;
+  const select = async (label) => {
+    const from = seen.length;
+    await mounted.select(record(label));
+    return seen.slice(from);
+  };
+  return { mounted, seen, record, select };
+}
+const panelLines = (mounted, record) => {
+  const { element } = renderExtensionsPanel({ document: stubDocument(), mounted });
+  const row = allUnder(element).find((node) => node.attrs["data-ue-extension"] === `${record.label}#${record.index}`);
+  return row ? allUnder(row) : [];
+};
+
+await check("place-copy-used", "With a place store, selecting a glance loads the module from the store's copy; the maker origin sees no request", async () => {
+  const run = await mountPlace({ host: true, advanceFetch: false });
+  try {
+    const asked = await run.select("place-box");
+    const box = run.record("place-box");
+    assert(toMaker(run.seen).length === 0, `selecting place-box asked the maker: ${short(toMaker(run.seen))}`);
+    assert(asked.includes(STORE.box), `selecting place-box did not load the store copy: it asked ${short(asked)}`);
+    assert(box.status === "mounted" && box.codeSource === "place", `place-box: status ${box.status} at ${box.stage} (${box.error}); codeSource ${JSON.stringify(box.codeSource)}`);
+    assert(box.extension && box.extension.nodes.length === 1, `the store copy ran with ${box.extension && box.extension.nodes.length} node(s), not the one Box`);
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
+await check("place-copy-bad-refused", "A store copy with other bytes is refused at integrity, and the maker origin sees no request", async () => {
+  const run = await mountPlace({ host: true, files: { [STORE.box]: MAKER_FILES[`${MAKER}/pointer-listener.wasm`] } });
+  try {
+    await run.mounted.advanceFetchDone;
+    await run.select("place-box");
+    const box = run.record("place-box");
+    assert(toMaker(run.seen).length === 0, `the bad copy: the maker was asked: ${short(toMaker(run.seen))}`);
+    assert(box.status === "refused" && box.stage === "integrity", `the bad copy: status ${box.status} at ${box.stage} (${box.error})`);
+    assert(box.marker && box.marker.name === `ue-refused:integrity:place-box#0`, `the bad copy has no integrity marker: ${box.marker && box.marker.name}`);
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
+await check("no-copy-marked", "With no copy in the store, the module comes from the maker at selection, the record says codeSource maker, and the panel shows \"code from its maker\"", async () => {
+  const run = await mountPlace();
+  try {
+    await run.mounted.advanceFetchDone;
+    const atLoad = run.seen.slice();
+    assert(toMaker(atLoad).length === 0, `at load the maker was asked: ${short(toMaker(atLoad))}`);
+    const asked = await run.select("maker-only");
+    const only = run.record("maker-only");
+    assert(only.status === "mounted", `maker-only: status ${only.status} at ${only.stage} (${only.error})`);
+    assert(asked.includes(`${MAKER}/storage-user.wasm`), `maker-only did not come from its maker at selection: it asked ${short(asked)}`);
+    assert(only.codeSource === "maker", `maker-only: the record says codeSource ${JSON.stringify(only.codeSource)}`);
+    const lines = panelLines(run.mounted, only).filter((node) => node.attrs["data-ue-code-source"]);
+    assert(lines.length === 1 && lines[0].textContent === "code from its maker" && lines[0].children.length === 0, `maker-only: the panel shows ${JSON.stringify(lines.map((node) => node.textContent))}`);
+    await run.select("place-box");
+    const placeLines = panelLines(run.mounted, run.record("place-box")).filter((node) => node.attrs["data-ue-code-source"]);
+    assert(placeLines.length === 1 && placeLines[0].textContent === "code from this place", `place-box: the panel shows ${JSON.stringify(placeLines.map((node) => node.textContent))}`);
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
+await check("advance-fetch-silent", "With advance fetch, the store copies are fetched at load, and selecting a glance then makes no request of any kind", async () => {
+  const run = await mountPlace();
+  try {
+    await run.mounted.advanceFetchDone;
+    const atLoad = run.seen.slice();
+    assert(atLoad.includes(STORE.box) && atLoad.includes(STORE.listener), `at load the advance fetch did not fetch the store copies: ${short(atLoad)}`);
+    assert(toMaker(atLoad).length === 0 && toIssuer(atLoad).length === 0, `at load the maker or the issuer was asked: ${short([...toMaker(atLoad), ...toIssuer(atLoad)])}`);
+    for (const label of ["place-box", "listener", "carried-unlisted"]) {
+      const asked = await run.select(label);
+      const record = run.record(label);
+      assert(asked.length === 0, `selecting ${label} made ${asked.length} request(s): ${short(asked)}`);
+      assert(record.status === "mounted" && record.codeSource === "place", `${label}: status ${record.status} at ${record.stage} (${record.error}); codeSource ${JSON.stringify(record.codeSource)}`);
+    }
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
+await check("advance-fetch-cap", "With the cap set low, the advance fetch stops at the cap, and the rest load from the store at selection", async () => {
+  const run = await mountPlace({ advanceFetchCapBytes: BOX.length + 16 });
+  try {
+    const ended = await run.mounted.advanceFetchDone;
+    const atLoad = run.seen.slice();
+    assert(atLoad.includes(STORE.box), `at load the advance fetch did not fetch the first copy: ${short(atLoad)}`);
+    assert(!atLoad.includes(STORE.storage), `the advance fetch did not stop at the cap: at load it asked ${short(atLoad)}`);
+    assert(ended && ended.bytes <= BOX.length + 16 && ended.stopped, `the advance fetch kept ${ended && ended.bytes} bytes over a cap of ${BOX.length + 16}`);
+    const listener = await run.select("listener");
+    assert(listener.length === 1 && listener[0] === STORE.listener, `selecting listener, past the cap, asked ${short(listener)}, not its store copy`);
+    const box = await run.select("place-box");
+    assert(box.length === 0, `selecting place-box, within the cap, asked ${short(box)}`);
+    assert(toMaker(run.seen).length === 0, `the maker was asked: ${short(toMaker(run.seen))}`);
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
+await check("status-list-refuses", "A carrier the withdrawn list names as revoked is refused at status at load; no request leaves for its status address, and no module is fetched for it", async () => {
+  const run = await mountPlace({ advanceFetch: false });
+  try {
+    const withdrawn = run.record("carried-withdrawn");
+    assert(!run.seen.includes(`${ISSUER}/status/withdrawn`), `a request left for its status address: ${short(toIssuer(run.seen))}`);
+    assert(withdrawn && withdrawn.status === "refused" && withdrawn.stage === "status" && /revoked/.test(withdrawn.error || ""), `carried-withdrawn: ${JSON.stringify(withdrawn && { status: withdrawn.status, stage: withdrawn.stage, error: withdrawn.error })}`);
+    assert(!withdrawn.selectable, "carried-withdrawn is offered as a glance");
+    const asked = await run.select("carried-withdrawn");
+    assert(asked.length === 0 && toIssuer(run.seen).length === 0, `selecting the refused carrier asked ${short(asked)}`);
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
+await check("status-unlisted-unchecked", "A carrier with a statusRef the list does not name runs as unchecked, shows \"status not checked\", and its status address sees no request", async () => {
+  const run = await mountPlace({ advanceFetch: false });
+  try {
+    await run.select("carried-unlisted");
+    const unlisted = run.record("carried-unlisted");
+    assert(!run.seen.includes(`${ISSUER}/status/unlisted`), `its status address saw a request: ${short(toIssuer(run.seen))}`);
+    assert(unlisted.status === "mounted" && unlisted.carrier.revocationStatus === "unchecked", `carried-unlisted: status ${unlisted.status} at ${unlisted.stage} (${unlisted.error}); revocationStatus ${JSON.stringify(unlisted.carrier && unlisted.carrier.revocationStatus)}`);
+    const lines = panelLines(run.mounted, unlisted).filter((node) => node.textContent === "status not checked");
+    assert(lines.length === 1 && lines[0].children.length === 0, `the panel row has ${lines.length} "status not checked" line(s)`);
+  } finally {
+    await run.mounted.unmount();
+  }
+});
+
 const SCENE = "web/wow-scene.mjs";
 const GLANCE = "web/wow-extension-glance.mjs";
 const ADAPTER = "web/wow-extension-manifest-adapter.mjs";
 const SIGNING = "web/signing/um-signature-profile-a.mjs";
 const CONSENT = "web/wow-extension-consent.mjs";
 const MOUNT = "web/wow-extension-mount.mjs";
+const PLACE_STORE = "web/wow-extension-place-store.mjs";
 await finish({ checkFile: "src/wow-extension-discovery-check.mjs", faults: [
   { statement: "manifest-tampered-refused", name: "the verifier skips the signature comparison", expect: /the tampered carrier: status mounted/,
     edits: [{ file: SIGNING, find: "    ok = await verifyBytes(payload, sigValue, publicKeyInput);", replace: "    ok = true;" }] },
@@ -561,17 +757,15 @@ await finish({ checkFile: "src/wow-extension-discovery-check.mjs", faults: [
       replace: "  if (!Array.isArray(requests)) return fail(\"requests must be an array\");\n  requests.splice(0, requests.length, ...requests.filter((request) => request && typeof request.purpose === \"string\" && request.purpose.trim()));" }] },
   { statement: "manifest-sha384-refused", name: "accept a sha384- integrity", expect: /the sha384 carrier: status mounted/,
     edits: [{ file: SCENE, find: "const INTEGRITY = /^sha256-[A-Za-z0-9+/]{43}=$/;", replace: "const INTEGRITY = /^(sha256-[A-Za-z0-9+/]{43}=|sha384-[A-Za-z0-9+/]{64})$/;" }] },
-  { statement: "manifest-revoked-refused", name: "skip the status call", expect: /the revoked carrier: status mounted/,
-    edits: [{ file: ADAPTER, find: "checkStatus: () => statusAtSelection(manifest, facet, address.statusRef, { fetch, statusTransport, limitMs, answers })",
-      replace: "checkStatus: async () => ({ ok: true, revocationStatus: \"unchecked\", revocationReason: null })" }] },
+  { statement: "manifest-revoked-refused", name: "the mount ignores the withdrawn list", expect: /the revoked carrier: status mounted/,
+    edits: [{ file: MOUNT, find: "      if (WITHDRAWN_STATUSES.includes(status.revocationStatus)) return refuse(record, \"status\",", replace: "      if (false) return refuse(record, \"status\"," }] },
   { statement: "manifest-suspended-refused", name: "treat suspended as active", expect: /the suspended carrier: status mounted/,
-    edits: [{ file: ADAPTER, find: "const REFUSED_STATUSES = new Set([\"revoked\", \"suspended\"]);", replace: "const REFUSED_STATUSES = new Set([\"revoked\"]);" }] },
-  { statement: "manifest-status-unchecked-runs", name: "record active when the endpoint did not answer", expect: /the carrier with no status answer: the record says "active"/,
-    edits: [{ file: ADAPTER, find: "  const revocation = { revocationStatus: status.revocationStatus, revocationReason: status.reason };",
-      replace: "  const revocation = { revocationStatus: status.revocationStatus === \"unchecked\" ? \"active\" : status.revocationStatus, revocationReason: status.reason };" }] },
-  { statement: "manifest-status-signed", name: "read the address from signature.statusRef only", expect: /the revoked extension with only entity\.statusRef: status mounted/,
-    edits: [{ file: ADAPTER, find: "  const statusRef = facet.entity.statusRef;", replace: "  const statusRef = signature.statusRef;" }] },
-  { statement: "manifest-status-stripped", name: "ignore the mismatch", expect: /does not name signature\.statusRef|only an unsigned signature\.statusRef: status mounted/,
+    edits: [{ file: PLACE_STORE, find: "export const WITHDRAWN_STATUSES = Object.freeze([\"revoked\", \"suspended\"]);", replace: "export const WITHDRAWN_STATUSES = Object.freeze([\"revoked\"]);" }] },
+  { statement: "manifest-status-unchecked-runs", name: "record active when the list did not load", expect: /the carrier whose list did not load: the record says "active"/,
+    edits: [{ file: PLACE_STORE, find: "  if (!list.ok) return { revocationStatus: \"unchecked\",", replace: "  if (!list.ok) return { revocationStatus: \"active\"," }] },
+  { statement: "manifest-status-signed", name: "a matching signature.statusRef refuses", expect: /the carrier with a matching signature\.statusRef: status refused/,
+    edits: [{ file: ADAPTER, find: "  if (unsigned !== undefined && unsigned !== statusRef) {", replace: "  if (unsigned !== undefined) {" }] },
+  { statement: "manifest-status-stripped", name: "ignore the mismatch", expect: /signature\.statusRef was redirected: status mounted|does not name signature\.statusRef|only an unsigned signature\.statusRef: status mounted/,
     edits: [{ file: ADAPTER, find: "  if (unsigned !== undefined && unsigned !== statusRef) {", replace: "  if (false) {" }] },
   { statement: "manifest-status-timeout", name: "no time limit", expect: /never answers: no answer after 3000 ms/,
     edits: [{ file: ADAPTER, find: "function withinLimit(work, ms) {\n", replace: "function withinLimit(work, ms) {\n  return work();\n" }] },
@@ -599,6 +793,24 @@ await finish({ checkFile: "src/wow-extension-discovery-check.mjs", faults: [
       replace: "    record.status = \"starting\";\n    notifyChange();\n    for (const other of records) if (other !== record && other.status === \"not-started\") void select(other);\n" }] },
   { statement: "no-rank", name: "the host honours file order", expect: /the glances are ordered \["Far box","Near box"\]; file order is far first/,
     edits: [{ file: GLANCE, find: ".sort((a, b) => a.distance - b.distance || a.at - b.at)", replace: ".sort((a, b) => a.at - b.at)" }] },
+  { statement: "place-copy-used", name: "the mount ignores the store", expect: /selecting place-box asked the maker: \["http:\/\/maker\.test\/box-maker\.wasm"\]/,
+    edits: [{ file: MOUNT, find: "    const code = store ? await store.codeOf(effective.module.integrity) : { source: \"maker\" };", replace: "    const code = { source: \"maker\" };" }] },
+  { statement: "place-copy-bad-refused", name: "fall back to the maker", expect: /the bad copy: the maker was asked: \["http:\/\/maker\.test\/box-maker\.wasm"\]/,
+    edits: [{ file: MOUNT, find: "    const extension = await loadExtension({ bytes, declaration: effective, grant, attachment: record.attachment, ...(storage ? { storage } : {}) });",
+      replace: "    let extension = await loadExtension({ bytes, declaration: effective, grant, attachment: record.attachment, ...(storage ? { storage } : {}) });\n    if (extension && !extension.ok && extension.stage === \"integrity\" && record.codeSource === \"place\") {\n      const again = await fetchModule(moduleUrl);\n      extension = await loadExtension({ bytes: new Uint8Array(await again.arrayBuffer()), declaration: effective, grant, attachment: record.attachment });\n    }" }] },
+  { statement: "no-copy-marked", name: "the record says place", expect: /maker-only: the record says codeSource "place"/,
+    edits: [{ file: MOUNT, find: "    record.codeSource = code.source;", replace: "    record.codeSource = \"place\";" }] },
+  { statement: "advance-fetch-silent", name: "selection fetches again", expect: /selecting place-box made 1 request\(s\)/,
+    edits: [{ file: PLACE_STORE, find: "    if (copies.has(url)) return { source: \"place\", url, bytes: copies.get(url) };\n", replace: "" }] },
+  { statement: "advance-fetch-cap", name: "no cap", expect: /the advance fetch did not stop at the cap/,
+    edits: [{ file: PLACE_STORE, find: "      if (total >= cap) { stopped = true; break; }\n", replace: "" },
+      { file: PLACE_STORE, find: "      if (total + got.bytes.length > cap) { stopped = true; break; }\n", replace: "" }] },
+  { statement: "status-list-refuses", name: "the host asks the issuer", expect: /a request left for its status address: \[.*"https:\/\/issuer\.test\/status\/withdrawn"/,
+    edits: [{ file: MOUNT, find: "    if (record.carrier) {\n      // The carrier's status, from the place's withdrawn list only: no issuer is asked.\n",
+      replace: "    if (record.carrier && record.carrier.status_ref) void fetchModule(record.carrier.status_ref).catch(() => {});\n    if (record.carrier) {\n" }] },
+  { statement: "status-unlisted-unchecked", name: "the host asks the issuer at selection", expect: /its status address saw a request: \["https:\/\/issuer\.test\/status\/unlisted"\]/,
+    edits: [{ file: MOUNT, find: "    if (!loadExtension) return fail(record, \"worker\", \"no extension host injected\");\n",
+      replace: "    if (!loadExtension) return fail(record, \"worker\", \"no extension host injected\");\n    if (record.carrier && record.carrier.status_ref) await fetchModule(record.carrier.status_ref).catch(() => {});\n" }] },
   { statement: "ext-schema-strict", name: "add a member to the list only", expect: /is not the schema's/,
     edits: [{ file: SCENE, find: "\"module\", \"interface\", \"attach\", \"requests\", \"limits\", \"data\",", replace: "\"module\", \"interface\", \"attach\", \"requests\", \"limits\", \"data\", \"extra\"," }] },
 ] });

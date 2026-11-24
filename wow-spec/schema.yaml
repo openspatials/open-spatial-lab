@@ -1790,6 +1790,41 @@ components:
               url:
                 type: string
                 minLength: 1
+        extension_store:
+          # World level. The place store: a folder on the world file's own
+          # origin that holds copies of the world's extension modules, each
+          # named sha256-<digest in base64url, no padding>.wasm after its
+          # module.integrity. The Lab takes a module from the store (and, after
+          # world load, fetches the copies in advance up to 8 MiB), so selecting
+          # a glance asks no maker. A copy with other bytes is refused at
+          # `integrity`, never replaced by the maker's; with no copy (HTTP 404)
+          # the module comes from its maker's address at selection. A store on
+          # another origin refuses the world's extensions at `declaration`
+          # (web/wow-extension-place-store.mjs).
+          type: object
+          additionalProperties: false
+          required:
+            - url
+          properties:
+            url:
+              type: string
+              minLength: 1
+        extension_status_list:
+          # World level. The place's withdrawn list, on the world file's own
+          # origin, fetched once at world load. A carrier manifest it names is
+          # refused at `status`; any other carrier runs with its status
+          # "unchecked". No issuer's status address is fetched.
+          type: object
+          additionalProperties: false
+          required:
+            - url
+          properties:
+            url:
+              type: string
+              minLength: 1
+              description: >-
+                A JSON file { checkedAt: <date-time>, entries: [{ "@id": <carrier manifest @id>, status: revoked |
+                suspended }] }, ExtensionStatusList.
         portal_id:
           type: string
         trigger:
@@ -1804,6 +1839,39 @@ components:
           $ref: '#/components/schemas/PortalTraversal'
         traversal_mode:
           type: string
+
+    ExtensionStatusList:
+      # LABELED, NON-CANONICAL. The file a world's
+      # `webofworlds_extension.extension_status_list.url` names: the
+      # carrier manifests the place lists as withdrawn. The place compiles
+      # it, so a place could leave a withdrawn carrier out; the Lab says so.
+      x-osl-extension: true
+      type: object
+      additionalProperties: false
+      required:
+        - checkedAt
+        - entries
+      properties:
+        checkedAt:
+          type: string
+          format: date-time
+          description: 'When the place last compiled the list.'
+        entries:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - '@id'
+              - status
+            properties:
+              '@id':
+                type: string
+                minLength: 1
+                description: 'The carrier manifest @id.'
+              status:
+                type: string
+                enum: [revoked, suspended]
 
     # ============================================================
     # OSL RESPONSE COMPOSITES — what the OSL 041 server ACTUALLY

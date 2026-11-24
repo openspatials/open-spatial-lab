@@ -490,6 +490,13 @@ export interface components {
             universal_extension_manifests?: {
                 url: string;
             }[];
+            extension_store?: {
+                url: string;
+            };
+            extension_status_list?: {
+                /** @description A JSON file { checkedAt: <date-time>, entries: [{ "@id": <carrier manifest @id>, status: revoked | suspended }] }, ExtensionStatusList. */
+                url: string;
+            };
             portal_id?: string;
             trigger?: components["schemas"]["Zone"];
             zones?: {
@@ -499,6 +506,19 @@ export interface components {
             traversal_mode?: string;
         } & {
             [key: string]: unknown;
+        };
+        ExtensionStatusList: {
+            /**
+             * Format: date-time
+             * @description When the place last compiled the list.
+             */
+            checkedAt: string;
+            entries: {
+                /** @description The carrier manifest @id. */
+                "@id": string;
+                /** @enum {string} */
+                status: "revoked" | "suspended";
+            }[];
         };
         OSLWorldResponse: components["schemas"]["World"] & {
             proof_boundary: components["schemas"]["ProofBoundary"];

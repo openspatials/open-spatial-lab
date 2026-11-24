@@ -261,8 +261,8 @@ export function createConsentQueue(doc) {
 /**
  * renderExtensionsPanel({ document, mounted, onClose }) -> { element, refresh(), close() }: the Extensions panel of one
  * mount pass. Each extension is listed with its state (not started, starting, running, refused, failed, ended), its
- * granted tokens, a "slow"
- * line with the count of its calls over the event budget (when it has any) and a Withdraw button, which calls
+ * granted tokens, where its code came from once it is started ("code from this place" or "code from its maker"), a
+ * "slow" line with the count of its calls over the event budget (when it has any) and a Withdraw button, which calls
  * mounted.withdraw(record) and takes effect at once.
  */
 export function renderExtensionsPanel({ document: doc, mounted, onClose = null }) {
@@ -292,7 +292,11 @@ export function renderExtensionsPanel({ document: doc, mounted, onClose = null }
         el(doc, "div", { style: `${STYLE.mono}${STYLE.dim}`, text: moduleFileName(record.module_url || (record.declaration && record.declaration.module && record.declaration.module.url)) }),
         el(doc, "div", { style: STYLE.mono, text: tokens.length ? tokens.join(", ") : "no tokens granted", attrs: { class: "ue-extension-tokens" } }),
       ]);
-      // A carrier whose status could not be read (or that has no statusRef) runs; the user is told, as plain text.
+      // Where a started extension's code came from: the place's store, or its maker's address. Plain text, no address.
+      if (record.codeSource === "place" || record.codeSource === "maker") {
+        row.append(el(doc, "div", { style: `${STYLE.mono}${STYLE.dim}`, text: record.codeSource === "place" ? "code from this place" : "code from its maker", attrs: { "data-ue-code-source": record.codeSource } }));
+      }
+      // A carrier the place's withdrawn list does not name (or a world with no list) runs; the user is told, as plain text.
       if (record.carrier && record.carrier.revocationStatus === "unchecked") {
         row.append(el(doc, "div", { style: `${STYLE.mono}${STYLE.dim}`, text: "status not checked", attrs: { "data-ue-revocation": "unchecked" } }));
       }

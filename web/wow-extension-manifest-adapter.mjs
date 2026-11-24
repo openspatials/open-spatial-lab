@@ -12,23 +12,19 @@
 // signature.statusRef is outside the signing input, so it is never used: present and not equal to entity.statusRef (or
 // present without one), the extension is refused at stage `status`, with no request.
 //
-// The status itself is read only when the visitor selects the extension's glance (quiet discovery: no maker's server
-// learns of a visitor before the visitor engages). Each extension that reads carries checkStatus(), which the mount
-// calls at selection, before it fetches the module: the status is resolved with the Lab's statusRef code
-// (web/manifest/statusref-resolution.mjs, evaluateStatusRef); a `revoked` or `suspended` extension is refused (stage
-// `status`), so the mount fetches no module of an extension that fails. An extension with no statusRef, or whose status
-// cannot be read (endpoint down or silent, offline, not https, malformed answer), runs, and its record carries
-// revocationStatus "unchecked" with the reason.
+// The status address is a declaration check only: it is never fetched, at world load or at selection, so no issuer
+// learns what a visitor looked at. Whether a carrier is withdrawn comes from the place's withdrawn list, read once at
+// world load by the mount pass (web/wow-extension-place-store.mjs); each carrier record carries its manifest @id for
+// that, and the signed status address as data.
 //
-// The carrier fetch and each status fetch stop after FETCH_LIMIT_MS (10 s; `fetchLimitMs` overrides it): a carrier
-// that does not answer in time is refused at `manifest-fetch`, a status that does not answer in time is unchecked. Each
-// is given an abort signal (fetch(url, { signal })), which is aborted at the limit, so the request does not stay open.
+// The carrier fetch stops after FETCH_LIMIT_MS (10 s; `fetchLimitMs` overrides it): a carrier that does not answer in
+// time is refused at `manifest-fetch`. The fetch is given an abort signal (fetch(url, { signal })), which is aborted at
+// the limit, so the request does not stay open.
 //
-// fetch, the clock, the verifier and the status transport are injected. The verifier is the Lab's Signature Profile A verifier
+// fetch, the clock and the verifier are injected. The verifier is the Lab's Signature Profile A verifier
 // (web/signing/um-signature-profile-a.mjs, verifyManifestProfileA), which the mount pass gives by default.
 import { validateExtensionDeclaration } from "./wow-scene.mjs";
 import { parseIJson } from "./signing/ijson.mjs";
-import { evaluateStatusRef, REASON_UNCHECKED } from "./manifest/statusref-resolution.mjs";
 
 const MIB = 1024 * 1024;
 const ATTACH_KINDS = ["world-node", "app-panel", "device", "person"];
@@ -37,13 +33,11 @@ const isPlainObject = (value) => !!value && typeof value === "object" && !Array.
 const typesOf = (value) => (Array.isArray(value) ? value : [value]);
 const oneLine = (error) => String((error && error.message) || error).replace(/\s+/g, " ").trim();
 const refusal = (stage, detail) => ({ ok: false, stage, detail });
-/** Statuses that refuse an extension. Anything else that is not "active" is "unchecked" and runs. */
-const REFUSED_STATUSES = new Set(["revoked", "suspended"]);
-/** The time limit of one fetch (the carrier, or one status endpoint), in milliseconds. */
+/** The time limit of one fetch (a carrier, or the place's withdrawn list), in milliseconds. */
 export const FETCH_LIMIT_MS = 10000;
 
 /** work(signal) settled within ms, or rejected with "no answer within <ms> ms"; at the limit the signal is aborted. */
-function withinLimit(work, ms) {
+export function withinLimit(work, ms) {
   let timer;
   const controller = new AbortController();
   const limit = new Promise((_, reject) => {
@@ -56,28 +50,9 @@ function withinLimit(work, ms) {
 }
 
 /**
- * fetchStatusTransport(fetch) -> async (statusRef, { signal }) => { httpStatus, body } | null: GETs the status endpoint
- * with the injected fetch and the abort signal. A network failure or an abort gives null; a body that is not JSON gives
- * body null (resolved as malformed).
- */
-export function fetchStatusTransport(fetch) {
-  return async (statusRef, { signal } = {}) => {
-    try {
-      const response = await fetch(statusRef, { signal });
-      if (!response) return null;
-      let body = null;
-      try { body = JSON.parse(await response.text()); } catch { body = null; }
-      return { httpStatus: response.status, body };
-    } catch {
-      return null;
-    }
-  };
-}
-
-/**
  * One extension's status address: { statusRef } (undefined when it has none) or { refused: detail }. The address is
  * the signed entity.statusRef; an unsigned signature.statusRef that differs from it (or stands alone) is tampering and
- * refuses. Needs no request, so it is checked at world load.
+ * refuses. Needs no request; the address is never fetched.
  */
 function statusAddress(manifest, facet) {
   const signature = isPlainObject(manifest.signature) ? manifest.signature : {};
@@ -87,29 +62,6 @@ function statusAddress(manifest, facet) {
     return { refused: `signature.statusRef ${JSON.stringify(unsigned)} is not the signed entity.statusRef ${JSON.stringify(statusRef === undefined ? null : statusRef)}; an unsigned status address is never used` };
   }
   return { statusRef };
-}
-
-/**
- * One extension's status: { revocationStatus, reason }. evaluateStatusRef takes a synchronous transport, so the
- * (asynchronous) answer is read first, within the time limit, and handed to it; no answer in time is resolved as no
- * answer. The spec-default policy is used only for its resolution: this adapter refuses on revocationStatus itself
- * (revoked and suspended refuse; unchecked runs). `answers` keeps one request per address within a carrier.
- */
-async function extensionStatus(manifest, statusRef, { fetch, statusTransport, limitMs, answers }) {
-  const signature = isPlainObject(manifest.signature) ? manifest.signature : {};
-  if (statusRef === undefined) return { revocationStatus: "unchecked", reason: `${REASON_UNCHECKED}: the extension entity has no statusRef` };
-  const transport = statusTransport || fetchStatusTransport(fetch);
-  // Only an https statusRef is requested; evaluateStatusRef gives any other "insecure-transport" without a request.
-  let answer = null;
-  if (typeof statusRef === "string" && /^https:\/\//i.test(statusRef)) {
-    if (!answers.has(statusRef)) answers.set(statusRef, withinLimit((signal) => Promise.resolve(transport(statusRef, { signal })), limitMs).catch(() => null));
-    answer = await answers.get(statusRef);
-  }
-  const checked = evaluateStatusRef({
-    statusRef, manifestId: manifest["@id"], revocationCursor: signature.revocationCursor,
-    transport: () => answer, policy: "spec-default",
-  });
-  return { revocationStatus: checked.revocationStatus, reason: checked.reason };
 }
 
 /**
@@ -136,17 +88,6 @@ async function verifiedKey(manifest, verify) {
   if (typeof signature.publicKeySpkiB64 !== "string" || !signature.publicKeySpkiB64) return { ok: false, detail: "the signature carries no publicKeySpkiB64" };
   const report = await verify(manifest);
   return report && report.ok ? { ok: true, key: signature.publicKeySpkiB64 } : { ok: false, detail: `the signature does not verify (${(report && report.reason) || "no report"})` };
-}
-
-/**
- * One extension's status at selection: { ok: true, revocationStatus, revocationReason } or { ok: false, stage:
- * "status", detail } for a revoked or suspended extension.
- */
-async function statusAtSelection(manifest, facet, statusRef, options) {
-  const status = await extensionStatus(manifest, statusRef, options);
-  if (REFUSED_STATUSES.has(status.revocationStatus)) return refusal("status", `${facet["@id"] || "facet"}: the status is ${status.revocationStatus} (${facet.entity.statusRef})`);
-  const revocation = { revocationStatus: status.revocationStatus, revocationReason: status.reason };
-  return { ok: true, ...revocation };
 }
 
 /** One extension facet -> { ok: true, effective, carrier } or { ok: false, stage: "status" | "facet", detail }. */
@@ -187,7 +128,9 @@ function readFacet(facet, { manifest, manifestUrl, key, fingerprint, nodeId, add
     effective: validation.effective,
     carrier: {
       subject: manifest.subject, key, fingerprint, attach: attachment, manifest_url: manifestUrl, facet_id: facet["@id"] || null,
-      // Set at selection, when the status is read: "active" or "unchecked", with the reason.
+      // The manifest @id the place's withdrawn list names, and the signed status address, kept as data and never fetched.
+      manifest_id: typeof manifest["@id"] === "string" ? manifest["@id"] : null, status_ref: address.statusRef === undefined ? null : address.statusRef,
+      // Set by the mount pass from the place's withdrawn list: "unchecked" for a carrier that runs, with the reason.
       revocationStatus: null, revocationReason: null,
       // The placement of profile section 2.4 (with module.integrity, which the mount adds): never the @ids.
       placement: JSON.stringify([manifest.subject, key, attachment]),
@@ -196,16 +139,12 @@ function readFacet(facet, { manifest, manifestUrl, key, fingerprint, nodeId, add
 }
 
 /**
- * readCarrierManifest({ manifestUrl, nodeId, fetch, now, verify, statusTransport, fetchLimitMs }) -> Promise<{ ok: true,
- * extensions: [...] } | { ok: false, stage, detail }>. Each extension is { ok: true, effective, carrier, checkStatus }
- * or { ok: false, stage: "status" | "facet", detail }. checkStatus() -> Promise<{ ok: true, revocationStatus,
- * revocationReason } | { ok: false, stage: "status", detail }> reads the status; the mount calls it at selection, never
- * at world load. `nodeId` is the carrying node's id in the world file, which attach.anchor must equal when
- * present. `statusTransport` (statusRef, { signal }) => Promise<{ httpStatus, body } | null> reads the status endpoint (default:
- * fetchStatusTransport(fetch)). `fetchLimitMs` (default FETCH_LIMIT_MS) limits the carrier fetch and each status
- * fetch. Never rejects.
+ * readCarrierManifest({ manifestUrl, nodeId, fetch, now, verify, fetchLimitMs }) -> Promise<{ ok: true, extensions: [...] }
+ * | { ok: false, stage, detail }>. Each extension is { ok: true, effective, carrier } or { ok: false, stage: "status" |
+ * "facet", detail }. `nodeId` is the carrying node's id in the world file, which attach.anchor must equal when present.
+ * `fetchLimitMs` (default FETCH_LIMIT_MS) limits the carrier fetch. Never rejects.
  */
-export async function readCarrierManifest({ manifestUrl, nodeId, fetch, now = () => Date.now(), verify, statusTransport, fetchLimitMs }) {
+export async function readCarrierManifest({ manifestUrl, nodeId, fetch, now = () => Date.now(), verify, fetchLimitMs }) {
   const limitMs = Number.isFinite(fetchLimitMs) && fetchLimitMs > 0 ? fetchLimitMs : FETCH_LIMIT_MS;
   let manifest;
   try {
@@ -235,14 +174,8 @@ export async function readCarrierManifest({ manifestUrl, nodeId, fetch, now = ()
   if (at >= expires) return refusal("validity", `expired: expiresAt ${manifest.expiresAt}`);
   if (typeof manifest.subject !== "string" || !manifest.subject) return refusal("facet", "the manifest has no subject");
   const facets = Array.isArray(manifest.facets) ? manifest.facets.filter(isExtensionFacet) : [];
-  const answers = new Map();
   const fingerprint = await keyFingerprint(signed.key);
-  return { ok: true, extensions: facets.map((facet) => {
-    const address = statusAddress(manifest, facet);
-    const read = readFacet(facet, { manifest, manifestUrl, key: signed.key, fingerprint, nodeId, address });
-    if (!read.ok) return read;
-    return { ...read, checkStatus: () => statusAtSelection(manifest, facet, address.statusRef, { fetch, statusTransport, limitMs, answers }) };
-  }) };
+  return { ok: true, extensions: facets.map((facet) => readFacet(facet, { manifest, manifestUrl, key: signed.key, fingerprint, nodeId, address: statusAddress(manifest, facet) })) };
 }
 
-export default { readCarrierManifest, isExtensionFacet, keyFingerprint, fetchStatusTransport, FETCH_LIMIT_MS };
+export default { readCarrierManifest, isExtensionFacet, keyFingerprint, withinLimit, FETCH_LIMIT_MS };

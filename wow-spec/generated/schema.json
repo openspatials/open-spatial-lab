@@ -2061,6 +2061,33 @@
               }
             }
           },
+          "extension_store": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "extension_status_list": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A JSON file { checkedAt: <date-time>, entries: [{ \"@id\": <carrier manifest @id>, status: revoked | suspended }] }, ExtensionStatusList."
+              }
+            }
+          },
           "portal_id": {
             "type": "string"
           },
@@ -2076,6 +2103,47 @@
           },
           "traversal_mode": {
             "type": "string"
+          }
+        }
+      },
+      "ExtensionStatusList": {
+        "x-osl-extension": true,
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "checkedAt",
+          "entries"
+        ],
+        "properties": {
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the place last compiled the list."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "@id",
+                "status"
+              ],
+              "properties": {
+                "@id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The carrier manifest @id."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "revoked",
+                    "suspended"
+                  ]
+                }
+              }
+            }
           }
         }
       },

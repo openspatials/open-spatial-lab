@@ -6,16 +6,26 @@
 // the extension host's loadExtension (one Web Worker per extension), and draws the scene nodes it makes under the node
 // that carries it, in that node's frame.
 //
-// Lazy start (quiet discovery): at world load nothing is fetched for an extension, no module and no status, so no
-// maker's server learns of a visitor before the visitor engages. Each declaration that passes steps 1 and 2 waits with
-// status "not-started" until select(record) is called (a click, a tap or a keyboard activation on its glance; hover,
-// pointer movement and time in view call nothing). select(record) starts that one extension only.
+// Lazy start (quiet discovery): at world load nothing is fetched from a maker or an issuer, so no maker's server learns
+// of a visitor before the visitor engages. Each declaration that passes steps 1 and 2 waits with status "not-started"
+// until select(record) is called (a click, a tap or a keyboard activation on its glance; hover, pointer movement and time
+// in view call nothing). select(record) starts that one extension only.
+//
+// The place (web/wow-extension-place-store.mjs): a world file may name, at world level, a store of module copies and a
+// withdrawn list, both on its own origin. With a store, every module comes from the store, and after world load the
+// copies are fetched in advance (up to a cap; the `advanceFetch` option false turns it off), so selection asks no one.
+// A store copy whose bytes do not match module.integrity is refused at `integrity`, never replaced by the maker's.
+// With no copy (HTTP 404) or no store, the module comes from the maker's address at selection. Each record says where
+// its code came from (codeSource "place" or "maker"). A carrier the withdrawn list names is refused at `status` at world
+// load; no issuer's status address is ever fetched.
 //
 // The order, per declaration:
 //   1. A declaration buildWowScene refused stays refused (stage `declaration`). At world load.
-//   2. The world file must be served from this page's origin (stage `origin`). Nothing is fetched otherwise. At world
-//      load.
-//   3. At selection: module.url is resolved against the world file URL and fetched (stage `fetch`).
+//   2. The world file must be served from this page's origin (stage `origin`); a place store or withdrawn list it names
+//      must be on that origin (stage `declaration`); a carrier the withdrawn list names is refused (stage `status`).
+//      Nothing is fetched otherwise. At world load.
+//   3. At selection: the module's store copy (from memory after advance fetch), or, with no copy or no store,
+//      module.url resolved against the world file URL (stage `fetch`).
 //   4. The attachment-confined tokens the declaration requests are granted by host policy, with the prompted tokens a
 //      current grant record already holds for this placement (web/wow-extension-consent.mjs). Any other requested
 //      token is listed as needing consent. With a document, the pass then shows one consent dialog per extension (one
@@ -40,10 +50,9 @@
 // A node may also point to signed carrier manifests (`universal_extension_manifests`). At world load each carrier on
 // this page's origin is fetched (a request to the place, not to a maker; a carrier on another origin is refused at
 // stage `origin` with no request), its signature verified, its dates checked and its extension facets read, with their
-// glances (web/wow-extension-manifest-adapter.mjs; stages `manifest-fetch`, `signature`, `validity`, `facet`). Each
-// extension's signed entity.statusRef (if any) is resolved at selection, before its module is fetched (stage
-// `status`). Its extensions follow the node's own declarations, with the next indices, and run by the same steps 2 to
-// 6. Their grants and storage are keyed by the carrier subject, the key the signature verified under, module.integrity
+// glances (web/wow-extension-manifest-adapter.mjs; stages `manifest-fetch`, `signature`, `validity`, `facet`). Its
+// status comes from the place's withdrawn list only (stage `status`); its signed entity.statusRef is never fetched. Its
+// extensions follow the node's own declarations, with the next indices, and run by the same steps 2 to 6. Their grants and storage are keyed by the carrier subject, the key the signature verified under, module.integrity
 // and attach, never by the manifest or facet @id.
 //
 // Every refusal or failure leaves a warn-tinted marker named `ue-refused:<stage>:<label>#<index>` or
@@ -56,6 +65,7 @@ import { createUnavailableAssetPlaceholder, extensionTokensNeedingConsent, makeE
 import { drawLabelCanvas } from "./label-canvas.mjs";
 import { createConsentQueue, createGrantStore, placementKeyOf, POINTER_TOKEN, promptedTokens, purposeOf } from "./wow-extension-consent.mjs";
 import { readCarrierManifest } from "./wow-extension-manifest-adapter.mjs";
+import { createPlaceStore, readPlaceDeclarations, readWithdrawnList, withdrawnStatusOf, WITHDRAWN_STATUSES } from "./wow-extension-place-store.mjs";
 import { verifyManifestProfileA } from "./signing/um-signature-profile-a.mjs";
 
 /** Stages at which the Lab refuses a declaration before it runs; the others are failures. */
@@ -96,12 +106,14 @@ function disposeObject(root) {
  * @param {Array}  extensionNodes  buildWowScene's `extension_nodes`
  * @param {object} THREE           injected Three.js namespace
  * @param {object} opts            { loadExtension, worldUrl, pageOrigin, loadGltf?, fetch?, document?, shouldMount?,
- *                                   syncMs?, storage?, grantStore?, verifyManifest?, now?, statusTransport?, fetchLimitMs? }
+ *                                   syncMs?, storage?, grantStore?, verifyManifest?, now?, fetchLimitMs?, advanceFetch?,
+ *                                   advanceFetchCapBytes?, placeCopies? }
  * `storage` (the page's localStorage) holds the remembered grants and the extensions' storage; `grantStore` (from
  * createGrantStore) keeps session grants across mount passes of one page. `verifyManifest` (default
- * verifyManifestProfileA), `now` (default Date.now), `statusTransport` (default: a GET through `fetch`) and
- * `fetchLimitMs` (default 10 s, the limit of the carrier fetch and of each status fetch) go to the carrier manifest
- * adapter.
+ * verifyManifestProfileA), `now` (default Date.now) and `fetchLimitMs` (default 10 s, the limit of each carrier fetch
+ * and of the withdrawn list) go to the carrier manifest adapter and the place. `advanceFetch` (default true) fetches
+ * the place store's copies after world load, up to `advanceFetchCapBytes` (default 8 MiB); `placeCopies` (a Map; default
+ * one for the page session) keeps their bytes. `advanceFetchDone` resolves when the advance fetch has ended.
  * Resolves once what needs no module is settled; no extension is started. `mounted`, `refused`, `failed`,
  * `not_started` and `summary` are read live. `select(record)` -> Promise<record> starts one not-started extension and
  * resolves when it is mounted, refused or failed; it never rejects. Never rejects. `unmount()` shuts every extension
@@ -130,8 +142,8 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const addRecord = (node, index, declaration, validation, carrier = null) => records.push({
     node_id: node.node_id, label: node.label, index, node, group: node.group,
     declaration, validation, carrier,
-    status: "pending", stage: null, error: null, selectable: false, check_status: null, starting: null,
-    extension: null, attachment: null, module_url: null, grant: [], host_grant: [], needs_consent: [], placement_key: null,
+    status: "pending", stage: null, error: null, selectable: false, starting: null,
+    extension: null, attachment: null, module_url: null, codeSource: null, code_url: null, grant: [], host_grant: [], needs_consent: [], placement_key: null,
     pointer: { times: [] }, overruns: 0,
     container: null, marker: null, objects: new Map(),
   });
@@ -144,17 +156,29 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     const manifestUrl = resolveAssetUri(ref.url, worldUrl);
     // A carrier is read at world load, so only from this page's origin: the request goes to the place, never a maker.
     if (originOf(manifestUrl) !== pageOrigin) return { ok: false, stage: "origin", detail: `the carrier manifest ${manifestUrl} is not on this page's origin ${pageOrigin}; carriers are read at world load only from it` };
-    return readCarrierManifest({ manifestUrl, nodeId: node.node_id, fetch: fetchModule, now: opts.now, verify: opts.verifyManifest || verifyManifestProfileA, statusTransport: opts.statusTransport, fetchLimitMs: opts.fetchLimitMs })
+    return readCarrierManifest({ manifestUrl, nodeId: node.node_id, fetch: fetchModule, now: opts.now, verify: opts.verifyManifest || verifyManifestProfileA, fetchLimitMs: opts.fetchLimitMs })
       .catch((error) => ({ ok: false, stage: "manifest-fetch", detail: oneLine(error) }));
   };
-  const carried = await Promise.all(nodes.map((node) => Promise.all(carrierRefs(node).map((ref) => readCarrier(node, ref)))));
+  // The place: its store and its withdrawn list, named at world level and read only from the world file's origin, which
+  // must be this page's. The list is fetched once, beside the carriers.
+  const place = readPlaceDeclarations(nodes.length ? nodes[0].place : null, worldUrl);
+  const placeServes = place.ok && worldOrigin === pageOrigin;
+  const withdrawnList = placeServes && place.listUrl
+    ? readWithdrawnList({ listUrl: place.listUrl, fetch: fetchModule, limitMs: opts.fetchLimitMs }).catch((error) => ({ ok: false, detail: oneLine(error) }))
+    : null;
+  const [carried, withdrawn] = await Promise.all([
+    Promise.all(nodes.map((node) => Promise.all(carrierRefs(node).map((ref) => readCarrier(node, ref))))),
+    withdrawnList,
+  ]);
+  const store = placeServes && place.storeUrl
+    ? createPlaceStore({ storeUrl: place.storeUrl, fetch: fetchModule, capBytes: opts.advanceFetchCapBytes, ...(opts.placeCopies instanceof Map ? { copies: opts.placeCopies } : {}) })
+    : null;
   nodes.forEach((node, at) => {
     let index = node.validations.length;
     for (const read of carried[at]) {
       if (!read.ok) { addRecord(node, index++, null, { ok: false, stage: read.stage, detail: read.detail }); continue; }
       for (const item of read.extensions) {
         addRecord(node, index++, null, item.ok ? { ok: true, effective: item.effective } : { ok: false, stage: item.stage, detail: item.detail }, item.ok ? item.carrier : null);
-        if (item.ok && typeof item.checkStatus === "function") records[records.length - 1].check_status = item.checkStatus;
       }
     }
   });
@@ -299,32 +323,45 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     const effective = record.validation.effective;
     if (!NODE_ADAPTERS[effective.module.binding]) return refuse(record, "declaration", `the mount has no node adapter for binding ${effective.module.binding}`);
     if (worldOrigin !== pageOrigin) return refuse(record, "origin", `the world file is served from ${worldOrigin}, not from this page's origin ${pageOrigin}; the Lab runs extensions only from world files served from its own origin`);
+    if (!place.ok) return refuse(record, "declaration", place.detail);
+    if (record.carrier) {
+      // The carrier's status, from the place's withdrawn list only: no issuer is asked.
+      const status = withdrawnStatusOf(withdrawn, record.carrier.manifest_id);
+      if (WITHDRAWN_STATUSES.includes(status.revocationStatus)) return refuse(record, "status", `${record.carrier.facet_id || "facet"}: ${status.reason}`);
+      record.carrier.revocationStatus = status.revocationStatus;
+      record.carrier.revocationReason = status.reason;
+    }
     record.status = "not-started";
     record.selectable = true;
     return record;
   }
 
-  // At selection: the status (a carrier's), the module, the host and the worker.
+  // At selection: the module (the place's copy, or the maker's), the host and the worker.
   async function startOne(record) {
     const effective = record.validation.effective;
     if (!loadExtension) return fail(record, "worker", "no extension host injected");
-    if (record.check_status) {
-      const status = await record.check_status();
-      if (!status || !status.ok) return refuse(record, "status", (status && status.detail) || "the status could not be read");
-      record.carrier.revocationStatus = status.revocationStatus;
-      record.carrier.revocationReason = status.revocationReason;
-    }
 
     // A carrier's module.url resolves against the carrier manifest's URL.
     const moduleUrl = resolveAssetUri(effective.module.url, record.carrier ? record.carrier.manifest_url : worldUrl);
     record.module_url = moduleUrl;
     let bytes;
-    try {
-      const response = await fetchModule(moduleUrl);
-      if (!response || !response.ok) throw new Error(`HTTP ${response && response.status}`);
-      bytes = new Uint8Array(await response.arrayBuffer());
-    } catch (error) {
-      return fail(record, "fetch", `${moduleUrl}: ${oneLine(error)}`);
+    // The place's copy when it has one; the maker's address only when the store has no copy, or there is no store. A
+    // copy that fails to load is a failure, never a reason to ask the maker.
+    const code = store ? await store.codeOf(effective.module.integrity) : { source: "maker" };
+    if (code.error) return fail(record, "fetch", `${code.url}: ${code.error}`);
+    record.codeSource = code.source;
+    if (code.source === "place") {
+      record.code_url = code.url;
+      bytes = code.bytes.slice();
+    } else {
+      record.code_url = moduleUrl;
+      try {
+        const response = await fetchModule(moduleUrl);
+        if (!response || !response.ok) throw new Error(`HTTP ${response && response.status}`);
+        bytes = new Uint8Array(await response.arrayBuffer());
+      } catch (error) {
+        return fail(record, "fetch", `${moduleUrl}: ${oneLine(error)}`);
+      }
     }
 
     // Host policy: only the attachment-confined tokens, and only where requested; with the prompted tokens a current
@@ -361,6 +398,10 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   }
 
   for (const record of records) settleAtLoad(record);
+  // Advance fetch: the store copies of the extensions waiting for selection, in their order, up to the cap.
+  const advanceFetchDone = store && opts.advanceFetch !== false
+    ? store.prefetch(records.filter((record) => record.status === "not-started").map((record) => record.validation.effective.module.integrity)).catch(() => null)
+    : Promise.resolve(null);
 
   // A node's "not mounted yet" placeholder goes once none of its declarations waits for selection or is starting.
   function clearPlaceholders() {
@@ -516,7 +557,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     not_started: withStatus("not-started").length,
     by_stage: Object.fromEntries([...new Set(records.map((record) => record.stage).filter(Boolean))].map((stage) => [stage, records.filter((record) => record.stage === stage).length])),
     needs_consent: needsConsent,
-    rule: "extensions start only when the visitor selects their glance, nothing is fetched for them before; they run only from world files served from this page's origin, only when the module's SHA-256 matches module.integrity (and, for a carrier manifest, only when its signature verifies and it is within its dates), and with the attachment-confined tokens they request plus the prompted tokens the user allowed",
+    rule: "extensions start only when the visitor selects their glance, nothing is fetched for them from a maker or an issuer before (a place's store copies and withdrawn list come from the world file's origin), and a status address is never fetched; they run only from world files served from this page's origin, only when the module's SHA-256 matches module.integrity (and, for a carrier manifest, only when its signature verifies and it is within its dates), and with the attachment-confined tokens they request plus the prompted tokens the user allowed",
   });
 
   const result = {
@@ -529,6 +570,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     get summary() { return summaryOf(); },
     grantStore,
     get consentDone() { return consentDone; },
+    advanceFetchDone,
     select,
     withdraw,
     stateOf,

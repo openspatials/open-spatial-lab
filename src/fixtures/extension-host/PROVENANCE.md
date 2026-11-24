@@ -88,6 +88,23 @@ The extension test world, opened only by URL (it is not in the worlds list).
   `70278d9f15eda41656c1d7fd391f64250ef7039dd24da5d757627f5d754ab091`, SRI
   `sha256-cCeNnxXtpBZWwdf9OR9kJQ73A53STaXXV2J/XXVKsJE=`.
 
+### The place world
+
+- `world/place-world.json`: written for this repository. At world level its `webofworlds_extension` names a place store
+  (`extension_store`, `place-store/`) and a withdrawn list (`extension_status_list`, `place-withdrawn.json`), both on the
+  world file's own origin. Its modules' own addresses are on the maker origin `http://maker.test`, which no check
+  serves: a request there is what the checks look for. Nodes: `place-box` (`box-maker.wasm`, copy in the store),
+  `listener` (`pointer-listener.wasm`, copy in the store), `maker-only` (`storage-user.wasm`, no copy in the store),
+  `carried-unlisted` and `carried-withdrawn` (carrier manifests `carriers/unlisted.json` and `carriers/withdrawn.json`,
+  which the checks sign per run; the second has the @id `urn:uuid:place-carrier-withdrawn`).
+- `world/place-store/sha256-J-MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk.wasm`: a byte copy of `world/box-maker.wasm`
+  (844 bytes, SHA-256 `27e304b6aabc1b813011b6396baba289079415301777d4f86925fa02232c1ea9`), named after its
+  `module.integrity` in base64url without padding.
+- `world/place-store/sha256-cCeNnxXtpBZWwdf9OR9kJQ73A53STaXXV2J_XXVKsJE.wasm`: a byte copy of
+  `world/pointer-listener.wasm` (865 bytes, SHA-256 `70278d9f15eda41656c1d7fd391f64250ef7039dd24da5d757627f5d754ab091`).
+- `world/place-withdrawn.json`: written for this repository. `checkedAt` and one entry: `urn:uuid:place-carrier-withdrawn`
+  is `revoked`.
+
 ## carrier-without-profile.json and carrier.mjs
 
 - `carrier-without-profile.json` is a byte copy of the Universal Extensions profile fixture

@@ -86,6 +86,8 @@ export async function readWorld({ wowRef, base, transport, onLog }) {
       nodes: doc.nodes,
       title: doc.title || null,
       world: doc.world || null,
+      // World-level members: a place's extension store and withdrawn list (web/wow-extension-place-store.mjs).
+      webofworlds_extension: doc.webofworlds_extension || null,
     };
     source = hasExplicitRoot ? "bundled-world-graph" : "bundled-world-graph";
   } else if (doc && doc.id !== undefined) {
