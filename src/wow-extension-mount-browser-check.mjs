@@ -20,6 +20,9 @@
 // Lazy start (quiet discovery, Lab packet QD-1): a mount pass starts nothing at world load; every case that runs an
 // extension selects it first (selectAll, as a visitor's click on each glance would).
 //
+// One case (panel-card-shown) mounts the panel test world (extension-world-panel.json, ue:host@0.3.0) with this page's
+// document and draws its panel board with renderPanelHost: selecting coffee-stand shows its card in the host frame.
+//
 // One case moves a node through the host's node list: no test module calls node-set-transform, so the check page
 // gives the mount the node fields a node-set-transform leaves (position, rotation, scale) for the Box node.
 import { createHash } from "node:crypto";
@@ -169,11 +172,12 @@ await run("ext-consent-pending", async () => {
   assert(record && record.status === "mounted", "wants-panel did not run: " + JSON.stringify(record && { status: record.status, stage: record.stage, error: record.error }));
   assert(findUnder(groupOf(built, "wants-panel"), (o) => o.name === "ue-node:Box"), "wants-panel made no box");
   const call = calls.find((item) => item.label === "wants-panel");
-  assert(!call.grant.includes("ue.ui.panel"), "ue.ui.panel was granted: " + JSON.stringify(call.grant));
+  assert(call.grant.includes("ue.ui.panel"), "ue.ui.panel, a host policy token, was not granted: " + JSON.stringify(call.grant));
+  assert(!call.grant.includes("ue.input.pointer"), "ue.input.pointer was granted: " + JSON.stringify(call.grant));
   const pending = mounted.needs_consent.find((item) => item.label === "wants-panel");
-  assert(pending && pending.tokens.includes("ue.ui.panel"), "the mount summary does not list wants-panel as needing consent");
+  assert(pending && pending.tokens.includes("ue.input.pointer") && !pending.tokens.includes("ue.ui.panel"), "the mount summary does not list wants-panel as needing consent for ue.input.pointer alone: " + JSON.stringify(pending));
   const listed = built.render_summary.extensions.needs_consent.find((item) => item.label === "wants-panel");
-  assert(listed && listed.tokens.includes("ue.ui.panel") && /needs consent/.test(listed.note), "render_summary.extensions does not list wants-panel as needing consent");
+  assert(listed && listed.tokens.includes("ue.input.pointer") && /needs consent/.test(listed.note), "render_summary.extensions does not list wants-panel as needing consent");
 });
 
 await run("ext-transform-follows", async () => {
@@ -547,6 +551,41 @@ await run("ext-pointer-events", async () => {
   assert(facts.B.others.length === 0, "pointer events reached other extensions: " + JSON.stringify(facts.B.others));
 });
 
+// ---- Panels (ue:host@0.3.0): the panel test world, with this page's document ----
+const { renderPanelHost } = await import("/wow-extension-panel.mjs");
+await run("panel-card-shown", async () => {
+  const WORLD_PANEL = "/fixtures/extension-host/world/extension-world-panel.json";
+  const panelWorldUrl = new URL(WORLD_PANEL, location.href).href;
+  const scene = buildWowScene(await (await fetch(WORLD_PANEL, { cache: "no-store" })).json(), THREE, { source: "ue-mount-check-panel" });
+  learn(scene);
+  const result = await mountWowExtensions(scene.extension_nodes, THREE, { loadExtension: wrapped, worldUrl: panelWorldUrl, pageOrigin: location.origin, loadGltf, fetch: countingFetch, document });
+  const host = renderPanelHost({ document, board: result.panels });
+  document.body.append(host.element);
+  try {
+    await host.ready();
+    assert(!host.shown(), "a panel shows before any selection: " + JSON.stringify(host.shown()));
+    const record = result.records.find((item) => item.label === "coffee-stand");
+    await result.select(record);
+    assert(record.status === "mounted", "coffee-stand did not run: " + JSON.stringify({ status: record.status, stage: record.stage, error: record.error }));
+    const key = record.label + "#" + record.index;
+    await waitFor(async () => { await host.ready(); return host.shown(); }, 4000);
+    await host.ready();
+    const shown = host.shown();
+    assert(shown && shown.size === "card" && shown.key === key, "the card is not shown: " + JSON.stringify(shown) + "; log " + JSON.stringify(result.panels.logOf(key)) + "; extension log " + JSON.stringify(record.extension && record.extension.log));
+    const rect = host.frame.getBoundingClientRect(), outer = host.element.getBoundingClientRect();
+    assert(rect.width === 320 && rect.height === 200, "the card is " + rect.width + " by " + rect.height);
+    assert(rect.left >= outer.left && rect.right <= outer.right && rect.top >= outer.top && rect.bottom <= outer.bottom, "the card is not inside the host frame");
+    const text = host.frame.contentDocument.body.textContent;
+    assert(/Coffee stand/.test(text) && /Two cups in the queue/.test(text), "the card shows " + JSON.stringify(text));
+    const label = host.element.querySelector('[data-testid="ue-panel-label"]').textContent;
+    assert(label === "Coffee stand", "the host frame's label is " + JSON.stringify(label));
+    await shot("panel-card");
+  } finally {
+    host.dispose();
+    await result.unmount();
+  }
+});
+
 drawing = false;
 window.__ueMountResults = results;
 console.log(DONE);
@@ -569,7 +608,7 @@ const SIGNED_BY_CARRIER = carrierManifest({
   key: SIGNED_BY_KEY, subject: SIGNED_BY_SUBJECT,
   module: { url: "/fixtures/extension-host/world/box-maker.wasm", integrity: "sha256-J+MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk=", binding: "ue-core/0" },
   attach: { kind: "world-node", anchor: "1" },
-  requests: [{ capability: "ue.scene.nodes", purpose: "draw the box" }, { capability: "ue.ui.panel", purpose: "show a panel" }],
+  requests: [{ capability: "ue.scene.nodes", purpose: "draw the box" }, { capability: "ue.input.pointer", purpose: "react to a click" }],
 });
 const SIGNED_BY_FINGERPRINT = createHash("sha256").update(SIGNED_BY_KEY.publicKey.export({ type: "spki", format: "der" })).digest("hex").slice(0, 16).match(/.{4}/g).join(" ");
 
@@ -643,7 +682,7 @@ const CASES = [
   ["ext-cross-origin-refused", "The world loaded from a second origin refuses every extension at stage origin and fetches no module"],
   ["manifest-extension-runs", "A node that points to a valid signed carrier runs its extension, and ue-node:Box appears under the carrying node"],
   ["manifest-signed-by", "A carrier extension that requests a prompted token shows a dialog whose \"Signed by\" line holds the carrier subject and the key fingerprint, as plain text"],
-  ["ext-consent-pending", "wants-panel runs and makes its box, ue.ui.panel is not granted, and the summary lists it as needing consent"],
+  ["ext-consent-pending", "wants-panel runs and makes its box, ue.ui.panel is granted by host policy, ue.input.pointer is not granted, and the summary lists it as needing consent"],
   ["ext-transform-follows", "A node-set-transform from an extension moves its object"],
   ["ext-world-survives", "runaway is ended by the watchdog and shown as failed at init; the other nodes render and the page draws frames"],
   ["ext-unmount-clean", "After unmount() no extension worker is alive and no ue-node: object remains"],
@@ -652,6 +691,7 @@ const CASES = [
   ["ext-consent-remembered", "With Remember checked a reload grants without a dialog; a changed module.integrity shows the dialog again"],
   ["ext-consent-withdraw", "Withdraw in the Extensions panel makes the next fetch return -2, aborts the request in flight and writes withdrawnAt"],
   ["ext-pointer-events", "Clicking the pointer listener's node sends click to that extension only; without ue.input.pointer no event arrives"],
+  ["panel-card-shown", "After its glance is selected, coffee-stand's card shows at 320 by 200 inside the host frame with its text and label; nothing shows before"],
 ];
 
 const { results, problem } = await runPage();
@@ -679,7 +719,7 @@ await finish({ checkFile: "src/wow-extension-mount-browser-check.mjs", faults: [
     edits: [{ file: MOUNT, find: "const carrierRefs = (node) => (Array.isArray(node.manifest_refs) ? node.manifest_refs : []);", replace: "const carrierRefs = (node) => [];" }] },
   { statement: "manifest-signed-by", name: "the dialog omits the \"Signed by\" line", expect: /the dialog has no "Signed by" line/,
     edits: [{ file: CONSENT, find: "    carrier ? el(doc, \"div\", {}, [doc.createTextNode(\"Signed by: \"),", replace: "    false ? el(doc, \"div\", {}, [doc.createTextNode(\"Signed by: \")," }] },
-  { statement: "ext-consent-pending", name: "grant every requested token", expect: /ue\.ui\.panel was granted/,
+  { statement: "ext-consent-pending", name: "grant every requested token", expect: /ue\.input\.pointer was granted/,
     edits: [{ file: MOUNT, find: "const grant = requested.filter((token) => granted.has(token));", replace: "const grant = requested;" }] },
   { statement: "ext-transform-follows", name: "ignore node updates", expect: /did not move/,
     edits: [{ file: MOUNT, find: "      else if (changed(object, node)) placeNode(object, node);", replace: "      else if (false) placeNode(object, node);" }] },
@@ -702,4 +742,6 @@ await finish({ checkFile: "src/wow-extension-mount-browser-check.mjs", faults: [
     edits: [{ file: MOUNT, find: "    void applyGrant(record, [...record.host_grant]);\n", replace: "" }] },
   { statement: "ext-pointer-events", name: "send pointer events without the grant", expect: /without ue\.input\.pointer the listener got pointer events/,
     edits: [{ file: MOUNT, find: "    if (!record.grant.includes(POINTER_TOKEN)) return false;\n", replace: "" }] },
+  { statement: "panel-card-shown", name: "the mount ignores panel-set", expect: /the card is not shown/,
+    edits: [{ file: MOUNT, find: "panel: (event) => panels.receive(key, event) }", replace: "panel: () => {} }" }] },
 ] });

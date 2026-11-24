@@ -15,6 +15,11 @@
 //    both glances, their start and one timer event, the page may ask no origin but its own. The Extensions panel must
 //    show "code from this place" for both and "status not checked" for the carrier.
 //
+// 3. leak-check-with-panel: a world with a place store whose one extension (the panel maker, ue:host@0.3.0) sends two
+//    cards at Open: first one with an img whose address is on the maker (the filter refuses it whole), then a plain card
+//    with a data: image and a button. From load through selection, start, the shown card and a click in it, the page
+//    may ask no origin but its own; the refusal shows in the Extensions panel.
+//
 // The check prints the origins contacted. With OSL_UE_LEAK_SHOT_DIR set, it saves a screenshot of the Extensions panel
 // of the second world there. One Chrome for Testing (headless, puppeteer-core) and the static server of the extension
 // checks (src/fixtures/extension-host/check-server.mjs) on OSL_UE_LEAK_BROWSER_PORT (default 18355); its second port is
@@ -44,6 +49,10 @@ const CARRIER_PATH = "/__ue-leak/carrier.json";
 const PLACE_PATH = "/__ue-leak/place/world.json";
 const BOX = { file: "/fixtures/extension-host/world/box-maker.wasm", integrity: "sha256-J+MEtqq8G4EwEbY5a6uiiQeUFTAXd9T4aSX6AiMsHqk=", binding: "ue-core/0" };
 const BUSY_FILE = "/__ue-leak/busy-timer.wasm";
+const PANEL_PATH = "/__ue-leak/panel/world.json";
+const PANEL_MAKER_FILE = "/__ue-leak/panel-maker.wasm";
+// A 1 x 1 PNG, the card's own data: image.
+const DOT_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mN4+P8/AAX6AvpkK9hWAAAAAElFTkSuQmCC";
 const { loadWorlds, publicWorlds } = createRequire(import.meta.url)("../src/worlds-config.js");
 const oneLine = (error) => String((error && error.message) || error).replace(/\s+/g, " ").trim();
 const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -84,6 +93,27 @@ function placeWorld(maker, busy) {
   };
 }
 
+/** The panel world: a store on the page's origin; the panel maker's own address on `maker`; its first card names `maker`. */
+function panelWorld(maker, panelMaker) {
+  const card = (body) => ({ size: "card", document: body });
+  return {
+    spatialID: "extension-leak-panel-world", title: "Extension leak panel world", root: 0,
+    webofworlds_extension: { extension_store: { url: "store/" } },
+    nodes: [
+      { id: 0, label: "extension-leak-panel-world", children: [1], localTransform: I },
+      { id: 1, parent: 0, label: "panel-box", localTransform: at(0, -2), webofworlds_extension: { universal_extensions: [{
+        module: { url: `${maker}${PANEL_MAKER_FILE}`, integrity: panelMaker.integrity, binding: "ue-core/0" }, interface: "ue:host@0.3.0",
+        attach: { kind: "world-node" }, requests: ["ue.console.log", "ue.data.read", "ue.ui.panel"], limits: {},
+        glance: { line1: "Panel box", line2: "Shows a card", icon: "info", action: "Open" },
+        data: {
+          first: card(`<p>Beacon</p><img alt="beacon" src="${maker}/panel-beacon.png">`),
+          card: card(`<div style="padding: 12px"><p class="title">Panel box</p><img alt="dot" src="${DOT_PNG}" style="width: 16px; height: 16px"><button id="press">Press</button></div>`),
+        },
+      }] } },
+    ],
+  };
+}
+
 const originOf = (url) => { try { const { protocol, origin } = new URL(url); return protocol === "http:" || protocol === "https:" ? origin : null; } catch { return null; } };
 const hostOf = (url) => { try { return new URL(url).host; } catch { return null; } };
 const origins = (urls) => [...new Set(urls.map(originOf).filter(Boolean))];
@@ -107,9 +137,9 @@ const clickGlance = (page, label) => page.evaluate((prefix) => {
   return !!button;
 }, `${label}#`);
 
-/** Loads both worlds, records their requests, selects glances. Resolves { facts, place, problem }, never rejects. */
+/** Loads the three worlds, records their requests, selects glances. Resolves { facts, place, panel, problem }, never rejects. */
 async function runPages() {
-  const facts = {}, place = {};
+  const facts = {}, place = {}, panel = {};
   let servers = [], browser = null, problem = null;
   try {
     const pages = { "/worlds.json": { type: ".json", body: JSON.stringify(publicWorlds(loadWorlds())) } };
@@ -143,6 +173,13 @@ async function runPages() {
     pages["/__ue-leak/place/carrier.json"] = { type: ".json", body: placeCarrier("urn:uuid:leak-carried", "carried-box", "2") };
     pages["/__ue-leak/place/withdrawn-carrier.json"] = { type: ".json", body: placeCarrier("urn:uuid:leak-withdrawn", "withdrawn-box", "3") };
     pages["/__ue-leak/place/withdrawn.json"] = { type: ".json", body: JSON.stringify({ checkedAt: "2026-11-23T00:00:00Z", entries: [{ "@id": "urn:uuid:leak-withdrawn", status: "revoked" }] }) };
+
+    // The panel world: the panel maker reads the data paths "first", then "card".
+    const panelBytes = UE_TEST_MODULES.uePanelMaker({ paths: ["first", "card"] });
+    const panelMaker = { integrity: await integrityOf(panelBytes) };
+    pages[PANEL_MAKER_FILE] = { type: ".wasm", body: panelBytes };
+    pages[PANEL_PATH] = { type: ".json", body: JSON.stringify(panelWorld(maker, panelMaker)) };
+    pages[`/__ue-leak/panel/store/${storeCopyName(panelMaker.integrity)}`] = { type: ".wasm", body: panelBytes };
 
     const { default: puppeteer } = await import("puppeteer-core");
     browser = await puppeteer.launch({ executablePath: findBrowser(), headless: true, args: ["--no-first-run", "--no-default-browser-check"] });
@@ -183,16 +220,42 @@ async function runPages() {
       place.requests = requests.slice();
       await page.close();
     }
+
+    // 3. The panel world: load, select, start, the card, a click in it.
+    {
+      const { page, requests } = await openWorld(browser, page0, PANEL_PATH);
+      panel.glances = await glancesOn(page);
+      panel.clicked = await clickGlance(page, "panel-box");
+      panel.card = await page.waitForFunction(() => {
+        const host = document.querySelector('[data-testid="ue-panel-host"]');
+        const frame = host && host.style.display !== "none" ? host.querySelector('[data-testid="ue-panel-frame"]') : null;
+        return frame && frame.contentDocument && /Panel box/.test(frame.contentDocument.body.textContent) ? host.getAttribute("data-ue-panel-size") : null;
+      }, { timeout: EVENT_MS }).then((handle) => handle.jsonValue(), () => null);
+      if (panel.card) {
+        const point = await page.evaluate(() => {
+          const frame = document.querySelector('[data-testid="ue-panel-frame"]');
+          const rect = frame.getBoundingClientRect(), button = frame.contentDocument.querySelector("#press").getBoundingClientRect();
+          return [rect.left + button.left + button.width / 2, rect.top + button.top + button.height / 2];
+        });
+        await page.mouse.click(point[0], point[1]);
+      }
+      await sleep(1500);
+      if (await page.waitForSelector('[data-testid="extensions-toggle"]', { timeout: 5000 }).then(() => true, () => false)) await page.click('[data-testid="extensions-toggle"]');
+      await sleep(300);
+      panel.log = await page.evaluate(() => [...document.querySelectorAll('[data-testid="ue-extensions-panel"] [data-ue-panel-log]')].map((line) => line.textContent));
+      panel.requests = requests.slice();
+      await page.close();
+    }
   } catch (error) {
     problem = oneLine(error);
   } finally {
     await stopBrowser(browser);
     for (const server of servers) await stopServer(server);
   }
-  return { facts, place, problem };
+  return { facts, place, panel, problem };
 }
 
-const { facts, place, problem } = await runPages();
+const { facts, place, panel, problem } = await runPages();
 const must = (value, message) => { if (!value) throw new Error(`${message}${problem ? ` (${problem})` : ""}`); };
 if (facts.before) console.log(`origins contacted before selection: ${origins(facts.before).join(", ") || "none"} (${facts.before.length} requests; page ${facts.pageOrigin}, maker ${facts.maker})`);
 if (facts.after) console.log(`origins contacted after selecting maker-box: ${origins(facts.after).join(", ") || "none"} (${facts.after.length} requests)`);
@@ -225,6 +288,17 @@ await check("leak-check-through-start", "In a world with a place store and a wit
   must(row("withdrawn-box").state === "refused", `withdrawn-box in the panel: ${JSON.stringify(row("withdrawn-box"))}`);
 });
 
+if (panel.requests) console.log(`panel world: origins contacted from load through a click in the card: ${origins(panel.requests).join(", ") || "none"} (${panel.requests.length} requests); panel log ${JSON.stringify(panel.log)}`);
+
+await check("leak-check-with-panel", "In the place world of a panel extension, from load through selection, start, a shown card and a click in it, the page asks no origin but its own; a card naming the maker is refused whole", () => {
+  must(panel.requests, "the panel world did not load");
+  const elsewhere = panel.requests.filter((url) => originOf(url) && originOf(url) !== facts.pageOrigin);
+  must(elsewhere.length === 0, `from load through a click in the card the page asked another origin: ${elsewhere.map((url) => url.slice(0, 160)).join(" ")}`);
+  must((panel.glances || []).length === 1 && panel.clicked, `the panel world's glance: ${JSON.stringify(panel.glances)}`);
+  must(panel.card === "card", "the card did not show");
+  must((panel.log || []).some((line) => /^card panel refused: img src is not a data: URL/.test(line)), `the Extensions panel does not show the refused card: ${JSON.stringify(panel.log)}`);
+});
+
 await finish({ checkFile: "tools/extension-leak-check.mjs", faults: [
   { statement: "leak-check", name: "one extension's module is fetched at load", expect: /before selection the page asked the maker origin: http:\/\/127\.0\.0\.1:\d+\/fixtures\/extension-host\/world\/box-maker\.wasm/,
     edits: [{ file: "web/wow-extension-mount.mjs", find: "    record.status = \"not-started\";\n    record.selectable = true;\n",
@@ -232,4 +306,6 @@ await finish({ checkFile: "tools/extension-leak-check.mjs", faults: [
   { statement: "leak-check-through-start", name: "a status request to the issuer at selection", expect: /from load through start the page asked another origin: https:\/\/127\.0\.0\.1:\d+\/status\/carried-box/,
     edits: [{ file: "web/wow-extension-mount.mjs", find: "    if (!loadExtension) return fail(record, \"worker\", \"no extension host injected\");\n",
       replace: "    if (!loadExtension) return fail(record, \"worker\", \"no extension host injected\");\n    if (record.carrier && record.carrier.status_ref) await fetchModule(record.carrier.status_ref).catch(() => {});\n" }] },
+  { statement: "leak-check-with-panel", name: "a panel image address is fetched", expect: /from load through a click in the card the page asked another origin: http:\/\/127\.0\.0\.1:\d+\/panel-beacon\.png/,
+    edits: [{ file: "web/wow-extension-panel-filter.mjs", find: "if (name === \"src\") checkImage(value);", replace: "if (name === \"src\") { new win.Image().src = value; checkImage(value); }" }] },
 ] });

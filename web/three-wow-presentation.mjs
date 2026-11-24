@@ -8,6 +8,7 @@ import { mountWowExtensions } from "./wow-extension-mount.mjs";
 import { createGrantStore, renderExtensionsPanel } from "./wow-extension-consent.mjs";
 import { attachExtensionPointer } from "./wow-extension-pointer.mjs";
 import { renderGlanceList } from "./wow-extension-glance.mjs";
+import { renderPanelHost } from "./wow-extension-panel.mjs";
 
 // The extension host, loaded only when a world carries extensions. The Lab frontend serves runtime/extension-host/ at
 // /vendor/extension-host/, beside /vendor/scene-core/.
@@ -296,9 +297,11 @@ export function createWowScenePresentation({
         `wow extension ${pending.label}#${pending.index}: ${pending.tokens.join(", ")} ${pending.note}`
       );
   }
-  // The glances, the Extensions panel (opened from a button in the world header) and pointer input on the scene's canvas.
+  // The glances, the panel of the selected extension (web/wow-extension-panel.mjs), the Extensions panel (opened from a
+  // button in the world header, or at one extension from its panel's question mark) and pointer input on the canvas.
   function mountExtensionUi(mounted) {
     const undo = [];
+    let openExtensionsPanel = null;
     if (document?.body && mounted.records.some((record) => record.selectable)) {
       const camera = built?.camera || null;
       const viewer = camera
@@ -311,6 +314,9 @@ export function createWowScenePresentation({
       const glances = renderGlanceList({ document, mounted, viewer });
       document.body.append(glances.element);
       undo.push(() => glances.dispose());
+      const panelHost = renderPanelHost({ document, board: mounted.panels, onHelp: (key) => openExtensionsPanel?.(key) });
+      document.body.append(panelHost.element);
+      undo.push(() => panelHost.dispose());
     }
     const canvas = runtime?._impl?.renderer?.domElement;
     if (canvas && built?.camera) {
@@ -331,11 +337,12 @@ export function createWowScenePresentation({
       const closePanel = () => {
         if (panel) panel.close();
       };
-      button.addEventListener("click", () => {
-        if (panel) return closePanel();
+      openExtensionsPanel = (focus = null) => {
+        if (panel) return focus ? panel.focus(focus) : undefined;
         panel = renderExtensionsPanel({
           document,
           mounted,
+          focus,
           onClose: () => {
             panel = null;
             button.setAttribute("aria-expanded", "false");
@@ -343,7 +350,9 @@ export function createWowScenePresentation({
         });
         document.body.append(panel.element);
         button.setAttribute("aria-expanded", "true");
-      });
+        return undefined;
+      };
+      button.addEventListener("click", () => (panel ? closePanel() : openExtensionsPanel()));
       actions.prepend(button);
       undo.push(() => {
         closePanel();

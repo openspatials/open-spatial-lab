@@ -1,0 +1,16 @@
+[
+  { "file": "01-script.html", "part": "a script element", "reason": "^element script is not allowed$" },
+  { "file": "02-onclick.html", "part": "an onclick attribute", "reason": "^attribute onclick is not allowed$" },
+  { "file": "03-iframe.html", "part": "an iframe element", "reason": "^element iframe is not allowed$" },
+  { "file": "04-object.html", "part": "an object element", "reason": "^element object is not allowed$" },
+  { "file": "05-link.html", "part": "a link element", "reason": "^element link is not allowed$" },
+  { "file": "06-meta-refresh.html", "part": "a meta refresh", "reason": "^element meta is not allowed$" },
+  { "file": "07-javascript-link.html", "part": "an a element with a javascript: address", "reason": "^element a is not allowed$" },
+  { "file": "08-style-import.html", "part": "@import in the style block", "reason": "^the style block has an at-rule \\(@\\); none is allowed$" },
+  { "file": "09-url-in-property.html", "part": "url( in a property", "reason": "^the style of a p calls url\\(\\), which is not allowed$" },
+  { "file": "10-position-fixed.html", "part": "position: fixed", "reason": "^rule \\.cover: position: fixed is not allowed$" },
+  { "file": "11-svg-image.html", "part": "an SVG image", "reason": "^image type image/svg\\+xml is not allowed$" },
+  { "file": "12-password.html", "part": "an input of type password", "reason": "^input type password is not allowed$" },
+  { "file": "13-unknown-element.html", "part": "an unknown element", "reason": "^element marquee-box is not allowed$" },
+  { "file": "14-form.html", "part": "a form element", "reason": "^element form is not allowed$" }
+]

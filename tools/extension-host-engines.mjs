@@ -8,8 +8,9 @@
 //   OSL_PLAYWRIGHT_MODULE=<folder of a playwright package> [PLAYWRIGHT_BROWSERS_PATH=<its browser cache>] \
 //     bash ../demo-servers/browser-run.sh node tools/extension-host-engines.mjs [webkit] [firefox] [--json=<file>]
 //
-// The page and the host are served on 127.0.0.1:OSL_UE_ENGINES_PORT (default 18361) by the extension checks' static
-// server (src/fixtures/extension-host/check-server.mjs), the network cases' test server on a free port. Each browser,
+// The page, the host and the Lab's panel modules (web/, for the panel cases) are served on 127.0.0.1:OSL_UE_ENGINES_PORT
+// (default 18361) by the extension checks' static server (src/fixtures/extension-host/check-server.mjs), the network
+// cases' test server on a free port. Each browser,
 // headless, is closed (killed if it does not close) before the next starts, and the servers are closed at the end,
 // including on failure. Exit 0 when every case passed in every engine, 1 when a case failed or reported nothing.
 import { writeFileSync } from "node:fs";
@@ -88,7 +89,7 @@ const report = { page: PAGE, cases: cases.map((item) => item.id), engines: {} };
 let servers = [], netServer = null;
 try {
   netServer = await startNetServer({ allowOrigin: `http://127.0.0.1:${PORT}` });
-  servers = await startServers({ port: PORT, netOrigin: netServer.origin, routes: [["/src/", "src/"], ["/runtime/", "runtime/"]] });
+  servers = await startServers({ port: PORT, netOrigin: netServer.origin, routes: [["/src/", "src/"], ["/runtime/", "runtime/"], ["/web/", "web/"]] });
   for (const name of engines.length ? engines : ENGINES) {
     const run = await runEngine(name, `http://127.0.0.1:${PORT}`, netServer.origin);
     const rows = cases.map((item) => {

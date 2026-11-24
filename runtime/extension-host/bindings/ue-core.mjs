@@ -1,4 +1,4 @@
-// The ue-core/0 binding of ue:host@0.2.0 (which also serves ue:host@0.1.0 guests): the single import
+// The ue-core/0 binding of ue:host@0.3.0 (which also serves ue:host@0.1.0 and 0.2.0 guests): the single import
 // ue.call (i32 offset, i32 size) -> i64.
 //
 // Every call is a packet in the extension's own memory: an 8-byte little-endian header (subsystem u16, method u16,
@@ -8,8 +8,8 @@
 // (ptr << 32) | len; the guest frees them with its own Free.
 //
 // Errors: -1 unknown method, -2 capability refused, -3 bad payload, -4 not found, -5 budget exceeded (including more
-// than 32 active timers or 8 requests in flight for one attachment, and a storage write past 256 KiB), -6
-// unimplemented.
+// than 32 active timers or 8 requests in flight for one attachment, a storage write past 256 KiB, and a fifth
+// ui.panel-set of one attachment within one second), -6 unimplemented.
 //
 // Lifecycle (the `lifecycle` export, which the sandbox worker uses in place of its RP1 defaults): _initialize if
 // exported, then Init() -> i64 (negative is a failure); Open(attachment i64, ptr, len) with the JSON
@@ -17,11 +17,15 @@
 // { type: "timer", attachment, timer } or { type: "fetch", attachment, request, status, headers, body, bodyEncoding,
 // error? }, sent only to the attachment that set the timer or made the request.
 //
+// Panels (ui, 0.3.0): panel-set and panel-close check the size and the rate in the worker and send the document out as
+// an event; the host's side hands it to the `panel` hook it is given (the page's panel board, which filters it and
+// shows it; web/wow-extension-panel.mjs). The page sends the panel's events back to the owning attachment's Notify.
+//
 // Two halves. createImports and lifecycle run in the sandbox worker: they check every call, keep the timers, the
 // requests in flight and each attachment's copy of its storage, and send what needs the page out as events.
 // createHostServices runs on the host's side of the worker (the page, or the Node main thread): it makes the requests
 // with the fetch it is given, writes storage to the backend it is given (an object with the localStorage interface),
-// and hands each fetch result to the attachment that made the request. Both are injected, so Node runs these without a
+// hands each fetch result to the attachment that made the request, and passes panel documents to its `panel` hook. Both are injected, so Node runs these without a
 // browser; in the browser the request comes from the page, and the remote server's CORS rules apply.
 // A dynamic import: Firefox does not load a static JSON module import inside a module worker; a dynamic one loads
 // everywhere (Chrome, WebKit, Firefox, Node). The JSON file stays the source of truth.
@@ -30,9 +34,9 @@ import { fetchToken, placementKey } from "../capabilities.mjs";
 import { readPath, splitPath } from "./rp1-sneeze-call.mjs";
 
 export const NAME = "ue-core/0";
-export const INTERFACE = "ue:host@0.2.0";
-/** Every interface version this binding serves: 0.2.0 only adds to 0.1.0. */
-export const INTERFACES = Object.freeze(["ue:host@0.1.0", "ue:host@0.2.0"]);
+export const INTERFACE = "ue:host@0.3.0";
+/** Every interface version this binding serves: each only adds to the one before. */
+export const INTERFACES = Object.freeze(["ue:host@0.1.0", "ue:host@0.2.0", "ue:host@0.3.0"]);
 /** The imports this binding defines: module name -> field names. */
 export const IMPORTS = Object.freeze({ ue: Object.freeze(["call"]) });
 
@@ -43,6 +47,10 @@ export const MAX_RESPONSE_BYTES = 1024 * 1024;
 export const FETCH_TIMEOUT_MS = 10000;
 export const STORAGE_QUOTA_BYTES = 256 * 1024;
 export const STORAGE_PREFIX = "ue-storage:";
+/** The panel sizes ui.panel-set and ui.panel-close take. */
+export const PANEL_SIZES = Object.freeze(["card", "full"]);
+/** At most this many ui.panel-set calls per second per attachment; more return -5. */
+export const PANEL_SETS_PER_SECOND = 4;
 export const FETCH_METHODS = Object.freeze(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
 /** The response headers a fetch result passes on; every other header is dropped. */
 export const SAFE_RESPONSE_HEADERS = Object.freeze(["content-type", "content-length", "etag", "last-modified", "cache-control"]);
@@ -244,6 +252,27 @@ export function createImports(host) {
       store.delete(key);
       host.emit({ kind: "storage-delete", attachment, key });
     },
+    "ui.panel-set": (args, entry) => {
+      const attachment = current();
+      const size = panelSize(args);
+      const document = text(args, "document");
+      const now = globalThis.performance.now();
+      const times = state.attachments.get(attachment).panelTimes.filter((at) => now - at < 1000);
+      state.attachments.get(attachment).panelTimes = times;
+      if (times.length >= PANEL_SETS_PER_SECOND) return host.refuse(entry.token, entry.wit, UE_ERRORS.BUDGET);
+      times.push(now);
+      host.emit({ kind: "panel-set", attachment, size, document });
+      return 0n;
+    },
+    "ui.panel-close": (args) => {
+      const attachment = current();
+      host.emit({ kind: "panel-close", attachment, size: panelSize(args) });
+    },
+  };
+  const panelSize = (args) => {
+    const size = text(args, "size");
+    if (!PANEL_SIZES.includes(size)) throw new BadPayload(`size ${size} is not one of ${PANEL_SIZES.join(", ")}`);
+    return size;
   };
   const storeOf = (attachment) => state.attachments.get(attachment).storage;
 
@@ -342,7 +371,7 @@ export const lifecycle = Object.freeze({
   open(context, { index, declaration, attachment, storage }) {
     const { exports, host, record } = context;
     const state = stateOf(host);
-    state.attachments.set(index, { pose: poseOf(attachment), storage: storageEntries(storage) });
+    state.attachments.set(index, { pose: poseOf(attachment), storage: storageEntries(storage), panelTimes: [] });
     const open = required(exports, "Open");
     record(`Open ${index}`);
     try {
@@ -466,9 +495,11 @@ async function readCapped(response) {
 /**
  * The host's side of the binding for one extension. `fetch` makes the requests (the page's fetch by default), `storage`
  * holds each placement's storage under STORAGE_PREFIX (memoryStorage() by default), `deliver(index, event)` hands an
- * event to one attachment's Notify, `attachments()` lists the open attachments.
+ * event to one attachment's Notify, `attachments()` lists the open attachments, and `panel(event)` takes each panel
+ * event ({ kind: "panel-set", attachment, size, document } or { kind: "panel-close", attachment, size }); without it
+ * panels go nowhere.
  */
-export function createHostServices({ declaration, fetch: doFetch = (...args) => globalThis.fetch(...args), storage = memoryStorage(), deliver, attachments }) {
+export function createHostServices({ declaration, fetch: doFetch = (...args) => globalThis.fetch(...args), storage = memoryStorage(), deliver, attachments, panel = null }) {
   const requests = new Map();
   const partitions = new Map();
 
@@ -566,7 +597,9 @@ export function createHostServices({ declaration, fetch: doFetch = (...args) => 
         }
       } else if (event.kind === "storage-set") writePartition(event.attachment, (entries) => { entries[event.key] = event.value; });
       else if (event.kind === "storage-delete") writePartition(event.attachment, (entries) => { delete entries[event.key]; });
-      else return false;
+      else if (event.kind === "panel-set" || event.kind === "panel-close") {
+        if (typeof panel === "function") panel({ ...event });
+      } else return false;
       return true;
     },
     /** Close: aborts the attachment's requests in flight; their results are dropped. */

@@ -1,7 +1,7 @@
 {
-  "package": "ue:host@0.2.0",
+  "package": "ue:host@0.3.0",
   "binding": "ue-core/0",
-  "subsystems": { "console": 1, "data": 2, "scene": 3, "clock": 4, "timer": 5, "network": 6, "storage": 7 },
+  "subsystems": { "console": 1, "data": 2, "scene": 3, "clock": 4, "timer": 5, "network": 6, "storage": 7, "ui": 8 },
   "methods": [
     { "wit": "console.log", "subsystem": 1, "method": 1, "token": "ue.console.log", "returns": "none" },
     { "wit": "data.has", "subsystem": 2, "method": 1, "token": "ue.data.read", "returns": "scalar" },
@@ -20,6 +20,8 @@
     { "wit": "network.abort", "subsystem": 6, "method": 2, "token": "ue.network.fetch:<origin>", "returns": "none", "since": "0.2.0" },
     { "wit": "storage.get", "subsystem": 7, "method": 1, "token": "ue.storage.local", "returns": "bytes", "since": "0.2.0" },
     { "wit": "storage.set", "subsystem": 7, "method": 2, "token": "ue.storage.local", "returns": "none", "since": "0.2.0" },
-    { "wit": "storage.delete", "subsystem": 7, "method": 3, "token": "ue.storage.local", "returns": "none", "since": "0.2.0" }
+    { "wit": "storage.delete", "subsystem": 7, "method": 3, "token": "ue.storage.local", "returns": "none", "since": "0.2.0" },
+    { "wit": "ui.panel-set", "subsystem": 8, "method": 1, "token": "ue.ui.panel", "returns": "scalar", "since": "0.3.0" },
+    { "wit": "ui.panel-close", "subsystem": 8, "method": 2, "token": "ue.ui.panel", "returns": "none", "since": "0.3.0" }
   ]
 }

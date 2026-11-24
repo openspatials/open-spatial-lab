@@ -1,10 +1,10 @@
-// Universal Extensions host interface, version 0.2.0: console, data, scene, clock and timer (0.1.0), and network,
-// storage and input (0.2.0). 0.2.0 only adds: every 0.1.0 function keeps its number, and a host that serves 0.2.0
-// also loads 0.1.0 guests.
+// Universal Extensions host interface, version 0.3.0: console, data, scene, clock and timer (0.1.0), network, storage
+// and input (0.2.0), and ui (0.3.0). Each version only adds: every earlier function keeps its number, and a host that
+// serves 0.3.0 also loads 0.1.0 and 0.2.0 guests.
 // This file is the source of truth for the interfaces. method-numbers.json gives every function a permanent
 // (subsystem, method) number for the ue-core/0 binding; method-numbers.lock.json is its frozen copy, and its rows
-// added in 0.2.0 carry "since": "0.2.0". Panels arrive in a later version.
-package ue:host@0.2.0;
+// added after 0.1.0 carry "since" with their version.
+package ue:host@0.3.0;
 
 interface console {
   log: func(level: u8, text: string);
@@ -66,6 +66,20 @@ interface storage {
 interface input {
 }
 
+// Panels on the page, with the token ue.ui.panel (host policy: the host draws the panel inside its own frame, so it
+// reaches nothing outside the attachment's own placement). `size` is "card" (320 x 200 CSS pixels) or "full"
+// (640 x 480). `document` is a panel document in the Lab's safe subset of HTML and CSS; the host filters it and refuses
+// it whole, with a named reason in the Extensions panel, when any part is outside the subset. panel-set replaces the
+// attachment's panel of that size and returns 0 once the host has it; -3 for a size that is neither, -5 for a fifth
+// call within one second of one attachment. The host shows the card of the extension the visitor selected, and its full
+// panel only after a click inside that card. A click on a button (or an input of type button) with an id, or a change
+// of an input with an id, arrives as a notify event { "type": "panel", "attachment", "size", "id",
+// "event": "click" | "change", "value"? }, only to the attachment that owns the panel.
+interface ui {
+  panel-set: func(size: string, document: string) -> u32;
+  panel-close: func(size: string);
+}
+
 world guest {
   import console;
   import data;
@@ -75,6 +89,7 @@ world guest {
   import network;
   import storage;
   import input;
+  import ui;
 
   // Lifecycle. init returns a negative value on failure. open's payload is the JSON text
   // { "declaration": ..., "attachment": ... }. notify's event is JSON text, for example

@@ -211,7 +211,8 @@ const KEPT_EVENTS = 100;
  * declaration, integrity, compile, imports, memory, worker, init or open. `sandbox` ("node" or "web") overrides the
  * adapter defaultSandbox() chooses; sandboxScope is the kind of global the guest reported from inside the worker.
  * `fetch` makes the extension's network requests (the global fetch by default) and `storage` holds its storage (an
- * object with the localStorage interface; kept in memory by default).
+ * object with the localStorage interface; kept in memory by default). `panel(event)` takes the panel documents a binding
+ * with a host side sends out (ue-core/0: { kind: "panel-set" | "panel-close", attachment, size, document? }).
  *
  * setGrant(index, grant) replaces one open attachment's grant (cut down to what the declaration requests, like the
  * first one) while the extension runs and resolves { ok, error, grant }. notify(index, event) hands one open attachment
@@ -219,7 +220,7 @@ const KEPT_EVENTS = 100;
  * true while the worker runs and an attachment is open. `budgets` may set any of DEFAULT_BUDGETS (the host's own);
  * declaration.limits may lower them, never raise them.
  */
-export async function loadExtension({ bytes, declaration, grant = [], budgets = {}, attachment = { index: 1, fabric: { Data: {} } }, sandbox: sandboxKind, fetch: fetchImpl, storage } = {}) {
+export async function loadExtension({ bytes, declaration, grant = [], budgets = {}, attachment = { index: 1, fabric: { Data: {} } }, sandbox: sandboxKind, fetch: fetchImpl, storage, panel } = {}) {
   const nodes = new Map();
   const attachments = new Set();
   const timers = new Map();
@@ -531,7 +532,7 @@ export async function loadExtension({ bytes, declaration, grant = [], budgets = 
   const tokens = [...grantTokens(grant)].filter((token) => requested.has(token));
   firstGrant = tokens;
   if (typeof binding.createHostServices === "function") {
-    services = binding.createHostServices({ declaration, fetch: fetchImpl, storage, deliver, attachments: () => [...attachments] });
+    services = binding.createHostServices({ declaration, fetch: fetchImpl, storage, deliver, attachments: () => [...attachments], panel });
   }
   const started = await startSandbox({ bytes: capped, bindingUrl, grant: tokens, onEvent, startMs: limits.startMs });
   if (!started.ok) return fail("worker", started.error);

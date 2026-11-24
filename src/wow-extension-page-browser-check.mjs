@@ -14,6 +14,11 @@
 // in one glance, shows it as text); hover-is-silent moves the pointer over the glances and waits thirty seconds with
 // every request the page makes recorded. The other cases click the glances first. With OSL_UE_PAGE_SHOT_DIR set, two
 // screenshots go there: the glances at load, and the page after one glance is selected.
+//
+// Panels (Lab packet QD-3A): a fourth load opens the panel test world (extension-world-panel.json). Selecting the
+// coffee-stand glance shows its card in the host frame; a mouse click in the card shows its full panel; the question
+// mark opens the Extensions panel at that extension; selecting the camera-card glance shows an RP1 creator panel. With
+// OSL_UE_PAGE_SHOT_DIR set, the card, the full panel and the RP1 panel are saved there too.
 import { mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -28,6 +33,7 @@ const { check, finish } = nodeChecks("wow-extension-page-browser");
 const PORT = Number(process.env.OSL_UE_PAGE_BROWSER_PORT) || 18354;
 const PLAIN_WORLD_PATH = "/__ue-page-check/world-without-extensions.json";
 const MARKUP_WORLD_PATH = "/__ue-page-check/world-markup-glance.json";
+const PANEL_WORLD_PATH = "/fixtures/extension-host/world/extension-world-panel.json";
 const MARKUP_GLANCE = { line1: "Pointer <b>listener</b>", line2: "Hi <img src=x onerror=__ueGlanceRan=1>", icon: "music", action: "Try it" };
 const WAIT_MS = 60000;
 const HOVER_IN_VIEW_MS = 30000;
@@ -61,6 +67,18 @@ window.__ueGlances = () => [...document.querySelectorAll('[data-testid="ue-glanc
     elementsInLines: ["line1", "line2"].reduce((sum, name) => sum + (line(name) ? line(name).querySelectorAll("*").length : 0), 0),
   };
 });
+window.__uePanel = () => {
+  const host = document.querySelector('[data-testid="ue-panel-host"]');
+  if (!host || host.style.display === "none") return null;
+  const frame = host.querySelector('[data-testid="ue-panel-frame"]');
+  const rect = frame.getBoundingClientRect();
+  const doc = frame.contentDocument;
+  return {
+    key: host.getAttribute("data-ue-panel"), size: host.getAttribute("data-ue-panel-size"), width: rect.width, height: rect.height,
+    label: host.querySelector('[data-testid="ue-panel-label"]').textContent, text: doc ? doc.body.textContent : "",
+    images: doc ? [...doc.querySelectorAll("img")].map((image) => String(image.getAttribute("src")).slice(0, 22)) : [],
+  };
+};
 `;
 
 /** Clicks the glance of `label` (a click, as a visitor's). */
@@ -70,7 +88,12 @@ const selectGlance = (page, label) => page.evaluate((label) => {
   button.click();
   return true;
 }, label);
-const shot = async (page, name) => { if (SHOT_DIR) await page.screenshot({ path: join(SHOT_DIR, `ue-qd1-${name}.png`) }); };
+const shot = async (page, name, prefix = "ue-qd1") => { if (SHOT_DIR) await page.screenshot({ path: join(SHOT_DIR, `${prefix}-${name}.png`) }); };
+/** Waits until the panel host shows `size` for the extension `label`; resolves what it shows, or null. */
+const panelShown = (page, label, size) => page.waitForFunction((label, size) => {
+  const shown = window.__uePanel();
+  return shown && shown.size === size && String(shown.key).startsWith(`${label}#`) && shown.text ? shown : null;
+}, { timeout: 15000 }, label, size).then((handle) => handle.jsonValue(), () => null);
 
 /** Answers the consent dialogs as they come: plan[label] is "allow" or "deny". Returns the labels seen. */
 async function answerDialogs(page, plan) {
@@ -225,6 +248,37 @@ async function runPage() {
       markupElements: document.querySelectorAll('[data-testid="ue-glances"] b, [data-testid="ue-glances"] img').length,
       ran: globalThis.__ueGlanceRan,
     }));
+
+    // The panel world: the card after selection, the full panel after a click in the card, the question mark, an RP1 panel.
+    await page.goto(pageUrl(PANEL_WORLD_PATH), { waitUntil: "load", timeout: WAIT_MS });
+    await page.waitForFunction(() => document.body.hasAttribute("data-wow-extensions"), { timeout: WAIT_MS });
+    await page.waitForSelector('[data-testid="ue-glances"] [data-testid="ue-glance"]', { timeout: 10000 }).catch(() => {});
+    facts.panel = { before: await page.evaluate(() => window.__uePanel()) };
+    facts.panel.selected = await selectGlance(page, "coffee-stand");
+    facts.panel.card = await panelShown(page, "coffee-stand", "card");
+    if (facts.panel.card) {
+      await shot(page, "panel-card", "ue-qd3a");
+      const at = await page.evaluate(() => {
+        const frame = document.querySelector('[data-testid="ue-panel-frame"]');
+        const rect = frame.getBoundingClientRect(), title = frame.contentDocument.querySelector(".title").getBoundingClientRect();
+        return [rect.left + title.left + title.width / 2, rect.top + title.top + title.height / 2];
+      });
+      await page.mouse.click(at[0], at[1]);
+      facts.panel.full = await panelShown(page, "coffee-stand", "full");
+      await sleep(300);
+      await shot(page, "panel-full", "ue-qd3a");
+      await page.click('[data-testid="ue-panel-host"] [data-ue-panel-action="help"]');
+      await sleep(300);
+      facts.panel.help = await page.evaluate(() => {
+        const row = document.querySelector('[data-testid="ue-extensions-panel"] [data-ue-focused]');
+        return row ? row.getAttribute("data-ue-extension") : null;
+      });
+      await page.evaluate(() => { if (document.querySelector('[data-testid="ue-extensions-panel"]')) document.querySelector('[data-testid="extensions-toggle"]').click(); });
+    }
+    await selectGlance(page, "camera-card");
+    facts.panel.rp1 = await panelShown(page, "camera-card", "card");
+    await sleep(300);
+    if (facts.panel.rp1) await shot(page, "panel-rp1", "ue-qd3a");
   } catch (error) {
     problem = oneLine(error);
   } finally {
@@ -291,6 +345,20 @@ await check("page-pointer-click", "After its glance is selected and ue.input.poi
   must(Array.isArray(facts.click.events) && facts.click.events.includes("click"), `no click reached the pointer listener at ${JSON.stringify(facts.click.at)}: ${JSON.stringify(facts.click.events)}`);
 });
 
+await check("page-panel-shown", "On the Lab page: selecting coffee-stand shows its card (320 by 200) in the host frame with its label; a click in the card shows its full panel (640 by 480); the question mark opens the Extensions panel at it; camera-card shows an RP1 panel with the camera placeholder", () => {
+  const panel = facts.panel || {};
+  must(facts.panel, "the panel world did not load");
+  must(panel.before === null, `a panel shows before any selection: ${JSON.stringify(panel.before)}`);
+  const card = panel.card;
+  must(card, "no card showed after selecting coffee-stand");
+  must(card.width === 320 && card.height === 200 && card.label === "Coffee stand" && /Two cups in the queue/.test(card.text), `the card: ${JSON.stringify(card)}`);
+  const full = panel.full;
+  must(full && full.width === 640 && full.height === 480 && /Order now/.test(full.text), `after a click in the card: ${JSON.stringify(full)}`);
+  must(/^coffee-stand#/.test(String(panel.help)), `the question mark opened the Extensions panel at ${JSON.stringify(panel.help)}`);
+  const rp1 = panel.rp1;
+  must(rp1 && rp1.label === "Camera card" && /Live capture from camera/.test(rp1.text) && rp1.images.length === 1 && rp1.images[0].startsWith("data:image/png;base64"), `the RP1 panel: ${JSON.stringify(rp1)}`);
+});
+
 const PAGE_FILE = "web/three-wow-presentation.mjs";
 const GLANCE_FILE = "web/wow-extension-glance.mjs";
 await finish({ checkFile: "src/wow-extension-page-browser-check.mjs", faults: [
@@ -303,8 +371,10 @@ await finish({ checkFile: "src/wow-extension-page-browser-check.mjs", faults: [
   { statement: "page-extensions-button", name: "mountExtensionUi does not add the button", expect: /no Extensions button in the world header/,
     edits: [{ file: PAGE_FILE, find: "      actions.prepend(button);\n", replace: "" }] },
   { statement: "page-withdraw", name: "the panel gets a mount whose withdraw does nothing", expect: /after Withdraw the fetches returned/,
-    edits: [{ file: PAGE_FILE, find: "          mounted,\n          onClose: () => {", replace: "          mounted: Object.create(mounted, { withdraw: { value: () => {} } }),\n          onClose: () => {" }] },
+    edits: [{ file: PAGE_FILE, find: "          mounted,\n          focus,\n          onClose: () => {", replace: "          mounted: Object.create(mounted, { withdraw: { value: () => {} } }),\n          focus,\n          onClose: () => {" }] },
   { statement: "page-pointer-click", name: "mountExtensionUi does not call attachExtensionPointer", expect: /no click reached the pointer listener/,
     edits: [{ file: PAGE_FILE, find: "      const pointer = attachExtensionPointer({ THREE, camera: built.camera, scene: built.scene, canvas, mounted });\n      undo.push(() => pointer.dispose());\n",
       replace: "" }] },
+  { statement: "page-panel-shown", name: "mountExtensionUi does not draw the panel host", expect: /no card showed after selecting coffee-stand/,
+    edits: [{ file: PAGE_FILE, find: "      document.body.append(panelHost.element);\n", replace: "" }] },
 ] });

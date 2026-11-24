@@ -1,0 +1,152 @@
+{
+  "spatialID": "extension-test-world-panel",
+  "title": "Extension panel test world",
+  "_note": "A test world for extension panels on the page (ue:host@0.3.0, ui.panel-set). Two nodes carry webofworlds_extension.universal_extensions with panel-maker.wasm, which sends the card and full documents of its data at Open: coffee-stand (a card with a button, a checkbox and a range; a full panel with one text field) and camera-card (an RP1 creator panel, camera.rml, as its card).",
+  "root": 0,
+  "nodes": [
+    {
+      "id": 0,
+      "label": "extension-test-world-panel",
+      "children": [
+        1,
+        2
+      ],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "id": 1,
+      "label": "coffee-stand",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        -1.5,
+        0,
+        -2,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "panel-maker.wasm",
+              "integrity": "sha256-CVkneDHCeaAOkNMvQnMTsnc5WlDVsBKJdACpQ9c1l44=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.3.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.data.read",
+              "ue.ui.panel"
+            ],
+            "limits": {},
+            "data": {
+              "card": {
+                "size": "card",
+                "document": "<style>.title { font-size: 18px; font-weight: 600; color: #ffd089; margin: 0 0 4px 0; }.line { color: #c4ccd8; margin: 0 0 12px 0; }.row { display: flex; gap: 10px; align-items: center; }button { font-family: Inter; font-size: 14px; padding: 4px 14px; border-radius: 6px; border-width: 1px; border-style: solid; border-color: #7ee0a8; background-color: #1f5c3d; color: #ffffff; }</style><div style=\"padding: 14px 16px\"><div class=\"title\">Coffee stand</div><p class=\"line\">Two cups in the queue. Open until 21:00.</p><div class=\"row\"><button id=\"order\">Order</button><label for=\"sugar\">Sugar</label><input id=\"sugar\" type=\"checkbox\"><input id=\"size\" type=\"range\" min=\"1\" max=\"3\" value=\"2\" aria-label=\"Cup size\"></div></div>"
+              },
+              "full": {
+                "size": "full",
+                "document": "<style>.page { padding: 18px 22px; }h2 { font-size: 22px; font-weight: 600; color: #ffd089; margin: 0 0 8px 0; }p { color: #c4ccd8; margin: 0 0 10px 0; }ul { margin: 0 0 14px 0; padding: 0 0 0 18px; }li { margin: 0 0 4px 0; }.price { color: #7ee0a8; font-weight: 600; }.row { display: flex; gap: 10px; align-items: center; margin: 0 0 12px 0; }input { font-family: Inter; font-size: 14px; }button { font-family: Inter; font-size: 14px; padding: 6px 16px; border-radius: 6px; border-width: 1px; border-style: solid; border-color: #7ee0a8; background-color: #1f5c3d; color: #ffffff; }</style><div class=\"page\"><h2>Coffee stand</h2><p>Order now and collect at the counter by the east door.</p><ul><li>Espresso <span class=\"price\">2.40</span></li><li>Flat white <span class=\"price\">3.10</span></li><li>Mint tea <span class=\"price\">2.20</span></li></ul><div class=\"row\"><label for=\"note\">Name on the cup</label><input id=\"note\" type=\"text\" placeholder=\"Your name\"></div><div class=\"row\"><span>Queue</span><progress value=\"2\" max=\"5\"></progress></div><button id=\"pay\">Order</button></div>"
+              }
+            },
+            "glance": {
+              "line1": "Coffee stand",
+              "line2": "Order ahead",
+              "icon": "food",
+              "action": "Open"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "label": "camera-card",
+      "parent": 0,
+      "children": [],
+      "localTransform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1.5,
+        0,
+        -2,
+        1
+      ],
+      "webofworlds_extension": {
+        "universal_extensions": [
+          {
+            "module": {
+              "url": "panel-maker.wasm",
+              "integrity": "sha256-CVkneDHCeaAOkNMvQnMTsnc5WlDVsBKJdACpQ9c1l44=",
+              "binding": "ue-core/0"
+            },
+            "interface": "ue:host@0.3.0",
+            "attach": {
+              "kind": "world-node"
+            },
+            "requests": [
+              "ue.console.log",
+              "ue.data.read",
+              "ue.ui.panel"
+            ],
+            "limits": {},
+            "data": {
+              "card": {
+                "size": "card",
+                "document": "<rml><head><style> body { display: block; width: 100%; height: 100%; font-family: Inter; color: #e9eef6; } #card { display: block; position: absolute; left: 4%; top: 4%; width: 92%; height: 92%; box-sizing: border-box; padding: 16px; border-radius: 18px; overflow: hidden; background-color: rgba(18, 22, 32, 224); border-width: 1px; border-color: rgba(255, 255, 255, 36); } .title { display: block; font-size: 22px; font-weight: 600; color: #ffd089; margin: 0 0 6px 0; } .hint { display: block; font-size: 13px; color: #8b94a3; margin: 0 0 12px 0; } #feed { display: block; width: 100%; height: 78%; box-sizing: border-box; overflow: hidden; border-radius: 10px; background-color: #0b0d12; } #feed img { display: block; width: 100%; height: 100%; } </style></head><body><div id='card'><span class='title'>Camera</span><span class='hint'>Live capture from camera://0</span><div id='feed'><img src='camera://0' /></div></div></body></rml>"
+              }
+            },
+            "glance": {
+              "line1": "Camera card",
+              "line2": "An RP1 creator panel",
+              "icon": "info",
+              "action": "Open"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

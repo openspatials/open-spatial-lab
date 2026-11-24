@@ -205,7 +205,7 @@ export const EXTENSION_LIMITS = Object.freeze(["initMs", "eventMs", "memoryBytes
  * user's consent: it is listed, and the mount pass asks for it (web/wow-extension-consent.mjs) where it has a page.
  */
 export const EXTENSION_HOST_GRANTED_TOKENS = Object.freeze([
-  "ue.console.log", "ue.data.read", "ue.scene.nodes", "ue.scene.read", "ue.clock.read", "ue.clock.timer",
+  "ue.console.log", "ue.data.read", "ue.scene.nodes", "ue.scene.read", "ue.clock.read", "ue.clock.timer", "ue.ui.panel",
 ]);
 export const EXTENSION_CONSENT_NOTE = "needs consent (Step 5)";
 export const EXTENSION_DECLARATION_REFUSAL = Object.freeze({

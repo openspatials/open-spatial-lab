@@ -42,6 +42,11 @@
 // `ue-node:` object to the attachment that made it, only while that attachment holds ue.input.pointer: one enter or
 // leave per change of the node under the pointer, and at most 30 events per second per attachment.
 //
+// Panels (ui.panel-set, ue:host@0.3.0): each started extension is an entry of the result's panel board (`panels`,
+// web/wow-extension-panel.mjs), which takes its panel documents through the host's `panel` hook, filters them with the
+// page's own parsers (only with a document) and routes the panel's events to its attachment. select(record) also
+// makes that extension the one whose card the page shows. The board draws nothing; renderPanelHost draws it.
+//
 // While the document is hidden (document.visibilityState "hidden"), no timer and no pointer event reaches an extension:
 // pointer() sends nothing and each extension is paused (extension.setPaused), so its host holds each timer that comes
 // due and fires it once when the page is visible again. The host's time budgets (a soft and a hard limit per call, a
@@ -67,6 +72,8 @@ import { createConsentQueue, createGrantStore, placementKeyOf, POINTER_TOKEN, pr
 import { readCarrierManifest } from "./wow-extension-manifest-adapter.mjs";
 import { createPlaceStore, readPlaceDeclarations, readWithdrawnList, withdrawnStatusOf, WITHDRAWN_STATUSES } from "./wow-extension-place-store.mjs";
 import { verifyManifestProfileA } from "./signing/um-signature-profile-a.mjs";
+import { createPanelBoard, createPanelFilter } from "./wow-extension-panel.mjs";
+import { glanceOf } from "./wow-extension-glance.mjs";
 
 /** Stages at which the Lab refuses a declaration before it runs; the others are failures. */
 const REFUSAL_STAGES = new Set(["declaration", "origin", "manifest-fetch", "signature", "validity", "status", "facet", "integrity", "compile", "imports", "memory"]);
@@ -121,7 +128,7 @@ function disposeObject(root) {
  */
 export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const nodes = Array.isArray(extensionNodes) ? extensionNodes : [];
-  const loadExtension = typeof opts.loadExtension === "function" ? opts.loadExtension : null;
+  const hostLoad = typeof opts.loadExtension === "function" ? opts.loadExtension : null;
   const loadGltf = typeof opts.loadGltf === "function" ? opts.loadGltf : null;
   const fetchModule = typeof opts.fetch === "function" ? opts.fetch : (url, init) => globalThis.fetch(url, init);
   const shouldMount = typeof opts.shouldMount === "function" ? opts.shouldMount : () => true;
@@ -133,6 +140,9 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   const storage = opts.storage || null;
   const grantStore = opts.grantStore || createGrantStore({ storage });
   const consent = doc ? createConsentQueue(doc) : null;
+  const view = doc && doc.defaultView ? doc.defaultView : null;
+  const panels = createPanelBoard({ filter: view && typeof view.DOMParser === "function" ? createPanelFilter(view) : null });
+  const keyOf = (record) => `${record.label}#${record.index}`;
   const listeners = new Set();
   const notifyChange = () => { for (const listener of [...listeners]) { try { listener(); } catch {} } };
   const originOf = (url) => { try { return new URL(url).origin; } catch { return null; } };
@@ -339,6 +349,9 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   // At selection: the module (the place's copy, or the maker's), the host and the worker.
   async function startOne(record) {
     const effective = record.validation.effective;
+    // Panel documents the extension sends (from Open on) go to its entry of the panel board.
+    const key = keyOf(record);
+    const loadExtension = hostLoad && ((args) => hostLoad({ ...args, panel: (event) => panels.receive(key, event) }));
     if (!loadExtension) return fail(record, "worker", "no extension host injected");
 
     // A carrier's module.url resolves against the carrier manifest's URL.
@@ -376,9 +389,12 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     record.needs_consent = extensionTokensNeedingConsent(effective).filter((token) => !grant.includes(token));
     record.attachment = { index: (attachments += 1), fabric: { Data: effective.data || {} }, placement };
 
+    const label = glanceOf(record).line1;
+    panels.add(key, { label });
     const extension = await loadExtension({ bytes, declaration: effective, grant, attachment: record.attachment, ...(storage ? { storage } : {}) });
     record.extension = extension || null;
     if (!extension || !extension.ok) return failure(record, extension);
+    panels.add(key, { label, extension, attachment: record.attachment.index });
     if (unmounted || !shouldMount()) {
       try { await extension.shutdown(); } catch {}
       record.status = "cancelled";
@@ -416,12 +432,15 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
   /** Starts one not-started extension; the same promise for one already starting; the record for any other. */
   function select(record) {
     if (!record || !records.includes(record)) return Promise.resolve(record || null);
+    if (record.selectable && !unmounted) panels.select(keyOf(record));
     if (record.starting) return record.starting;
     if (unmounted || record.status !== "not-started") return Promise.resolve(record);
     record.status = "starting";
     notifyChange();
     record.starting = startOne(record).catch((error) => fail(record, "worker", oneLine(error))).then(() => {
       if (record.status === "starting") record.status = "cancelled";
+      // An extension that did not start shows no panel.
+      if (record.status !== "mounted") panels.remove(keyOf(record));
       clearPlaceholders();
       if (record.status === "mounted" && !unmounted) {
         ensureTimer();
@@ -571,6 +590,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
     grantStore,
     get consentDone() { return consentDone; },
     advanceFetchDone,
+    panels,
     select,
     withdraw,
     stateOf,
@@ -587,6 +607,7 @@ export async function mountWowExtensions(extensionNodes, THREE, opts = {}) {
       if (timer) clearInterval(timer);
       if (watchesVisibility && typeof doc.removeEventListener === "function") doc.removeEventListener("visibilitychange", applyVisibility);
       if (consent) consent.clear();
+      panels.clear();
       for (const record of records) {
         if (record.extension && record.extension.ok) {
           try { await record.extension.shutdown(); } catch {}

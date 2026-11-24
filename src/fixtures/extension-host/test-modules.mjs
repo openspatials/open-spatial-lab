@@ -121,6 +121,14 @@ export const TEST_MODULES = Object.freeze({
 //                      clock.monotonic-ns for busyMs in its first busyCalls calls (every call when busyCalls is 0), then
 //                      logs "tick". Needs ue.clock.read and ue.clock.timer.
 //   ueTimerNode({ delayMs })  Open as ueNodeMaker, then a repeating timer of delayMs; Notify logs "tick" for any event.
+//
+// ue:host@0.3.0 modules (ui):
+//
+//   uePanelMaker({ paths, times })  Open: for each data path in `paths` (default "card", then "full") that has a value,
+//                      calls ui.panel-set `times` times (default 1) with that value as the payload (a JSON object
+//                      { size, document }), logging "panel-set <result>" each time; a path without a value is skipped.
+//                      Notify logs "notified". The panel events reach the check through the host's record of Notify
+//                      events.
 
 const UE = { BUF: 16384, BUF2: 20480, TMP_END: 24640, FETCH_LEN: 24648, COUNT: 24656, HEAP: 32768, DATA: 1024 };
 
@@ -423,6 +431,24 @@ const TIMER_NODE_OPEN = (delayMs) => (text) => {
   return [...node.slice(0, -1), ...logNum(tag)(send(5, 1, every)), END];
 };
 
+// Open of the panel maker: for each data path with a value, ui.panel-set (8, 1) with it as the payload, `times` times.
+// The value's bytes (from data.get) are sent where they are; the header goes in the 8 bytes before them.
+const PANEL_OPEN = (paths, times) => (text) => {
+  const tag = text.add("panel-set");
+  const items = paths.map((path) => text.add(JSON.stringify({ path })));
+  // locals: 3 data result i64, 4 count i32
+  const one = (item) => [
+    ...send(2, 2, item), ...op.tee(3), ...op.i64(0), 0x59, 0x04, 0x40,
+    ...op.i32(0), ...op.set(4),
+    0x03, 0x40,
+    ...logNum(tag)([...op.i32(8), ...op.i32(1), ...unpack(3), ...op.call(F.send)]),
+    ...op.get(4), ...op.i32(1), 0x6a, ...op.tee(4), ...op.i32(times), 0x48, 0x0d, 0x00,
+    END,
+    END,
+  ];
+  return [...locals(I64, I32), ...items.flatMap(one), END];
+};
+
 export const UE_TEST_MODULES = Object.freeze({
   ueNodeMaker: ({ resource = "assets/Box.glb" } = {}) => ueModule({ open: NODE_MAKER_OPEN(resource) }),
   ueUnknownMethod: () => ueModule({ open: ONE_CALL_OPEN(1, 99, "{}", "unknown-method") }),
@@ -438,4 +464,5 @@ export const UE_TEST_MODULES = Object.freeze({
   ueStorageUser: () => ueModule({ pages: 8, open: STORAGE_USER_OPEN }),
   ueBusyTimer: ({ delayMs = 20, busyMs = 0, busyCalls = 0 } = {}) => ueModule({ open: BUSY_TIMER_OPEN(delayMs), notify: BUSY_NOTIFY(busyMs, busyCalls) }),
   ueTimerNode: ({ delayMs = 100 } = {}) => ueModule({ open: TIMER_NODE_OPEN(delayMs), notify: TICK_NOTIFY }),
+  uePanelMaker: ({ paths = ["card", "full"], times = 1 } = {}) => ueModule({ pages: 4, open: PANEL_OPEN(paths, times), notify: NOTIFIED }),
 });

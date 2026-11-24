@@ -1,6 +1,6 @@
 // Checks of the extension host core, run in Node: integrity, import and capability refusals, memory and CPU budgets,
 // the lifecycle of one instance across attachments, three runs of RP1-built modules against RP1's own engine output,
-// the ue:host@0.2.0 WIT file and the ue-core/0 binding, with network and storage. The case bodies are in
+// the ue:host@0.3.0 WIT file and the ue-core/0 binding, with network, storage and the panel call's rate. The case bodies are in
 // fixtures/extension-host/cases.mjs, shared with the browser check (src/extension-host-browser-check.mjs).
 // browser-safe-imports and package-tree run here alone.
 //
@@ -202,6 +202,8 @@ await finish({ checkFile: "src/extension-host-check.mjs", faults: [
     edits: [{ file: HOST, find: "if (usedMs() >= limits.secondMs) return hold(item);", replace: "if (false) return hold(item);" }] },
   { statement: "package-tree", name: "leave out runtime/extension-host/ from the build", expect: /has no vendor\/extension-host\/extension-host\.mjs/,
     edits: [{ file: "runtime/extension-host/site-files.mjs", find: "return !NODE_ONLY_FILES.includes(path);", replace: "return false;" }] },
+  { statement: "panel-rate", name: "no rate limit on ui.panel-set", expect: /five panel-set calls in one second/,
+    edits: [{ file: UE_BINDING, find: "if (times.length >= PANEL_SETS_PER_SECOND) return host.refuse(entry.token, entry.wit, UE_ERRORS.BUDGET);", replace: "" }] },
   { statement: "browser-safe-imports", name: "import node:fs in the host", expect: /extension-host\.mjs imports node:fs/,
     edits: [{ file: HOST, find: "import { grantTokens } from \"./capabilities.mjs\";", replace: "import \"node:fs\";\nimport { grantTokens } from \"./capabilities.mjs\";" }] },
 ] });

@@ -2,7 +2,10 @@
 // token? Default deny: a token is allowed only when the grant names it exactly. A refused call returns a negative
 // error to the extension, never 0.
 
-/** Tokens confined to the attachment that opened them; released when it closes. */
+/**
+ * Tokens confined to the attachment that opened them; released when it closes. ue.ui.panel is one: the host draws the
+ * panel inside its own frame, so it reaches nothing outside the attachment's own placement.
+ */
 export const ATTACHMENT_TOKENS = Object.freeze([
   "ue.console.log",
   "ue.data.read",
@@ -10,11 +13,11 @@ export const ATTACHMENT_TOKENS = Object.freeze([
   "ue.scene.read",
   "ue.clock.read",
   "ue.clock.timer",
+  "ue.ui.panel",
 ]);
 
 /** Tokens that need a user prompt before any grant names them. */
 export const PROMPTED_TOKENS = Object.freeze([
-  "ue.ui.panel",
   "ue.input.pointer",
   "ue.storage.local",
 ]);

@@ -1,6 +1,7 @@
 // The extension host in a web page: every case of src/fixtures/extension-host/cases.mjs, run by browser-check.html
 // with each extension in its own module Web Worker, plus web-sandbox-is-worker. Reported as one check per case, the
-// ids prefixed "web-".
+// ids prefixed "web-". The panel cases (ue:host@0.3.0) also load the Lab's panel modules from web/, which the server
+// serves with the rest of the code folder.
 //
 // It serves the code folder on OSL_EXTENSION_HOST_BROWSER_PORT (default 18341), opens the page in Chrome for Testing,
 // headless, through puppeteer-core, and reads each case result as the page logs it. The network cases fetch from the
@@ -126,7 +127,25 @@ for (const item of CASES.filter((entry) => entry.only !== "node")) {
 const HOST = "runtime/extension-host/extension-host.mjs";
 const WEB = "runtime/extension-host/sandbox-web.mjs";
 const UE_BINDING = "runtime/extension-host/bindings/ue-core.mjs";
+const FILTER = "web/wow-extension-panel-filter.mjs";
+const PANEL = "web/wow-extension-panel.mjs";
 await finish({ checkFile: "src/extension-host-browser-check.mjs", faults: [
+  { statement: "web-panel-hostile-refused", name: "the filter strips a refused element and shows the rest", expect: /was shown/,
+    edits: [{ file: FILTER, find: "if (!PANEL_ELEMENTS.includes(tag)) refuse(`element ${named(tag)} is not allowed`);", replace: "if (!PANEL_ELEMENTS.includes(tag)) continue;" }] },
+  { statement: "web-panel-no-outside-load", name: "the image element is built before the check", expect: /the recording server saw [1-9]\d* request/,
+    edits: [{ file: FILTER, find: "if (name === \"src\") checkImage(value);", replace: "if (name === \"src\") { new win.Image().src = value; checkImage(value); }" }] },
+  { statement: "web-panel-limits", name: "no depth limit", expect: /a document of 17 deep was shown/,
+    edits: [{ file: FILTER, find: "if (depth + 1 > PANEL_MAX_DEPTH) refuse(`the document is more than ${PANEL_MAX_DEPTH} elements deep`);", replace: "" }] },
+  { statement: "web-panel-click-event", name: "the event goes to every attachment", expect: /the click reached another extension/,
+    edits: [{ file: PANEL, find: "const targets = [entry];", replace: "const targets = [...entries.values()];" }] },
+  { statement: "web-panel-change-event", name: "the change event carries no value", expect: /the change events/,
+    edits: [{ file: PANEL, find: "{ type: \"panel\", attachment: target.attachment, size, id, event, ...(value === undefined ? {} : { value }) }", replace: "{ type: \"panel\", attachment: target.attachment, size, id, event }" }] },
+  { statement: "web-panel-full-after-click", name: "the full panel shows at once", expect: /the full panel shows before any click in the card/,
+    edits: [{ file: PANEL, find: "const size = entry.view === \"full\" && entry.panels.full ? \"full\"", replace: "const size = entry.panels.full ? \"full\"" }] },
+  { statement: "web-panel-frame-holds", name: "the panel is built in the page, not in the frame", expect: /control is covered by|the page left of the frame shows the panel/,
+    edits: [{ file: PANEL, find: "const target = frameTarget();", replace: "const target = { doc, root: box, head: box };" }] },
+  { statement: "web-rp1-panels-shown", name: "the rml root is refused as an unknown element", expect: /camera\.rml was not shown: .*element rml is not allowed/,
+    edits: [{ file: "web/wow-extension-rml.mjs", find: "return `<html>${inner}</html>`;", replace: "return text;" }] },
   { statement: "web-net-no-credentials", name: "use credentials: \"include\"", expect: /saw a cookie/,
     edits: [{ file: UE_BINDING, find: "credentials: \"omit\",", replace: "credentials: \"include\"," }] },
   { statement: "web-net-redirect-refused", name: "follow redirects", expect: /redirect target was requested/,

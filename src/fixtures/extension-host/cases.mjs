@@ -9,6 +9,9 @@
 //
 // Fixtures are read through loadFixtures(read), where read(path) resolves the bytes of a file named from the code
 // folder: readFile in Node, fetch in the browser.
+//
+// The panel cases (ue:host@0.3.0, ui) that need a page import the Lab's panel modules from web/ (the page serves the
+// code folder, so ../../../web/ from this file); they draw the panel host on the case's own page and dispose it.
 import { TEST_MODULES, UE_TEST_MODULES } from "./test-modules.mjs";
 
 // ---- Assertions (no node:assert in a browser) ----
@@ -48,7 +51,19 @@ const FIXTURE_FILES = {
   wit: "runtime/extension-host/wit/ue-host.wit",
   methodNumbers: "runtime/extension-host/wit/method-numbers.json",
   methodLock: "runtime/extension-host/wit/method-numbers.lock.json",
+  hostileIndex: "src/fixtures/extension-host/panels/hostile/index.json",
 };
+const HOSTILE_DIR = "src/fixtures/extension-host/panels/hostile/";
+const RP1_DIR = "src/fixtures/extension-host/panels/rp1/";
+/** The six RP1 creator panel documents (panels/rp1/, PROVENANCE.md), each with a text its card shows. */
+const RP1_PANELS = [
+  { file: "camera.rml", shows: "Camera", camera: true },
+  { file: "panel.rml", shows: "Panel", camera: false },
+  { file: "camera2.rml", shows: "Camera + Intrinsics", camera: true },
+  { file: "camera3.rml", shows: "Camera + Pose", camera: true },
+  { file: "node-hello.rml", shows: "Hello", camera: false },
+  { file: "test-panel.rml", shows: "Panel", camera: false },
+];
 const HELLO_BODY = "hello from the test server: é ☃";
 const SAFE_HEADERS = ["content-type", "content-length", "etag", "last-modified", "cache-control"];
 const STORAGE_PREFIX = "ue-storage:";
@@ -58,7 +73,13 @@ export async function loadFixtures(read) {
   const raw = {};
   for (const [name, path] of Object.entries(FIXTURE_FILES)) raw[name] = new Uint8Array(await read(path));
   const text = (bytes) => new TextDecoder().decode(bytes);
+  const hostile = [];
+  for (const item of JSON.parse(text(raw.hostileIndex))) hostile.push({ ...item, text: text(new Uint8Array(await read(HOSTILE_DIR + item.file))) });
+  const rp1 = [];
+  for (const item of RP1_PANELS) rp1.push({ ...item, text: text(new Uint8Array(await read(RP1_DIR + item.file))) });
   return {
+    HOSTILE_PANELS: hostile,
+    RP1_PANELS: rp1,
     QUICKSTART: raw.quickstart,
     MAP: raw.map,
     LEGACY_MAP: raw.legacyMap,
@@ -106,6 +127,67 @@ const stool = (fabric) => ({ index: 2, fabric });
 const sameNode = (node) => ({ class: node.class, name: node.name, reference: node.reference });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const ticksOf = (extension) => extension.logEntries.filter((entry) => entry.text === "tick");
+
+// ---- ue:host@0.3.0 helpers: panels ----
+
+const PANEL_TOKENS = ["ue.console.log", "ue.data.read", "ue.ui.panel"];
+const PANEL_CARD = '<div style="padding: 12px"><div class="title" style="font-size: 18px; font-weight: 600">Coffee stand</div><p>Two cups in the queue.</p>'
+  + '<button id="order">Order</button> <label for="sugar">Sugar</label><input id="sugar" type="checkbox"> <input id="size" type="range" min="1" max="3" value="1" aria-label="Cup size"></div>';
+const PANEL_FULL = '<div style="padding: 16px"><h2>Coffee stand</h2><p>The full menu.</p><button id="pay">Order</button></div>';
+const panelEvents = (extension) => (extension.events || []).filter((item) => item.event && item.event.type === "panel").map((item) => item.event);
+/** The Lab's panel modules, from web/ (pages only). */
+const panelKit = async () => ({
+  ...(await import(new URL("../../../web/wow-extension-panel.mjs", import.meta.url).href)),
+  ...(await import(new URL("../../../web/wow-extension-rml.mjs", import.meta.url).href)),
+});
+/** Loads the panel maker as attachment `index` with `data` ({ card, full } payloads), its panel events to `panel`. */
+async function loadPanelMaker(loadExtension, { index = 1, data = {}, paths, times, panel, grant = PANEL_TOKENS }) {
+  const bytes = UE.uePanelMaker({ paths, times });
+  const declaration = { ...(await ue2Declare(bytes, "panel-maker.wasm", PANEL_TOKENS)), interface: "ue:host@0.3.0" };
+  return loadExtension({ bytes, declaration, grant, attachment: { index, fabric: { Data: data } }, panel });
+}
+const cardOf = (document, size = "card") => ({ size, document });
+/** A panel board and its host frame on this page, at the top right; end() disposes them. */
+async function panelPage(onHelp = null) {
+  const kit = await panelKit();
+  const board = kit.createPanelBoard({ filter: kit.createPanelFilter(window) });
+  const host = kit.renderPanelHost({ document, board, onHelp });
+  host.element.style.top = "8px";
+  host.element.style.bottom = "auto";
+  document.body.append(host.element);
+  return { kit, board, host, end: () => host.dispose() };
+}
+/** Waits until the host shows `size` (or nothing, for null) and has built it. */
+async function shownAs(host, size, ms = 3000) {
+  const ok = await until(async () => {
+    await host.ready();
+    const shown = host.shown();
+    return size === null ? !shown : !!shown && shown.size === size;
+  }, ms);
+  await host.ready();
+  return ok;
+}
+/** The frame's document and its size on the page. */
+const frameOf = (host) => ({ doc: host.frame.contentDocument, rect: host.frame.getBoundingClientRect() });
+/** A click on the page at the middle of the element `id` in the panel (at `fx` of its width), as a visitor's. */
+function clickInPanel(host, selector, fx = 0.5) {
+  const { doc, rect } = frameOf(host);
+  const target = doc.querySelector(selector);
+  if (!target) throw new CaseError(`the panel has no ${selector}`);
+  const box = target.getBoundingClientRect();
+  const x = rect.left + box.left + box.width * fx, y = rect.top + box.top + box.height / 2;
+  const hit = document.elementFromPoint(x, y);
+  if (!hit) throw new CaseError(`no element of the page is at ${Math.round(x)}, ${Math.round(y)}`);
+  hit.dispatchEvent(new MouseEvent("click", { clientX: x, clientY: y, bubbles: true, cancelable: true }));
+}
+/** A click on a host control of the frame (back, help or close) at its middle, as a visitor's. */
+function clickHostControl(host, action) {
+  const control = host.element.querySelector(`[data-ue-panel-action="${action}"]`);
+  const box = control.getBoundingClientRect();
+  const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+  if (hit !== control) throw new CaseError(`the ${action} control is covered by ${hit ? `${hit.localName}${hit.className ? `.${hit.className}` : ""}` : "nothing"}`);
+  hit.click();
+}
 
 // ---- ue:host@0.2.0 helpers ----
 
@@ -311,7 +393,7 @@ export const CASES = [
   { id: "wit-table-agree", says: "Every function in ue-host.wit has exactly one method-table entry, and every entry names a function", async run({ fixtures }) {
     const functions = witFunctions(fixtures.WIT);
     const table = fixtures.METHOD_NUMBERS;
-    assert.equal(functions.length, 18, `ue-host.wit declares ${functions.length} interface functions, not 18`);
+    assert.equal(functions.length, 20, `ue-host.wit declares ${functions.length} interface functions, not 20`);
     for (const fn of functions) {
       const entries = table.filter((entry) => entry.wit === fn);
       assert.equal(entries.length, 1, `${fn} has ${entries.length} table entries, not exactly one`);
@@ -548,10 +630,10 @@ export const CASES = [
 
   // ---- ue:host@0.2.0: additive to 0.1.0 ----
 
-  { id: "wit-additive", says: "Every 0.1.0 entry of the lock file is unchanged, the 0.2.0 network and storage rows are present, and a 0.1.0 guest still loads", async run({ loadExtension, fixtures }) {
+  { id: "wit-additive", says: "Every 0.1.0 entry of the lock file is unchanged, the 0.2.0 network and storage rows and the 0.3.0 ui rows are present, and a 0.1.0 guest still loads", async run({ loadExtension, fixtures }) {
     const table = fixtures.METHOD_NUMBERS;
     const lock = fixtures.METHOD_LOCK;
-    assert.equal(fixtures.METHOD_PACKAGE, "ue:host@0.2.0", `the method table is for ${fixtures.METHOD_PACKAGE}, not ue:host@0.2.0`);
+    assert.equal(fixtures.METHOD_PACKAGE, "ue:host@0.3.0", `the method table is for ${fixtures.METHOD_PACKAGE}, not ue:host@0.3.0`);
     const first = lock.filter((entry) => entry.since === undefined);
     assert.equal(first.length, 13, `the lock file has ${first.length} 0.1.0 entries, not 13`);
     for (const frozen of first) {
@@ -559,15 +641,16 @@ export const CASES = [
       assert(entry, `the 0.1.0 entry ${frozen.wit} is gone from the table`);
       assert.deepEqual(entry, frozen, `the 0.1.0 entry ${frozen.wit} changed`);
     }
-    const added = [["network.fetch", 6, 1], ["network.abort", 6, 2], ["storage.get", 7, 1], ["storage.set", 7, 2], ["storage.delete", 7, 3]];
-    for (const [wit, subsystem, method] of added) {
+    const added = [["network.fetch", 6, 1, "0.2.0"], ["network.abort", 6, 2, "0.2.0"], ["storage.get", 7, 1, "0.2.0"], ["storage.set", 7, 2, "0.2.0"], ["storage.delete", 7, 3, "0.2.0"],
+      ["ui.panel-set", 8, 1, "0.3.0"], ["ui.panel-close", 8, 2, "0.3.0"]];
+    for (const [wit, subsystem, method, since] of added) {
       for (const [name, rows] of [["table", table], ["lock file", lock]]) {
         const entry = rows.find((item) => item.wit === wit);
-        assert(entry, `the 0.2.0 row ${wit} is not in the ${name}`);
-        assert.deepEqual([entry.subsystem, entry.method, entry.since], [subsystem, method, "0.2.0"], `the 0.2.0 row ${wit} in the ${name}`);
+        assert(entry, `the ${since} row ${wit} is not in the ${name}`);
+        assert.deepEqual([entry.subsystem, entry.method, entry.since], [subsystem, method, since], `the ${since} row ${wit} in the ${name}`);
       }
     }
-    assert.equal(lock.length, 18, `the lock file has ${lock.length} rows, not 18`);
+    assert.equal(lock.length, 20, `the lock file has ${lock.length} rows, not 20`);
     const { ueLoad } = loaders(loadExtension);
     const old = await ueLoad(UE.ueNodeMaker(), "node-maker.wasm");
     assert.equal(old.ok, true, `a ue:host@0.1.0 guest did not load: ${old.error}`);
@@ -779,5 +862,198 @@ export const CASES = [
     await big.shutdown();
     assert.deepEqual(big.log, ["kept", "set -5", "kept"], "a write past 256 KiB");
     assert.equal(storage.snapshot(), before, "the stored data changed after the refused write");
+  } },
+
+  // ---- ue:host@0.3.0: ui, panels on the page ----
+
+  { id: "panel-rate", says: "A fifth ui.panel-set of one attachment within one second returns -5 and its document never leaves the worker", async run({ loadExtension }) {
+    const sent = [];
+    const extension = await loadPanelMaker(loadExtension, { data: { card: cardOf(PANEL_CARD) }, paths: ["card"], times: 5, panel: (event) => sent.push(event) });
+    assert.equal(extension.ok, true, String(extension.error));
+    await sleep(100);
+    await extension.shutdown();
+    assert.deepEqual(extension.log, ["panel-set 0", "panel-set 0", "panel-set 0", "panel-set 0", "panel-set -5"], "five panel-set calls in one second");
+    assert.equal(sent.length, 4, `${sent.length} panel documents reached the host's panel hook, not 4`);
+    assert(extension.refusals.some((item) => item.call === "ui.panel-set" && item.result === -5), `the fifth call is not recorded as refused: ${JSON.stringify(extension.refusals)}`);
+    const denied = await loadPanelMaker(loadExtension, { data: { card: cardOf(PANEL_CARD) }, paths: ["card"], grant: ["ue.console.log", "ue.data.read"], panel: (event) => sent.push(event) });
+    await denied.shutdown();
+    assert.deepEqual(denied.log, ["panel-set -2"], "panel-set without ue.ui.panel");
+  } },
+
+  { id: "panel-hostile-refused", only: "web", says: "Each hostile document of panels/hostile/ is refused whole with a reason that names its part; none is shown in a reduced form", async run({ fixtures }) {
+    const { kit, board, host, end } = await panelPage();
+    try {
+      const filter = kit.createPanelFilter(window);
+      const title = document.title;
+      assert.equal(fixtures.HOSTILE_PANELS.length, 14, `${fixtures.HOSTILE_PANELS.length} hostile documents, not 14`);
+      for (const item of fixtures.HOSTILE_PANELS) {
+        const result = filter(item.text);
+        assert(!result.ok, `${item.file} (${item.part}) was shown: the filter gave ${result.ok ? `${result.parts.elements} element(s)` : ""}`);
+        assert(new RegExp(item.reason).test(result.reason), `${item.file} (${item.part}) was refused with ${JSON.stringify(result.reason)}`);
+      }
+      for (const item of fixtures.HOSTILE_PANELS) board.receive(item.file, { kind: "panel-set", size: "card", document: item.text });
+      board.select(fixtures.HOSTILE_PANELS[0].file);
+      assert(await shownAs(host, null), `the host shows ${JSON.stringify(host.shown())} for a refused document`);
+      const log = board.logOf(fixtures.HOSTILE_PANELS[0].file);
+      assert(log.length === 1 && /^card panel refused: element script is not allowed$/.test(log[0]), `the log of the refused card is ${JSON.stringify(log)}`);
+      assert.equal(document.title, title, "a hostile document changed the page");
+    } finally { end(); }
+  } },
+
+  { id: "panel-no-outside-load", only: "web", says: "An img with an http address and a style with a remote font are refused, and the recording server sees no request", async run({ net }) {
+    assert(net, "no test server");
+    await net.reset();
+    const { kit, board, host, end } = await panelPage();
+    try {
+      const filter = kit.createPanelFilter(window);
+      const image = `<p>Card</p><img alt="photo" src="${net.url("/panel-image.png")}">`;
+      const font = `<style>@font-face { font-family: Remote; src: url(${net.url("/panel-font.woff")}); } p { font-family: Remote; }</style><p>Card</p>`;
+      const imageResult = filter(image), fontResult = filter(font);
+      assert(!imageResult.ok && /^img src is not a data: URL/.test(imageResult.reason), `the http image: ${JSON.stringify(imageResult.ok ? "shown" : imageResult.reason)}`);
+      assert(!fontResult.ok && /at-rule/.test(fontResult.reason), `the remote font: ${JSON.stringify(fontResult.ok ? "shown" : fontResult.reason)}`);
+      board.receive("image", { kind: "panel-set", size: "card", document: image });
+      board.receive("font", { kind: "panel-set", size: "card", document: font });
+      board.select("image");
+      await shownAs(host, null);
+      board.select("font");
+      await shownAs(host, null);
+      await sleep(600);
+      const seen = (await net.seen()).filter((record) => /^\/panel-/.test(record.path));
+      assert.equal(seen.length, 0, `the recording server saw ${seen.length} request(s): ${JSON.stringify(seen.map((record) => record.path))}`);
+    } finally { end(); }
+  } },
+
+  { id: "panel-limits", only: "web", says: "A document over 64 KiB, over 400 elements or over 16 levels deep is refused; one at each limit is shown", async run() {
+    const kit = await panelKit();
+    const filter = kit.createPanelFilter(window);
+    const nest = (depth) => `${"<div>".repeat(depth)}deep${"</div>".repeat(depth)}`;
+    const cases = [
+      ["64 KiB", `<p>${"x".repeat(64 * 1024 - 7)}</p>`, true, null],
+      ["64 KiB + 1", `<p>${"x".repeat(64 * 1024 - 6)}</p>`, false, /^the document is 65537 bytes, over the 65536 byte limit$/],
+      ["400 elements", "<span></span>".repeat(400), true, null],
+      ["401 elements", "<span></span>".repeat(401), false, /^the document has more than 400 elements$/],
+      ["16 deep", nest(16), true, null],
+      ["17 deep", nest(17), false, /^the document is more than 16 elements deep$/],
+    ];
+    for (const [name, text, shown, reason] of cases) {
+      const result = filter(text);
+      if (shown) assert(result.ok, `a document of ${name} was refused: ${result.reason}`);
+      else assert(!result.ok, `a document of ${name} was shown`);
+      if (reason) assert(reason.test(result.reason), `a document of ${name} was refused with ${JSON.stringify(result.reason)}`);
+    }
+  } },
+
+  { id: "panel-click-event", only: "web", says: "A click on a button with an id reaches the owning attachment as a panel click event, and no other extension", async run({ loadExtension }) {
+    const { board, host, end } = await panelPage();
+    const loaded = [];
+    try {
+      for (const [key, index] of [["a#1", 1], ["b#2", 2]]) {
+        const extension = await loadPanelMaker(loadExtension, { index, data: { card: cardOf(PANEL_CARD) }, panel: (event) => board.receive(key, event) });
+        assert.equal(extension.ok, true, String(extension.error));
+        loaded.push(extension);
+        board.add(key, { label: key, extension, attachment: index });
+      }
+      const [a, b] = loaded;
+      board.select("a#1");
+      assert(await shownAs(host, "card"), "the card of a#1 is not shown");
+      clickInPanel(host, "#order");
+      const event = await until(() => panelEvents(a).find((item) => item.event === "click"), 2000);
+      assert.deepEqual(event, { type: "panel", attachment: 1, size: "card", id: "order", event: "click" }, "the click event");
+      await sleep(200);
+      assert.equal(panelEvents(b).length, 0, `the click reached another extension: ${JSON.stringify(panelEvents(b))}`);
+      assert.equal(panelEvents(a).length, 1, `a#1 got ${panelEvents(a).length} panel events for one click`);
+    } finally {
+      for (const extension of loaded) await extension.shutdown();
+      end();
+    }
+  } },
+
+  { id: "panel-change-event", only: "web", says: "A checked box and a changed range input each send change with the value", async run({ loadExtension }) {
+    const { board, host, end } = await panelPage();
+    let extension = null;
+    try {
+      extension = await loadPanelMaker(loadExtension, { data: { card: cardOf(PANEL_CARD) }, panel: (event) => board.receive("a#1", event) });
+      assert.equal(extension.ok, true, String(extension.error));
+      board.add("a#1", { label: "a", extension, attachment: 1 });
+      board.select("a#1");
+      assert(await shownAs(host, "card"), "the card is not shown");
+      clickInPanel(host, "#sugar");
+      clickInPanel(host, "#size", 0.98);
+      await until(() => panelEvents(extension).length >= 2, 2000);
+      const changes = panelEvents(extension).map(({ id, event, value }) => ({ id, event, value }));
+      assert.deepEqual(changes, [{ id: "sugar", event: "change", value: true }, { id: "size", event: "change", value: "3" }], "the change events");
+    } finally {
+      if (extension) await extension.shutdown();
+      end();
+    }
+  } },
+
+  { id: "panel-full-after-click", only: "web", says: "A full document sent with no click in the card is kept and not shown; after a click in the card it shows at 640 by 480, and back returns to the card", async run({ loadExtension }) {
+    const { board, host, end } = await panelPage();
+    let extension = null;
+    try {
+      extension = await loadPanelMaker(loadExtension, { data: { card: cardOf(PANEL_CARD), full: cardOf(PANEL_FULL, "full") }, panel: (event) => board.receive("a#1", event) });
+      assert.equal(extension.ok, true, String(extension.error));
+      assert.deepEqual(extension.log, ["panel-set 0", "panel-set 0"], "the card and the full panel were not both accepted");
+      board.add("a#1", { label: "a", extension, attachment: 1 });
+      board.select("a#1");
+      await shownAs(host, "card");
+      await sleep(300);
+      assert.equal(host.shown() && host.shown().size, "card", `the full panel shows before any click in the card: ${JSON.stringify(host.shown())}`);
+      const card = frameOf(host).rect;
+      assert.deepEqual([card.width, card.height], [320, 200], "the card's frame");
+      clickInPanel(host, ".title");
+      assert(await shownAs(host, "full"), "the full panel is not shown after a click in the card");
+      const full = frameOf(host);
+      assert.deepEqual([full.rect.width, full.rect.height], [640, 480], "the full panel's frame");
+      assert(/The full menu\./.test(full.doc.body.textContent), `the full panel shows ${JSON.stringify(full.doc.body.textContent)}`);
+      clickHostControl(host, "back");
+      assert(await shownAs(host, "card"), "back did not return to the card");
+    } finally {
+      if (extension) await extension.shutdown();
+      end();
+    }
+  } },
+
+  { id: "panel-frame-holds", only: "web", says: "A document that tries to cover the frame (absolute boxes at negative offsets, a huge box) stays in its area; close and the question mark still work", async run() {
+    const helped = [];
+    const { board, host, end } = await panelPage((key) => helped.push(key));
+    try {
+      const cover = "<style>.cover { position: absolute; left: -3000px; top: -3000px; width: 9000px; height: 9000px; background-color: #ff0000; }"
+        + " .fake { position: absolute; left: -60px; top: -40px; width: 400px; }</style>"
+        + '<div class="cover">covered</div><button class="fake" id="fake-close">Close</button>';
+      board.receive("cover#1", { kind: "panel-set", size: "card", document: cover });
+      assert.deepEqual(board.logOf("cover#1"), [], "the covering document was refused");
+      board.select("cover#1");
+      assert(await shownAs(host, "card"), "the covering card is not shown");
+      const { rect } = frameOf(host);
+      assert.deepEqual([rect.width, rect.height], [320, 200], "the frame's size");
+      const outside = document.elementFromPoint(Math.max(1, rect.left - 40), rect.top + rect.height / 2);
+      assert(!outside || !/cover|fake/.test(outside.className || ""), `the page left of the frame shows the panel's ${outside && outside.className}`);
+      clickHostControl(host, "help");
+      assert.deepEqual(helped, ["cover#1"], "the question mark did not open the Extensions panel at the extension");
+      clickHostControl(host, "close");
+      assert(await shownAs(host, null), "close did not close the panel");
+      assert.equal(host.element.style.display, "none", "the host frame still shows after close");
+    } finally { end(); }
+  } },
+
+  { id: "rp1-panels-shown", only: "web", says: "Each of the six RP1 creator panel documents passes wow-extension-rml.mjs and the filter and shows; a camera source shows the host placeholder", async run({ fixtures }) {
+    const { kit, board, host, end } = await panelPage();
+    try {
+      assert.equal(fixtures.RP1_PANELS.length, 6, `${fixtures.RP1_PANELS.length} RP1 documents, not 6`);
+      for (const item of fixtures.RP1_PANELS) {
+        board.receive(item.file, { kind: "panel-set", size: "card", document: item.text });
+        board.select(item.file);
+        const shown = await until(async () => { await host.ready(); return host.shown() && host.shown().key === item.file; }, 3000);
+        await host.ready();
+        assert(shown, `${item.file} was not shown: ${JSON.stringify(board.logOf(item.file))}`);
+        const { doc } = frameOf(host);
+        assert(doc.body.textContent.includes(item.shows), `${item.file} shows ${JSON.stringify(doc.body.textContent.slice(0, 80))}`);
+        const images = [...doc.querySelectorAll("img")].map((image) => image.getAttribute("src"));
+        if (item.camera) assert(images.length === 1 && images[0] === kit.CAMERA_PLACEHOLDER, `${item.file}: the camera image is ${JSON.stringify(images.map((src) => String(src).slice(0, 40)))}`);
+        else assert.equal(images.length, 0, `${item.file} shows ${images.length} image(s)`);
+      }
+    } finally { end(); }
   } },
 ];

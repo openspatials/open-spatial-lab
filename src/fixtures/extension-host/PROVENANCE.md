@@ -55,7 +55,7 @@ The extension test world, opened only by URL (it is not in the worlds list).
 - `world/extension-world.json`: written for this repository. Five nodes carry `webofworlds_extension.universal_extensions`:
   `rp1-stool` (`../quickstart.wasm`, binding `rp1-sneeze-call`), `ue-box` (`box-maker.wasm`, binding `ue-core/0`, under
   the node `shelf`), `bad-hash` (`box-maker.wasm` with the integrity of other bytes), `wants-panel` (`box-maker.wasm`,
-  also requesting `ue.ui.panel`) and `runaway` (the `ue-core/0` module whose Init loops for ever, as a `data:` URL,
+  also requesting `ue.ui.panel`, which the Lab grants by host policy, and `ue.input.pointer`, which needs consent) and `runaway` (the `ue-core/0` module whose Init loops for ever, as a `data:` URL,
   `limits.initMs` 300).
 - `world/box-maker.wasm`: written once from `UE_TEST_MODULES.ueNodeMaker({ resource: "../../../assets/equip-mug.glb" })`
   in `test-modules.mjs` (the `ue-core/0` node maker: Open makes the node `Box`, kind `mesh`, resource
@@ -104,6 +104,51 @@ The extension test world, opened only by URL (it is not in the worlds list).
   `world/pointer-listener.wasm` (865 bytes, SHA-256 `70278d9f15eda41656c1d7fd391f64250ef7039dd24da5d757627f5d754ab091`).
 - `world/place-withdrawn.json`: written for this repository. `checkedAt` and one entry: `urn:uuid:place-carrier-withdrawn`
   is `revoked`.
+
+### The panel world
+
+- `world/extension-world-panel.json`: written for this repository. Two nodes carry
+  `webofworlds_extension.universal_extensions` with `interface` `ue:host@0.3.0`, the module `panel-maker.wasm` and the
+  requests `ue.console.log`, `ue.data.read` and `ue.ui.panel`: `coffee-stand` (data `card`, a card with a button, a
+  checkbox and a range; data `full`, a full panel with one text field and a progress bar) and `camera-card` (data
+  `card`, the RP1 creator document `panels/rp1/camera.rml`, unchanged).
+- `world/panel-maker.wasm`: `UE_TEST_MODULES.uePanelMaker()` (Open calls `ui.panel-set` with its data `card`, then
+  `full`; Notify logs `notified`). 832 bytes, SHA-256
+  `0959277831c279a00e90d32f427313b277395a50d5b012897400a943d735978e`, SRI
+  `sha256-CVkneDHCeaAOkNMvQnMTsnc5WlDVsBKJdACpQ9c1l44=`.
+
+## panels/
+
+### panels/hostile/
+
+Written for this repository: fourteen panel documents, each with one part outside the Lab's panel profile
+(`web/wow-extension-panel-profile.mjs`), and `index.json`, which names the part and the reason the filter must give
+when it refuses the document whole. The parts: a `script` element, an `onclick` attribute, an `iframe`, an `object`, a
+`link`, a `meta` refresh, an `a` element with a `javascript:` address, `@import` in the style block, `url(` in a
+property, `position: fixed`, an SVG image, an `input` of type `password`, an unknown element and a `form`. The addresses
+in them use the reserved `.invalid` top-level domain, which never resolves.
+
+### panels/rp1/
+
+The six RP1 creator panel documents (group A of the SCRAP project's RP1 RML census,
+`docs/universal-extensions/research/rp1-rml-census.md`), copied byte for byte as the census extracted them (no line
+ending added). The first five come from public RP1 repositories of Metaversal Corporation under the Apache License 2.0;
+the sixth from a public RP1 download with no licence text beside it, kept here as test data only. Nothing under
+`src/fixtures/` goes into a site package.
+
+- `camera.rml`: Sneeze `986fc4cb3da8`, `tools/assets/msf/camera.json`, the value of `Data.sPanel` (also identical in
+  the census's copies #13 and #22). 936 bytes, SHA-256 `7b32073352ea16c73faf7cfef4caaef056cd66c6658b9f044aacacdf55e99486`.
+- `panel.rml`: Sneeze `986fc4cb3da8`, `tools/assets/msf/panel.json`, the value of `Data.sPanel`. 780 bytes, SHA-256
+  `21734a0689a6486ed68ffc062ff0d3eac38a5caeb3a8c584ddcf0fcfe722e753`.
+- `camera2.rml`: Sneeze `19608d5`, `tools/assets/msf/camera2.json`, the value of `Data.sPanel`. 2,013 bytes, SHA-256
+  `a1a9e47b63e27911fc615e82fdfd299493a97d8c7d060e2f71a1ee66eaac7279`.
+- `camera3.rml`: Sneeze `19608d5`, `tools/assets/msf/camera3.json`, the value of `Data.sPanel`. 2,181 bytes, SHA-256
+  `694ea254a9c2fb9cc53f77e64babd67c60236748a40ecb9e4e7b81539e362595`.
+- `node-hello.rml`: SneezeSDK `44d0346fe22a`, `docs/api/NODE.md` line 184, the example document. 29 bytes, SHA-256
+  `ce3b1a589fb08b1ff5d35857cd41082ab229d0fa40488ce9e790a84884ee75bc`.
+- `test-panel.rml`: the document embedded in RP1's test `panel.wasm` (`https://cdn.rp1.com/test/panel.wasm`, 18,984
+  bytes, SHA-256 `fbdaa24adf83cce4eaf5fab1d38a516cf4919b922c115dc56eacd7471489d40c`), read with `strings`. 651 bytes,
+  SHA-256 `d639cda275286e8dbc3f31cca3f8e910a7e417a9555d3d3e7e74832a4633635a`.
 
 ## carrier-without-profile.json and carrier.mjs
 

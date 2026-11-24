@@ -19,7 +19,7 @@ export const GRANT_PREFIX = "ue-grants:";
 export const REMEMBER_MS = 30 * 24 * 60 * 60 * 1000;
 export const POINTER_TOKEN = "ue.input.pointer";
 
-const PROMPTED = new Set(["ue.ui.panel", "ue.input.pointer", "ue.storage.local"]);
+const PROMPTED = new Set(["ue.input.pointer", "ue.storage.local"]);
 const PROMPTED_FAMILY = /^(?:ue\.network\.fetch:https?:\/\/[^/\s]+|ue\.device\.actuate\.[a-z0-9-]+(?:\.[a-z0-9-]+)*|sensor\.[a-z0-9-]+\.[a-z0-9-]+\.[a-z0-9-]+)$/;
 const NEVER_REMEMBERED = /^ue\.device\.actuate\./;
 
@@ -259,13 +259,15 @@ export function createConsentQueue(doc) {
 }
 
 /**
- * renderExtensionsPanel({ document, mounted, onClose }) -> { element, refresh(), close() }: the Extensions panel of one
- * mount pass. Each extension is listed with its state (not started, starting, running, refused, failed, ended), its
- * granted tokens, where its code came from once it is started ("code from this place" or "code from its maker"), a
- * "slow" line with the count of its calls over the event budget (when it has any) and a Withdraw button, which calls
- * mounted.withdraw(record) and takes effect at once.
+ * renderExtensionsPanel({ document, mounted, onClose, focus }) -> { element, refresh(), close(), focus(key) }: the
+ * Extensions panel of one mount pass. Each extension is listed with its state (not started, starting, running, refused,
+ * failed, ended), who signed it (for a carrier extension), its granted tokens, where its code came from once it is
+ * started ("code from this place" or "code from its maker"), a "slow" line with the count of its calls over the event
+ * budget (when it has any), the reasons its panel documents were refused (when any were) and a Withdraw button, which
+ * calls mounted.withdraw(record) and takes effect at once. `focus` (an extension's "label#index", as the panel's
+ * question mark gives it) marks that extension's row and scrolls it into view.
  */
-export function renderExtensionsPanel({ document: doc, mounted, onClose = null }) {
+export function renderExtensionsPanel({ document: doc, mounted, onClose = null, focus = null }) {
   const element = el(doc, "section", {
     style: `position:fixed;z-index:59;top:72px;right:16px;width:min(440px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow:auto;padding:14px 16px;${STYLE.surface}`,
     attrs: { role: "dialog", "aria-modal": "false", "aria-label": "Extensions", "data-testid": "ue-extensions-panel" },
@@ -275,6 +277,7 @@ export function renderExtensionsPanel({ document: doc, mounted, onClose = null }
   const list = el(doc, "ul", { style: "list-style:none;margin:0;padding:0;display:grid;gap:10px;" });
   element.append(closeButton, heading, list);
   let unsubscribe = null;
+  let focused = focus;
 
   function refresh() {
     list.replaceChildren();
@@ -284,7 +287,9 @@ export function renderExtensionsPanel({ document: doc, mounted, onClose = null }
       const state = mounted.stateOf(record);
       const prompted = mounted.promptedGrant(record);
       const tokens = record.grant || [];
-      const row = el(doc, "li", { style: "border-top:1px solid var(--line, rgba(255,255,255,0.12));padding-top:8px;", attrs: { "data-ue-extension": `${record.label}#${record.index}` } }, [
+      const key = `${record.label}#${record.index}`;
+      const rowStyle = `border-top:1px solid var(--line, rgba(255,255,255,0.12));padding-top:8px;${key === focused ? "outline:2px solid #7ee0a8;outline-offset:4px;border-radius:4px;" : ""}`;
+      const row = el(doc, "li", { style: rowStyle, attrs: { "data-ue-extension": key, ...(key === focused ? { "data-ue-focused": "" } : {}) } }, [
         el(doc, "div", { style: "display:flex;gap:8px;align-items:baseline;justify-content:space-between;" }, [
           el(doc, "strong", { text: record.label }),
           el(doc, "span", { style: `${STYLE.mono}${state === "running" ? "color:#7ee0a8;" : "color:#ffb48a;"}`, text: state, attrs: { "data-ue-state": "" } }),
@@ -292,6 +297,10 @@ export function renderExtensionsPanel({ document: doc, mounted, onClose = null }
         el(doc, "div", { style: `${STYLE.mono}${STYLE.dim}`, text: moduleFileName(record.module_url || (record.declaration && record.declaration.module && record.declaration.module.url)) }),
         el(doc, "div", { style: STYLE.mono, text: tokens.length ? tokens.join(", ") : "no tokens granted", attrs: { class: "ue-extension-tokens" } }),
       ]);
+      // Who signed a carrier extension: the carrier subject, as plain text.
+      if (record.carrier && record.carrier.subject) {
+        row.append(el(doc, "div", { style: `${STYLE.mono}${STYLE.dim}`, text: `signed by ${record.carrier.subject}`, attrs: { "data-ue-signed-by": "" } }));
+      }
       // Where a started extension's code came from: the place's store, or its maker's address. Plain text, no address.
       if (record.codeSource === "place" || record.codeSource === "maker") {
         row.append(el(doc, "div", { style: `${STYLE.mono}${STYLE.dim}`, text: record.codeSource === "place" ? "code from this place" : "code from its maker", attrs: { "data-ue-code-source": record.codeSource } }));
@@ -305,7 +314,10 @@ export function renderExtensionsPanel({ document: doc, mounted, onClose = null }
         const overruns = record.extension.overruns;
         row.append(el(doc, "div", { style: `${STYLE.mono}color:#ffb48a;`, text: `slow: ${overruns} ${overruns === 1 ? "call" : "calls"} over the time budget`, attrs: { "data-ue-slow": String(overruns) } }));
       }
-      const withdraw = el(doc, "button", { style: `${STYLE.button}margin-top:6px;`, text: "Withdraw", attrs: { type: "button", "data-ue-withdraw": `${record.label}#${record.index}` } });
+      // The panel documents the host refused, each with its reason, as plain text.
+      const panelLog = mounted.panels && typeof mounted.panels.logOf === "function" ? mounted.panels.logOf(key) : [];
+      for (const line of panelLog) row.append(el(doc, "div", { style: `${STYLE.mono}color:#ffb48a;`, text: line, attrs: { "data-ue-panel-log": "" } }));
+      const withdraw = el(doc, "button", { style: `${STYLE.button}margin-top:6px;`, text: "Withdraw", attrs: { type: "button", "data-ue-withdraw": key } });
       if (!prompted.length) {
         withdraw.disabled = true;
         withdraw.setAttribute("style", `${STYLE.button}margin-top:6px;opacity:0.45;cursor:default;`);
@@ -317,6 +329,7 @@ export function renderExtensionsPanel({ document: doc, mounted, onClose = null }
       });
       row.append(withdraw);
       list.append(row);
+      if (key === focused && typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "nearest" });
     }
   }
   function close() {
@@ -328,7 +341,13 @@ export function renderExtensionsPanel({ document: doc, mounted, onClose = null }
   closeButton.addEventListener("click", close);
   if (mounted && typeof mounted.subscribe === "function") unsubscribe = mounted.subscribe(refresh);
   refresh();
-  return { element, refresh, close };
+  return {
+    element, refresh, close,
+    focus(key) {
+      focused = key;
+      refresh();
+    },
+  };
 }
 
 export default { GRANT_PREFIX, REMEMBER_MS, createGrantStore, createConsentQueue, buildConsentDialog, renderExtensionsPanel, placementKeyOf, isPromptedToken };
