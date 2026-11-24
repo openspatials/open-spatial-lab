@@ -1,6 +1,6 @@
 {
   "name": "open-spatial-lab-avatar-runtime",
-  "version": "1.2.0-spatial-client",
+  "version": "1.3.0-spatial-client",
   "status": "branch-release, not on main",
   "commit": "<filled by Lab at commit time>",
   "source": "vendor/avatar-evaluator-v1 copy (web/vendor/avatar-evaluator-v1/mannequin/web/avatar/*.mjs and the fitting/*.mjs they import), the runtime the Lab page ran before 1.0.0. Code is unchanged except import specifiers; the vendor folder stays in place.",
@@ -22,7 +22,8 @@
     "RemoteAvatar is not exported: the vendor copy has no remote-avatar module. The agreed surface named it; 1.0.0 leaves it out.",
     "SolverStack (fitting/solvers.mjs) is not in index.mjs but web/avatar/actionforge-avatar.mjs imports it by module path, as it did from the vendor copy.",
     "fitting/rig.mjs and fitting/roles.mjs are one-line forwards to runtime/scene-core/public/process/rig/, found through import.meta.resolve(\"#scene-manager\").",
-    "fitting/map-clips.mjs is a one-line forward to runtime/scene-core/public/process/clips/map-clips.mjs; fitting/holds.mjs is a one-line forward to runtime/scene-core/public/process/items/holds.mjs, and equipment.mjs imports runtime/scene-core/public/process/items/placement.mjs, all found through import.meta.resolve(\"#scene-manager\"); the body records of adam, megan, elizabeth and sophie carry face.eye_y_m and measures.back_surface_z_m."
+    "fitting/map-clips.mjs is a one-line forward to runtime/scene-core/public/process/clips/map-clips.mjs; fitting/holds.mjs is a one-line forward to runtime/scene-core/public/process/items/holds.mjs, and equipment.mjs imports runtime/scene-core/public/process/items/placement.mjs, all found through import.meta.resolve(\"#scene-manager\"); the body records of adam, megan, elizabeth and sophie carry face.eye_y_m and measures.back_surface_z_m.",
+    "avatar-motion.mjs, fitting/solvers.mjs and fitting/vendor/avatar-ik.mjs are one-line forwards to runtime/scene-core/public/animation/drivers/humanoid/, and locomotion.mjs to runtime/scene-core/public/navigation/humanoid/locomotion.mjs, found through import.meta.resolve(\"#scene-manager\"); the page no longer fetches fitting/vendor/avatar-ik.mjs (the engine solvers import their own copy)."
   ],
   "imports": {
     "bare": [
@@ -30,7 +31,7 @@
       "three/addons/loaders/GLTFLoader.js",
       "three/addons/utils/SkeletonUtils.js"
     ],
-    "note": "The host maps three and three/addons/ (browser import map or Node resolution). All other imports are relative inside this folder, except the forwards and equipment.mjs, which reach the engine's process/ folders (rig, clips, items, and through them mesh) through import.meta.resolve(\"#scene-manager\")."
+    "note": "The host maps three and three/addons/ (browser import map or Node resolution). All other imports are relative inside this folder, except the forwards and equipment.mjs, which reach the engine's process/ folders (rig, clips, items, and through them mesh), animation/ and navigation/ through import.meta.resolve(\"#scene-manager\")."
   },
   "consumers": [
     "web/avatar/actionforge-avatar.mjs",
@@ -39,10 +40,10 @@
   "files": [
     {
       "path": "avatar-motion.mjs",
-      "sha256": "edf7b480c1a4467ca523b9a1603a96ebca58eb116e508467b657ceb1ac42f864",
+      "sha256": "61b61cbd8308741abcc38bd3be0a1655ee0ca61675dce3aa4ec6eb0baeddd05c",
       "vendor_source": "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/avatar-motion.mjs",
       "vendor_sha256": "edf7b480c1a4467ca523b9a1603a96ebca58eb116e508467b657ceb1ac42f864",
-      "change": "identical"
+      "change": "forward to runtime/scene-core/public/animation/drivers/humanoid/avatar-motion.mjs, which imports canEquip, GROUPS and splitClip from process/items/placement.mjs and STANCE_FADE_S from the solvers beside it; behaviour unchanged"
     },
     {
       "path": "clip-library.mjs",
@@ -64,10 +65,10 @@
     },
     {
       "path": "locomotion.mjs",
-      "sha256": "0aa9c97e2fedb948e39f156fc53c1ca3a3c80bad29297dd4a4335d89104c3ca9",
+      "sha256": "c60071e5edbee7790e7152d5f831a55977bbd9958628e7ee3f37174695a02192",
       "vendor_source": "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/locomotion.mjs",
       "vendor_sha256": "0aa9c97e2fedb948e39f156fc53c1ca3a3c80bad29297dd4a4335d89104c3ca9",
-      "change": "identical"
+      "change": "forward to runtime/scene-core/public/navigation/humanoid/locomotion.mjs (the same bytes); behaviour unchanged"
     },
     {
       "path": "fitting/holds.mjs",
@@ -99,17 +100,17 @@
     },
     {
       "path": "fitting/solvers.mjs",
-      "sha256": "b57113aac0dba30229af0a1ff81ccddfd27983c8ea50455c0fb7201bb2b9a0e7",
+      "sha256": "b6a054a99650bcdfedf30882d6081d8d2f5f98104a0f70914f247ca876fa8d1e",
       "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/solvers.mjs",
       "vendor_sha256": "b57113aac0dba30229af0a1ff81ccddfd27983c8ea50455c0fb7201bb2b9a0e7",
-      "change": "identical"
+      "change": "forward to runtime/scene-core/public/animation/drivers/humanoid/solvers.mjs, which imports process/rig/roles.mjs, process/rig/rig.mjs and process/items/holds.mjs; behaviour unchanged"
     },
     {
       "path": "fitting/vendor/avatar-ik.mjs",
-      "sha256": "689ac78f68afe45b0d2d8eb792928aba5524fff6c5b59d84b8b692c28736486c",
+      "sha256": "9c151875367d12cd468db44815113ea8e435414604aef21aaf9ab66b3f00953e",
       "vendor_source": "web/vendor/avatar-evaluator-v1/fitting/vendor/avatar-ik.mjs",
       "vendor_sha256": "689ac78f68afe45b0d2d8eb792928aba5524fff6c5b59d84b8b692c28736486c",
-      "change": "identical"
+      "change": "forward to runtime/scene-core/public/animation/drivers/humanoid/vendor/avatar-ik.mjs (the same bytes), named and default exports; behaviour unchanged"
     }
   ],
   "data": {

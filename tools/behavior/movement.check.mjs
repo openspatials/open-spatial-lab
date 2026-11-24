@@ -215,7 +215,7 @@ async function jumpOnce(page) {
 
 const MOVE = "web/movement-camera-controller.mjs";
 const ADAPTER = "web/live-adapter.js";
-const LOCOMOTION = "web/avatar/runtime/locomotion.mjs";
+const LOCOMOTION = "runtime/scene-core/public/navigation/humanoid/locomotion.mjs";
 const faults = [
   { statement: "release-stops", name: "a released key is never cleared", expect: /after the release it went on/, edits: [{ file: MOVE, find: "      controlState[control] = pressed;\n", replace: "      if (pressed) controlState[control] = true;\n" }] },
   { statement: "w-along-facing", name: "the walking speed is off by half", expect: /W walked 0\.\d+ m in/, edits: [{ file: LOCOMOTION, find: "const walkRate = 1.2;", replace: "const walkRate = 0.6;" }] },

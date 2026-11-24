@@ -16,8 +16,13 @@
 // nothing of process/clips/. Step 3 (item placement and equipment) adds rules 13 to 16: nothing under process/items/
 // imports a loader; item placement exists once (no file but process/items/holds.mjs and process/items/placement.mjs defines
 // fitHold, fitWorn, fitFace, fitBack, heldPlacement or itemRecord; the frozen vendor copy is allowed by name only);
-// process/items/ does not import the solvers; and process/rig/ never imports process/items/. Prints one JSON summary; exits
-// 1 when a rule is broken or a planted fault is missed.
+// process/items/ does not import the solvers; and process/rig/ never imports process/items/. Step 4 (body measuring) puts body
+// measuring in its own folder, process/body/, which reads clip mapping and the grip and back frames (rule 26: process/body/
+// imports only three.js and process/rig/, clips/, items/, mesh/, and none of those four imports it), and adds rules 17 to 21: body measuring and the item measures import
+// only their named engine files and three.js; nothing under process/ imports a node: module, a loader or the Node tools
+// (runtime/scene-core/tools/, beside the engine folder); nothing in the engine or under web/ imports the Node tools; a
+// tool imports only node:, three.js, its own folder and process/; and measureBody and gripError each exist once. Prints
+// one JSON summary; exits 1 when a rule is broken or a planted fault is missed.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -88,6 +93,18 @@ const definesOf = (text) => new Set([
     ...[...text.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g)].map((m) => m[1]),
 ]);
 const LOADER = /(^|\/)(loaders\/|[A-Za-z]*Loader\.js$)/;
+// Body measuring (milestone "avatar parts get engine folders", step 4). The rig code is the two files rules 12 and 16 keep
+// free of clips and items; body measuring sits beside it and reads them. The Node tools sit beside the engine folder and
+// are read as "../tools/<file>" (with --root, the folder "tools" beside the given copy, when there is one).
+const RIG_CODE = ["process/rig/roles.mjs", "process/rig/rig.mjs"];
+const MEASURING = {
+    "process/body/body-details.mjs": ["process/rig/roles.mjs", "process/rig/rig.mjs", "process/clips/map-clips.mjs", "process/items/holds.mjs", "process/mesh/mesh-math.mjs"],
+    "process/items/measures.mjs": ["process/rig/roles.mjs", "process/items/holds.mjs"],
+};
+const ONCE = { measureBody: "process/body/body-details.mjs", gripError: "process/items/measures.mjs" };
+const TOOLS = "../tools";
+const toolFiles = () => { const at = join(ENGINE, TOOLS); return existsSync(at) ? readdirSync(at).filter((n) => /\.m?js$/.test(n)).map((n) => `${TOOLS}/${n}`) : []; };
+const inTools = (t) => t === TOOLS || t.startsWith(`${TOOLS}/`);
 const SOLVERS = /(^|\/)solvers\.mjs$/;
 // The names a file exports: declarations, export lists (by their outside name) and destructured forwards.
 const exportsOf = (text) => new Set([
@@ -103,6 +120,23 @@ const FROZEN = [{ copy: "web/vendor/avatar-evaluator-v1/fitting/", tree: "web/ve
 const skinCalls = (file, text, offset = 0) => lines(text).filter(({ line }) => SKIN_CALL.test(line)).map(({ n, line }) => `${file}:${n + offset}: ${line.trim().slice(0, 100)}`);
 
 /** Each rule returns its crossings, as "file:line: what". */
+// The movers (milestone "avatar parts get engine folders", step 5): the Animator's motion drivers under animation/ and the
+// Navigation system's movement models under navigation/ (docs/engine/MOVER-CONTRACTS-V0.md, section 1). A driver never
+// moves the body over the floor, so the two folders import nothing of each other. three.js is allowed (the clip player and
+// its maths) until the Scene's animation tracks are designed, as for process/clips/.
+const MOVERS = ["animation", "navigation"];
+const IK = "animation/drivers/humanoid/vendor/avatar-ik.mjs";
+const MOVER_FILES = ["animation/drivers/humanoid/avatar-motion.mjs", "animation/drivers/humanoid/solvers.mjs", IK, "navigation/humanoid/locomotion.mjs"];
+const MOVER_NAMES = ["AvatarMotion", "SolverStack", "Locomotion", "solveTwoBoneLeg", "solveArmAvoid"];
+// The avatar runtime 1.0.0's vendor source holds the old copy of all four; allowed by name while nothing outside its tree imports it.
+const MOVER_FROZEN = ["web/vendor/avatar-evaluator-v1/mannequin/web/avatar/avatar-motion.mjs", "web/vendor/avatar-evaluator-v1/mannequin/web/avatar/locomotion.mjs",
+    "web/vendor/avatar-evaluator-v1/fitting/solvers.mjs", "web/vendor/avatar-evaluator-v1/fitting/vendor/avatar-ik.mjs"];
+const MOVER_FROZEN_TREE = "web/vendor/avatar-evaluator-v1/";
+const classesOf = (text) => new Set([...text.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]));
+const specifiersOf = (text) => [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)];
+
+/** Each rule returns its crossings, as "file:line: what". */
+
 const RULES = {
     // M1
     "1 importers name no Three.js": (read) => IMPORTERS.flatMap(filesIn).flatMap((f) => lines(read(f)).filter(({ line }) => /three/i.test(line)).map(({ n, line }) => `${f}:${n}: ${line.trim()}`)),
@@ -200,10 +234,77 @@ const RULES = {
         return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].filter((s) => target(f, s).startsWith(`${ITEMS}/`) || /(^|\/)items\//.test(s))
             .map((s) => `${f}: imports ${s}`);
     }),
+    // Avatar parts get engine folders, step 4: body measuring and the body record
+    "17 body measuring and the item measures import only three.js and their named engine files": (read) => Object.entries(MEASURING).flatMap(([f, allowed]) => {
+        if (!existsSync(join(ENGINE, f))) return [`${f}: missing`];
+        const text = read(f);
+        return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].filter((s) => !(s === "three" || allowed.includes(target(f, s))))
+            .map((s) => `${f}: imports ${s}`);
+    }),
+    "18 nothing under process/ imports a node: module, a loader or the Node tools": (read) => filesIn(PROCESS).flatMap((f) => {
+        const text = read(f);
+        return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].filter((s) => s.startsWith("node:") || LOADER.test(s) || LOADER.test(target(f, s)) || inTools(target(f, s)))
+            .map((s) => `${f}: imports ${s}`);
+    }),
+    "19 nothing in the engine or under web/ imports the Node tools": (read) => [
+        ...engineFiles().flatMap((f) => [...importsOf(read(f)), ...requiresOf(read(f)), ...resolvesOf(read(f))].filter((s) => inTools(target(f, s)) || /(^|\/)scene-core\/tools\//.test(s)).map((s) => `${f}: imports ${s}`)),
+        ...codeFiles().filter((f) => f.startsWith("web/")).flatMap((f) => [...importsOf(read(f)), ...requiresOf(read(f))]
+            .filter((s) => /(^|\/)scene-core\/tools\//.test(s) || (s.startsWith(".") && relative(CODE, resolve(CODE, dirname(f), s)).split("\\").join("/").startsWith("runtime/scene-core/tools/")))
+            .map((s) => `${f}: imports ${s}`)),
+    ],
+    "20 a Node tool imports only node:, three.js, its own folder and process/": (read) => toolFiles().flatMap((f) => {
+        const text = read(f);
+        return [...importsOf(text), ...requiresOf(text), ...resolvesOf(text)].map((s) => [s, target(f, s)])
+            .filter(([s, t]) => !(s.startsWith("node:") || /^three(\/|$)/.test(s) || (s.startsWith(".") && (t.startsWith(`${PROCESS}/`) || inTools(t)))))
+            .map(([s]) => `${f}: imports ${s}`);
+    }),
+    "21 measureBody and gripError each exist once": (read) => {
+        const missing = Object.entries(ONCE).filter(([name, f]) => !existsSync(join(ENGINE, f)) || !definesOf(read(f)).has(name)).map(([name, f]) => `${f}: does not define ${name}`);
+        const others = [...engineFiles(), ...toolFiles(), ...codeFiles().filter((f) => f !== "src/engine-boundary-check.mjs")].filter((f) => !Object.values(ONCE).includes(f));
+        return [...missing, ...others.flatMap((f) => {
+            const defined = Object.keys(ONCE).filter((n) => definesOf(read(f)).has(n));
+            return defined.length ? [`${f}: defines ${defined.join(", ")}`] : [];
+        })];
+    },
+    // Avatar parts get engine folders, step 5: the motion driver and the movement model
+    "22 nothing under animation/ or navigation/ imports a renderer file, the Scene Manager, an importer or a file outside the engine": (read) => MOVERS.flatMap(filesIn).flatMap((f) =>
+        specifiersOf(read(f)).map((s) => [s, target(f, s)])
+            .filter(([s, t]) => /^(render|render-adapter)\//.test(t) || RENDERER.files.includes(t) || t === MANAGER || t.startsWith("import/") || READER_FORWARDS.test(t)
+                || t.startsWith("..") || s.startsWith("/") || s.startsWith("#") || /(^|\/)web\//.test(s))
+            .map(([s]) => `${f}: imports ${s}`)),
+    "23 animation/ imports nothing of navigation/, and navigation/ nothing of animation/": (read) => MOVERS.flatMap((dir) => {
+        const other = MOVERS.find((d) => d !== dir);
+        return filesIn(dir).flatMap((f) => specifiersOf(read(f)).filter((s) => target(f, s).startsWith(`${other}/`) || new RegExp(`(^|/)${other}/`).test(s))
+            .map((s) => `${f}: imports ${s}`));
+    }),
+    "24 animation/drivers/humanoid/vendor/avatar-ik.mjs imports nothing": (read) => (existsSync(join(ENGINE, IK)) ? specifiersOf(read(IK)).map((s) => `${IK}: imports ${s}`) : [`${IK}: missing`]),
+    "25 the motion driver, its fix-ups, its solver and the movement model exist once: no other file defines AvatarMotion, SolverStack, Locomotion, solveTwoBoneLeg or solveArmAvoid": (read) => {
+        const present = MOVER_FILES.filter((f) => existsSync(join(ENGINE, f)));
+        if (present.length < MOVER_FILES.length) return MOVER_FILES.filter((f) => !present.includes(f)).map((f) => `${f}: missing`);
+        const others = [...engineFiles().filter((f) => !MOVER_FILES.includes(f)), ...codeFiles().filter((f) => !MOVER_FROZEN.includes(f) && f !== "src/engine-boundary-check.mjs")];
+        const copies = others.flatMap((f) => {
+            const text = read(f), defined = MOVER_NAMES.filter((n) => definesOf(text).has(n) || classesOf(text).has(n));
+            return defined.length ? [`${f}: defines ${defined.join(", ")}`] : [];
+        });
+        const frozenUsed = codeFiles().filter((f) => !f.startsWith(MOVER_FROZEN_TREE)).flatMap((f) => [...importsOf(read(f)), ...requiresOf(read(f))]
+            .filter((s) => s.startsWith(".")).map((s) => relative(CODE, resolve(CODE, dirname(f), s)).split("\\").join("/"))
+            .filter((t) => MOVER_FROZEN.includes(t)).map((t) => `${f}: imports the frozen copy ${t}`));
+        return [...copies, ...frozenUsed];
+    },
+    // Body measuring has its own folder: it reads the rig, clip, item and mesh code; none of those reads it.
+    "26 process/body/ imports only three.js and process/rig/, clips/, items/, mesh/; none of those four imports process/body/": (read) => [
+        ...filesIn(`${PROCESS}/body`).flatMap((f) => [...importsOf(read(f)), ...requiresOf(read(f)), ...resolvesOf(read(f))].map((s) => [s, target(f, s)])
+            .filter(([s, t]) => !(s === "three" || /^process\/(rig|clips|items|mesh|body)\//.test(t))).map(([s]) => `${f}: imports ${s}`)),
+        ...["rig", "clips", "items", "mesh"].flatMap((d) => filesIn(`${PROCESS}/${d}`)).flatMap((f) => [...importsOf(read(f)), ...requiresOf(read(f)), ...resolvesOf(read(f))]
+            .filter((s) => target(f, s).startsWith(`${PROCESS}/body/`) || /(^|\/)body\//.test(s)).map((s) => `${f}: imports ${s}`)),
+    ],
 };
 
 const RULE_10 = Object.keys(RULES).find((r) => r.startsWith("10 ")), RULE_11 = Object.keys(RULES).find((r) => r.startsWith("11 ")), RULE_12 = Object.keys(RULES).find((r) => r.startsWith("12 "));
 const [RULE_13, RULE_14, RULE_15, RULE_16] = ["13 ", "14 ", "15 ", "16 "].map((n) => Object.keys(RULES).find((r) => r.startsWith(n)));
+const [RULE_17, RULE_18, RULE_19, RULE_20, RULE_21] = ["17 ", "18 ", "19 ", "20 ", "21 "].map((n) => Object.keys(RULES).find((r) => r.startsWith(n)));
+const [RULE_22, RULE_23, RULE_24, RULE_25] = ["22 ", "23 ", "24 ", "25 "].map((n) => Object.keys(RULES).find((r) => r.startsWith(n)));
+const RULE_26 = Object.keys(RULES).find((r) => r.startsWith("26 "));
 const run = (overrides = {}) => Object.entries(RULES).map(([rule, check]) => ({ rule, crossings: check(reader(overrides)) }));
 const results = run();
 const broken = results.filter((r) => r.crossings.length);
@@ -245,6 +346,31 @@ const FAULTS = rootAt > 0 ? [] : [
     { rule: RULE_14, edit: { "scene/check.mjs": `${readFileSync(join(ENGINE, "scene/check.mjs"), "utf8")}\nexport const fitFace = () => null;` } },
     { rule: RULE_15, edit: append("process/items/placement.mjs", "import { SolverStack } from '../../../../../web/avatar/runtime/fitting/solvers.mjs';") },
     { rule: RULE_16, edit: append("process/rig/rig.mjs", "import { backAnchor } from '../items/holds.mjs';") },
+    { rule: RULE_17, edit: append("process/body/body-details.mjs", "import { itemRecord } from '../items/placement.mjs';") },
+    { rule: RULE_17, edit: append("process/items/measures.mjs", "import { mapPoseAt } from '../clips/map-clips.mjs';") },
+    { rule: RULE_18, edit: append("process/body/body-details.mjs", "import { readFileSync } from 'node:fs';") },
+    { rule: RULE_18, edit: append("process/items/measures.mjs", "import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';") },
+    { rule: RULE_18, edit: append("process/body/body-details.mjs", "import { loadGlbScene } from '../../../tools/node-context.mjs';") },
+    { rule: RULE_19, edit: append("scene/check.mjs", "import { makeInPlace } from '../../tools/in-place.mjs';") },
+    { rule: RULE_19, edit: { "web/avatar/runtime/equipment.mjs": `${readFileSync(join(CODE, "web/avatar/runtime/equipment.mjs"), "utf8")}\nimport { makeInPlace } from '../../../runtime/scene-core/tools/in-place.mjs';` } },
+    { rule: RULE_20, edit: append("../tools/measure-body.mjs", "import { Equipment } from '../../../web/avatar/runtime/equipment.mjs';") },
+    { rule: RULE_20, edit: append("../tools/node-context.mjs", "import { createSceneManager } from '../public/scene/manager.mjs';") },
+    { rule: RULE_21, edit: append("scene/check.mjs", "export function measureBody() {}") },
+    { rule: RULE_21, edit: { "web/avatar/runtime/equipment.mjs": `${readFileSync(join(CODE, "web/avatar/runtime/equipment.mjs"), "utf8")}\nconst gripError = () => 0;` } },
+    { rule: RULE_21, edit: append("../tools/in-place.mjs", "export const measureBody = () => null;") },
+    { rule: RULE_22, edit: append("animation/drivers/humanoid/driver.mjs", 'import { createSceneView } from "../../../render/three/scene-view.mjs";') },
+    { rule: RULE_22, edit: append("navigation/humanoid/locomotion.mjs", 'const manager = await import("../../scene/manager.mjs");') },
+    { rule: RULE_22, edit: append("animation/drivers/humanoid/avatar-motion.mjs", 'import { gltfImporter } from "../../../import/gltf/to-scene.mjs";') },
+    { rule: RULE_22, edit: append("animation/drivers/humanoid/driver.mjs", 'import { readEvaluatedAvatarPose } from "../../../../../../web/evaluated-avatar-pose.mjs";') },
+    { rule: RULE_23, edit: append("animation/drivers/humanoid/driver.mjs", 'import { Locomotion } from "../../../navigation/humanoid/locomotion.mjs";') },
+    { rule: RULE_23, edit: append("navigation/humanoid/locomotion.mjs", 'import { AvatarMotion } from "../../animation/drivers/humanoid/avatar-motion.mjs";') },
+    { rule: RULE_24, edit: append(IK, 'import * as THREE from "three";') },
+    { rule: RULE_25, edit: { "web/avatar/runtime/avatar-motion.mjs": readFileSync(join(ENGINE, "animation/drivers/humanoid/avatar-motion.mjs"), "utf8") } },
+    { rule: RULE_25, edit: { "scene/check.mjs": `${readFileSync(join(ENGINE, "scene/check.mjs"), "utf8")}\nexport class SolverStack {}` } },
+    { rule: RULE_25, edit: { "web/avatar/runtime/index.mjs": `${readFileSync(join(CODE, "web/avatar/runtime/index.mjs"), "utf8")}\nimport { Locomotion as Frozen } from "../../vendor/avatar-evaluator-v1/mannequin/web/avatar/locomotion.mjs";` } },
+    { rule: RULE_26, edit: append("process/body/body-details.mjs", 'import { check } from "../../scene/check.mjs";') },
+    { rule: RULE_26, edit: append("process/rig/rig.mjs", "import { measureBody } from '../body/body-details.mjs';") },
+    { rule: RULE_26, edit: append("process/mesh/mesh-math.mjs", "import { measureBody } from '../body/body-details.mjs';") },
 ];
 const faults = FAULTS.map(({ rule, edit }) => {
     const found = run(edit).find((r) => r.rule === rule).crossings;

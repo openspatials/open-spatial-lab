@@ -1377,7 +1377,7 @@ faults.push(
   { statement: "catalog-materials", name: "the avatar's material maps are stripped, so it draws flat", expect: /texture|flat|colour/, edits: [
     { file: "web/avatar/actionforge-avatar.mjs", find: "  return { vrm, model: instance.holder, library, instance, tuning, items };", replace: "  instance.holder.traverse((o) => { if (o.isMesh && o.material) for (const m of [].concat(o.material)) { m.map = null; m.emissiveMap = null; m.needsUpdate = true; } });\n  return { vrm, model: instance.holder, library, instance, tuning, items };" }] },
   { statement: "catalog-deforms", name: "the motion clock is frozen, so the avatar never deforms", expect: /did not change|deform|frozen/i, edits: [
-    { file: "web/avatar/runtime/avatar-motion.mjs", find: "this.mixer.update(dt);", replace: "this.mixer.update(0);" }] },
+    { file: "runtime/scene-core/public/animation/drivers/humanoid/avatar-motion.mjs", find: "this.mixer.update(dt);", replace: "this.mixer.update(0);" }] },
 );
 
 process.on("exit", () => {

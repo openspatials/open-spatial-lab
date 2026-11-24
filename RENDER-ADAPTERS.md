@@ -538,6 +538,74 @@ Checks: `node src/engine-boundary-check.mjs` rules 13 to 16: no loader under
 vendor copy allowed by name); `process/items/` imports no solvers; `process/rig/`
 imports nothing from `process/items/`.
 
+## Body measuring in the engine (milestone "avatar parts get engine folders", step 4)
+
+Body measuring reads a rigged body at rest and writes its body record (`osl-fitting-body/1`):
+rig, roles, rest pose, bone lengths, height, hand hollows per grip pose, feet, head and torso
+volumes, face and back measures. It now lives in the engine. Moved, not redesigned.
+
+- `process/body/body-details.mjs`: `measureBody` and its helpers, the avatars build's
+  `fitting/body-details.mjs` with its import lines changed; its mesh maths is
+  `process/mesh/mesh-math.mjs` (no copy), whose names it re-exports. It imports
+  `process/rig/`, `process/clips/map-clips.mjs` (grip poses on the body's rig),
+  `process/items/holds.mjs` (grip frame, back anchor), `process/mesh/mesh-math.mjs` and `three`.
+  It takes a loaded scene and plain data and returns plain data; no file path of its own.
+- `process/items/measures.mjs`: `gripError`, `carryErrors`: how far a held item is from the
+  hand's hollow on a live avatar (item placement).
+- `runtime/scene-core/tools/measure-body.mjs` (Node only, beside the engine folder, with
+  `node-context.mjs` and `in-place.mjs`): loads a GLB and writes `<id>.body.json`. The source
+  rig, clip pack and item catalog are arguments (`--source-rig`, `--pack`, `--items`); the
+  worktree has no source rig yet (`mannequin.glb`). The avatars build's `--update` mode is not
+  moved. For adam and game-brute it writes the same record as the avatars build's tool, byte
+  for byte except `measured_at`.
+- Body measuring has its own folder, `process/body/`, because it reads the clip and item code;
+  rules 12 and 16 keep `process/rig/` free of both, and rule 26 lets `process/body/` read
+  `process/rig/`, `clips/`, `items/` and `mesh/` while none of those reads it.
+
+Checks: `node src/engine-boundary-check.mjs` rules 17 to 21: body measuring and the item
+measures import only three.js and their named engine files; nothing under `process/` imports a
+`node:` module, a loader or the Node tools; nothing in the engine or under `web/` imports the
+Node tools; a tool imports only `node:`, three.js, its own folder and `process/`;
+`measureBody` and `gripError` each exist once.
+
+## The motion driver and the movement model in the engine (milestone "avatar parts get engine folders", step 5)
+
+The humanoid motion driver picks which clips play and how they blend; its fix-ups (plant-feet,
+reach-hands, avoid-arms) run after the clips; the movement model moves the body over the floor
+and runs the jump. The driver is an Animator module and the movement model a Navigation module
+(MOVER-CONTRACTS-V0, section 1). Moved, not redesigned.
+
+- `animation/drivers/humanoid/avatar-motion.mjs`: AvatarMotion (clip blending). It imports
+  canEquip, GROUPS and splitClip from `process/items/placement.mjs` and STANCE_FADE_S from
+  `solvers.mjs` beside it.
+- `animation/drivers/humanoid/solvers.mjs`: SolverStack (the fix-ups), the runtime copy with
+  three import paths changed (`process/rig/roles.mjs`, `process/rig/rig.mjs`,
+  `process/items/holds.mjs`). The avatars build's torso-core avoidance (S1 to S8) is not carried:
+  it needs body-details.mjs and changes every arm pose.
+- `animation/drivers/humanoid/vendor/avatar-ik.mjs`: the leg and arm solver; it imports nothing.
+- `animation/drivers/humanoid/driver.mjs`: the thin contract wrapper. bind(body, clipSet, tuning,
+  style, { readPose }) makes AvatarMotion and SolverStack; step(dt, moverState, actions) runs the
+  clips, then the fix-ups, and returns readPose(body); capabilities() gives kind, actions, gaits
+  and speedRange_mps from the tuning; dispose() lets go of both. The application passes the pose
+  reader (web/evaluated-avatar-pose.mjs) as a function; the driver imports nothing from web/.
+  No caller uses it yet; the Lab's ActionForgeMotionDriver keeps its own sequence.
+- `navigation/humanoid/locomotion.mjs`: Locomotion and createTuning, the same bytes.
+- `three` crosses: AvatarMotion drives a three.js AnimationMixer, SolverStack writes three.js
+  bones, Locomotion keeps a three.js Vector3 and Quaternion. Allowed until the Scene's animation
+  tracks are designed.
+- The runtime's avatar-motion.mjs, locomotion.mjs, fitting/solvers.mjs and
+  fitting/vendor/avatar-ik.mjs are one-line forwards, found through
+  import.meta.resolve("#scene-manager").
+- Clip code still in the items folder: splitClip (with subClip and groupOf) is in
+  process/items/placement.mjs; it moves to process/clips/ with a forward when that folder is
+  next touched.
+
+Checks: `node src/engine-boundary-check.mjs` rules 22 to 25: nothing under animation/ or
+navigation/ imports a renderer file, the Scene Manager, an importer or anything outside the
+engine; animation/ and navigation/ import nothing of each other; vendor/avatar-ik.mjs imports
+nothing; AvatarMotion, SolverStack, Locomotion and the solver are defined once (the frozen
+vendor copy allowed by name).
+
 ## Evaluator distribution and verification
 
 `web/vendor/avatar-evaluator-v1` is the active versioned evaluator distribution.
